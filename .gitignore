@@ -1,0 +1,12 @@
+# History files
+.Rhistory
+.RData
+.Ruserdata
+
+# Local user database / configuration
+.Rproj.user/
+
+# Backup and temp files
+app_backup.R
+scratch_page*.html
+verify_ide.R

@@ -1,0 +1,104 @@
+---
+title: "Relatório de análise: Estatística Descritiva"
+subtitle: "Resumo numérico e relato descritivo automatizado"
+author:
+  - "IDE CatalyseR"
+date: today
+date-format: "DD/MM/YYYY"
+lang: pt
+abstract-title: "Resumo"
+abstract: |
+  Este relatório apresenta o resumo das medidas de tendência central e de dispersão
+  para as variáveis selecionadas. Inclui tabelas elegantes formatadas no estilo
+  institucional e síntese narrativa em português para facilitar a interpretação científica.
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: true
+    toc-title: "Sumário"
+    toc-depth: 3
+    number-sections: true
+    tbl-cap-location: top
+    fig-cap-location: bottom
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+params:
+  vars_selected: "comp_cm" # String separada por vírgulas (ex: "comp_cm,peso")
+  grupo: "none"
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+# ---- Pacotes -------------------------------------------------------------
+library(tibble)
+library(flextable)
+library(stringr)
+
+# ---- Carregar Funções Auxiliares -----------------------------------------
+if (file.exists("funcoes_descritiva.R")) {
+  source("funcoes_descritiva.R")
+} else if (file.exists("../scripts/funcoes_descritiva.R")) {
+  source("../scripts/funcoes_descritiva.R")
+} else if (file.exists("scripts/funcoes_descritiva.R")) {
+  source("scripts/funcoes_descritiva.R")
+}
+
+# ---- Carregar Dados ------------------------------------------------------
+if (file.exists("dados_limpos.rda")) {
+  load("dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("../dados/dados_limpos.rda")) {
+  load("../dados/dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("dados/dados_limpos.rda")) {
+  load("dados/dados_limpos.rda")
+  dados <- df_clean
+} else {
+  # Dados de simulação
+  set.seed(2026)
+  dados <- tibble::tibble(
+    comp_cm = 37.7625 + 9.84 * scale(rnorm(80)),
+    peso = 250 + 50 * scale(rnorm(80))
+  )
+}
+
+# Processar as variáveis passadas como parâmetro
+vars_vector <- str_trim(unlist(str_split(params$vars_selected, ",")))
+```
+
+# Introdução
+
+Este documento apresenta o resumo descritivo das variáveis de interesse da pesquisa. O objetivo é descrever as características de tendência central (média, mediana), variabilidade (desvio padrão, variância, amplitude) e distribuição dos dados analisados.
+
+# Resultados e Discussão
+
+A @tbl-resumo apresenta as estatísticas resumo detalhadas para as variáveis selecionadas.
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "Medidas estatísticas descritivas das variáveis analisadas."
+#| output: asis
+
+tab_stats <- mostrar_descr(dados, vars = vars_vector, grupo = params$grupo)
+flextable_ocean(tab_stats)
+```
+
+Abaixo apresenta-se a descrição narrativa em português das estatísticas calculadas:
+
+::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
+```{r}
+#| output: asis
+cat(relatar_descr(dados, vars = vars_vector, grupo = params$grupo))
+```
+:::
+
+# Conclusão
+
+Com base nos dados analisados, observou-se a dispersão e centralidade das variáveis, servindo como base diagnóstica para testes de hipóteses subsequentes ou inferência estatística avançada.

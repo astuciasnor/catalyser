@@ -1,0 +1,398 @@
+# Módulo de ANOVA de um Fator para IDE_R
+library(shiny)
+library(bslib)
+library(ggplot2)
+library(DT)
+
+if (file.exists("templates/funcoes_anova.R")) {
+  source("templates/funcoes_anova.R")
+}
+
+# Helper para customizar parâmetros do relatório Quarto de ANOVA
+customize_anova_qmd_params <- function(qmd_path, var_y, var_x, label_y, label_x) {
+  lines <- readLines(qmd_path, warn = FALSE)
+  lines <- gsub('var_y: ".*"', sprintf('var_y: "%s"', var_y), lines)
+  lines <- gsub('var_x: ".*"', sprintf('var_x: "%s"', var_x), lines)
+  lines <- gsub('label_y: ".*"', sprintf('label_y: "%s"', label_y), lines)
+  lines <- gsub('label_x: ".*"', sprintf('label_x: "%s"', label_x), lines)
+  return(lines)
+}
+
+mod_anova_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    layout_columns(
+      col_widths = c(1, 1, 1),
+      style = "grid-template-columns: 2.5fr 7fr 2.5fr !important;",
+      
+      # COLUNA 1: CONFIGURAÇÃO DO MODELO
+      div(
+        card(
+          card_header("Configuração da ANOVA"),
+          card_body(
+            style = "padding: 12px 15px;",
+            selectInput(ns("var_y"), "Variável Dependente (Y - Numérica):", choices = NULL),
+            selectInput(ns("var_x"), "Fator / Grupo (X - Categórica):", choices = NULL)
+          )
+        ),
+        card(
+          card_header("Relatório e Pacote de Estudo"),
+          card_body(
+            style = "padding: 12px 15px;",
+            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+            div(style = "margin-top: 8px;"),
+            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+            helpText("Gera os relatórios e projetos contendo os códigos estatísticos.", style = "margin-top: 10px; font-size: 0.85rem;")
+          )
+        )
+      ),
+      
+      # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
+      navset_card_tab(
+        id = ns("active_tab"),
+        title = "Painel de Resultados da ANOVA",
+        nav_panel(
+          title = "Tabela ANOVA & Pressupostos",
+          icon = icon("table"),
+          card_body(
+            uiOutput(ns("anova_pressupostos_ui"))
+          )
+        ),
+        nav_panel(
+          title = "Comparações (Tukey HSD)",
+          icon = icon("arrow-right-arrow-left"),
+          card_body(
+            uiOutput(ns("tukey_ui"))
+          )
+        ),
+        nav_panel(
+          title = "Gráfico de Médias",
+          icon = icon("chart-bar"),
+          card_body(
+            plotOutput(ns("fit_plot"), height = "450px")
+          )
+        ),
+        nav_panel(
+          title = "Diagnóstico (Resíduos)",
+          icon = icon("circle-check"),
+          card_body(
+            layout_columns(
+              plotOutput(ns("resid_fit_plot"), height = "400px"),
+              plotOutput(ns("qq_plot"), height = "400px")
+            )
+          )
+        )
+      ),
+      
+      # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
+      card(
+        card_header("Configurações de Exibição"),
+        card_body(
+          conditionalPanel(
+            condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)'", ns("active_tab"), ns("active_tab")),
+            textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
+            textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
+            textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = ""),
+            selectInput(ns("graph_theme"), "Tema do Gráfico:", 
+                        choices = c("Mínimo" = "minimal", 
+                                    "Clássico" = "classic", 
+                                    "Preto e Branco" = "bw", 
+                                    "Cinza" = "gray", 
+                                    "Light" = "light"), 
+                        selected = "minimal")
+          ),
+          conditionalPanel(
+            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)'", ns("active_tab"), ns("active_tab")),
+            helpText("Os resultados das tabelas são calculados de forma exata e não possuem configurações gráficas adicionais.")
+          )
+        )
+      )
+    )
+  )
+}
+
+mod_anova_server <- function(id, data_rv, import_info) {
+  moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+    
+    # Atualiza seletores de variáveis
+    observe({
+      df <- data_rv()
+      req(df)
+      cols <- names(df)
+      num_cols <- cols[sapply(df, is.numeric)]
+      
+      # Fatores podem ser texto ou numéricos discretos
+      cat_cols <- cols[!sapply(df, is.numeric) | sapply(df, function(x) length(unique(x)) < 15)]
+      
+      updateSelectInput(session, "var_y", choices = num_cols)
+      updateSelectInput(session, "var_x", choices = cat_cols)
+    })
+    
+    # Executa cálculo reativo da ANOVA
+    result_rv <- reactive({
+      df <- data_rv()
+      req(df, input$var_y, input$var_x)
+      calcular_anova(df, input$var_y, input$var_x)
+    })
+    
+    # Renderiza UI de ANOVA e Pressupostos
+    output$anova_pressupostos_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      relato <- relatar_anova(r)
+      
+      tagList(
+        h6("Tabela da Análise de Variância (ANOVA)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 5px;"),
+        tableOutput(ns("anova_table")),
+        hr(),
+        h6("Validação de Pressupostos Estatísticos", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+        tableOutput(ns("pressupostos_table")),
+        hr(),
+        h6("Relato Científico Automatizado", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+        div(class = "alert alert-secondary", style = "font-size: 0.9rem; line-height: 1.4;", relato)
+      )
+    })
+    
+    output$anova_table <- renderTable({
+      r <- result_rv()
+      req(r)
+      mostrar_anova(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    
+    output$pressupostos_table <- renderTable({
+      r <- result_rv()
+      req(r)
+      mostrar_pressupostos(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    
+    # Renderiza UI do teste de Tukey HSD
+    output$tukey_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      
+      tagList(
+        h6("Comparações Múltiplas de Tukey HSD (IC 95% das diferenças)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 5px;"),
+        tableOutput(ns("tukey_table")),
+        helpText("As comparações são estatisticamente significativas se o p-valor ajustado for menor que 0,05 e o intervalo de confiança não contiver o valor zero.")
+      )
+    })
+    
+    output$tukey_table <- renderTable({
+      r <- result_rv()
+      req(r)
+      mostrar_tukey(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+    
+    # Gráfico de Médias (Boxplot + Jitter)
+    output$fit_plot <- renderPlot({
+      r <- result_rv()
+      df <- data_rv()
+      req(r, df)
+      
+      g_theme <- switch(input$graph_theme,
+                        "minimal" = theme_minimal(base_size = 14),
+                        "classic" = theme_classic(base_size = 14),
+                        "bw"      = theme_bw(base_size = 14),
+                        "gray"    = theme_gray(base_size = 14),
+                        "light"   = theme_light(base_size = 14),
+                        theme_minimal(base_size = 14))
+      
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Distribuição de", r$dep_var, "por", r$ind_var)
+      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else r$ind_var
+      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else r$dep_var
+      
+      ggplot(df, aes(x = as.factor(.data[[r$ind_var]]), y = .data[[r$dep_var]], fill = as.factor(.data[[r$ind_var]]))) +
+        geom_boxplot(alpha = 0.6, outlier.color = NA) +
+        geom_jitter(color = "#495057", width = 0.12, alpha = 0.5, size = 2) +
+        # Adicionar ponto de média amostral de cada grupo
+        stat_summary(fun = mean, geom = "point", shape = 23, size = 4, fill = "white", color = "#0F3B5F") +
+        g_theme +
+        labs(title = title_val, x = x_label, y = y_label, fill = r$ind_var) +
+        theme(plot.title = element_text(face = "bold", color = "#0F3B5F"),
+              legend.position = "none")
+    })
+    
+    # Gráficos Diagnósticos: Resíduos vs Ajustados
+    output$resid_fit_plot <- renderPlot({
+      r <- result_rv()
+      req(r)
+      
+      g_theme <- switch(input$graph_theme,
+                        "minimal" = theme_minimal(base_size = 13),
+                        "classic" = theme_classic(base_size = 13),
+                        "bw"      = theme_bw(base_size = 13),
+                        "gray"    = theme_gray(base_size = 13),
+                        "light"   = theme_light(base_size = 13),
+                        theme_minimal(base_size = 13))
+      
+      diag_data <- data.frame(Ajustados = r$fitted, Residuos = r$residuals)
+      
+      ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +
+        geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
+        geom_hline(yintercept = 0, linetype = "dashed", color = "#dc3545", linewidth = 1) +
+        geom_smooth(method = "loess", formula = y ~ x, color = "#198754", fill = "#d1e7dd", se = FALSE) +
+        g_theme +
+        labs(title = "Resíduos vs Ajustados", x = "Valores Ajustados (Fitted)", y = "Resíduos (Residuals)") +
+        theme(plot.title = element_text(face = "bold", color = "#212529"))
+    })
+    
+    # Gráficos Diagnósticos: Normalidade (QQ Plot)
+    output$qq_plot <- renderPlot({
+      r <- result_rv()
+      req(r)
+      
+      g_theme <- switch(input$graph_theme,
+                        "minimal" = theme_minimal(base_size = 13),
+                        "classic" = theme_classic(base_size = 13),
+                        "bw"      = theme_bw(base_size = 13),
+                        "gray"    = theme_gray(base_size = 13),
+                        "light"   = theme_light(base_size = 13),
+                        theme_minimal(base_size = 13))
+      
+      # Calcular resíduos padronizados
+      std_resid <- scale(r$residuals)
+      diag_data_qq <- data.frame(ResiduosStd = std_resid)
+      
+      ggplot(diag_data_qq, aes(sample = ResiduosStd)) +
+        stat_qq(color = "#495057", alpha = 0.7, size = 2.5) +
+        stat_qq_line(color = "#0d6efd", linewidth = 1) +
+        g_theme +
+        labs(title = "Normal Q-Q Plot", x = "Quantis Teóricos", y = "Resíduos Padronizados") +
+        theme(plot.title = element_text(face = "bold", color = "#212529"))
+    })
+    
+    # Handlers de Download
+    output$download_report_docx <- downloadHandler(
+      filename = function() {
+        paste0("relatorio_anova_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
+      },
+      content = function(file) {
+        req(data_rv())
+        
+        temp_dir <- tempdir()
+        temp_qmd <- file.path(temp_dir, "relatorio_anova.qmd")
+        temp_ref <- file.path(temp_dir, "custom-reference.docx")
+        temp_func <- file.path(temp_dir, "funcoes_anova.R")
+        temp_data <- file.path(temp_dir, "dados_limpos.rda")
+        
+        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
+        file.copy("templates/funcoes_anova.R", temp_func, overwrite = TRUE)
+        file.copy("templates/relatorio_anova.qmd", temp_qmd, overwrite = TRUE)
+        
+        df_clean <- data_rv()
+        save(df_clean, file = temp_data)
+        
+        custom_qmd_lines <- customize_anova_qmd_params(
+          temp_qmd,
+          var_y = input$var_y,
+          var_x = input$var_x,
+          label_y = input$var_y,
+          label_x = input$var_x
+        )
+        writeLines(custom_qmd_lines, temp_qmd)
+        
+        old_wd <- getwd()
+        setwd(temp_dir)
+        system2("quarto", args = c("render", "relatorio_anova.qmd", "--to", "docx"))
+        setwd(old_wd)
+        
+        generated_docx <- file.path(temp_dir, "relatorio_anova.docx")
+        if (file.exists(generated_docx)) {
+          file.copy(generated_docx, file, overwrite = TRUE)
+        } else {
+          writeLines("Erro ao compilar o Word.", file)
+        }
+      }
+    )
+    
+    output$download_project_zip <- downloadHandler(
+      filename = function() {
+        paste0("projeto_anova_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
+      },
+      content = function(file) {
+        info <- import_info()
+        proj_dir_name <- paste0("projeto_anova_", format(Sys.Date(), "%Y-%m-%d"))
+        temp_dir <- tempdir()
+        proj_dir <- file.path(temp_dir, proj_dir_name)
+        
+        dir.create(proj_dir, showWarnings = FALSE)
+        dir_dados <- file.path(proj_dir, "dados")
+        dir_scripts <- file.path(proj_dir, "scripts")
+        dir_relatorios <- file.path(proj_dir, "relatorios")
+        
+        dir.create(dir_dados, showWarnings = FALSE)
+        dir.create(dir_scripts, showWarnings = FALSE)
+        dir.create(dir_relatorios, showWarnings = FALSE)
+        
+        df_clean <- data_rv()
+        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
+        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
+        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
+        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
+        
+        r_script_content <- c(
+          "# --- SCRIPT DE ANÁLISE DE VARIÂNCIA (ANOVA) ---",
+          "# Instalação de pacotes recomendados no RStudio:",
+          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
+          "library(ggplot2)",
+          "source('scripts/funcoes_anova.R')",
+          "",
+          "# 1. CARREGAR OS DADOS LIMPOS",
+          "load('dados/dados_limpos.rda')",
+          "dados <- df_clean",
+          "",
+          "# 2. AJUSTAR MODELO ANOVA E VERIFICAR PRESSUPOSTOS",
+          sprintf("r <- calcular_anova(dados, dep_var = '%s', ind_var = '%s')", 
+                  input$var_y, input$var_x),
+          "print(mostrar_anova(r))",
+          "print(mostrar_pressupostos(r))",
+          "",
+          "# 3. PÓS-TESTE (TUKEY HSD)",
+          "if (r$p_anova < 0.05) {",
+          "  print(mostrar_tukey(r))",
+          "}",
+          "cat(relatar_anova(r))",
+          "",
+          "# 4. GRÁFICOS",
+          sprintf("ggplot(dados, aes(x = as.factor(`%s`), y = `%s`, fill = as.factor(`%s`))) +", input$var_x, input$var_y, input$var_x),
+          "  geom_boxplot(alpha = 0.6) +",
+          "  geom_jitter(color = '#495057', width = 0.1) +",
+          "  stat_summary(fun = mean, geom = 'point', shape = 23, size = 4, fill = 'white') +",
+          "  theme_minimal() +",
+          "  theme(legend.position = 'none') +",
+          "  labs(title = 'Comparação de Médias (ANOVA)')"
+        )
+        
+        writeLines(r_script_content, file.path(dir_scripts, "analise_anova.R"))
+        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
+        file.copy("templates/funcoes_anova.R", file.path(dir_scripts, "funcoes_anova.R"), overwrite = TRUE)
+        
+        custom_qmd_lines <- customize_anova_qmd_params(
+          "templates/relatorio_anova.qmd",
+          var_y = input$var_y,
+          var_x = input$var_x,
+          label_y = input$var_y,
+          label_x = input$var_x
+        )
+        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_anova.qmd"))
+        
+        rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
+        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
+        
+        readme_content <- c(
+          "PACOTE DE ANÁLISE DE VARIÂNCIA (ANOVA)",
+          "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
+          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
+          "- scripts/analise_anova.R : Script contendo o cálculo da ANOVA e pós-testes."
+        )
+        writeLines(readme_content, file.path(proj_dir, "README.txt"))
+        
+        old_wd <- getwd()
+        setwd(temp_dir)
+        utils::zip(file, files = proj_dir_name)
+        setwd(old_wd)
+      }
+    )
+  })
+}
