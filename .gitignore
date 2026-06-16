@@ -10,3 +10,10 @@
 app_backup.R
 scratch_page*.html
 verify_ide.R
+
+# R Package Build Artifacts
+*.tar.gz
+src/*.o
+src/*.so
+.Rbuildignore
+

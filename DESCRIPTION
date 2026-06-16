@@ -1,0 +1,25 @@
+Package: catalyser
+Type: Package
+Title: CatalyseR: IDE Científica para Análise de Dados em R
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Evaldo", "Silva",
+      email = "astuciasnor@gmail.com",
+      role = c("aut", "cre")
+    )
+  )
+Description: Uma IDE R científica baseada em Shiny para análise de dados,
+    incluindo regressão, ANOVA, PCA, HCA e testes paramétricos.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+    shiny,
+    bslib,
+    ggplot2,
+    DT,
+    readxl,
+    markdown
+Depends: R (>= 4.0.0)
+Roxygen: list(markdown = TRUE)
+LazyData: true
