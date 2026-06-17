@@ -42,30 +42,30 @@ ui <- page_navbar(
       href = "#",
       onclick = "var el = document.querySelector(\"a[data-value='Sobre']\"); if(el) el.click(); return false;",
       style = "display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: #1d4ed8 !important; padding: 4px 6px; transition: all 0.2s ease; cursor: pointer;",
-      tags$i(class = "fas fa-university", style = "font-size: 1.4rem; color: #1d4ed8; margin-bottom: 2px;"),
-      span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.68rem; line-height: 1.05;")
+      tags$i(class = "fas fa-university", style = "font-size: 1.6rem; color: #1d4ed8; margin-bottom: 2px;"),
+      span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.76rem; line-height: 1.05;")
     ),
     # Linha divisória vertical
     div(
-      style = "width: 1px; height: 35px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 4px;"
+      style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 4px;"
     ),
     tags$a(
       href = "https://www.r-project.org/",
       target = "_blank",
       style = "display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;",
-      tags$img(src = "r_logo.png", height = "45px", style = "opacity: 0.95;") # Reduzido de 54px
+      tags$img(src = "r_logo.png", height = "52px", style = "opacity: 0.95;")
     ),
     tags$a(
       href = "https://shiny.posit.co/",
       target = "_blank",
       style = "display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;",
-      tags$img(src = "shiny_logo.png", height = "52px", style = "opacity: 0.95;") # Reduzido de 61px
+      tags$img(src = "shiny_logo.png", height = "59px", style = "opacity: 0.95;")
     ),
     tags$a(
       href = "https://portal.ufpa.br/",
       target = "_blank",
       style = "display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;",
-      tags$img(src = "ufpa_logo.png", height = "68px", style = "opacity: 0.95; object-fit: contain;") # Reduzido de 82px
+      tags$img(src = "ufpa_logo.png", height = "76px", style = "opacity: 0.95; object-fit: contain;")
     )
   ),
   theme = bs_theme(
@@ -124,7 +124,7 @@ ui <- page_navbar(
         max-width: none !important;
         padding: 0 !important;
         margin: 0 !important;
-        height: 80px !important; /* Compactado para 80px de altura */
+        height: 90px !important; /* Ajustado para 90px de altura */
         position: relative !important;
         background-color: transparent !important;
         border: none !important;
@@ -179,11 +179,11 @@ ui <- page_navbar(
         flex-wrap: nowrap !important; /* Evita quebra dos menus em múltiplas linhas */
         align-items: center !important;
         width: 100% !important;
-        height: 80px !important; /* Compactado para 80px de altura */
+        height: 90px !important; /* Ajustado para 90px de altura */
         justify-content: space-between !important;
         gap: 2px !important;
         border: 2px solid rgba(13, 110, 253, 0.45) !important;
-        padding: 2px 8px !important; /* Reduzido padding vertical para compactação */
+        padding: 4px 8px !important; /* Ajustado padding vertical */
         border-radius: 12px !important;
         background-color: rgba(228, 244, 230, 0.75) !important;
         box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
@@ -201,11 +201,11 @@ ui <- page_navbar(
         align-items: center !important;
         justify-content: center !important;
         text-align: center !important;
-        font-size: 0.68rem !important; /* Reduzido de 0.72rem para acomodar todos os itens na mesma linha */
+        font-size: 0.76rem !important; /* Aumentado para 0.76rem */
         font-family: 'Outfit', sans-serif !important;
         font-weight: 700 !important;
         padding: 2px 2px !important; /* Padding vertical mínimo */
-        gap: 1px !important; /* Espaçamento interno mínimo entre ícone e texto */
+        gap: 2px !important; /* Ajustado espaçamento entre ícone e texto */
         line-height: 1.05 !important;
         width: 100% !important;
         min-width: 0 !important;
@@ -227,7 +227,7 @@ ui <- page_navbar(
       }
       .navbar-nav .nav-item .nav-link i,
       .navbar-nav .nav-item .dropdown-toggle i {
-        font-size: 1.25rem !important; /* Reduzido de 1.38rem para se ajustar melhor */
+        font-size: 1.45rem !important; /* Aumentado para 1.45rem */
         margin-bottom: 1px !important; /* Margem mínima */
         margin-right: 0px !important;
       }
@@ -854,7 +854,7 @@ ui <- page_navbar(
       # Logo do CatalyseR (ao lado da frase)
       tags$img(
         src = "catalyser_logo_new.jpg",
-        height = "68px", # Reduzido de 82px para se ajustar à nova altura de 80px
+        height = "76px", # Ajustado para a nova altura de 90px
         style = "border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); object-fit: contain;"
       ),
       # Frase do slogan
