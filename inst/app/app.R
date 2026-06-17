@@ -170,6 +170,7 @@ ui <- page_navbar(
         justify-content: center !important;
         align-items: center !important; /* MUDADO de stretch para center */
         width: 100% !important;
+        position: relative !important; /* Contexto de posicionamento para o slogan */
       }
       
       /* Estilo dos Menus Empilhados (Ícone no Topo, Texto Embaixo) */
@@ -187,7 +188,6 @@ ui <- page_navbar(
         border-radius: 12px !important;
         background-color: rgba(228, 244, 230, 0.75) !important;
         box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
-        position: relative !important; /* Contexto de posicionamento para Ajuda/Sobre */
       }
       .navbar-nav .nav-item {
         flex: 1 1 0px !important;
@@ -859,7 +859,7 @@ ui <- page_navbar(
       ),
       # Frase do slogan
       div(
-        style = "font-size: 1.1rem; font-weight: 800; color: #0d6efd; text-align: left; line-height: 1.25; font-family: 'Outfit', sans-serif;",
+        style = "font-size: 1.1rem; font-weight: 800; color: #0d6efd; text-align: center; line-height: 1.25; font-family: 'Outfit', sans-serif;",
         "Catalisando seu Aprendizado"
       )
     )
