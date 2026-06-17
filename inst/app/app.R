@@ -36,19 +36,6 @@ ui <- page_navbar(
   window_title = "CatalyseR",
   title = div(
     style = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 10px !important; padding: 2px 10px !important; width: 100% !important; height: 100% !important;",
-    # Botão personalizado "Sobre" no canto esquerdo da barrinha da direita
-    tags$a(
-      id = "sobre-custom-btn",
-      href = "#",
-      onclick = "var el = document.querySelector(\"a[data-value='Sobre']\"); if(el) el.click(); return false;",
-      style = "display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: #1d4ed8 !important; padding: 4px 6px; transition: all 0.2s ease; cursor: pointer;",
-      tags$i(class = "fas fa-university", style = "font-size: 1.6rem; color: #1d4ed8; margin-bottom: 2px;"),
-      span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.76rem; line-height: 1.05;")
-    ),
-    # Linha divisória vertical
-    div(
-      style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 4px;"
-    ),
     tags$a(
       href = "https://www.r-project.org/",
       target = "_blank",
@@ -850,7 +837,20 @@ ui <- page_navbar(
   nav_item(
     div(
       class = "navbar-slogan-container",
-      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%;",
+      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 15px; width: 100%;",
+      # Botão personalizado "Sobre"
+      tags$a(
+        id = "sobre-custom-btn",
+        href = "#",
+        onclick = "var el = document.querySelector(\"a[data-value='Sobre']\"); if(el) el.click(); return false;",
+        style = "display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: #1d4ed8 !important; padding: 4px 8px; transition: all 0.2s ease; cursor: pointer;",
+        tags$i(class = "fas fa-university", style = "font-size: 1.6rem; color: #1d4ed8; margin-bottom: 2px;"),
+        span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.76rem; line-height: 1.05;")
+      ),
+      # Linha divisória vertical
+      div(
+        style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 2px;"
+      ),
       # Logo do CatalyseR
       tags$img(
         src = "catalyser_logo_new.jpg",
