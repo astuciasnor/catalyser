@@ -850,17 +850,12 @@ ui <- page_navbar(
   nav_item(
     div(
       class = "navbar-slogan-container",
-      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; padding: 2px 10px; width: 100%;",
-      # Logo do CatalyseR (ao lado da frase)
+      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%;",
+      # Logo do CatalyseR
       tags$img(
         src = "catalyser_logo_new.jpg",
         height = "76px", # Ajustado para a nova altura de 90px
         style = "border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); object-fit: contain;"
-      ),
-      # Frase do slogan
-      div(
-        style = "font-size: 1.1rem; font-weight: 800; color: #0d6efd; text-align: center; line-height: 1.25; font-family: 'Outfit', sans-serif;",
-        "Catalisando seu Aprendizado"
       )
     )
   )
