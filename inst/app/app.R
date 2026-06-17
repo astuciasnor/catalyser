@@ -859,9 +859,8 @@ ui <- page_navbar(
       ),
       # Frase do slogan
       div(
-        style = "font-size: 0.95rem; font-weight: 700; color: #0d6efd; text-align: left; line-height: 1.25; font-family: 'Inter', sans-serif;",
-        "Acelere seu Aprendizado em Estatística Aplicada Com o ",
-        span("CatalyseR", style = "font-weight: 800; font-family: 'Outfit', sans-serif;")
+        style = "font-size: 1.1rem; font-weight: 800; color: #0d6efd; text-align: left; line-height: 1.25; font-family: 'Outfit', sans-serif;",
+        "Catalisando seu Aprendizado"
       )
     )
   )
