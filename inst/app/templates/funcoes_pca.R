@@ -13,6 +13,13 @@
 library(tibble)
 library(flextable)
 
+# Evitar erros de 'req' não encontrado fora do Shiny
+if (!exists("req", mode = "function")) {
+  req <- function(...) {
+    invisible(TRUE)
+  }
+}
+
 # ---- Utilitário: Formato numérico brasileiro ---------------------------------
 fmt <- function(x, dig = 2) {
   if (is.null(x) || length(x) == 0 || is.na(x)) return("-")

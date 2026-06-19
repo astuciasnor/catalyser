@@ -1571,6 +1571,7 @@ RCatalyst::run_ide()</pre>
         "camaroes_sexo",
         "cangulo_crescimento",
         "captura_petrechos",
+        "isoproteica_bagre",
         "tilapia_crescimento"
       )
       selectInput("package_dataset", "Selecione o Dataset do EAPADados:", choices = datasets)

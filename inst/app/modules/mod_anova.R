@@ -81,6 +81,38 @@ mod_anova_ui <- function(id) {
               plotOutput(ns("qq_plot"), height = "400px")
             )
           )
+        ),
+        nav_panel(
+          title = "Curva F e Simulação",
+          icon = icon("chart-line"),
+          card_body(
+            layout_columns(
+              col_widths = c(4, 8),
+              card(
+                card_header("Parâmetros do Simulador"),
+                card_body(
+                  checkboxInput(ns("use_calculated_values"), "Usar valores reais do modelo", TRUE),
+                  conditionalPanel(
+                    condition = sprintf("!input['%s']", ns("use_calculated_values")),
+                    numericInput(ns("sim_df_num"), "Graus de Liberdade Num. (gl Fator):", value = 3, min = 1, step = 1),
+                    numericInput(ns("sim_df_den"), "Graus de Liberdade Den. (gl Resíduos):", value = 15, min = 1, step = 1),
+                    numericInput(ns("sim_f_val"), "F Calculado para Visualizar:", value = 2.5, min = 0, step = 0.1)
+                  ),
+                  conditionalPanel(
+                    condition = sprintf("input['%s']", ns("use_calculated_values")),
+                    uiOutput(ns("calculated_values_info_ui"))
+                  ),
+                  sliderInput(ns("sim_alpha"), "Nível de Significância (alfa):", min = 0.001, max = 0.20, value = 0.05, step = 0.005)
+                )
+              ),
+              card(
+                card_header("Visualização da Distribuição F Teórica"),
+                card_body(
+                  plotOutput(ns("f_dist_plot"), height = "420px")
+                )
+              )
+            )
+          )
         )
       ),
       
@@ -89,7 +121,7 @@ mod_anova_ui <- function(id) {
         card_header("Configurações de Exibição"),
         card_body(
           conditionalPanel(
-            condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)'", ns("active_tab"), ns("active_tab")),
+            condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)' && input['%s'] != 'Curva F e Simulação'", ns("active_tab"), ns("active_tab"), ns("active_tab")),
             textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
             textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
             textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = ""),
@@ -102,8 +134,8 @@ mod_anova_ui <- function(id) {
                         selected = "minimal")
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)'", ns("active_tab"), ns("active_tab")),
-            helpText("Os resultados das tabelas são calculados de forma exata e não possuem configurações gráficas adicionais.")
+            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)' || input['%s'] == 'Curva F e Simulação'", ns("active_tab"), ns("active_tab"), ns("active_tab")),
+            helpText("Os resultados das tabelas e simulações teóricas são calculados de forma exata e não possuem configurações gráficas adicionais.")
           )
         )
       )
@@ -260,6 +292,70 @@ mod_anova_server <- function(id, data_rv, import_info) {
         g_theme +
         labs(title = "Normal Q-Q Plot", x = "Quantis Teóricos", y = "Resíduos Padronizados") +
         theme(plot.title = element_text(face = "bold", color = "#212529"))
+    })
+    
+    # Renderizar informações dos valores calculados do modelo real
+    output$calculated_values_info_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      tagList(
+        tags$p(tags$b("Graus de Liberdade Fator (gl): "), r$df_entre, style = "margin-bottom: 4px; font-size: 0.85rem;"),
+        tags$p(tags$b("Graus de Liberdade Resíduos (gl): "), r$df_dentro, style = "margin-bottom: 4px; font-size: 0.85rem;"),
+        tags$p(tags$b("F Calculado do Modelo: "), round(r$f_anova, 4), style = "margin-bottom: 4px; font-size: 0.85rem;")
+      )
+    })
+    
+    # Renderizar gráfico de curva F teórica com simulação interativa
+    output$f_dist_plot <- renderPlot({
+      library(vistributions)
+      
+      # Carregar valores reais ou usar inputs de simulação
+      if (input$use_calculated_values) {
+        r <- result_rv()
+        req(r)
+        df_num <- r$df_entre
+        df_den <- r$df_dentro
+        f_val <- r$f_anova
+      } else {
+        req(input$sim_df_num, input$sim_df_den)
+        df_num <- input$sim_df_num
+        df_den <- input$sim_df_den
+        f_val <- input$sim_f_val
+      }
+      
+      alpha <- input$sim_alpha
+      
+      # Gerar a curva de distribuição F usando vdist_f_perc (para realçar região crítica)
+      p <- tryCatch({
+        vdist_f_perc(probs = 1 - alpha, num_df = df_num, den_df = df_den, type = "lower", print_plot = FALSE)
+      }, error = function(e) {
+        ggplot() + 
+          annotate("text", x = 0.5, y = 0.5, label = paste("Erro ao gerar gráfico:", e$message), color = "red") + 
+          theme_void()
+      })
+      
+      # Adicionar F experimental/calculado no gráfico se for válido
+      if (!is.null(p) && inherits(p, "ggplot") && !is.null(f_val) && !is.na(f_val)) {
+        f_crit <- qf(1 - alpha, df_num, df_den)
+        max_x <- max(f_crit * 1.5, f_val * 1.2, 5)
+        max_x <- min(max_x, 50) # limite de segurança para a visualização
+        
+        p <- p + 
+          geom_vline(xintercept = f_val, color = "#0d6efd", linewidth = 1.2, linetype = "solid") +
+          annotate("label", x = f_val, y = 0, label = paste("F calc =", round(f_val, 2)), 
+                   fill = "white", color = "#0d6efd", fontface = "bold", size = 4) +
+          coord_cartesian(xlim = c(0, max_x)) +
+          labs(
+            title = paste("Distribuição F Teórica (gl =", df_num, ",", df_den, ")"),
+            subtitle = paste("Região de Rejeição a", alpha * 100, "% (F >", round(f_crit, 3), ")")
+          ) +
+          theme(
+            plot.title = element_text(face = "bold", color = "#0F3B5F", size = 13),
+            plot.subtitle = element_text(color = "#495057", size = 10)
+          )
+      }
+      
+      p
     })
     
     # Handlers de Download

@@ -61,9 +61,10 @@ export_to_xlsx <- function(df, dataset_name, file_path) {
           "CPUE" = "Captura por Unidade de Esforço (número de indivíduos capturados por hora de pesca).",
           NA_character_
         )
-      } else if (ds_name == "isoproteica") {
+      } else if (ds_name == "isoproteica_bagre") {
         desc <- switch(col,
           "racao" = "Ração comercial oferecida (fator: A, B, C, D - todas isoproteicas mas com diferentes níveis de lipídios).",
+          "peso_g" = "Peso médio final dos bagres por gaiola, em gramas (g).",
           NA_character_
         )
       } else if (ds_name == "tilapia_crescimento") {
