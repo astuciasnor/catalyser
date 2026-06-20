@@ -113,6 +113,40 @@ mod_anova_ui <- function(id) {
               )
             )
           )
+        ),
+        nav_panel(
+          title = "Simulador Didático",
+          icon = icon("gamepad"),
+          card_body(
+            layout_columns(
+              col_widths = c(4, 8),
+              # Painel de Sliders reativos (Coluna da Esquerda)
+              card(
+                card_header("Parâmetros do Simulador"),
+                card_body(
+                  style = "padding: 10px 12px; overflow-y: auto; max-height: 520px;",
+                  helpText("Arraste os valores para observar a variação no gráfico e nas estatísticas em tempo real (dados simulados com base no modelo real)."),
+                  hr(style = "margin: 8px 0;"),
+                  uiOutput(ns("sim_sliders_ui"))
+                )
+              ),
+              # Painel do Gráfico e Estatísticas (Coluna da Direita)
+              div(
+                card(
+                  card_header("Dados Simulados vs Médias e SD"),
+                  card_body(
+                    plotOutput(ns("sim_plot"), height = "300px")
+                  )
+                ),
+                card(
+                  card_header("Resultados Estatísticos da Simulação (ANOVA)"),
+                  card_body(
+                    uiOutput(ns("sim_stats_ui"))
+                  )
+                )
+              )
+            )
+          )
         )
       ),
       
@@ -121,7 +155,7 @@ mod_anova_ui <- function(id) {
         card_header("Configurações de Exibição"),
         card_body(
           conditionalPanel(
-            condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)' && input['%s'] != 'Curva F e Simulação'", ns("active_tab"), ns("active_tab"), ns("active_tab")),
+            condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)' && input['%s'] != 'Curva F e Simulação' && input['%s'] != 'Simulador Didático'", ns("active_tab"), ns("active_tab"), ns("active_tab"), ns("active_tab")),
             textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
             textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
             textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = ""),
@@ -134,7 +168,7 @@ mod_anova_ui <- function(id) {
                         selected = "minimal")
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)' || input['%s'] == 'Curva F e Simulação'", ns("active_tab"), ns("active_tab"), ns("active_tab")),
+            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)' || input['%s'] == 'Curva F e Simulação' || input['%s'] == 'Simulador Didático'", ns("active_tab"), ns("active_tab"), ns("active_tab"), ns("active_tab")),
             helpText("Os resultados das tabelas e simulações teóricas são calculados de forma exata e não possuem configurações gráficas adicionais.")
           )
         )
@@ -356,6 +390,201 @@ mod_anova_server <- function(id, data_rv, import_info) {
       }
       
       p
+    })
+    
+    # ==========================================
+    # LÓGICA DO SIMULADOR DIDÁTICO
+    # ==========================================
+    
+    # 1. Renderiza a interface de Sliders dinâmicos com base nos níveis do fator categórico atual
+    output$sim_sliders_ui <- renderUI({
+      r <- result_rv()
+      df <- data_rv()
+      req(r, df)
+      
+      levels_x <- levels(as.factor(df[[r$ind_var]]))
+      # Limitar a no máximo 5 níveis no simulador para não sobrecarregar
+      levels_x <- head(levels_x, 5)
+      
+      # Calcular médias reais de cada grupo
+      means <- sapply(levels_x, function(lvl) {
+        mean(df[[r$dep_var]][df[[r$ind_var]] == lvl], na.rm = TRUE)
+      })
+      
+      # Desvio padrão residual real
+      sd_res <- sd(r$residuals)
+      
+      # Tamanho amostral real aproximado
+      n_rep <- round(mean(table(df[[r$ind_var]][df[[r$ind_var]] %in% levels_x])))
+      
+      # Limites dos sliders baseados nas variáveis
+      min_y <- min(df[[r$dep_var]], na.rm = TRUE)
+      max_y <- max(df[[r$dep_var]], na.rm = TRUE)
+      range_y <- max_y - min_y
+      
+      # Gerar os sliders para cada média de grupo
+      mean_sliders <- lapply(levels_x, function(lvl) {
+        sliderInput(
+          inputId = session$ns(paste0("sim_mean_", lvl)),
+          label = paste("Média Grupo", lvl),
+          min = round(min_y - range_y * 0.15, 1),
+          max = round(max_y + range_y * 0.15, 1),
+          value = round(means[lvl], 1),
+          step = 0.1
+        )
+      })
+      
+      tagList(
+        h6("Médias dos Grupos", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 10px;"),
+        mean_sliders,
+        hr(style = "margin: 10px 0;"),
+        h6("Dispersão e Amostragem", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+        sliderInput(
+          inputId = session$ns("sim_sd"),
+          label = "Desvio Padrão Interno (Erro / SD):",
+          min = round(max(0.1, sd_res * 0.1), 2),
+          max = round(sd_res * 3, 2),
+          value = round(sd_res, 2),
+          step = 0.05
+        ),
+        sliderInput(
+          inputId = session$ns("sim_n"),
+          label = "Nº de Réplicas por Grupo (n):",
+          min = 3,
+          max = 30,
+          value = n_rep,
+          step = 1
+        )
+      )
+    })
+    
+    # 2. Dados Simulados reativos
+    simulated_data_rv <- reactive({
+      r <- result_rv()
+      df <- data_rv()
+      req(r, df)
+      
+      levels_x <- levels(as.factor(df[[r$ind_var]]))
+      levels_x <- head(levels_x, 5)
+      
+      # Obter valores de médias dos sliders
+      sim_means <- sapply(levels_x, function(lvl) {
+        val <- input[[paste0("sim_mean_", lvl)]]
+        if (is.null(val)) {
+          # Fallback para média real caso o slider ainda não esteja renderizado
+          mean(df[[r$dep_var]][df[[r$ind_var]] == lvl], na.rm = TRUE)
+        } else {
+          val
+        }
+      })
+      
+      sim_sd <- input$sim_sd
+      if (is.null(sim_sd)) sim_sd <- sd(r$residuals)
+      
+      sim_n <- input$sim_n
+      if (is.null(sim_n)) sim_n <- 5
+      
+      # Semente fixa para que os pontos não fiquem pulando na tela a cada mudança
+      set.seed(1234)
+      
+      sim_df <- data.frame(
+        Grupo = rep(levels_x, each = sim_n),
+        Valor = unlist(lapply(levels_x, function(lvl) {
+          rnorm(sim_n, mean = sim_means[lvl], sd = sim_sd)
+        }))
+      )
+      
+      # Ajustar ANOVA simulada
+      fit_sim <- aov(Valor ~ Grupo, data = sim_df)
+      anova_sim <- summary(fit_sim)[[1]]
+      
+      list(
+        data = sim_df,
+        fit = fit_sim,
+        anova_summary = anova_sim,
+        means = sim_means,
+        sd = sim_sd,
+        n = sim_n,
+        f_val = anova_sim$`F value`[1],
+        p_val = anova_sim$`Pr(>F)`[1],
+        sq_entre = anova_sim$`Sum Sq`[1],
+        sq_dentro = anova_sim$`Sum Sq`[2]
+      )
+    })
+    
+    # 3. Renderiza o gráfico do simulador
+    output$sim_plot <- renderPlot({
+      sim <- simulated_data_rv()
+      r <- result_rv()
+      req(sim, r)
+      
+      # Criar resumo de médias e SDs
+      summary_df <- data.frame(
+        Grupo = names(sim$means),
+        Media = as.numeric(sim$means),
+        SD = as.numeric(sim$sd)
+      )
+      
+      ggplot() +
+        # Desenhar barras das médias simuladas
+        geom_col(data = summary_df, aes(x = Grupo, y = Media, fill = Grupo), alpha = 0.5, color = "black", width = 0.6) +
+        # Barras de erro (SD)
+        geom_errorbar(data = summary_df, aes(x = Grupo, ymin = Media - SD, ymax = Media + SD), width = 0.15, linewidth = 0.8, color = "#0F3B5F") +
+        # Desenhar pontos individuais simulados
+        geom_jitter(data = sim$data, aes(x = Grupo, y = Valor), color = "#495057", width = 0.08, height = 0, size = 3, alpha = 0.6) +
+        theme_minimal(base_size = 13) +
+        labs(
+          title = "Distribuição Amostral Simulada (Médias ± 1 DP)",
+          x = r$ind_var,
+          y = r$dep_var
+        ) +
+        theme(
+          plot.title = element_text(face = "bold", color = "#0F3B5F"),
+          legend.position = "none"
+        )
+    })
+    
+    # 4. Renderiza o dashboard de estatísticas da simulação
+    output$sim_stats_ui <- renderUI({
+      sim <- simulated_data_rv()
+      req(sim)
+      
+      # Formatar strings
+      f_str <- fmt(sim$f_val, 3)
+      p_str <- if (sim$p_val < 0.001) "p < 0,001" else paste0("p = ", fmt(sim$p_val, 4))
+      
+      # Cores de feedback dinâmico
+      sig_class <- if (sim$p_val < 0.05) "alert-success" else "alert-danger"
+      sig_label <- if (sim$p_val < 0.05) "Diferenças estatisticamente significativas (H0 rejeitada)" else "Sem diferenças estatisticamente significativas (H0 aceita)"
+      
+      tagList(
+        layout_columns(
+          col_widths = c(3, 3, 3, 3),
+          # Box 1
+          div(class = "card text-center border-primary", style = "padding: 8px; margin-bottom: 4px;",
+            h6("F Calculado", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
+            h4(f_str, class = "card-title text-primary", style = "font-weight: 800; margin-bottom: 0;")
+          ),
+          # Box 2
+          div(class = paste("card text-center alert", sig_class), style = "padding: 8px; margin-bottom: 4px; border: 1px solid; color: inherit;",
+            h6("p-valor", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
+            h4(p_str, class = "card-title", style = "font-weight: 800; margin-bottom: 0;")
+          ),
+          # Box 3
+          div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 4px;",
+            h6("SQ Entre (Fator)", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
+            h4(fmt(sim$sq_entre, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0;")
+          ),
+          # Box 4
+          div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 4px;",
+            h6("SQ Dentro (Erro)", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
+            h4(fmt(sim$sq_dentro, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0;")
+          )
+        ),
+        div(class = paste("alert text-center", sig_class), style = "padding: 6px; font-weight: 600; font-size: 0.85rem; margin-top: 6px; margin-bottom: 0;",
+          sig_label
+        )
+      )
     })
     
     # Handlers de Download
