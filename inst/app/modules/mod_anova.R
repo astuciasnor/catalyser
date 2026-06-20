@@ -518,26 +518,26 @@ mod_anova_server <- function(id, data_rv, import_info) {
       r <- result_rv()
       req(sim, r)
       
-      # Criar resumo de médias e SDs
-      summary_df <- data.frame(
-        Grupo = names(sim$means),
-        Media = as.numeric(sim$means),
-        SD = as.numeric(sim$sd)
-      )
+      library(ggpubr)
       
-      ggplot() +
-        # Desenhar barras das médias simuladas
-        geom_col(data = summary_df, aes(x = Grupo, y = Media, fill = Grupo), alpha = 0.5, color = "black", width = 0.6) +
-        # Barras de erro (SD)
-        geom_errorbar(data = summary_df, aes(x = Grupo, ymin = Media - SD, ymax = Media + SD), width = 0.15, linewidth = 0.8, color = "#0F3B5F") +
-        # Desenhar pontos individuais simulados
-        geom_jitter(data = sim$data, aes(x = Grupo, y = Valor), color = "#495057", width = 0.08, height = 0, size = 3, alpha = 0.6) +
-        theme_minimal(base_size = 13) +
-        labs(
-          title = "Distribuição Amostral Simulada (Médias ± 1 DP)",
-          x = r$ind_var,
-          y = r$dep_var
-        ) +
+      # Níveis ordenados do fator para manter a consistência no eixo X
+      levels_x <- levels(as.factor(sim$data$Grupo))
+      
+      ggline(
+        data = sim$data,
+        x = "Grupo",
+        y = "Valor",
+        add = c("mean_se", "jitter"),
+        color = "Grupo",
+        palette = "jco",
+        order = levels_x,
+        ylab = r$dep_var,
+        xlab = r$ind_var,
+        title = "Gráfico de Médias e Erro Padrão (Simulado)",
+        ggtheme = theme_minimal(base_size = 13)
+      ) +
+        # Linha pontilhada conectando as médias para guiar a visualização da tendência
+        stat_summary(fun = mean, geom = "line", aes(group = 1), color = "#a0aec0", linewidth = 0.8, linetype = "dashed") +
         theme(
           plot.title = element_text(face = "bold", color = "#0F3B5F"),
           legend.position = "none"
