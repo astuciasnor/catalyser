@@ -124,25 +124,15 @@ mod_anova_ui <- function(id) {
               card(
                 card_header("Parâmetros do Simulador"),
                 card_body(
-                  style = "padding: 10px 12px; overflow-y: auto; max-height: 520px;",
-                  helpText("Arraste os valores para observar a variação no gráfico e nas estatísticas em tempo real (dados simulados com base no modelo real)."),
-                  hr(style = "margin: 8px 0;"),
+                  style = "padding: 10px 12px; overflow-y: auto; max-height: 480px;",
                   uiOutput(ns("sim_sliders_ui"))
                 )
               ),
-              # Painel do Gráfico e Estatísticas (Coluna da Direita)
-              div(
-                card(
-                  card_header("Dados Simulados vs Médias e SD"),
-                  card_body(
-                    plotOutput(ns("sim_plot"), height = "300px")
-                  )
-                ),
-                card(
-                  card_header("Resultados Estatísticos da Simulação (ANOVA)"),
-                  card_body(
-                    uiOutput(ns("sim_stats_ui"))
-                  )
+              # Painel do Gráfico (Coluna da Direita)
+              card(
+                card_header("Dados Simulados vs Médias e SD"),
+                card_body(
+                  plotOutput(ns("sim_plot"), height = "410px")
                 )
               )
             )
@@ -150,10 +140,20 @@ mod_anova_ui <- function(id) {
         )
       ),
       
-      # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
+      # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO / RESULTADOS DO SIMULADOR
       card(
-        card_header("Configurações de Exibição"),
+        card_header(
+          conditionalPanel(
+            condition = sprintf("input['%s'] != 'Simulador Didático'", ns("active_tab")),
+            "Configurações de Exibição"
+          ),
+          conditionalPanel(
+            condition = sprintf("input['%s'] == 'Simulador Didático'", ns("active_tab")),
+            "Resultados do Simulador"
+          )
+        ),
         card_body(
+          style = "padding: 10px 12px;",
           conditionalPanel(
             condition = sprintf("input['%s'] != 'Tabela ANOVA & Pressupostos' && input['%s'] != 'Comparações (Tukey HSD)' && input['%s'] != 'Curva F e Simulação' && input['%s'] != 'Simulador Didático'", ns("active_tab"), ns("active_tab"), ns("active_tab"), ns("active_tab")),
             textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
@@ -168,8 +168,12 @@ mod_anova_ui <- function(id) {
                         selected = "minimal")
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)' || input['%s'] == 'Curva F e Simulação' || input['%s'] == 'Simulador Didático'", ns("active_tab"), ns("active_tab"), ns("active_tab"), ns("active_tab")),
+            condition = sprintf("input['%s'] == 'Tabela ANOVA & Pressupostos' || input['%s'] == 'Comparações (Tukey HSD)' || input['%s'] == 'Curva F e Simulação'", ns("active_tab"), ns("active_tab"), ns("active_tab")),
             helpText("Os resultados das tabelas e simulações teóricas são calculados de forma exata e não possuem configurações gráficas adicionais.")
+          ),
+          conditionalPanel(
+            condition = sprintf("input['%s'] == 'Simulador Didático'", ns("active_tab")),
+            uiOutput(ns("sim_stats_col3_ui"))
           )
         )
       )
@@ -414,9 +418,6 @@ mod_anova_server <- function(id, data_rv, import_info) {
       # Desvio padrão residual real
       sd_res <- sd(r$residuals)
       
-      # Tamanho amostral real aproximado
-      n_rep <- round(mean(table(df[[r$ind_var]][df[[r$ind_var]] %in% levels_x])))
-      
       # Limites dos sliders baseados nas variáveis
       min_y <- min(df[[r$dep_var]], na.rm = TRUE)
       max_y <- max(df[[r$dep_var]], na.rm = TRUE)
@@ -435,25 +436,14 @@ mod_anova_server <- function(id, data_rv, import_info) {
       })
       
       tagList(
-        h6("Médias dos Grupos", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 10px;"),
         mean_sliders,
-        hr(style = "margin: 10px 0;"),
-        h6("Dispersão e Amostragem", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
         sliderInput(
           inputId = session$ns("sim_sd"),
-          label = "Desvio Padrão Interno (Erro / SD):",
+          label = "Desvio Padrão (SD) / EP:",
           min = round(max(0.1, sd_res * 0.1), 2),
           max = round(sd_res * 3, 2),
           value = round(sd_res, 2),
           step = 0.05
-        ),
-        sliderInput(
-          inputId = session$ns("sim_n"),
-          label = "Nº de Réplicas por Grupo (n):",
-          min = 3,
-          max = 30,
-          value = n_rep,
-          step = 1
         )
       )
     })
@@ -481,8 +471,9 @@ mod_anova_server <- function(id, data_rv, import_info) {
       sim_sd <- input$sim_sd
       if (is.null(sim_sd)) sim_sd <- sd(r$residuals)
       
-      sim_n <- input$sim_n
-      if (is.null(sim_n)) sim_n <- 5
+      # Calcular tamanho amostral real dinamicamente do dataset
+      sim_n <- round(mean(table(df[[r$ind_var]][df[[r$ind_var]] %in% levels_x])))
+      if (is.null(sim_n) || is.na(sim_n) || sim_n < 2) sim_n <- 5
       
       # Semente fixa para que os pontos não fiquem pulando na tela a cada mudança
       set.seed(1234)
@@ -544,8 +535,8 @@ mod_anova_server <- function(id, data_rv, import_info) {
         )
     })
     
-    # 4. Renderiza o dashboard de estatísticas da simulação
-    output$sim_stats_ui <- renderUI({
+    # 4. Renderiza o dashboard de estatísticas da simulação na coluna 3 (Configurações / Simulador)
+    output$sim_stats_col3_ui <- renderUI({
       sim <- simulated_data_rv()
       req(sim)
       
@@ -558,30 +549,23 @@ mod_anova_server <- function(id, data_rv, import_info) {
       sig_label <- if (sim$p_val < 0.05) "Diferenças estatisticamente significativas (H0 rejeitada)" else "Sem diferenças estatisticamente significativas (H0 aceita)"
       
       tagList(
-        layout_columns(
-          col_widths = c(3, 3, 3, 3),
-          # Box 1
-          div(class = "card text-center border-primary", style = "padding: 8px; margin-bottom: 4px;",
-            h6("F Calculado", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
-            h4(f_str, class = "card-title text-primary", style = "font-weight: 800; margin-bottom: 0;")
-          ),
-          # Box 2
-          div(class = paste("card text-center alert", sig_class), style = "padding: 8px; margin-bottom: 4px; border: 1px solid; color: inherit;",
-            h6("p-valor", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
-            h4(p_str, class = "card-title", style = "font-weight: 800; margin-bottom: 0;")
-          ),
-          # Box 3
-          div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 4px;",
-            h6("SQ Entre (Fator)", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
-            h4(fmt(sim$sq_entre, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0;")
-          ),
-          # Box 4
-          div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 4px;",
-            h6("SQ Dentro (Erro)", class = "card-subtitle text-muted", style = "font-size: 0.8rem; margin-bottom: 2px;"),
-            h4(fmt(sim$sq_dentro, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0;")
-          )
+        div(class = "card text-center border-primary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
+          h6("F Calculado", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
+          h4(f_str, class = "card-title text-primary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.25rem;")
         ),
-        div(class = paste("alert text-center", sig_class), style = "padding: 6px; font-weight: 600; font-size: 0.85rem; margin-top: 6px; margin-bottom: 0;",
+        div(class = paste("card text-center alert", sig_class), style = "padding: 8px; margin-bottom: 6px; border: 1px solid; color: inherit; border-radius: 6px;",
+          h6("p-valor", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
+          h4(p_str, class = "card-title", style = "font-weight: 800; margin-bottom: 0; font-size: 1.25rem;")
+        ),
+        div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
+          h6("SQ Entre (Fator)", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
+          h4(fmt(sim$sq_entre, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.1rem;")
+        ),
+        div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
+          h6("SQ Dentro (Erro)", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
+          h4(fmt(sim$sq_dentro, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.1rem;")
+        ),
+        div(class = paste("alert text-center", sig_class), style = "padding: 8px; font-weight: 600; font-size: 0.8rem; margin-top: 8px; margin-bottom: 0; border-radius: 6px;",
           sig_label
         )
       )
