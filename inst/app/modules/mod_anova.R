@@ -254,7 +254,7 @@ mod_anova_server <- function(id, data_rv, import_info) {
       mostrar_tukey(r)
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
     
-    # Gráfico de Médias (Boxplot + Jitter)
+    # Gráfico de Médias (ggline de ggpubr)
     output$fit_plot <- renderPlot({
       r <- result_rv()
       df <- data_rv()
@@ -268,19 +268,32 @@ mod_anova_server <- function(id, data_rv, import_info) {
                         "light"   = theme_light(base_size = 14),
                         theme_minimal(base_size = 14))
       
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Distribuição de", r$dep_var, "por", r$ind_var)
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Gráfico de Médias e Erro Padrão de", r$dep_var, "por", r$ind_var)
       x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else r$ind_var
       y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else r$dep_var
       
-      ggplot(df, aes(x = as.factor(.data[[r$ind_var]]), y = .data[[r$dep_var]], fill = as.factor(.data[[r$ind_var]]))) +
-        geom_boxplot(alpha = 0.6, outlier.color = NA) +
-        geom_jitter(color = "#495057", width = 0.12, alpha = 0.5, size = 2) +
-        # Adicionar ponto de média amostral de cada grupo
-        stat_summary(fun = mean, geom = "point", shape = 23, size = 4, fill = "white", color = "#0F3B5F") +
-        g_theme +
-        labs(title = title_val, x = x_label, y = y_label, fill = r$ind_var) +
-        theme(plot.title = element_text(face = "bold", color = "#0F3B5F"),
-              legend.position = "none")
+      library(ggpubr)
+      levels_x <- levels(as.factor(df[[r$ind_var]]))
+      
+      ggline(
+        data = df,
+        x = r$ind_var,
+        y = r$dep_var,
+        add = c("mean_se", "jitter"),
+        color = r$ind_var,
+        palette = "jco",
+        order = levels_x,
+        ylab = y_label,
+        xlab = x_label,
+        title = title_val,
+        ggtheme = g_theme
+      ) +
+        # Linha pontilhada conectando as médias para guiar a visualização da tendência
+        stat_summary(fun = mean, geom = "line", aes(group = 1), color = "#a0aec0", linewidth = 0.8, linetype = "dashed") +
+        theme(
+          plot.title = element_text(face = "bold", color = "#0F3B5F"),
+          legend.position = "none"
+        )
     })
     
     # Gráficos Diagnósticos: Resíduos vs Ajustados
@@ -643,8 +656,9 @@ mod_anova_server <- function(id, data_rv, import_info) {
         r_script_content <- c(
           "# --- SCRIPT DE ANÁLISE DE VARIÂNCIA (ANOVA) ---",
           "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
+          "# install.packages(c('ggplot2', 'ggpubr', 'readxl', 'writexl'))",
           "library(ggplot2)",
+          "library(ggpubr)",
           "source('scripts/funcoes_anova.R')",
           "",
           "# 1. CARREGAR OS DADOS LIMPOS",
@@ -664,13 +678,9 @@ mod_anova_server <- function(id, data_rv, import_info) {
           "cat(relatar_anova(r))",
           "",
           "# 4. GRÁFICOS",
-          sprintf("ggplot(dados, aes(x = as.factor(`%s`), y = `%s`, fill = as.factor(`%s`))) +", input$var_x, input$var_y, input$var_x),
-          "  geom_boxplot(alpha = 0.6) +",
-          "  geom_jitter(color = '#495057', width = 0.1) +",
-          "  stat_summary(fun = mean, geom = 'point', shape = 23, size = 4, fill = 'white') +",
-          "  theme_minimal() +",
-          "  theme(legend.position = 'none') +",
-          "  labs(title = 'Comparação de Médias (ANOVA)')"
+          sprintf("ggline(dados, x = '%s', y = '%s', add = c('mean_se', 'jitter'), color = '%s', palette = 'jco', order = levels(as.factor(dados$`%s`)), ylab = '%s', xlab = '%s', title = 'Comparação de Médias e Erro Padrão (ANOVA)', ggtheme = theme_minimal()) +", input$var_x, input$var_y, input$var_x, input$var_x, input$var_y, input$var_x),
+          "  stat_summary(fun = mean, geom = 'line', aes(group = 1), color = '#a0aec0', linewidth = 0.8, linetype = 'dashed') +",
+          "  theme(legend.position = 'none')"
         )
         
         writeLines(r_script_content, file.path(dir_scripts, "analise_anova.R"))

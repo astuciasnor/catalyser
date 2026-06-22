@@ -44,6 +44,7 @@ execute:
 library(tibble)
 library(flextable)
 library(ggplot2)
+library(ggpubr)
 
 # ---- Carregar Funções Auxiliares -----------------------------------------
 if (requireNamespace("EAPADados", quietly = TRUE)) {
@@ -143,10 +144,18 @@ Abaixo estão expostos os boxplots comparativos de médias e o gráfico de press
 #| fig-width: 6
 #| fig-height: 4
 
-ggplot(dados, aes(x = as.factor(.data[[params$var_x]]), y = .data[[params$var_y]], fill = as.factor(.data[[params$var_x]]))) +
-  geom_boxplot(alpha = 0.7) +
-  geom_jitter(width = 0.1, alpha = 0.5) +
-  theme_minimal() +
-  labs(x = params$var_x, y = params$var_y, fill = params$var_x) +
+ggline(
+  data = dados,
+  x = params$var_x,
+  y = params$var_y,
+  add = c("mean_se", "jitter"),
+  color = params$var_x,
+  palette = "jco",
+  order = levels(as.factor(dados[[params$var_x]])),
+  ylab = params$var_y,
+  xlab = params$var_x,
+  ggtheme = theme_minimal()
+) +
+  stat_summary(fun = mean, geom = "line", aes(group = 1), color = "#a0aec0", linewidth = 0.8, linetype = "dashed") +
   theme(legend.position = "none")
 ```
