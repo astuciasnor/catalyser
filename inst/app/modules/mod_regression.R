@@ -449,7 +449,7 @@ mod_regression_server <- function(id, data_rv, import_info) {
         )
       } else {
         # Local
-        ext <- tools::file_ext(info$file_name)
+        ext <- tolower(tools::file_ext(info$file_name))
         if (ext %in% c("xlsx", "xls")) {
           code <- c(code,
             "# Carregar dados do Excel",

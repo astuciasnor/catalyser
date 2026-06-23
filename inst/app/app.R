@@ -5,6 +5,9 @@ library(ggplot2)
 library(DT)
 library(readxl)
 
+# Aumenta limite de upload para 50 MB
+options(shiny.maxRequestSize = 50 * 1024^2)
+
 # Carrega os módulos de análise
 source("modules/utils_export.R")
 source("modules/mod_regression.R")
@@ -385,7 +388,7 @@ ui <- page_navbar(
                 fileInput("file_upload", "Escolha o arquivo (.csv, .xlsx, .xls):",
                           accept = c(".csv", ".xlsx", ".xls")),
                 conditionalPanel(
-                  condition = "input.file_upload != null && input.file_upload.name.endsWith('.csv')",
+                  condition = "input.file_upload != null && input.file_upload.name.toLowerCase().endsWith('.csv')",
                   checkboxInput("csv_header", "Cabeçalho na primeira linha", TRUE),
                   radioButtons("csv_sep", "Separador de Coluna:",
                                choices = c("Vírgula (,)" = ",",
@@ -1380,7 +1383,7 @@ RCatalyst::run_ide()</pre>
     if (input$data_source == "local") {
       if (!is.null(input$file_upload)) {
         base_name <- tools::file_path_sans_ext(input$file_upload$name)
-        ext <- tools::file_ext(input$file_upload$name)
+        ext <- tolower(tools::file_ext(input$file_upload$name))
         if (ext %in% c("xlsx", "xls") && !is.null(input$excel_sheet)) {
           base_name <- paste0(base_name, "_", input$excel_sheet)
         }
@@ -1583,7 +1586,7 @@ RCatalyst::run_ide()</pre>
   # Gera seletor de sheets dinâmico se for planilha Excel
   output$excel_sheet_selector <- renderUI({
     req(input$file_upload)
-    ext <- tools::file_ext(input$file_upload$name)
+    ext <- tolower(tools::file_ext(input$file_upload$name))
     if (ext %in% c("xlsx", "xls")) {
       sheets <- excel_sheets(input$file_upload$datapath)
       # Cria opções formatadas mostrando o índice (Ex: "3 - regressao")
@@ -1601,7 +1604,7 @@ RCatalyst::run_ide()</pre>
     if (input$data_source == "local") {
       req(input$file_upload)
       path <- input$file_upload$datapath
-      ext <- tools::file_ext(input$file_upload$name)
+      ext <- tolower(tools::file_ext(input$file_upload$name))
       
       tryCatch({
         if (ext == "csv") {
