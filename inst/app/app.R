@@ -895,6 +895,7 @@ server <- function(input, output, session) {
           <li><b>Pacotes de Exemplo:</b> Datasets didáticos inclusos no pacote científico R 'EAPADados'.</li>
         </ul>
         <p><b>Tipagem de Variáveis:</b> Na barra lateral esquerda (após carregar o arquivo), você verá uma tabela listando cada coluna e seu tipo de dado atual. Você pode alterar a tipagem de forma interativa (ex: converter para <i>numeric</i>, <i>factor</i>, <i>character</i> ou <i>Date</i>) para garantir a consistência das suas análises.</p>
+        <p><b>Filtrar Dados (coluna <i>Filtro</i>):</b> Cada coluna ganha um botão <b>Filtrar</b> adequado ao seu tipo. Para <i>factor</i>, abre uma janela com os níveis da variável (ex.: <i>Macho</i>/<i>Fêmea</i>); ao desmarcar um nível, as linhas correspondentes são removidas. Para <i>numeric</i>/<i>integer</i>, abre um controle deslizante de faixa (mínimo–máximo); apenas os valores dentro do intervalo escolhido são mantidos. Em ambos os casos o efeito é em tempo real e vale para <b>todas</b> as análises. O botão sinaliza quando há filtro ativo (ex.: <i>1/2</i> para níveis, <i>Faixa</i> para intervalos), e todos os filtros são reiniciados ao carregar um novo conjunto de dados.</p>
       ")
     ),
     descr = list(
@@ -1403,10 +1404,21 @@ RCatalyst::run_ide()</pre>
   # Valores Reativos para carregar e converter o dataset
   raw_data <- reactiveVal(NULL)
   col_types_rv <- reactiveVal(list())
-  
+  # Filtros de niveis para variaveis fator: lista nomeada col -> niveis mantidos.
+  # Ausencia de entrada (ou todos os niveis) = sem filtro.
+  level_filters_rv <- reactiveVal(list())
+  # Filtros de faixa para variaveis numericas/inteiras: lista nomeada col -> c(min, max).
+  # Ausencia de entrada (ou faixa completa) = sem filtro.
+  range_filters_rv <- reactiveVal(list())
+  # Registro de observadores criados dinamicamente (evita duplicatas no re-render).
+  lvl_obs_registry <- new.env()
+
   # Quando raw_data muda, inicializamos os tipos de coluna
   observeEvent(raw_data(), {
     df <- raw_data()
+    # Reinicia os filtros (niveis e faixas) a cada novo dataset.
+    level_filters_rv(list())
+    range_filters_rv(list())
     if (!is.null(df)) {
       initial_types <- lapply(df, detect_col_type)
       col_types_rv(initial_types)
@@ -1469,6 +1481,39 @@ RCatalyst::run_ide()</pre>
         })
       }
     }
+
+    # Aplica os filtros de niveis (fatores): mantem apenas as linhas cujos
+    # valores estejam entre os niveis selecionados e remove niveis vazios.
+    filtros <- level_filters_rv()
+    if (length(filtros) > 0) {
+      for (col_name in names(filtros)) {
+        manter <- filtros[[col_name]]
+        if (!is.null(manter) && length(manter) > 0 && col_name %in% names(df) &&
+            identical(types[[col_name]], "factor")) {
+          valores <- as.character(df[[col_name]])
+          df <- df[!is.na(valores) & valores %in% manter, , drop = FALSE]
+          if (is.factor(df[[col_name]])) {
+            df[[col_name]] <- droplevels(df[[col_name]])
+          }
+        }
+      }
+    }
+
+    # Aplica os filtros de faixa (numericas/inteiras): mantem apenas as linhas
+    # cujos valores estejam dentro do intervalo [min, max] selecionado.
+    faixas <- range_filters_rv()
+    if (length(faixas) > 0) {
+      for (col_name in names(faixas)) {
+        faixa <- faixas[[col_name]]
+        if (!is.null(faixa) && length(faixa) == 2 && col_name %in% names(df) &&
+            identical(types[[col_name]], "factor") == FALSE &&
+            (identical(types[[col_name]], "numeric") || identical(types[[col_name]], "integer"))) {
+          valores <- suppressWarnings(as.numeric(df[[col_name]]))
+          df <- df[!is.na(valores) & valores >= faixa[1] & valores <= faixa[2], , drop = FALSE]
+        }
+      }
+    }
+
     df
   })
   
@@ -1478,7 +1523,9 @@ RCatalyst::run_ide()</pre>
     req(df)
     types <- col_types_rv()
     req(length(types) > 0)
-    
+    lvlf <- level_filters_rv()
+    rngf <- range_filters_rv()
+
     card(
       card_header("Tipagem de Variáveis", style = "font-size: 0.95rem; font-weight: 700; color: #0d6efd;"),
       card_body(
@@ -1486,34 +1533,62 @@ RCatalyst::run_ide()</pre>
         tags$table(class = "table table-sm table-borderless align-middle", style = "margin-bottom: 0; font-size: 0.85rem;",
           tags$thead(
             tags$tr(
-              tags$th("Coluna", style = "width: 50%; color: #495057; font-weight: 600;"),
-              tags$th("Tipo de Dado", style = "width: 50%; color: #495057; font-weight: 600;")
+              tags$th("Coluna", style = "width: 38%; color: #495057; font-weight: 600;"),
+              tags$th("Tipo de Dado", style = "width: 37%; color: #495057; font-weight: 600;"),
+              tags$th("Filtro", style = "width: 25%; color: #495057; font-weight: 600;")
             )
           ),
           tags$tbody(
             lapply(names(df), function(col_name) {
               current_type <- types[[col_name]]
               if (is.null(current_type)) current_type <- "character"
-              
+
               tags$tr(
                 tags$td(
-                  style = "padding: 4px 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+                  style = "padding: 4px 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
                   tags$b(col_name)
                 ),
                 tags$td(
-                  style = "padding: 4px 0;",
+                  style = "padding: 4px 4px;",
                   selectInput(
                     inputId = paste0("col_type_", sanitize_id(col_name)),
                     label = NULL,
-                    choices = c("character" = "character", 
-                                "numeric" = "numeric", 
-                                "factor" = "factor", 
-                                "integer" = "integer", 
-                                "logical" = "logical", 
+                    choices = c("character" = "character",
+                                "numeric" = "numeric",
+                                "factor" = "factor",
+                                "integer" = "integer",
+                                "logical" = "logical",
                                 "Date" = "Date"),
                     selected = current_type,
                     width = "100%"
                   )
+                ),
+                tags$td(
+                  style = "padding: 4px 0; text-align: right; white-space: nowrap;",
+                  if (identical(current_type, "factor")) {
+                    fobj <- lvlf[[col_name]]
+                    ativo <- !is.null(fobj) && length(fobj) > 0
+                    n_total <- length(levels(as.factor(df[[col_name]])))
+                    rotulo <- if (ativo) sprintf("%d/%d", length(fobj), n_total) else "Filtrar"
+                    actionButton(
+                      inputId = paste0("col_filter_btn_", sanitize_id(col_name)),
+                      label = tagList(icon("filter"), rotulo),
+                      class = if (ativo) "btn btn-sm btn-primary" else "btn btn-sm btn-outline-secondary",
+                      style = "font-size: 0.72rem; padding: 2px 6px;"
+                    )
+                  } else if (current_type %in% c("numeric", "integer")) {
+                    robj <- rngf[[col_name]]
+                    ativo <- !is.null(robj) && length(robj) == 2
+                    rotulo <- if (ativo) "Faixa" else "Filtrar"
+                    actionButton(
+                      inputId = paste0("col_filter_btn_", sanitize_id(col_name)),
+                      label = tagList(icon(if (ativo) "sliders" else "filter"), rotulo),
+                      class = if (ativo) "btn btn-sm btn-primary" else "btn btn-sm btn-outline-secondary",
+                      style = "font-size: 0.72rem; padding: 2px 6px;"
+                    )
+                  } else {
+                    tags$span("—", style = "color: #adb5bd;")
+                  }
                 )
               )
             })
@@ -1521,6 +1596,153 @@ RCatalyst::run_ide()</pre>
         )
       )
     )
+  })
+
+  # ---- Filtro de niveis de fatores: modal + observadores dinamicos -----------
+  abrir_modal_niveis <- function(col_name) {
+    df <- raw_data()
+    if (is.null(df) || !(col_name %in% names(df))) return(invisible(NULL))
+    id <- sanitize_id(col_name)
+    todos <- levels(as.factor(df[[col_name]]))
+    atual <- level_filters_rv()[[col_name]]
+    selecionados <- if (is.null(atual)) todos else atual
+    showModal(modalDialog(
+      title = paste0("Filtrar níveis — ", col_name),
+      tags$p(
+        style = "font-size: 0.85rem; color: #6c757d;",
+        "Mantenha apenas os níveis desejados. As linhas dos níveis desmarcados ",
+        "serão removidas de todas as análises."
+      ),
+      checkboxGroupInput(
+        inputId = paste0("col_levels_", id),
+        label = NULL,
+        choices = todos,
+        selected = selecionados
+      ),
+      footer = tagList(
+        actionButton(paste0("col_levels_all_", id), "Selecionar todos",
+                     class = "btn btn-sm btn-outline-secondary"),
+        modalButton("Cancelar"),
+        actionButton(paste0("col_levels_apply_", id), "Aplicar",
+                     class = "btn btn-sm btn-primary")
+      ),
+      easyClose = TRUE,
+      size = "s"
+    ))
+  }
+
+  abrir_modal_faixa <- function(col_name) {
+    df <- raw_data()
+    if (is.null(df) || !(col_name %in% names(df))) return(invisible(NULL))
+    id <- sanitize_id(col_name)
+    valores <- suppressWarnings(as.numeric(gsub(",", ".", as.character(df[[col_name]]))))
+    if (all(is.na(valores))) {
+      showNotification("A coluna não possui valores numéricos para filtrar.", type = "warning")
+      return(invisible(NULL))
+    }
+    lim_min <- min(valores, na.rm = TRUE)
+    lim_max <- max(valores, na.rm = TRUE)
+    atual <- range_filters_rv()[[col_name]]
+    valor <- if (is.null(atual)) c(lim_min, lim_max) else atual
+    passo <- signif((lim_max - lim_min) / 100, 2)
+    if (!is.finite(passo) || passo <= 0) passo <- NULL
+    showModal(modalDialog(
+      title = paste0("Filtrar faixa — ", col_name),
+      tags$p(
+        style = "font-size: 0.85rem; color: #6c757d;",
+        "Mantenha apenas os valores dentro do intervalo. As linhas fora dele ",
+        "serão removidas de todas as análises."
+      ),
+      sliderInput(
+        inputId = paste0("col_range_", id),
+        label = NULL,
+        min = lim_min, max = lim_max, value = valor,
+        step = passo, width = "100%"
+      ),
+      footer = tagList(
+        actionButton(paste0("col_range_full_", id), "Faixa completa",
+                     class = "btn btn-sm btn-outline-secondary"),
+        modalButton("Cancelar"),
+        actionButton(paste0("col_range_apply_", id), "Aplicar",
+                     class = "btn btn-sm btn-primary")
+      ),
+      easyClose = TRUE,
+      size = "s"
+    ))
+  }
+
+  # Registra (uma unica vez por coluna) os observadores de filtro. O botao de
+  # cada coluna decide, no clique, qual modal abrir conforme o tipo atual.
+  observe({
+    df <- raw_data()
+    req(df)
+    for (col_name in names(df)) {
+      id <- sanitize_id(col_name)
+      if (is.null(lvl_obs_registry[[paste0("reg_", id)]])) {
+        local({
+          cn <- col_name
+          i <- id
+          # Abrir o modal apropriado conforme o tipo atual da coluna
+          lvl_obs_registry[[paste0("open_", i)]] <- observeEvent(
+            input[[paste0("col_filter_btn_", i)]], {
+              tp <- col_types_rv()[[cn]]
+              if (identical(tp, "factor")) {
+                abrir_modal_niveis(cn)
+              } else if (identical(tp, "numeric") || identical(tp, "integer")) {
+                abrir_modal_faixa(cn)
+              }
+            }, ignoreInit = TRUE)
+          # --- Fator: selecionar todos / aplicar niveis ---
+          lvl_obs_registry[[paste0("all_", i)]] <- observeEvent(
+            input[[paste0("col_levels_all_", i)]], {
+              todos <- levels(as.factor(raw_data()[[cn]]))
+              updateCheckboxGroupInput(session, paste0("col_levels_", i), selected = todos)
+            }, ignoreInit = TRUE)
+          lvl_obs_registry[[paste0("apply_", i)]] <- observeEvent(
+            input[[paste0("col_levels_apply_", i)]], {
+              sel <- input[[paste0("col_levels_", i)]]
+              todos <- levels(as.factor(raw_data()[[cn]]))
+              f <- level_filters_rv()
+              if (is.null(sel) || length(sel) == 0 || setequal(sel, todos)) {
+                f[[cn]] <- NULL
+              } else {
+                f[[cn]] <- sel
+              }
+              level_filters_rv(f)
+              removeModal()
+            }, ignoreInit = TRUE)
+          # --- Numerica: faixa completa / aplicar faixa ---
+          lvl_obs_registry[[paste0("rfull_", i)]] <- observeEvent(
+            input[[paste0("col_range_full_", i)]], {
+              valores <- suppressWarnings(as.numeric(gsub(",", ".", as.character(raw_data()[[cn]]))))
+              if (!all(is.na(valores))) {
+                updateSliderInput(session, paste0("col_range_", i),
+                                  value = c(min(valores, na.rm = TRUE), max(valores, na.rm = TRUE)))
+              }
+            }, ignoreInit = TRUE)
+          lvl_obs_registry[[paste0("rapply_", i)]] <- observeEvent(
+            input[[paste0("col_range_apply_", i)]], {
+              sel <- input[[paste0("col_range_", i)]]
+              valores <- suppressWarnings(as.numeric(gsub(",", ".", as.character(raw_data()[[cn]]))))
+              rf <- range_filters_rv()
+              if (is.null(sel) || length(sel) != 2 || all(is.na(valores))) {
+                rf[[cn]] <- NULL
+              } else {
+                lim_min <- min(valores, na.rm = TRUE)
+                lim_max <- max(valores, na.rm = TRUE)
+                if (isTRUE(all.equal(sel[1], lim_min)) && isTRUE(all.equal(sel[2], lim_max))) {
+                  rf[[cn]] <- NULL
+                } else {
+                  rf[[cn]] <- c(sel[1], sel[2])
+                }
+              }
+              range_filters_rv(rf)
+              removeModal()
+            }, ignoreInit = TRUE)
+          lvl_obs_registry[[paste0("reg_", i)]] <- TRUE
+        })
+      }
+    }
   })
   
   # Indicador do status do dataset
@@ -1575,6 +1797,7 @@ RCatalyst::run_ide()</pre>
         "cangulo_crescimento",
         "captura_petrechos",
         "isoproteica_bagre",
+        "pinguins",
         "tilapia_crescimento"
       )
       selectInput("package_dataset", "Selecione o Dataset do EAPADados:", choices = datasets)
@@ -3243,7 +3466,7 @@ RCatalyst::run_ide()</pre>
       # 6. Compactar
       old_wd <- getwd()
       setwd(temp_dir)
-      utils::zip(file, files = proj_dir_name)
+      zip::zip(file, files = proj_dir_name)
       setwd(old_wd)
     }
   )

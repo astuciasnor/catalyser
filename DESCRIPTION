@@ -19,7 +19,8 @@ Imports:
     ggplot2,
     DT,
     readxl,
-    markdown
+    markdown,
+    zip
 Depends: R (>= 4.0.0)
 Roxygen: list(markdown = TRUE)
 LazyData: true

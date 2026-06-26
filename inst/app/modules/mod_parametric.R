@@ -938,7 +938,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         # Compactar
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )

@@ -343,7 +343,7 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
         # 6. Compactar
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )
@@ -705,7 +705,7 @@ mod_histogram_server <- function(id, data_rv, import_info) {
         # 6. Compactar
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )
@@ -1109,7 +1109,7 @@ mod_boxplot_server <- function(id, data_rv, import_info) {
         # 6. Compactar
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )

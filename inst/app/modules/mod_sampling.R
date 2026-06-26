@@ -292,7 +292,7 @@ mod_aas_server <- function(id, data_rv, import_info) {
         
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )
@@ -586,7 +586,7 @@ mod_aep_server <- function(id, data_rv, import_info) {
         
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )
@@ -865,7 +865,7 @@ mod_as_server <- function(id, data_rv, import_info) {
         
         old_wd <- getwd()
         setwd(temp_dir)
-        utils::zip(file, files = proj_dir_name)
+        zip::zip(file, files = proj_dir_name)
         setwd(old_wd)
       }
     )

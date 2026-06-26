@@ -13,6 +13,7 @@ verify_ide.R
 
 # R Package Build Artifacts
 *.tar.gz
+*.zip
 src/*.o
 src/*.so
 .Rbuildignore
