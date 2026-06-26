@@ -20,7 +20,8 @@ Imports:
     DT,
     readxl,
     markdown,
-    zip
+    zip,
+    writexl
 Depends: R (>= 4.0.0)
 Roxygen: list(markdown = TRUE)
 LazyData: true
