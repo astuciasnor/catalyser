@@ -43,9 +43,14 @@ execute:
 # ---- Pacotes -------------------------------------------------------------
 library(tibble)
 library(flextable)
+library(ggplot2)
 
 # ---- Carregar Funções Auxiliares -----------------------------------------
-if (file.exists("funcoes_regressao.R")) {
+# Fonte canônica: pacote EAPADados. O source() local é apenas rede de
+# segurança para execução offline (ex.: Projeto R .zip do aluno).
+if (requireNamespace("EAPADados", quietly = TRUE)) {
+  library(EAPADados)
+} else if (file.exists("funcoes_regressao.R")) {
   source("funcoes_regressao.R")
 } else if (file.exists("../scripts/funcoes_regressao.R")) {
   source("../scripts/funcoes_regressao.R")
@@ -73,9 +78,9 @@ if (file.exists("dados_limpos.rda")) {
   )
 }
 
-# Ajustar o modelo linear
-formula_obj <- as.formula(paste0("`", params$var_y, "` ~ `", params$var_x, "`"))
-modelo <- lm(formula_obj, data = dados)
+# Ajustar o modelo linear de forma canônica
+reg_res <- calcular_regressao(dados, var_y = params$var_y, var_x = params$var_x)
+modelo <- reg_res$modelo
 ```
 
 # Introdução
@@ -84,7 +89,7 @@ Este relatório descreve o ajuste de um modelo de regressão linear simples para
 
 # Material e métodos
 
-Foi realizada uma análise de regressão linear simples pelo método dos mínimos quadrados ordinários (MQO). Adotou-se o nível de significância de 5% ($\alpha = 0,05$) para avaliar a hipótese nula de que a inclinação do coeficiente preditor é nula ($H_0: \beta_1 = 0$). O ajuste geral do modelo foi caracterizado pelo erro padrão residual (RSE) e pelo coeficiente de determinação ($R^2$).
+Foi realizada uma análise de regressão linear simples pelo método dos mínimos quadrados ordinários (MQO). Adotou-se o nível de significância de 5% ($\alpha = 0,05$) para avaliar a hipótese nula de que a inclinação do coeficiente preditor é nula ($H_0: \beta_1 = 0$). O ajuste geral do modelo foi caracterizado pelo erro padrão residual (RSE) e pelo coeficiente de determinação ($R^2$). A normalidade dos resíduos foi verificada pelo teste de Shapiro-Wilk.
 
 # Resultados
 
@@ -95,7 +100,7 @@ As tabelas a seguir sintetizam as estimativas dos coeficientes da regressão (@t
 #| tbl-cap: "Estimativas dos parâmetros e coeficientes do modelo de regressão linear simples."
 #| output: asis
 
-tab_coefs <- mostrar_coefs_regressao(modelo)
+tab_coefs <- mostrar_coefs_regressao(reg_res)
 flextable_ocean(tab_coefs)
 ```
 
@@ -104,7 +109,7 @@ flextable_ocean(tab_coefs)
 #| tbl-cap: "Métricas gerais de ajuste e validação do modelo ajustado."
 #| output: asis
 
-tab_metricas <- mostrar_metricas_regressao(modelo)
+tab_metricas <- mostrar_metricas_regressao(reg_res)
 flextable_ocean(tab_metricas)
 ```
 
@@ -113,14 +118,59 @@ Abaixo apresenta-se a descrição narrativa em português dos coeficientes estim
 ::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
 ```{r}
 #| output: asis
-cat(relatar_regressao(modelo, label_y = params$label_y, label_x = params$label_x))
+cat(relatar_regressao(reg_res, label_y = params$label_y, label_x = params$label_x))
 ```
 :::
 
+# Normalidade dos resíduos
+
+A @tbl-normalidade apresenta o resultado do teste de Shapiro-Wilk, utilizado para verificar a suposição de normalidade dos resíduos do modelo ($H_0$: os resíduos seguem distribuição normal).
+
+```{r}
+#| label: tbl-normalidade
+#| tbl-cap: "Teste de normalidade dos resíduos (Shapiro-Wilk)."
+#| output: asis
+
+sw <- shapiro.test(residuals(modelo))
+tab_normalidade <- tibble::tibble(
+  "Teste"            = "Shapiro-Wilk",
+  "Estatística W"    = round(unname(sw$statistic), 4),
+  "p-valor"          = round(sw$p.value, 4),
+  "Resultado"        = ifelse(
+    sw$p.value >= 0.05,
+    "Resíduos normais (H0 mantida)",
+    "Desvio de normalidade (H0 rejeitada)"
+  )
+)
+flextable_ocean(tab_normalidade)
+```
+
+# Reta ajustada
+
+A @fig-reta apresenta a representação visual da reta de regressão ajustada aos dados observados.
+
+```{r}
+#| label: fig-reta
+#| fig-cap: "Reta de regressão linear simples ajustada aos dados observados."
+#| fig-width: 5.5
+#| fig-height: 3.5
+#| fig-align: center
+
+ggplot(dados, aes(x = .data[[params$var_x]], y = .data[[params$var_y]])) +
+  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +
+  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +
+  theme_minimal(base_size = 11) +
+  labs(
+    x = params$label_x,
+    y = params$label_y
+  )
+```
+
 # Discussão
 
-A discussão do modelo envolve a avaliação da qualidade preditiva e as hipóteses fundamentais da regressão (como linearidade, homocedasticidade e normalidade dos resíduos). A robustez empírica das estimativas depende diretamente da adequação estrutural desses pressupostos.
+A discussão do modelo envolve a avaliação da qualidade preditiva e as hipóteses fundamentais da regressão, com destaque para a normalidade dos resíduos. A robustez empírica das estimativas depende diretamente da adequação a esse pressuposto, avaliado pelo teste de Shapiro-Wilk, e da inspeção visual da reta ajustada.
 
 # Conclusão
 
 O modelo de regressão linear simples permitiu quantificar e modelar estatisticamente a associação linear entre `r params$label_y` e `r params$label_x`, servindo como ferramenta útil para predição e entendimento conceitual das variáveis estudadas.
+
