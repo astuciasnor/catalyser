@@ -1,0 +1,178 @@
+---
+title: "Relatório de análise: Regressão Não Linear (Modelo de Crescimento)"
+subtitle: "Modelagem estatística e relato científico automatizado"
+author:
+  - "IDE CatalyseR"
+date: today
+date-format: "DD/MM/YYYY"
+lang: pt
+abstract-title: "Resumo"
+abstract: |
+  Este relatório apresenta a aplicação de uma análise de regressão não linear
+  para descrever o modelo de crescimento selecionado. São reportadas as estimativas
+  dos parâmetros do modelo, métricas de ajuste (pseudo-R² e RSE), teste de
+  normalidade dos resíduos (Shapiro-Wilk) e a interpretação textual em português
+  pronta para uso em trabalhos científicos e relatórios técnicos.
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: true
+    toc-title: "Sumário"
+    toc-depth: 3
+    number-sections: true
+    tbl-cap-location: top
+    fig-cap-location: bottom
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+params:
+  var_y: "peso_g"
+  var_x: "comprimento_cm"
+  label_y: "o peso do peixe"
+  label_x: "o comprimento do peixe"
+  model_type: "potencia"
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+# ---- Pacotes -------------------------------------------------------------
+library(tibble)
+library(flextable)
+library(ggplot2)
+
+# ---- Carregar Funções Auxiliares -----------------------------------------
+# Fonte canônica: pacote EAPADados. O source() local é apenas rede de
+# segurança para execução offline (ex.: Projeto R .zip do aluno).
+if (requireNamespace("EAPADados", quietly = TRUE)) {
+  library(EAPADados)
+} else if (file.exists("funcoes_crescimento.R")) {
+  source("funcoes_crescimento.R")
+} else if (file.exists("../scripts/funcoes_crescimento.R")) {
+  source("../scripts/funcoes_crescimento.R")
+} else if (file.exists("scripts/funcoes_crescimento.R")) {
+  source("scripts/funcoes_crescimento.R")
+}
+
+# ---- Carregar Dados ------------------------------------------------------
+if (file.exists("dados_limpos.rda")) {
+  load("dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("../dados/dados_limpos.rda")) {
+  load("../dados/dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("dados/dados_limpos.rda")) {
+  load("dados/dados_limpos.rda")
+  dados <- df_clean
+} else {
+  # Dados de simulação para fallback
+  set.seed(2026)
+  x_sim <- seq(10, 50, length.out = 80)
+  if (params$model_type == "potencia") {
+    y_sim <- 0.015 * x_sim^3.05 * rnorm(80, mean = 1, sd = 0.1)
+  } else if (params$model_type == "von_bertalanffy") {
+    y_sim <- 60 * (1 - exp(-0.25 * (x_sim - 0.5))) + rnorm(80, sd = 2)
+  } else {
+    y_sim <- 100 / (1 + exp(-0.3 * (x_sim - 25))) + rnorm(80, sd = 3)
+  }
+  dados <- tibble::tibble(
+    comprimento_cm = x_sim,
+    peso_g = y_sim
+  )
+  names(dados) <- c(params$var_x, params$var_y)
+}
+
+# Ajustar o modelo não linear
+fit_res <- ajustar_curva(dados, var_y = params$var_y, var_x = params$var_x, tipo = params$model_type)
+modelo <- fit_res$modelo
+```
+
+# Introdução
+
+Este relatório descreve o ajuste de um modelo de regressão não linear para modelar a relação entre `r params$label_y` ($Y$) e `r params$label_x` ($X$). Foi ajustado o **`r tipo_curva_label(params$model_type)`**, que descreve processos de crescimento e relações alométricas em ecologia e recursos pesqueiros.
+
+# Material e métodos
+
+O ajuste do modelo foi realizado pelo método dos mínimos quadrados não lineares (MQNL). Adotou-se o nível de significância de 5% ($\alpha = 0,05$) para a avaliação dos coeficientes estimadores. A qualidade do ajuste global foi caracterizada pelo erro padrão residual (RSE) e pelo coeficiente de determinação pseudo-$R^2$ ($R^2$ obtido pela soma dos quadrados dos resíduos). A suposição de normalidade dos erros residuais foi verificada através do teste de Shapiro-Wilk.
+
+# Resultados
+
+As tabelas a seguir descrevem as estimativas dos parâmetros do modelo não linear (@tbl-coefs) e as estatísticas gerais de ajuste (@tbl-metricas).
+
+```{r}
+#| label: tbl-coefs
+#| tbl-cap: "Estimativas dos parâmetros do modelo de regressão não linear."
+#| output: asis
+
+tab_coefs <- mostrar_coefs_curva(fit_res)
+flextable_ocean(tab_coefs)
+```
+
+```{r}
+#| label: tbl-metricas
+#| tbl-cap: "Métricas de ajuste do modelo não linear."
+#| output: asis
+
+tab_metricas <- mostrar_metricas_curva(fit_res)
+flextable_ocean(tab_metricas)
+```
+
+Abaixo apresenta-se a descrição narrativa em português dos coeficientes estimadores e ajuste do modelo:
+
+::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
+```{r}
+#| output: asis
+cat(relatar_curva(fit_res, label_y = params$label_y, label_x = params$label_x))
+```
+:::
+
+# Diagnóstico dos resíduos
+
+A @tbl-normalidade apresenta o resultado do teste de Shapiro-Wilk, utilizado para verificar a suposição de normalidade dos resíduos do modelo ($H_0$: os resíduos seguem distribuição normal).
+
+```{r}
+#| label: tbl-normalidade
+#| tbl-cap: "Teste de normalidade dos resíduos (Shapiro-Wilk)."
+#| output: asis
+
+tab_normalidade <- mostrar_normalidade_curva(fit_res)
+# Renomeia coluna se necessário
+names(tab_normalidade)[ncol(tab_normalidade)] <- "Resultado"
+flextable_ocean(tab_normalidade)
+```
+
+# Curva ajustada
+
+A @fig-curva apresenta a representação visual da curva de crescimento não linear ajustada sobre os dados observados.
+
+```{r}
+#| label: fig-curva
+#| fig-cap: "Curva de crescimento ajustada aos dados observados."
+#| fig-width: 5.5
+#| fig-height: 3.5
+#| fig-align: center
+
+grid <- curva_predita(fit_res)
+ggplot(dados, aes(x = .data[[params$var_x]], y = .data[[params$var_y]])) +
+  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +
+  geom_line(data = grid, aes(x = .data[[params$var_x]], y = .data[[params$var_y]]),
+            color = '#0d6efd', linewidth = 1.2) +
+  theme_minimal(base_size = 11) +
+  labs(
+    x = params$label_x,
+    y = params$label_y
+  )
+```
+
+# Discussão
+
+A avaliação de modelos não lineares de crescimento exige a análise dos parâmetros biológicos estimados (como tamanho máximo assintótico $L_\infty$ ou alometria $b$) e a adequação estatística dos resíduos. O teste de Shapiro-Wilk fornece a base para inferir sobre a validade das estimativas de erro padrão dos parâmetros, enquanto o pseudo-$R^2$ indica a proporção de variância capturada pelo modelo curvilíneo.
+
+# Conclusão
+
+O ajuste do modelo não linear descreveu satisfatoriamente a tendência de crescimento observada, fornecendo estimativas quantitativas coerentes para os parâmetros e servindo como ferramenta útil para análises subsequentes de dinâmica populacional e bioecologia.

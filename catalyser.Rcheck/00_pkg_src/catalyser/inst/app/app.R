@@ -11,8 +11,6 @@ options(shiny.maxRequestSize = 50 * 1024^2)
 # Carrega os módulos de análise
 source("modules/utils_export.R")
 source("modules/mod_regression.R")
-source("modules/mod_model_discovery.R")
-source("modules/mod_nonlinear.R")
 source("modules/mod_description.R")
 source("modules/mod_parametric.R")
 source("modules/mod_sampling.R")
@@ -408,19 +406,10 @@ ui <- page_navbar(
               ),
               conditionalPanel(
                 condition = "input.data_source == 'package'",
-                selectInput("package_dataset", "Selecione o Dataset do EAPADados:", choices = c(
-                  "artemia",
-                  "biometria_caranguejos",
-                  "camaroes_sexo",
-                  "cangulo_crescimento",
-                  "captura_petrechos",
-                  "isoproteica_bagre",
-                  "tilapia_crescimento",
-                  "walleye_erie"
-                ))
+                uiOutput("package_dataset_selector")
               ),
-              uiOutput("dataset_vars_selector", style = "margin-top: -10px; margin-bottom: 0px; padding: 0;"),
-              hr(style = "margin: 6px 0;")
+              hr(style = "margin: 10px 0;"),
+              helpText("Configure os parâmetros de leitura para carregar os dados corretamente no painel principal.")
             )
           ),
           uiOutput("variable_type_converter_ui")
@@ -542,11 +531,6 @@ ui <- page_navbar(
       mod_regression_ui("regression")
     ),
     nav_panel(
-      title = "Descobrindo o Modelo",
-      icon = icon("magnifying-glass-chart"),
-      mod_model_discovery_ui("discovery")
-    ),
-    nav_panel(
       title = "Regressão Linear Múltipla",
       icon = icon("table-cells"),
       card(
@@ -554,18 +538,12 @@ ui <- page_navbar(
         card_body(
           h5("Módulo em Desenvolvimento", class = "text-primary"),
           p("Esta análise estará disponível em breve no CatalyseR!"),
-          helpText(
-            "Permitirá ajustar modelos com múltiplas variáveis preditoras. Exemplos de aplicação:",
-            tags$ul(
-              tags$li("Modelagem de crescimento em cultivos fechados (fases lag, log, desaceleração e estacionária)."),
-              tags$li("Curvas de seletividade de petrechos de pesca (redes de emalhe ou arrasto), estimando a probabilidade de retenção em função do comprimento do peixe.")
-            )
-          )
+          helpText("Permitirá ajustar modelos com múltiplas variáveis explicativas: Y = a + b1*X1 + b2*X2 + ...")
         )
       )
     )
   ),
-
+  
   # 3.1. Regressão Não Linear
   nav_menu(
     title = HTML("Regressão<br>Não Linear"),
@@ -573,32 +551,133 @@ ui <- page_navbar(
     nav_panel(
       title = "Curva Exponencial",
       icon = icon("arrow-trend-up"),
-      mod_nonlinear_ui("exponencial", "exponencial")
+      card(
+        card_header("Curva Exponencial"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Permite ajustar modelos onde a taxa de crescimento da variável resposta é proporcional ao seu valor atual."),
+          hr(),
+          h6("Equação Matemática:", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$Y = a \\cdot e^{b \\cdot X}$$"),
+          p("Linearização por transformação logarítmica: $$\\ln(Y) = \\ln(a) + b \\cdot X$$"),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Curvas de crescimento bacteriano em produtos pesqueiros sob diferentes temperaturas."),
+            tags$li("Taxa instantânea de mortalidade natural (M) ou por pesca (F) ao longo do tempo."),
+            tags$li("Decaimento exponencial de oxigênio dissolvido em sistemas de transporte de peixes vivos.")
+          )
+        )
+      )
     ),
     nav_panel(
       title = "Curva de Modelo de Potência",
       icon = icon("circle-nodes"),
-      mod_nonlinear_ui("potencia", "potencia")
+      card(
+        card_header("Curva de Modelo de Potência (Relação Comprimento x Peso)"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Permite ajustar relações alométricas não lineares entre duas dimensões corporais ou biológicas."),
+          hr(),
+          h6("Equação Matemática:", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$Y = a \\cdot X^b$$"),
+          p("Linearização por transformação log-log: $$\\log(Y) = \\log(a) + b \\cdot \\log(X)$$"),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Relação peso-comprimento de peixes ($W = a \\cdot L^b$) para estimar o Fator de Condição ($a$) e a alometria do crescimento ($b$)."),
+            tags$li("Relação entre largura da carapaça e peso corporal total em crustáceos decápodes."),
+            tags$li("Estimativa de fecundidade de fêmeas em função do seu comprimento total.")
+          )
+        )
+      )
     ),
     nav_panel(
       title = "Curva de Crescimento de Peixes",
       icon = icon("fish"),
-      mod_nonlinear_ui("von_bertalanffy", "von_bertalanffy")
+      card(
+        card_header("Curva de Crescimento de Peixes (Modelo de Von Bertalanffy)"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Apresenta o modelo matemático de referência mundial para estimar o crescimento individual de recursos pesqueiros."),
+          hr(),
+          h6("Equação Matemática (Von Bertalanffy):", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$L_t = L_\\infty \\cdot (1 - e^{-k \\cdot (t - t_0)})$$"),
+          p("Onde $L_\\infty$ é o comprimento máximo teórico, $k$ é o parâmetro de crescimento e $t_0$ é a idade hipotética em que o peixe teria comprimento zero."),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Determinação da curva de crescimento de populações explotadas para subsidiar modelos de avaliação de estoques (ex: Beverton & Holt)."),
+            tags$li("Comparação do desempenho de crescimento (índice phi-prime) de uma espécie em diferentes bacias hidrográficas."),
+            tags$li("Estudos de dinâmica de populações com base em leitura de anéis de crescimento em otólitos ou escamas.")
+          )
+        )
+      )
     ),
     nav_panel(
       title = "Modelo Polinomial",
       icon = icon("chart-area"),
-      mod_nonlinear_ui("polinomial", "polinomial")
+      card(
+        card_header("Modelo Polinomial (Regressão Quadrática)"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Permite ajustar curvas parabólicas para identificar pontos de máximo ou mínimo fisiológicos ou econômicos."),
+          hr(),
+          h6("Equação Matemática (Polinômio de 2º Grau):", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$Y = \\beta_0 + \\beta_1 \\cdot X + \\beta_2 \\cdot X^2$$"),
+          p("Determinação do ponto ótimo (máximo/mínimo): $$X_{otimo} = - \\frac{\\beta_1}{2 \\cdot \\beta_2}$$"),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Ganho de peso de peixes em função do percentual de proteína bruta ou lipídios na ração (comportamento quadrático clássico para determinar o nível nutricional ótimo)."),
+            tags$li("Taxa de eclosão de ovos de peixes ou camarões em função da temperatura ou salinidade da água."),
+            tags$li("Produção de biomassa em tanques em relação à densidade de estocagem (efeito de superpopulação).")
+          )
+        )
+      )
     ),
     nav_panel(
       title = "Curva Logarítmica",
       icon = icon("chart-simple"),
-      mod_nonlinear_ui("logaritmica", "logaritmica")
+      card(
+        card_header("Curva Logarítmica"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Permite ajustar modelos dose-resposta ou fenômenos que apresentam crescimento acelerado seguido de rápida estabilização."),
+          hr(),
+          h6("Equação Matemática:", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$Y = a + b \\cdot \\ln(X)$$"),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Estudos de toxicologia aquática (dose-resposta): mortalidade acumulada de peixes em função do logaritmo da concentração de um poluente (CL50)."),
+            tags$li("Relação entre saturação de oxigênio na água e vazão em sistemas de recirculação em aquicultura (RAS)."),
+            tags$li("Taxa de filtração de moluscos bivalves em relação à densidade de microalgas na água.")
+          )
+        )
+      )
     ),
     nav_panel(
       title = "Curva Logística",
       icon = icon("chart-line"),
-      mod_regression_ui("logistic_regression", is_logistic = TRUE)
+      card(
+        card_header("Curva Logística (Modelo de Crescimento Sigmoidal)"),
+        card_body(
+          h5("Módulo em Desenvolvimento", class = "text-primary"),
+          p("Esta análise estará disponível em breve no CatalyseR! Permite ajustar modelos de crescimento sigmoidal onde a taxa de crescimento inicialmente aumenta de forma exponencial e depois diminui até atingir uma assíntota (capacidade de suporte)."),
+          hr(),
+          h6("Equação Matemática:", style = "font-weight: 700; color: #0f3b5f;"),
+          p("$$Y = \\frac{L}{1 + e^{-k \\cdot (X - X_0)}}$$"),
+          p("Onde $L$ é o valor máximo assintótico (limite superior do crescimento), $k$ é a taxa de crescimento relativo e $X_0$ é o ponto de inflexão da curva (onde o crescimento atinge metade do seu valor máximo)."),
+          hr(),
+          h6("Aplicações Práticas na Engenharia de Pesca:", style = "font-weight: 700; color: #0f3b5f;"),
+          tags$ul(
+            tags$li("Estudo da maturação sexual de peixes (comprimento de primeira maturação, L50), relacionando a proporção de indivíduos maduros ao comprimento total."),
+            tags$li("Crescimento populacional de microalgas ou bactérias em cultivos fechados (fases lag, log, desaceleração e estacionária)."),
+            tags$li("Curvas de seletividade de petrechos de pesca (redes de emalhe ou arrasto), estimando a probabilidade de retenção em função do comprimento do peixe.")
+          )
+        )
+      )
     )
   ),
   
@@ -1366,82 +1445,27 @@ RCatalyst::run_ide()</pre>
   # Valores Reativos para carregar e converter o dataset
   raw_data <- reactiveVal(NULL)
   col_types_rv <- reactiveVal(list())
-  selected_cols_rv <- reactiveVal(character(0))
   # Filtros de niveis para variaveis fator: lista nomeada col -> niveis mantidos.
   # Ausencia de entrada (ou todos os niveis) = sem filtro.
   level_filters_rv <- reactiveVal(list())
   # Filtros de faixa para variaveis numericas/inteiras: lista nomeada col -> c(min, max).
   # Ausencia de entrada (ou faixa completa) = sem filtro.
   range_filters_rv <- reactiveVal(list())
-  # Mapeamento para recodificação/agrupamento de fatores
-  col_recodes_rv <- reactiveVal(list())
   # Registro de observadores criados dinamicamente (evita duplicatas no re-render).
   lvl_obs_registry <- new.env()
 
   # Quando raw_data muda, inicializamos os tipos de coluna
   observeEvent(raw_data(), {
     df <- raw_data()
-    # Reinicia os filtros (niveis e faixas) e agrupamentos a cada novo dataset.
+    # Reinicia os filtros (niveis e faixas) a cada novo dataset.
     level_filters_rv(list())
     range_filters_rv(list())
-    col_recodes_rv(list())
     if (!is.null(df)) {
       initial_types <- lapply(df, detect_col_type)
       col_types_rv(initial_types)
-      selected_cols_rv(names(df))
     } else {
       col_types_rv(list())
-      selected_cols_rv(character(0))
     }
-  })
-  
-  # Observador para abrir o modal de seleção de variáveis
-  observeEvent(input$select_vars_btn, {
-    df <- raw_data()
-    req(df)
-    all_cols <- names(df)
-    selected_cols <- selected_cols_rv()
-    if (length(selected_cols) == 0) {
-      selected_cols <- all_cols
-    }
-    
-    showModal(modalDialog(
-      title = "Selecionar Variáveis do Conjunto",
-      tags$p(
-        style = "font-size: 0.85rem; color: #6c757d;",
-        "Marque as variáveis que deseja manter no conjunto de dados. As desmarcadas serão ocultadas de todas as análises e da tabela de tipagem."
-      ),
-      checkboxGroupInput(
-        inputId = "modal_selected_cols",
-        label = NULL,
-        choices = all_cols,
-        selected = selected_cols
-      ),
-      footer = tagList(
-        actionButton("modal_vars_all", "Selecionar todas",
-                     class = "btn btn-sm btn-outline-secondary"),
-        modalButton("Cancelar"),
-        actionButton("modal_vars_apply", "Aplicar",
-                     class = "btn btn-sm btn-primary")
-      ),
-      easyClose = TRUE,
-      size = "s"
-    ))
-  })
-  
-  # Observador para marcar todas as variáveis no modal
-  observeEvent(input$modal_vars_all, {
-    df <- raw_data()
-    req(df)
-    all_cols <- names(df)
-    updateCheckboxGroupInput(session, "modal_selected_cols", selected = all_cols)
-  })
-  
-  # Observador para aplicar a seleção de variáveis do modal
-  observeEvent(input$modal_vars_apply, {
-    req(input$modal_selected_cols)
-    selected_cols_rv(input$modal_selected_cols)
-    removeModal()
   })
   
   # Observador para capturar mudanças nos inputs de tipagem dinâmica gerados
@@ -1471,27 +1495,6 @@ RCatalyst::run_ide()</pre>
     req(df)
     types <- col_types_rv()
     req(length(types) > 0)
-    
-    # Filtrar colunas selecionadas pelo usuário
-    cols_to_keep <- selected_cols_rv()
-    if (length(cols_to_keep) > 0) {
-      df <- df[, cols_to_keep, drop = FALSE]
-    }
-    
-    # Recodificar colunas se houver mapeamento/agrupamento registrado
-    recodes <- col_recodes_rv()
-    for (col_name in names(df)) {
-      if (!is.null(recodes[[col_name]])) {
-        col_map <- recodes[[col_name]]
-        map_vec <- unlist(col_map)
-        val_vec <- as.character(df[[col_name]])
-        mapped_vec <- map_vec[val_vec]
-        # Onde a busca falhar (e o original não era NA), mantém o original
-        fallback_mask <- is.na(mapped_vec) & !is.na(val_vec)
-        mapped_vec[fallback_mask] <- val_vec[fallback_mask]
-        df[[col_name]] <- unname(mapped_vec)
-      }
-    }
     
     for (col_name in names(df)) {
       target_type <- types[[col_name]]
@@ -1559,10 +1562,6 @@ RCatalyst::run_ide()</pre>
   output$variable_type_converter_ui <- renderUI({
     df <- raw_data()
     req(df)
-    cols_to_keep <- selected_cols_rv()
-    if (length(cols_to_keep) > 0) {
-      df <- df[, cols_to_keep, drop = FALSE]
-    }
     types <- col_types_rv()
     req(length(types) > 0)
     lvlf <- level_filters_rv()
@@ -1607,31 +1606,16 @@ RCatalyst::run_ide()</pre>
                 ),
                 tags$td(
                   style = "padding: 4px 0; text-align: right; white-space: nowrap;",
-                  if (identical(current_type, "factor") || identical(current_type, "character")) {
+                  if (identical(current_type, "factor")) {
                     fobj <- lvlf[[col_name]]
                     ativo <- !is.null(fobj) && length(fobj) > 0
                     n_total <- length(levels(as.factor(df[[col_name]])))
                     rotulo <- if (ativo) sprintf("%d/%d", length(fobj), n_total) else "Filtrar"
-                    
-                    col_recode <- col_recodes_rv()[[col_name]]
-                    ativo_r <- !is.null(col_recode) && any(names(col_recode) != unlist(col_recode))
-                    n_recoded <- if (!is.null(col_recode)) length(unique(unlist(col_recode))) else n_total
-                    rotulo_r <- if (ativo_r) sprintf("Agrupado (%d)", n_recoded) else "Agrupar"
-                    
-                    tags$div(
-                      style = "display: flex; gap: 4px; justify-content: flex-end;",
-                      actionButton(
-                        inputId = paste0("col_filter_btn_", sanitize_id(col_name)),
-                        label = tagList(icon("filter"), rotulo),
-                        class = if (ativo) "btn btn-sm btn-primary" else "btn btn-sm btn-outline-secondary",
-                        style = "font-size: 0.72rem; padding: 2px 6px;"
-                      ),
-                      actionButton(
-                        inputId = paste0("col_recode_btn_", sanitize_id(col_name)),
-                        label = tagList(icon("object-group"), rotulo_r),
-                        class = if (ativo_r) "btn btn-sm btn-primary" else "btn btn-sm btn-outline-secondary",
-                        style = "font-size: 0.72rem; padding: 2px 6px;"
-                      )
+                    actionButton(
+                      inputId = paste0("col_filter_btn_", sanitize_id(col_name)),
+                      label = tagList(icon("filter"), rotulo),
+                      class = if (ativo) "btn btn-sm btn-primary" else "btn btn-sm btn-outline-secondary",
+                      style = "font-size: 0.72rem; padding: 2px 6px;"
                     )
                   } else if (current_type %in% c("numeric", "integer")) {
                     robj <- rngf[[col_name]]
@@ -1685,56 +1669,6 @@ RCatalyst::run_ide()</pre>
       ),
       easyClose = TRUE,
       size = "s"
-    ))
-  }
-
-  # ---- Agrupamento/Recodificação de categorias/fatores ------------------------
-  abrir_modal_agrupar <- function(col_name) {
-    df <- raw_data()
-    if (is.null(df) || !(col_name %in% names(df))) return(invisible(NULL))
-    id <- sanitize_id(col_name)
-    niveis <- sort(unique(as.character(df[[col_name]])))
-    recode_atual <- col_recodes_rv()[[col_name]]
-    
-    inputs_ui <- lapply(niveis, function(niv) {
-      val_def <- if (!is.null(recode_atual[[niv]])) recode_atual[[niv]] else niv
-      tags$tr(
-        tags$td(style = "padding: 5px; font-weight: bold; width: 45%; vertical-align: middle;", niv),
-        tags$td(style = "padding: 5px; width: 10%; text-align: center; vertical-align: middle;", icon("arrow-right")),
-        tags$td(style = "padding: 5px; width: 45%; vertical-align: middle;",
-                textInput(
-                  inputId = paste0("recode_val_", id, "_", sanitize_id(niv)),
-                  label = NULL,
-                  value = val_def,
-                  width = "100%"
-                )
-        )
-      )
-    })
-    
-    showModal(modalDialog(
-      title = paste0("Agrupar / Recodificar categorias — ", col_name),
-      tags$p(
-        style = "font-size: 0.85rem; color: #6c757d; margin-bottom: 15px;",
-        "Redefina os nomes das categorias para agrupar níveis. ",
-        "Por exemplo, mapeie múltiplos níveis originais para '0' e '1' (para regressão logística) ou para nomes comuns de sua escolha."
-      ),
-      tags$div(
-        style = "max-height: 250px; overflow-y: auto; padding-right: 5px;",
-        tags$table(
-          style = "width: 100%; border-collapse: collapse;",
-          tags$tbody(inputs_ui)
-        )
-      ),
-      footer = tagList(
-        actionButton(paste0("col_recode_reset_", id), "Restaurar Padrão",
-                     class = "btn btn-sm btn-outline-secondary"),
-        modalButton("Cancelar"),
-        actionButton(paste0("col_recode_apply_", id), "Aplicar",
-                     class = "btn btn-sm btn-primary")
-      ),
-      easyClose = TRUE,
-      size = "m"
     ))
   }
 
@@ -1846,49 +1780,6 @@ RCatalyst::run_ide()</pre>
               range_filters_rv(rf)
               removeModal()
             }, ignoreInit = TRUE)
-          
-          # --- Recodificação/Agrupamento de Fator ---
-          lvl_obs_registry[[paste0("recode_open_", i)]] <- observeEvent(
-            input[[paste0("col_recode_btn_", i)]], {
-              abrir_modal_agrupar(cn)
-            }, ignoreInit = TRUE)
-            
-          lvl_obs_registry[[paste0("recode_reset_", i)]] <- observeEvent(
-            input[[paste0("col_recode_reset_", i)]], {
-              niveis <- sort(unique(as.character(raw_data()[[cn]])))
-              for (niv in niveis) {
-                updateTextInput(session, paste0("recode_val_", i, "_", sanitize_id(niv)), value = niv)
-              }
-            }, ignoreInit = TRUE)
-            
-          lvl_obs_registry[[paste0("recode_apply_", i)]] <- observeEvent(
-            input[[paste0("col_recode_apply_", i)]], {
-              niveis <- sort(unique(as.character(raw_data()[[cn]])))
-              mapa <- list()
-              for (niv in niveis) {
-                novo_val <- input[[paste0("recode_val_", i, "_", sanitize_id(niv))]]
-                if (!is.null(novo_val) && nzchar(novo_val)) {
-                  mapa[[niv]] <- novo_val
-                } else {
-                  mapa[[niv]] <- niv
-                }
-              }
-              
-              # Grava o mapeamento
-              recodes <- col_recodes_rv()
-              recodes[[cn]] <- mapa
-              col_recodes_rv(recodes)
-              
-              # Reseta filtros de niveis se houver, pois os niveis mudaram
-              f <- level_filters_rv()
-              if (!is.null(f[[cn]])) {
-                f[[cn]] <- NULL
-                level_filters_rv(f)
-              }
-              
-              removeModal()
-            }, ignoreInit = TRUE)
-            
           lvl_obs_registry[[paste0("reg_", i)]] <- TRUE
         })
       }
@@ -1937,26 +1828,22 @@ RCatalyst::run_ide()</pre>
   
   # --- IMPORTAÇÃO DE DADOS LOCAL E DE PACOTE ---
   
-  # Gera seletor dinâmico de variáveis do dataset (Botão de Abertura de Modal)
-  output$dataset_vars_selector <- renderUI({
-    df <- raw_data()
-    req(df)
-    
-    all_cols <- names(df)
-    selected_cols <- selected_cols_rv()
-    if (length(selected_cols) == 0) {
-      selected_cols <- all_cols
+  # Verifica se o EAPADados está instalado e gera o seletor correspondente
+  output$package_dataset_selector <- renderUI({
+    if (requireNamespace("EAPADados", quietly = TRUE)) {
+      datasets <- c(
+        "artemia",
+        "biometria_caranguejos",
+        "camaroes_sexo",
+        "cangulo_crescimento",
+        "captura_petrechos",
+        "isoproteica_bagre",
+        "tilapia_crescimento"
+      )
+      selectInput("package_dataset", "Selecione o Dataset do EAPADados:", choices = datasets)
+    } else {
+      helpText("O pacote 'EAPADados' não foi detectado no sistema.")
     }
-    
-    ativo <- length(selected_cols) < length(all_cols)
-    rotulo <- sprintf("Selecionar Variáveis (%d/%d)", length(selected_cols), length(all_cols))
-    
-    actionButton(
-      "select_vars_btn", 
-      label = tagList(icon("list-check"), rotulo),
-      class = if (ativo) "btn btn-sm btn-primary w-100" else "btn btn-sm btn-outline-secondary w-100",
-      style = "font-size: 0.85rem; padding: 4px 10px; margin-top: 0px; margin-bottom: 0px;"
-    )
   })
   
   # Gera seletor de sheets dinâmico se for planilha Excel
@@ -2005,14 +1892,9 @@ RCatalyst::run_ide()</pre>
       req(input$package_dataset)
       if (requireNamespace("EAPADados", quietly = TRUE)) {
         tryCatch({
-          # Carrega o dataset de forma ultra-rápida direto do namespace
-          df <- tryCatch({
-            get(input$package_dataset, envir = asNamespace("EAPADados"))
-          }, error = function(err) {
-            # Fallback seguro usando data()
-            data(list = input$package_dataset, package = "EAPADados", envir = environment())
-            get(input$package_dataset)
-          })
+          # Carrega o dataset do namespace do pacote
+          data(list = input$package_dataset, package = "EAPADados", envir = environment())
+          df <- get(input$package_dataset)
           raw_data(as.data.frame(df))
         }, error = function(e) {
           showNotification(paste("Erro ao carregar do pacote:", e$message), type = "error")
@@ -2069,15 +1951,6 @@ RCatalyst::run_ide()</pre>
   # --- CHAMADA DO MÓDULO DE REGRESSÃO ---
   mod_regression_server("regression", current_data, import_info)
   
-  # --- CHAMADA DOS MÓDULOS DE REGRESSÃO NÃO LINEAR ---
-  mod_nonlinear_server("exponencial", current_data, import_info, "exponencial")
-  mod_nonlinear_server("potencia", current_data, import_info, "potencia")
-  mod_nonlinear_server("von_bertalanffy", current_data, import_info, "von_bertalanffy")
-  mod_nonlinear_server("polinomial", current_data, import_info, "polinomial")
-  mod_nonlinear_server("logaritmica", current_data, import_info, "logaritmica")
-  mod_regression_server("logistic_regression", current_data, import_info, is_logistic = TRUE)
-  mod_model_discovery_server("discovery", current_data, import_info)
-  
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
   mod_descr_stats_server("descr_stats", current_data, import_info)
   mod_histogram_server("histogram", current_data, import_info)
@@ -2109,13 +1982,7 @@ RCatalyst::run_ide()</pre>
     contingency = FALSE,
     anova = FALSE,
     pca = FALSE,
-    hca = FALSE,
-    exponencial = FALSE,
-    potencia = FALSE,
-    von_bertalanffy = FALSE,
-    polinomial = FALSE,
-    logaritmica = FALSE,
-    logistico = FALSE
+    hca = FALSE
   )
   
   # Observa a aba ativa para registrar visitas/trabalho em cada análise
@@ -2130,18 +1997,6 @@ RCatalyst::run_ide()</pre>
       used_analyses$boxplot <- TRUE
     } else if (tab == "Regressão Linear Simples") {
       used_analyses$regression <- TRUE
-    } else if (tab == "Curva Exponencial") {
-      used_analyses$exponencial <- TRUE
-    } else if (tab == "Curva de Modelo de Potência") {
-      used_analyses$potencia <- TRUE
-    } else if (tab == "Curva de Crescimento de Peixes") {
-      used_analyses$von_bertalanffy <- TRUE
-    } else if (tab == "Modelo Polinomial") {
-      used_analyses$polinomial <- TRUE
-    } else if (tab == "Curva Logarítmica") {
-      used_analyses$logaritmica <- TRUE
-    } else if (tab == "Curva Logística") {
-      used_analyses$logistico <- TRUE
     } else if (tab == "Teste t de Student") {
       used_analyses$parametric <- TRUE
     } else if (tab == "Amostrando uma AAS") {
@@ -2167,12 +2022,6 @@ RCatalyst::run_ide()</pre>
     used_analyses$histogram <- FALSE
     used_analyses$boxplot <- FALSE
     used_analyses$regression <- FALSE
-    used_analyses$exponencial <- FALSE
-    used_analyses$potencia <- FALSE
-    used_analyses$von_bertalanffy <- FALSE
-    used_analyses$polinomial <- FALSE
-    used_analyses$logaritmica <- FALSE
-    used_analyses$logistico <- FALSE
     used_analyses$parametric <- FALSE
     used_analyses$aas <- FALSE
     used_analyses$aep <- FALSE
@@ -2193,18 +2042,6 @@ RCatalyst::run_ide()</pre>
         used_analyses$boxplot <- TRUE
       } else if (tab == "Regressão Linear Simples") {
         used_analyses$regression <- TRUE
-      } else if (tab == "Curva Exponencial") {
-        used_analyses$exponencial <- TRUE
-      } else if (tab == "Curva de Modelo de Potência") {
-        used_analyses$potencia <- TRUE
-      } else if (tab == "Curva de Crescimento de Peixes") {
-        used_analyses$von_bertalanffy <- TRUE
-      } else if (tab == "Modelo Polinomial") {
-        used_analyses$polinomial <- TRUE
-      } else if (tab == "Curva Logarítmica") {
-        used_analyses$logaritmica <- TRUE
-      } else if (tab == "Curva Logística") {
-        used_analyses$logistico <- TRUE
       } else if (tab == "Teste t de Student") {
         used_analyses$parametric <- TRUE
       } else if (tab == "Amostrando uma AAS") {
@@ -2232,9 +2069,6 @@ RCatalyst::run_ide()</pre>
     } else {
       any_analysis <- used_analyses$descr_stats || used_analyses$histogram || 
                       used_analyses$boxplot || used_analyses$regression ||
-                      used_analyses$exponencial || used_analyses$potencia ||
-                      used_analyses$von_bertalanffy || used_analyses$polinomial ||
-                      used_analyses$logaritmica || used_analyses$logistico ||
                       used_analyses$parametric || used_analyses$aas ||
                       used_analyses$aep || used_analyses$as ||
                       used_analyses$contingency || used_analyses$anova ||
@@ -2298,45 +2132,6 @@ RCatalyst::run_ide()</pre>
           checkboxInput("exp_regression", 
                         label = if (used_analyses$regression) "Regressão Linear Simples" else "Regressão Linear (Não realizada)", 
                         value = used_analyses$regression)
-        ),
-        
-        # Menu: Regressão Não Linear
-        h6("Regressão Não Linear (Modelos de Crescimento)", style = "font-weight: 700; color: #0d6efd; margin-top: 14px; margin-bottom: 6px; font-size: 0.85rem; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 2px;"),
-        div(
-          style = if (!used_analyses$exponencial) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_exponencial", 
-                        label = if (used_analyses$exponencial) "Curva Exponencial" else "Curva Exponencial (Não realizada)", 
-                        value = used_analyses$exponencial)
-        ),
-        div(
-          style = if (!used_analyses$potencia) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_potencia", 
-                        label = if (used_analyses$potencia) "Curva de Modelo de Potência" else "Modelo de Potência (Não realizada)", 
-                        value = used_analyses$potencia)
-        ),
-        div(
-          style = if (!used_analyses$von_bertalanffy) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_von_bertalanffy", 
-                        label = if (used_analyses$von_bertalanffy) "Curva de Crescimento de Peixes" else "Crescimento de Peixes (Não realizada)", 
-                        value = used_analyses$von_bertalanffy)
-        ),
-        div(
-          style = if (!used_analyses$polinomial) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_polinomial", 
-                        label = if (used_analyses$polinomial) "Modelo Polinomial" else "Modelo Polinomial (Não realizada)", 
-                        value = used_analyses$polinomial)
-        ),
-        div(
-          style = if (!used_analyses$logaritmica) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_logaritmica", 
-                        label = if (used_analyses$logaritmica) "Curva Logarítmica" else "Curva Logarítmica (Não realizada)", 
-                        value = used_analyses$logaritmica)
-        ),
-        div(
-          style = if (!used_analyses$logistico) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_logistico", 
-                        label = if (used_analyses$logistico) "Curva Logística" else "Curva Logística (Não realizada)", 
-                        value = used_analyses$logistico)
         ),
         
         # Menu: Testes Paramétricos
@@ -3067,101 +2862,6 @@ RCatalyst::run_ide()</pre>
         qmd_sections[["regression"]] <- qmd_reg
       }
       
-      # --- SEÇÃO: REGRESSÃO NÃO LINEAR (CURVAS DE CRESCIMENTO) ---
-      gerar_secao_curva <- function(tipo_curva, label_curva, exp_input, var_y_id, var_x_id) {
-        if (isTRUE(input[[exp_input]])) {
-          file.copy("templates/funcoes_crescimento.R", file.path(dir_scripts, "funcoes_crescimento.R"), overwrite = TRUE)
-          var_y <- input[[var_y_id]]
-          var_x <- input[[var_x_id]]
-          if (is.null(var_y)) var_y <- names(df_clean)[sapply(df_clean, is.numeric)][1]
-          if (is.null(var_x)) var_x <- names(df_clean)[sapply(df_clean, is.numeric)][2]
-          
-          script_name <- paste0("4_regressao_nao_linear_", tipo_curva, ".R")
-          
-          c_script <- c(
-            sprintf("# --- SCRIPT DE REGRESSÃO NÃO LINEAR (%s) ---", label_curva),
-            "library(ggplot2)",
-            "library(tibble)",
-            "source('scripts/funcoes_crescimento.R')",
-            "load('dados/dados_limpos.rda')",
-            "dados <- df_clean",
-            "",
-            sprintf("fit_res <- ajustar_curva(dados, var_y = '%s', var_x = '%s', tipo = '%s')", var_y, var_x, tipo_curva),
-            "print(mostrar_coefs_curva(fit_res))",
-            "print(mostrar_metricas_curva(fit_res))",
-            "print(mostrar_normalidade_curva(fit_res))",
-            "cat(relatar_curva(fit_res))",
-            "",
-            "# Gráfico com a curva predita",
-            "grid <- curva_predita(fit_res)",
-            sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", var_x, var_y),
-            "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', size = 1.2) +", var_x, var_y),
-            "  theme_minimal() +",
-            sprintf("  labs(title = 'Ajuste: %s', x = '%s', y = '%s')", label_curva, var_x, var_y)
-          )
-          
-          writeLines(c_script, file.path(dir_scripts, script_name))
-          scripts_incluidos <<- c(scripts_incluidos, paste0("scripts/", script_name))
-          
-          qmd_sections[[tipo_curva]] <<- c(
-            sprintf("## Regressão Não Linear: %s", label_curva),
-            sprintf("Ajuste do modelo não linear para descrever **%s** em função de **%s**.", var_y, var_x),
-            "",
-            "```{r}",
-            sprintf("#| label: curve-%s-setup", tipo_curva),
-            "#| include: false",
-            "source('../scripts/funcoes_crescimento.R')",
-            sprintf("fit_res <- ajustar_curva(dados, '%s', '%s', '%s')", var_y, var_x, tipo_curva),
-            "```",
-            "",
-            "### Coeficientes Estimados",
-            "```{r}",
-            sprintf("#| label: curve-%s-coefs", tipo_curva),
-            "#| output: asis",
-            "knitr::kable(mostrar_coefs_curva(fit_res), digits = 5, caption = 'Estimativas dos Parâmetros')",
-            "```",
-            "",
-            "### Métricas de Ajuste",
-            "```{r}",
-            sprintf("#| label: curve-%s-metrics", tipo_curva),
-            "#| output: asis",
-            "knitr::kable(mostrar_metricas_curva(fit_res), digits = 4, caption = 'Métricas de Ajuste do Modelo')",
-            "```",
-            "",
-            "### Relato Descritivo",
-            "> `r relatar_curva(fit_res)`",
-            "",
-            "### Pressupostos (Normalidade dos Resíduos)",
-            "```{r}",
-            sprintf("#| label: curve-%s-pressupostos", tipo_curva),
-            "#| output: asis",
-            "knitr::kable(mostrar_normalidade_curva(fit_res), digits = 4, caption = 'Teste de Normalidade dos Resíduos')",
-            "```",
-            "",
-            "### Representação Visual",
-            "```{r}",
-            sprintf("#| label: curve-%s-plot", tipo_curva),
-            "#| echo: false",
-            "grid <- curva_predita(fit_res)",
-            sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", var_x, var_y),
-            "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', size = 1.2) +", var_x, var_y),
-            "  theme_minimal() +",
-            sprintf("  labs(x = '%s', y = '%s')", var_x, var_y),
-            "```",
-            ""
-          )
-        }
-      }
-      
-      gerar_secao_curva("exponencial", "Curva Exponencial", "exp_exponencial", "exponencial-var_y", "exponencial-var_x")
-      gerar_secao_curva("potencia", "Curva de Modelo de Potência", "exp_potencia", "potencia-var_y", "potencia-var_x")
-      gerar_secao_curva("von_bertalanffy", "Curva de Crescimento de Peixes (Von Bertalanffy)", "exp_von_bertalanffy", "von_bertalanffy-var_y", "von_bertalanffy-var_x")
-      gerar_secao_curva("polinomial", "Modelo Polinomial (Regressão Quadrática)", "exp_polinomial", "polinomial-var_y", "polinomial-var_x")
-      gerar_secao_curva("logaritmica", "Curva Logarítmica", "exp_logaritmica", "logaritmica-var_y", "logaritmica-var_x")
-      gerar_secao_curva("logistico", "Curva Logística", "exp_logistico", "logistico-var_y", "logistico-var_x")
-      
       # --- SEÇÃO 5: TESTE T DE STUDENT ---
       if (isTRUE(input$exp_parametric)) {
         test_type <- input[["parametric-test_type"]]
@@ -3753,24 +3453,6 @@ RCatalyst::run_ide()</pre>
       }
       if (!is.null(qmd_sections[["regression"]])) {
         qmd_lines <- c(qmd_lines, "---", qmd_sections[["regression"]])
-      }
-      if (!is.null(qmd_sections[["exponencial"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["exponencial"]])
-      }
-      if (!is.null(qmd_sections[["potencia"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["potencia"]])
-      }
-      if (!is.null(qmd_sections[["von_bertalanffy"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["von_bertalanffy"]])
-      }
-      if (!is.null(qmd_sections[["polinomial"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["polinomial"]])
-      }
-      if (!is.null(qmd_sections[["logaritmica"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["logaritmica"]])
-      }
-      if (!is.null(qmd_sections[["logistico"]])) {
-        qmd_lines <- c(qmd_lines, "---", qmd_sections[["logistico"]])
       }
       if (!is.null(qmd_sections[["parametric"]])) {
         qmd_lines <- c(qmd_lines, "---", qmd_sections[["parametric"]])

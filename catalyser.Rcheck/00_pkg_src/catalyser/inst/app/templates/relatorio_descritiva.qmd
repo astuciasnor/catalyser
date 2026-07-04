@@ -42,11 +42,7 @@ library(flextable)
 library(stringr)
 
 # ---- Carregar Funções Auxiliares -----------------------------------------
-# Fonte canônica: pacote EAPADados. O source() local é apenas rede de
-# segurança para execução offline (ex.: Projeto R .zip do aluno).
-if (requireNamespace("EAPADados", quietly = TRUE)) {
-  library(EAPADados)
-} else if (file.exists("funcoes_descritiva.R")) {
+if (file.exists("funcoes_descritiva.R")) {
   source("funcoes_descritiva.R")
 } else if (file.exists("../scripts/funcoes_descritiva.R")) {
   source("../scripts/funcoes_descritiva.R")
@@ -73,9 +69,8 @@ if (file.exists("dados_limpos.rda")) {
   )
 }
 
-# Processar as variáveis passadas como parâmetro e calcular estatísticas descritivas
+# Processar as variáveis passadas como parâmetro
 vars_vector <- str_trim(unlist(str_split(params$vars_selected, ",")))
-descr_res <- calcular_descr(dados, vars = vars_vector, grupo = params$grupo)
 ```
 
 # Introdução
@@ -91,7 +86,7 @@ A @tbl-resumo apresenta as estatísticas resumo detalhadas para as variáveis se
 #| tbl-cap: "Medidas estatísticas descritivas das variáveis analisadas."
 #| output: asis
 
-tab_stats <- mostrar_descr(descr_res)
+tab_stats <- mostrar_descr(dados, vars = vars_vector, grupo = params$grupo)
 flextable_ocean(tab_stats)
 ```
 
@@ -100,7 +95,7 @@ Abaixo apresenta-se a descrição narrativa em português das estatísticas calc
 ::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
 ```{r}
 #| output: asis
-cat(relatar_descr(descr_res))
+cat(relatar_descr(dados, vars = vars_vector, grupo = params$grupo))
 ```
 :::
 

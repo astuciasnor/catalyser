@@ -1,0 +1,138 @@
+---
+title: "Relatório de análise: teste *t* de Student"
+subtitle: "Comparação de médias e relato científico automatizado"
+author:
+  - "IDE CatalyseR"
+date: today
+date-format: "DD/MM/YYYY"
+lang: pt
+abstract-title: "Resumo"
+abstract: |
+  Este relatório apresenta a aplicação do teste *t* de Student com o objetivo de
+  comparar médias e avaliar a significância estatística das diferenças encontradas.
+  São reportados a estatística do teste, o intervalo de confiança, o valor-p e o
+  tamanho de efeito (d de Cohen), acompanhados de uma descrição textual pronta
+  para publicação. O fluxo integra análise e redação científica em um único documento editável.
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: true
+    toc-title: "Sumário"
+    toc-depth: 3
+    number-sections: true
+    tbl-cap-location: top
+    fig-cap-location: bottom
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+params:
+  test_type: "one_val" # "one_val", "two_ind", "paired"
+  var_y: "comp_cm"
+  var_x: "NULL"
+  mu: 40
+  conf_level: 0.95
+  label_y: "Comprimento do peixe"
+  label_x: "Grupo"
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+# ---- Pacotes -------------------------------------------------------------
+library(tibble)
+library(flextable)
+
+# ---- Carregar Funções Auxiliares -----------------------------------------
+# Fonte canônica: pacote EAPADados. O source() local é apenas rede de
+# segurança para execução offline (ex.: Projeto R .zip do aluno).
+if (requireNamespace("EAPADados", quietly = TRUE)) {
+  library(EAPADados)
+} else if (file.exists("funcoes_teste_t.R")) {
+  source("funcoes_teste_t.R")
+} else if (file.exists("../scripts/funcoes_teste_t.R")) {
+  source("../scripts/funcoes_teste_t.R")
+} else if (file.exists("scripts/funcoes_teste_t.R")) {
+  source("scripts/funcoes_teste_t.R")
+}
+
+# ---- Carregar Dados ------------------------------------------------------
+if (file.exists("dados_limpos.rda")) {
+  load("dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("../dados/dados_limpos.rda")) {
+  load("../dados/dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("dados/dados_limpos.rda")) {
+  load("dados/dados_limpos.rda")
+  dados <- df_clean
+} else {
+  # Dados de simulação caso o arquivo não seja encontrado localmente
+  set.seed(2026)
+  z <- as.numeric(scale(rnorm(80)))
+  dados <- tibble::tibble(comp_cm = 37.7625 + 9.84 * z)
+}
+```
+
+# Introdução
+
+Descreva aqui o contexto do estudo, a pergunta de pesquisa e a justificativa da análise estatística realizada. Este parágrafo segue a formatação do template institucional: Times New Roman 12, justificado e com recuo na primeira linha.
+
+# Material e métodos
+
+Detalhe a amostragem, o instrumento de medida e o procedimento estatístico. Para esta análise, foi conduzido um Teste *t* de Student com nível de significância de 5% ($\alpha = 0,05$). O tamanho de efeito foi estimado pelo coeficiente *d* de Cohen para quantificar a relevância prática dos achados.
+
+# Resultados
+
+A @tbl-tteste sintetiza os resultados detalhados obtidos a partir da execução do teste estatístico.
+
+```{r}
+#| label: tbl-tteste
+#| tbl-cap: "Resultado do Teste t de Student."
+#| output: asis
+
+if (params$test_type == "one_val") {
+  tab <- mostrar_teste_t(dados[[params$var_y]], mu = params$mu, nome = params$label_y, conf = params$conf_level)
+} else if (params$test_type == "two_ind") {
+  formula_obj <- as.formula(paste0("`", params$var_y, "` ~ `", params$var_x, "`"))
+  tab <- mostrar_teste_t_ind(formula_obj, data = dados, equal_var = FALSE, conf = params$conf_level)
+} else if (params$test_type == "paired") {
+  tab <- mostrar_teste_t_pareado(dados[[params$var_y]], dados[[params$var_x]], nome1 = params$label_y, nome2 = params$label_x, conf = params$conf_level)
+}
+
+flextable_ocean(tab)
+```
+
+Abaixo apresenta-se a descrição narrativa padronizada dos resultados da análise:
+
+::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
+```{r}
+#| output: asis
+
+if (params$test_type == "one_val") {
+  cat(relatar_teste_t(dados[[params$var_y]], mu = params$mu, nome = params$label_y, conf = params$conf_level))
+} else if (params$test_type == "two_ind") {
+  formula_obj <- as.formula(paste0("`", params$var_y, "` ~ `", params$var_x, "`"))
+  cat(relatar_teste_t_ind(formula_obj, data = dados, equal_var = FALSE, conf = params$conf_level, label_y = params$label_y, label_x = params$label_x))
+} else if (params$test_type == "paired") {
+  cat(relatar_teste_t_pareado(dados[[params$var_y]], dados[[params$var_x]], nome1 = params$label_y, nome2 = params$label_x, conf = params$conf_level, label_y = params$label_y))
+}
+```
+:::
+
+# Discussão
+
+Interprete o resultado articulando significância estatística e relevância prática. Lembre que um valor-p significativo com tamanho de efeito pequeno indica uma diferença detectável, porém modesta frente à variabilidade natural.
+
+# Conclusão
+
+Sintetize a resposta à pergunta de pesquisa e aponte implicações ou encaminhamentos práticos.
+
+# Referências {.unnumbered}
+
+::: {#refs}
+:::

@@ -1,0 +1,126 @@
+---
+title: "Relatório de análise: Regressão Linear Simples"
+subtitle: "Modelagem estatística e relato científico automatizado"
+author:
+  - "IDE CatalyseR"
+date: today
+date-format: "DD/MM/YYYY"
+lang: pt
+abstract-title: "Resumo"
+abstract: |
+  Este relatório apresenta a aplicação de uma análise de regressão linear simples
+  para examinar a relação funcional entre a variável preditora (independente)
+  e a variável de resposta (dependente). São reportados os coeficientes do modelo,
+  métricas de ajuste (R² e RSE), análise de variância geral (ANOVA) e a interpretação
+  textual em português pronta para inclusão em relatórios acadêmicos e profissionais.
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: true
+    toc-title: "Sumário"
+    toc-depth: 3
+    number-sections: true
+    tbl-cap-location: top
+    fig-cap-location: bottom
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+params:
+  var_y: "peso"
+  var_x: "comp_cm"
+  label_y: "o peso do peixe"
+  label_x: "o comprimento do peixe"
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+# ---- Pacotes -------------------------------------------------------------
+library(tibble)
+library(flextable)
+
+# ---- Carregar Funções Auxiliares -----------------------------------------
+if (file.exists("funcoes_regressao.R")) {
+  source("funcoes_regressao.R")
+} else if (file.exists("../scripts/funcoes_regressao.R")) {
+  source("../scripts/funcoes_regressao.R")
+} else if (file.exists("scripts/funcoes_regressao.R")) {
+  source("scripts/funcoes_regressao.R")
+}
+
+# ---- Carregar Dados ------------------------------------------------------
+if (file.exists("dados_limpos.rda")) {
+  load("dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("../dados/dados_limpos.rda")) {
+  load("../dados/dados_limpos.rda")
+  dados <- df_clean
+} else if (file.exists("dados/dados_limpos.rda")) {
+  load("dados/dados_limpos.rda")
+  dados <- df_clean
+} else {
+  # Dados de simulação
+  set.seed(2026)
+  z <- as.numeric(scale(rnorm(80)))
+  dados <- tibble::tibble(
+    comp_cm = 37.7625 + 9.84 * z,
+    peso = 250 + 8.5 * comp_cm + rnorm(80, sd = 30)
+  )
+}
+
+# Ajustar o modelo linear
+formula_obj <- as.formula(paste0("`", params$var_y, "` ~ `", params$var_x, "`"))
+modelo <- lm(formula_obj, data = dados)
+```
+
+# Introdução
+
+Este relatório descreve o ajuste de um modelo de regressão linear simples para descrever a dependência linear entre `r params$label_y` ($Y$) e `r params$label_x` ($X$). A modelagem permite avaliar o sentido (positivo ou negativo) e a magnitude do efeito preditivo, além de estimar a fração de variação explicada pelo modelo estatístico.
+
+# Material e métodos
+
+Foi realizada uma análise de regressão linear simples pelo método dos mínimos quadrados ordinários (MQO). Adotou-se o nível de significância de 5% ($\alpha = 0,05$) para avaliar a hipótese nula de que a inclinação do coeficiente preditor é nula ($H_0: \beta_1 = 0$). O ajuste geral do modelo foi caracterizado pelo erro padrão residual (RSE) e pelo coeficiente de determinação ($R^2$).
+
+# Resultados
+
+As tabelas a seguir sintetizam as estimativas dos coeficientes da regressão (@tbl-coefs) e as estatísticas gerais de ajuste do modelo ajustado (@tbl-metricas).
+
+```{r}
+#| label: tbl-coefs
+#| tbl-cap: "Estimativas dos parâmetros e coeficientes do modelo de regressão linear simples."
+#| output: asis
+
+tab_coefs <- mostrar_coefs_regressao(modelo)
+flextable_ocean(tab_coefs)
+```
+
+```{r}
+#| label: tbl-metricas
+#| tbl-cap: "Métricas gerais de ajuste e validação do modelo ajustado."
+#| output: asis
+
+tab_metricas <- mostrar_metricas_regressao(modelo)
+flextable_ocean(tab_metricas)
+```
+
+Abaixo apresenta-se a descrição narrativa em português dos coeficientes estimadores e ajuste do modelo:
+
+::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
+```{r}
+#| output: asis
+cat(relatar_regressao(modelo, label_y = params$label_y, label_x = params$label_x))
+```
+:::
+
+# Discussão
+
+A discussão do modelo envolve a avaliação da qualidade preditiva e as hipóteses fundamentais da regressão (como linearidade, homocedasticidade e normalidade dos resíduos). A robustez empírica das estimativas depende diretamente da adequação estrutural desses pressupostos.
+
+# Conclusão
+
+O modelo de regressão linear simples permitiu quantificar e modelar estatisticamente a associação linear entre `r params$label_y` e `r params$label_x`, servindo como ferramenta útil para predição e entendimento conceitual das variáveis estudadas.
