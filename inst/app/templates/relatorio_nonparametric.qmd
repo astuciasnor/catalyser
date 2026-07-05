@@ -1,0 +1,155 @@
+---
+title: "Relatório de análise: testes não paramétricos"
+subtitle: "Qui-quadrado, Mann-Whitney, Wilcoxon e Kruskal-Wallis"
+author:
+  - "IDE CatalyseR"
+date: today
+date-format: "DD/MM/YYYY"
+lang: pt
+abstract-title: "Resumo"
+abstract: |
+  Este relatório apresenta a aplicação de um teste não paramétrico, adequado
+  quando os pressupostos de normalidade não se sustentam ou quando os dados são
+  categóricos. São reportados a estatística do teste, os graus de liberdade
+  (quando aplicável) e o valor-p, acompanhados de uma descrição textual pronta
+  para publicação, no espírito "do mouse ao código" do ecossistema EAPA.
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: true
+    toc-title: "Sumário"
+    toc-depth: 3
+    number-sections: true
+    tbl-cap-location: top
+    fig-cap-location: bottom
+  html:
+    theme: cosmo
+    toc: true
+    toc-title: "Sumário"
+params:
+  test_type: "quiquadrado" # "quiquadrado", "mannwhitney", "wilcoxon", "kruskal"
+  var_y: ""
+  var_x: ""
+  var1: ""
+  var2: ""
+  var_row: "Linha"
+  var_col: "Coluna"
+  alternative: "two.sided"
+  yates: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+#| include: false
+
+library(flextable)
+
+# Fonte canônica das funções (rede de segurança para execução offline)
+if (file.exists("funcoes_nonparametric.R")) {
+  source("funcoes_nonparametric.R")
+} else if (file.exists("../scripts/funcoes_nonparametric.R")) {
+  source("../scripts/funcoes_nonparametric.R")
+} else if (file.exists("scripts/funcoes_nonparametric.R")) {
+  source("scripts/funcoes_nonparametric.R")
+}
+
+# Dados limpos
+carregar_dados <- function() {
+  for (p in c("dados_limpos.rda", "../dados/dados_limpos.rda", "dados/dados_limpos.rda")) {
+    if (file.exists(p)) { load(p); return(get("df_clean")) }
+  }
+  NULL
+}
+dados <- carregar_dados()
+
+# Tabela de contingência (para o qui-quadrado)
+carregar_tabela <- function() {
+  for (p in c("tabela_contingencia.rda", "../dados/tabela_contingencia.rda", "dados/tabela_contingencia.rda")) {
+    if (file.exists(p)) { load(p); return(get("tab_np")) }
+  }
+  NULL
+}
+```
+
+# Introdução
+
+Descreva aqui o contexto do estudo, a pergunta de pesquisa e a justificativa da análise. Este parágrafo segue a formatação do template institucional: Times New Roman 12, justificado e com recuo na primeira linha.
+
+# Material e métodos
+
+Detalhe a amostragem, as variáveis e o procedimento estatístico. Adotou-se o nível de significância de 5% ($\alpha = 0,05$). Testes não paramétricos comparam **postos** (ordens) ou **frequências** e não exigem normalidade dos dados.
+
+# Resultados
+
+A @tbl-np sintetiza o resultado do teste aplicado.
+
+```{r}
+#| label: tbl-np
+#| tbl-cap: "Resultado do teste não paramétrico."
+#| output: asis
+
+res <- NULL
+if (params$test_type == "quiquadrado") {
+  tab_np <- carregar_tabela()
+  res <- calcular_qui_quadrado(tab_np, correct = params$yates,
+                               var_row = params$var_row, var_col = params$var_col)
+  arr <- arrumar_qui_quadrado(res)
+} else if (params$test_type == "mannwhitney") {
+  res <- calcular_mann_whitney(dados, params$var_y, params$var_x, alternative = params$alternative)
+  arr <- arrumar_mann_whitney(res)
+} else if (params$test_type == "wilcoxon") {
+  res <- calcular_wilcoxon(dados, params$var1, params$var2, alternative = params$alternative)
+  arr <- arrumar_wilcoxon(res)
+} else if (params$test_type == "kruskal") {
+  res <- calcular_kruskal(dados, params$var_y, params$var_x)
+  arr <- arrumar_kruskal(res)
+}
+
+flextable_ocean_np(arr)
+```
+
+```{r}
+#| label: tbl-crosstab
+#| tbl-cap: "Tabela de contingência (contagens observadas)."
+#| output: asis
+#| eval: !expr params$test_type == "quiquadrado"
+
+tab_np <- carregar_tabela()
+tab_df <- as.data.frame.matrix(tab_np)
+tab_df <- cbind(` ` = rownames(tab_np), tab_df)
+flextable_ocean_np(tab_df)
+```
+
+Abaixo, a descrição narrativa padronizada dos resultados:
+
+::: {.docx-report-text style="margin-top: 15px; margin-bottom: 15px; text-align: justify; font-family: 'Times New Roman'; font-size: 12pt;"}
+```{r}
+#| output: asis
+
+if (params$test_type == "quiquadrado") {
+  cat(relatar_qui_quadrado(res))
+} else if (params$test_type == "mannwhitney") {
+  cat(relatar_mann_whitney(res))
+} else if (params$test_type == "wilcoxon") {
+  cat(relatar_wilcoxon(res))
+} else if (params$test_type == "kruskal") {
+  cat(relatar_kruskal(res))
+}
+```
+:::
+
+# Discussão
+
+Interprete o resultado articulando significância estatística e relevância prática. No qui-quadrado, verifique as frequências esperadas; havendo células com esperado abaixo de 5, prefira o teste exato de Fisher.
+
+# Conclusão
+
+Sintetize a resposta à pergunta de pesquisa e aponte implicações ou encaminhamentos práticos.
+
+# Referências {.unnumbered}
+
+::: {#refs}
+:::

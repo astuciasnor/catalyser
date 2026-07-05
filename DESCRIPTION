@@ -22,6 +22,18 @@ Imports:
     markdown,
     zip,
     writexl
+Suggests:
+    geobr,
+    sf,
+    ggspatial,
+    RColorBrewer,
+    leaflet,
+    ggrepel,
+    cowplot,
+    hexbin,
+    rstatix,
+    rcompanion,
+    multcompView
 Depends: R (>= 4.0.0)
 Roxygen: list(markdown = TRUE)
 LazyData: true

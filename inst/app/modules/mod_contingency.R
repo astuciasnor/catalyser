@@ -328,5 +328,9 @@ mod_contingency_server <- function(id, data_rv, import_info) {
         setwd(old_wd)
       }
     )
+
+    # Expõe a tabela de contingência calculada para outros módulos
+    # (ex.: o qui-quadrado no menu de testes não paramétricos).
+    return(result_rv)
   })
 }

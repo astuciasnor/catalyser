@@ -48,10 +48,19 @@ mod_model_discovery_ui <- function(id) {
           icon = icon("chart-line"),
           card_body(
             style = "padding: 15px;",
-            plotOutput(ns("discovery_plot"), height = "400px"),
-            hr(style = "margin: 15px 0; border-color: #dee2e6;"),
-            h5("Comparação dos Ajustes (Ordenado por R²)", style = "margin-bottom: 10px; font-weight: bold; color: #495057;"),
-            DTOutput(ns("summary_table"))
+            layout_columns(
+              col_widths = c(1, 1),
+              style = "grid-template-columns: 1fr 1fr !important;",
+              # Coluna 1: gráfico de dispersão com as linhas de tendência
+              div(
+                plotOutput(ns("discovery_plot"), height = "460px")
+              ),
+              # Coluna 2: tabela de comparação dos ajustes (espremida)
+              div(
+                h5("Comparação dos Ajustes (Ordenado por R²)", style = "margin-bottom: 10px; font-weight: bold; color: #495057;"),
+                DTOutput(ns("summary_table"))
+              )
+            )
           )
         ),
         nav_panel(
@@ -161,7 +170,7 @@ mod_model_discovery_server <- function(id, data_rv, import_info) {
       
       p <- ggplot(clean_df, aes(x = x, y = y)) +
         geom_point(color = "#495057", alpha = 0.6, size = 2.5) +
-        theme_minimal(base_size = 14) +
+        theme_gray(base_size = 14) +
         labs(
           title = paste("Explorador de Ajustes:", input$var_y, "vs", input$var_x),
           x = input$var_x,
@@ -243,7 +252,11 @@ mod_model_discovery_server <- function(id, data_rv, import_info) {
       datatable(
         disp_tbl,
         escape = FALSE,
-        options = list(dom = 't', ordering = FALSE, pageLength = 5),
+        class = "compact stripe",
+        options = list(
+          dom = 't', ordering = FALSE, pageLength = 5, scrollX = TRUE,
+          columnDefs = list(list(className = "dt-right", targets = 2))
+        ),
         rownames = FALSE,
         selection = 'none'
       ) %>%
@@ -339,7 +352,7 @@ mod_model_discovery_server <- function(id, data_rv, import_info) {
         "# --- Gráfico de Comparação com ggplot2 ---",
         "p <- ggplot(dados_limpos, aes(x = x, y = y)) +",
         "  geom_point(color = '#495057', alpha = 0.6, size = 2.5) +",
-        "  theme_minimal(base_size = 14) +",
+        "  theme_gray(base_size = 14) +",
         sprintf("  labs(title = 'Comparação de Modelos', x = '%s', y = '%s') +", input$var_x, input$var_y),
         "  theme(plot.title = element_text(face = 'bold', size = 16))",
         "",

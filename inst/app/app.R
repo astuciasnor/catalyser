@@ -21,6 +21,15 @@ source("modules/mod_pca.R")
 source("modules/mod_hca.R")
 source("modules/mod_contingency.R")
 source("modules/mod_experimental_design.R")
+source("modules/mod_nonparametric.R")
+source("modules/mod_pizza.R")
+source("modules/mod_viz_extra.R")
+source("modules/mod_mapa.R")
+source("modules/mod_mapa_pontos.R")
+# Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
+# source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
+# source("modules/mod_mapa_raster.R")    # raster ambiental isolado
+# source("modules/mod_leaflet.R")        # mapa interativo (leaflet, só HTML)
 
 # Funções auxiliares para tipagem de colunas
 detect_col_type <- function(col) {
@@ -35,6 +44,31 @@ detect_col_type <- function(col) {
 sanitize_id <- function(x) {
   gsub("[^a-zA-Z0-9_]", "_", x)
 }
+
+# Lista dinâmica dos conjuntos do EAPADados: puxa TODOS os datasets do pacote
+# (novos conjuntos passam a aparecer sozinhos), mantendo só os que são data.frame
+# e tirando tabelas auxiliares (dicionários/referências). Se o pacote não estiver
+# disponível, cai numa lista mínima de segurança.
+eapa_datasets <- local({
+  aux <- c("dicionario_variaveis_amostragem", "referencias_dados_amostragem")
+  itens <- tryCatch(
+    sub("\\s.*$", "", data(package = "EAPADados")$results[, "Item"]),
+    error = function(e) character(0)
+  )
+  itens <- setdiff(itens, aux)
+  ok <- itens[vapply(itens, function(nm) {
+    obj <- tryCatch(get(nm, envir = asNamespace("EAPADados")), error = function(e) NULL)
+    is.data.frame(obj)
+  }, logical(1))]
+  ok <- sort(ok)
+  if (length(ok) == 0) {
+    ok <- c("artemia", "biometria_caranguejos", "camaroes_sexo",
+            "cangulo_crescimento", "captura_petrechos", "isoproteica_bagre",
+            "tilapia_crescimento", "walleye_erie")
+  }
+  ok
+})
+eapa_dataset_default <- if ("artemia" %in% eapa_datasets) "artemia" else eapa_datasets[1]
 
 # Interface do Usuário (UI)
 ui <- page_navbar(
@@ -325,6 +359,13 @@ ui <- page_navbar(
       .selectize-control {
         margin-bottom: 6px !important;
       }
+      /* Garante área de digitação utilizável na busca do selectize */
+      .selectize-input {
+        min-height: 1.7rem !important;
+      }
+      .selectize-input input {
+        font-size: 0.83rem !important;
+      }
       
       /* 3. Compactação das Abas Superiores do Painel Central */
       .nav-tabs .nav-link {
@@ -408,16 +449,14 @@ ui <- page_navbar(
               ),
               conditionalPanel(
                 condition = "input.data_source == 'package'",
-                selectInput("package_dataset", "Selecione o Dataset do EAPADados:", choices = c(
-                  "artemia",
-                  "biometria_caranguejos",
-                  "camaroes_sexo",
-                  "cangulo_crescimento",
-                  "captura_petrechos",
-                  "isoproteica_bagre",
-                  "tilapia_crescimento",
-                  "walleye_erie"
-                ))
+                selectizeInput("package_dataset", "Selecione o Dataset do EAPADados:",
+                  choices = eapa_datasets,
+                  selected = eapa_dataset_default,
+                  options = list(
+                    placeholder = "Digite ou escolha um conjunto de dados...",
+                    openOnFocus = TRUE,
+                    maxOptions = 100
+                  ))
               ),
               uiOutput("dataset_vars_selector", style = "margin-top: -10px; margin-bottom: 0px; padding: 0;"),
               hr(style = "margin: 6px 0;")
@@ -537,14 +576,14 @@ ui <- page_navbar(
     title = HTML("Modelos de<br>Regressão"),
     icon = icon("chart-line"),
     nav_panel(
-      title = "Regressão Linear Simples",
-      icon = icon("chart-line"),
-      mod_regression_ui("regression")
-    ),
-    nav_panel(
       title = "Descobrindo o Modelo",
       icon = icon("magnifying-glass-chart"),
       mod_model_discovery_ui("discovery")
+    ),
+    nav_panel(
+      title = "Regressão Linear Simples",
+      icon = icon("chart-line"),
+      mod_regression_ui("regression")
     ),
     nav_panel(
       title = "Regressão Linear Múltipla",
@@ -617,34 +656,30 @@ ui <- page_navbar(
       mod_anova_ui("anova")
     )
   ),
-  
+
   # 5. Testes Não Paramétricos
   nav_menu(
     title = HTML("Testes Não<br>Paramétricos"),
     icon = icon("percent"),
     nav_panel(
-      title = "Teste de Wilcoxon",
-      icon = icon("shuffle"),
-      card(
-        card_header("Teste de Wilcoxon"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Esta análise estará disponível em breve no CatalyseR!"),
-          helpText("Alternativa não paramétrica para o teste t de Student.")
-        )
-      )
+      title = "Qui-quadrado (independência)",
+      icon = icon("table-cells"),
+      mod_nonparametric_ui("np_qui", "quiquadrado")
     ),
     nav_panel(
-      title = "Teste de Kruskal-Wallis",
+      title = "Mann-Whitney (2 grupos)",
+      icon = icon("arrows-left-right"),
+      mod_nonparametric_ui("np_mw", "mannwhitney")
+    ),
+    nav_panel(
+      title = "Wilcoxon (pareado)",
+      icon = icon("shuffle"),
+      mod_nonparametric_ui("np_wil", "wilcoxon")
+    ),
+    nav_panel(
+      title = "Kruskal-Wallis (k grupos)",
       icon = icon("arrows-up-down"),
-      card(
-        card_header("Teste de Kruskal-Wallis"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Esta análise estará disponível em breve no CatalyseR!"),
-          helpText("Alternativa não paramétrica para a ANOVA de uma via.")
-        )
-      )
+      mod_nonparametric_ui("np_kw", "kruskal")
     )
   ),
   
@@ -688,35 +723,22 @@ ui <- page_navbar(
     nav_panel(
       title = "Gráfico de Dispersão",
       icon = icon("ellipsis"),
-      card(
-        card_header("Gráfico de Dispersão"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Geração dinâmica de gráficos de dispersão (scatterplots) em breve!")
-        )
-      )
+      mod_scatter_ui("scatter")
     ),
     nav_panel(
       title = "Gráfico de Linhas",
       icon = icon("chart-line"),
-      card(
-        card_header("Gráfico de Linhas"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Geração dinâmica de gráficos de linhas e tendências temporais em breve!")
-        )
-      )
+      mod_lines_ui("lines")
     ),
     nav_panel(
       title = "Gráfico de Barras",
       icon = icon("chart-column"),
-      card(
-        card_header("Gráfico de Barras"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Geração dinâmica de gráficos de barras simples e empilhadas em breve!")
-        )
-      )
+      mod_bar_ui("bar")
+    ),
+    nav_panel(
+      title = "Gráfico de Pizza",
+      icon = icon("chart-pie"),
+      mod_pizza_ui("pizza")
     )
   ),
   
@@ -725,15 +747,19 @@ ui <- page_navbar(
     title = "Mapas",
     icon = icon("map"),
     nav_panel(
-      title = "Módulos Adicionais",
-      icon = icon("plus"),
-      card(
-        card_header("Mapas e Geoprocessamento"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Recursos de mapeamento e visualização espacial estarão disponíveis em breve nesta seção!")
-        )
-      )
+      title = "Mapa Coroplético (Brasil por Estado)",
+      icon = icon("map-location-dot"),
+      mod_mapa_ui("mapa")
+    ),
+    nav_panel(
+      title = "Pontos / Estações",
+      icon = icon("location-crosshairs"),
+      mod_mapa_pontos_ui("mapa_pontos", "pontos")
+    ),
+    nav_panel(
+      title = "Bolhas Proporcionais",
+      icon = icon("circle-dot"),
+      mod_mapa_pontos_ui("mapa_bolhas", "bolhas")
     )
   ),
   
@@ -816,9 +842,9 @@ ui <- page_navbar(
       div(
         style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 2px;"
       ),
-      # Logo do CatalyseR
+      # Logo do CatalyseR (a mesma do projeto do livro)
       tags$img(
-        src = "catalyser_logo_new.jpg",
+        src = "logo_catalyser.png",
         height = "76px", # Ajustado para a nova altura de 90px
         style = "border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); object-fit: contain;"
       )
@@ -1969,7 +1995,8 @@ RCatalyst::run_ide()</pre>
       sheet_choices <- setNames(sheets, paste0(1:length(sheets), " - ", sheets))
       # Tenta selecionar a Sheet 3 por padrão (índice 3), se disponível
       selected_sheet <- if (length(sheets) >= 3) sheets[3] else sheets[1]
-      selectInput("excel_sheet", "Selecione a Aba (Sheet):", choices = sheet_choices, selected = selected_sheet)
+      selectizeInput("excel_sheet", "Selecione a Aba (Sheet):", choices = sheet_choices, selected = selected_sheet,
+        options = list(placeholder = "Digite ou escolha a aba...", openOnFocus = TRUE))
     } else {
       NULL
     }
@@ -2082,6 +2109,13 @@ RCatalyst::run_ide()</pre>
   mod_descr_stats_server("descr_stats", current_data, import_info)
   mod_histogram_server("histogram", current_data, import_info)
   mod_boxplot_server("boxplot", current_data, import_info)
+  mod_pizza_server("pizza", current_data, import_info)
+  mod_scatter_server("scatter", current_data, import_info)
+  mod_lines_server("lines", current_data, import_info)
+  mod_bar_server("bar", current_data, import_info)
+  mod_mapa_server("mapa", current_data, import_info)
+  mod_mapa_pontos_server("mapa_pontos", current_data, import_info, "pontos")
+  mod_mapa_pontos_server("mapa_bolhas", current_data, import_info, "bolhas")
   
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
   mod_parametric_server("parametric", current_data, import_info)
@@ -2090,8 +2124,14 @@ RCatalyst::run_ide()</pre>
   mod_aas_server("aas", current_data, import_info)
   mod_aep_server("aep", current_data, import_info)
   mod_as_server("as", current_data, import_info)
-  mod_contingency_server("contingency", current_data, import_info)
+  contingency_shared <- mod_contingency_server("contingency", current_data, import_info)
   mod_anova_server("anova", current_data, import_info)
+
+  # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
+  mod_nonparametric_server("np_qui", current_data, import_info, contingency_shared, "quiquadrado")
+  mod_nonparametric_server("np_mw",  current_data, import_info, contingency_shared, "mannwhitney")
+  mod_nonparametric_server("np_wil", current_data, import_info, contingency_shared, "wilcoxon")
+  mod_nonparametric_server("np_kw",  current_data, import_info, contingency_shared, "kruskal")
   mod_pca_server("pca", current_data, import_info)
   mod_hca_server("hca", current_data, import_info)
   mod_experimental_design_server("experimental_design")
