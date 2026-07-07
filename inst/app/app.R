@@ -26,6 +26,8 @@ source("modules/mod_pizza.R")
 source("modules/mod_viz_extra.R")
 source("modules/mod_mapa.R")
 source("modules/mod_mapa_pontos.R")
+source("modules/mod_series_temporais.R")
+source("modules/mod_arrumar.R")
 # Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
 # source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
 # source("modules/mod_mapa_raster.R")    # raster ambiental isolado
@@ -512,6 +514,16 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
+      title = "Empilhar Colunas (Largo → Longo)",
+      icon = icon("layer-group"),
+      mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
+    ),
+    nav_panel(
+      title = "Separar Coluna em Colunas",
+      icon = icon("table-columns"),
+      mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
+    ),
+    nav_panel(
       title = "Criando Tabela de Contingência",
       icon = icon("border-all"),
       mod_contingency_ui("contingency")
@@ -706,13 +718,7 @@ ui <- page_navbar(
     nav_panel(
       title = "Séries Temporais",
       icon = icon("chart-area"),
-      card(
-        card_header("Séries Temporais"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Análise de decomposição e modelagem ARIMA de Séries Temporais em breve!")
-        )
-      )
+      mod_series_temporais_ui("series")
     )
   ),
   
@@ -853,7 +859,22 @@ ui <- page_navbar(
 )
 # Servidor (Server)
 server <- function(input, output, session) {
-  
+
+  # Reinicializa o selectize do dataset ao mostrar o painel do pacote — sem isto,
+  # o selectize nasce dentro de um conditionalPanel oculto e a BUSCA (digitar
+  # parte do nome) não funciona. Ao reabrir visível, a busca passa a valer.
+  observeEvent(input$data_source, {
+    if (identical(input$data_source, "package")) {
+      sel <- if (!is.null(input$package_dataset) && nzchar(input$package_dataset)) input$package_dataset else eapa_dataset_default
+      updateSelectizeInput(session, "package_dataset",
+        choices = eapa_datasets, selected = sel,
+        options = list(placeholder = "Digite ou escolha um conjunto de dados...",
+                       openOnFocus = TRUE, maxOptions = 100),
+        server = FALSE)
+    }
+  }, ignoreInit = TRUE)
+
+
   # ==========================================
   # 1. SERVIÇOS DO MÓDULO DE AJUDA DE USO
   # ==========================================
@@ -1401,6 +1422,11 @@ RCatalyst::run_ide()</pre>
   range_filters_rv <- reactiveVal(list())
   # Mapeamento para recodificação/agrupamento de fatores
   col_recodes_rv <- reactiveVal(list())
+  # Renomeação opcional de colunas: vetor nomeado nome_antigo -> nome_novo.
+  # Vazio por padrão => sem efeito (comportamento idêntico ao anterior).
+  col_renames_rv <- reactiveVal(character(0))
+  # Ordem das colunas exibidas no modal de renomeação (para ler os inputs).
+  rn_import_cols <- reactiveVal(character(0))
   # Registro de observadores criados dinamicamente (evita duplicatas no re-render).
   lvl_obs_registry <- new.env()
 
@@ -1469,7 +1495,53 @@ RCatalyst::run_ide()</pre>
     selected_cols_rv(input$modal_selected_cols)
     removeModal()
   })
-  
+
+  # --- Renomear colunas (import) : modal com "nome atual -> nome novo" ---
+  observeEvent(input$rename_cols_btn, {
+    df <- raw_data(); req(df)
+    all_cols <- names(df)
+    sel <- intersect(selected_cols_rv(), all_cols)
+    cols <- if (length(sel) > 0) sel else all_cols
+    rn_import_cols(cols)
+    ren <- col_renames_rv()
+    atual <- cols
+    if (length(ren)) for (o in names(ren)) atual[cols == o] <- unname(ren[o])
+    showModal(modalDialog(
+      title = "Renomear Colunas", size = "l", easyClose = TRUE,
+      tags$p(style = "font-size: 0.85rem; color: #6c757d;",
+             "Ajuste os nomes à direita. A tipagem e os filtros continuam usando os dados originais; a renomeação vale para a prévia, as análises e as exportações."),
+      div(style = "max-height: 430px; overflow-y: auto; padding-right: 6px;",
+        lapply(seq_along(cols), function(i)
+          div(style = "display:flex; gap:10px; align-items:center; margin-bottom:6px;",
+            div(style = "flex:1; font-size:0.82rem; color:#666; word-break:break-word;", cols[i]),
+            div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
+            div(style = "flex:1;", textInput(paste0("rename_in_", i), NULL, value = atual[i], width = "100%"))))),
+      footer = tagList(
+        actionButton("rename_reset", "Restaurar originais", class = "btn btn-sm btn-outline-secondary"),
+        modalButton("Cancelar"),
+        actionButton("rename_apply", "Aplicar", class = "btn btn-sm btn-primary"))
+    ))
+  })
+
+  observeEvent(input$rename_reset, {
+    cols <- rn_import_cols(); req(length(cols) > 0)
+    for (i in seq_along(cols)) updateTextInput(session, paste0("rename_in_", i), value = cols[i])
+  })
+
+  observeEvent(input$rename_apply, {
+    cols <- rn_import_cols(); req(length(cols) > 0)
+    novos <- vapply(seq_along(cols), function(i) {
+      v <- input[[paste0("rename_in_", i)]]; if (is.null(v)) cols[i] else trimws(v)
+    }, character(1))
+    if (any(!nzchar(novos))) { showNotification("Os nomes não podem ficar vazios.", type = "error"); return() }
+    if (anyDuplicated(novos)) { showNotification("Há nomes de coluna duplicados.", type = "error"); return() }
+    mudou <- novos != cols
+    col_renames_rv(stats::setNames(novos[mudou], cols[mudou]))
+    removeModal()
+    showNotification(if (any(mudou)) sprintf("%d coluna(s) renomeada(s).", sum(mudou)) else "Nenhuma alteração de nome.",
+                     type = "message", duration = 3)
+  })
+
   # Observador para capturar mudanças nos inputs de tipagem dinâmica gerados
   observe({
     df <- raw_data()
@@ -1498,8 +1570,9 @@ RCatalyst::run_ide()</pre>
     types <- col_types_rv()
     req(length(types) > 0)
     
-    # Filtrar colunas selecionadas pelo usuário
-    cols_to_keep <- selected_cols_rv()
+    # Filtrar colunas selecionadas pelo usuário (só as que existem no dataset atual —
+    # evita erro/dado velho ao trocar de aba/dataset com colunas diferentes)
+    cols_to_keep <- intersect(selected_cols_rv(), names(df))
     if (length(cols_to_keep) > 0) {
       df <- df[, cols_to_keep, drop = FALSE]
     }
@@ -1576,6 +1649,16 @@ RCatalyst::run_ide()</pre>
           df <- df[!is.na(valores) & valores >= faixa[1] & valores <= faixa[2], , drop = FALSE]
         }
       }
+    }
+
+    # Renomeação opcional de colunas — SEMPRE por último, para não interferir na
+    # seleção/tipagem/filtros (que operam sobre os nomes originais). Mapa vazio =
+    # sem efeito, então o comportamento padrão fica idêntico ao anterior.
+    ren <- col_renames_rv()
+    if (length(ren) > 0) {
+      nm <- names(df)
+      for (o in names(ren)) nm[nm == o] <- unname(ren[o])
+      names(df) <- nm
     }
 
     df
@@ -1976,12 +2059,23 @@ RCatalyst::run_ide()</pre>
     
     ativo <- length(selected_cols) < length(all_cols)
     rotulo <- sprintf("Selecionar Variáveis (%d/%d)", length(selected_cols), length(all_cols))
-    
-    actionButton(
-      "select_vars_btn", 
-      label = tagList(icon("list-check"), rotulo),
-      class = if (ativo) "btn btn-sm btn-primary w-100" else "btn btn-sm btn-outline-secondary w-100",
-      style = "font-size: 0.85rem; padding: 4px 10px; margin-top: 0px; margin-bottom: 0px;"
+
+    n_ren <- length(col_renames_rv())
+    rotulo_ren <- if (n_ren > 0) sprintf("Renomear Colunas (%d)", n_ren) else "Renomear Colunas"
+
+    tagList(
+      actionButton(
+        "select_vars_btn",
+        label = tagList(icon("list-check"), rotulo),
+        class = if (ativo) "btn btn-sm btn-primary w-100" else "btn btn-sm btn-outline-secondary w-100",
+        style = "font-size: 0.85rem; padding: 4px 10px; margin-top: 0px; margin-bottom: 0px;"
+      ),
+      actionButton(
+        "rename_cols_btn",
+        label = tagList(icon("i-cursor"), rotulo_ren),
+        class = if (n_ren > 0) "btn btn-sm btn-primary w-100" else "btn btn-sm btn-outline-secondary w-100",
+        style = "font-size: 0.85rem; padding: 4px 10px; margin-top: 6px; margin-bottom: 0px;"
+      )
     )
   })
   
@@ -2019,17 +2113,19 @@ RCatalyst::run_ide()</pre>
                          check.names = FALSE)
           raw_data(df)
         } else if (ext %in% c("xlsx", "xls")) {
-          req(input$excel_sheet)
+          req(input$excel_sheet, nzchar(input$excel_sheet))
+          req(input$excel_sheet %in% excel_sheets(path))   # só lê uma aba válida
           df <- as.data.frame(read_excel(path, sheet = input$excel_sheet))
           raw_data(df)
         }
       }, error = function(e) {
         showNotification(paste("Erro ao ler o arquivo:", e$message), type = "error")
-        raw_data(NULL)
+        # NÃO zera raw_data: mantém o último dataset válido para não travar a tela
       })
       
     } else if (input$data_source == "package") {
-      req(input$package_dataset)
+      req(input$package_dataset, nzchar(input$package_dataset))
+      req(input$package_dataset %in% eapa_datasets)   # só carrega um conjunto válido
       if (requireNamespace("EAPADados", quietly = TRUE)) {
         tryCatch({
           # Carrega o dataset de forma ultra-rápida direto do namespace
@@ -2043,7 +2139,7 @@ RCatalyst::run_ide()</pre>
           raw_data(as.data.frame(df))
         }, error = function(e) {
           showNotification(paste("Erro ao carregar do pacote:", e$message), type = "error")
-          raw_data(NULL)
+          # NÃO zera raw_data: mantém o último dataset válido
         })
       }
     }
@@ -2116,6 +2212,7 @@ RCatalyst::run_ide()</pre>
   mod_mapa_server("mapa", current_data, import_info)
   mod_mapa_pontos_server("mapa_pontos", current_data, import_info, "pontos")
   mod_mapa_pontos_server("mapa_bolhas", current_data, import_info, "bolhas")
+  mod_series_temporais_server("series", current_data, import_info)
   
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
   mod_parametric_server("parametric", current_data, import_info)
@@ -2125,6 +2222,8 @@ RCatalyst::run_ide()</pre>
   mod_aep_server("aep", current_data, import_info)
   mod_as_server("as", current_data, import_info)
   contingency_shared <- mod_contingency_server("contingency", current_data, import_info)
+  mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar")
+  mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar")
   mod_anova_server("anova", current_data, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
@@ -2203,6 +2302,7 @@ RCatalyst::run_ide()</pre>
   
   # Limpa o rastreamento ao carregar ou alterar o conjunto de dados
   observeEvent(raw_data(), {
+    col_renames_rv(character(0))   # zera renomeações ao trocar de dataset
     used_analyses$descr_stats <- FALSE
     used_analyses$histogram <- FALSE
     used_analyses$boxplot <- FALSE

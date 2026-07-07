@@ -111,3 +111,83 @@ export_to_xlsx <- function(df, dataset_name, file_path) {
     path = file_path
   )
 }
+
+# =============================================================================
+# Helpers de exportação COMPARTILHADOS (refatoração — antes copiados em ~11 módulos)
+# -----------------------------------------------------------------------------
+# Reúnem o pipeline comum: copiar template + funções + dados para um diretório
+# temporário, (opcionalmente) customizar os parâmetros do .qmd e renderizar/zipar.
+# Cada módulo passa só o que é seu: nome do .qmd, nome do funcoes_*.R, os dados,
+# uma função de customização do .qmd e o código R do script.
+# =============================================================================
+
+#' Renderiza um relatório .docx a partir de um template .qmd (via Quarto CLI).
+#'
+#' @param file        arquivo de saída (do downloadHandler).
+#' @param qmd_name    nome do template em templates/ (ex.: "relatorio_teste_t.qmd").
+#' @param funcoes_name nome do arquivo de funções em templates/ (ex.: "funcoes_teste_t.R").
+#' @param df_clean    data.frame de dados limpos (salvo como dados_limpos.rda).
+#' @param customizar_qmd função opcional (caminho_qmd) -> character com as linhas
+#'   já ajustadas do .qmd; se NULL, usa o template como está.
+render_relatorio_docx <- function(file, qmd_name, funcoes_name, df_clean, customizar_qmd = NULL) {
+  temp_dir <- tempdir()
+  temp_qmd <- file.path(temp_dir, qmd_name)
+  file.copy("templates/custom-reference.docx", file.path(temp_dir, "custom-reference.docx"), overwrite = TRUE)
+  file.copy(file.path("templates", funcoes_name), file.path(temp_dir, funcoes_name), overwrite = TRUE)
+  file.copy(file.path("templates", qmd_name), temp_qmd, overwrite = TRUE)
+  save(df_clean, file = file.path(temp_dir, "dados_limpos.rda"))
+
+  if (is.function(customizar_qmd)) writeLines(customizar_qmd(temp_qmd), temp_qmd)
+
+  old_wd <- getwd(); on.exit(setwd(old_wd), add = TRUE); setwd(temp_dir)
+  system2("quarto", args = c("render", qmd_name, "--to", "docx"))
+  gerado <- file.path(temp_dir, sub("\\.qmd$", ".docx", qmd_name))
+  if (file.exists(gerado)) file.copy(gerado, file, overwrite = TRUE)
+  else writeLines("Erro: nao foi possivel renderizar o relatorio .docx com o Quarto CLI.", file)
+}
+
+#' Empacota um Projeto R (.zip) de estudo com dados/, scripts/ e relatorios/.
+#'
+#' @param file        arquivo de saída (do downloadHandler).
+#' @param prefix      prefixo do projeto/arquivo (ex.: "teste_t").
+#' @param qmd_name    nome do template .qmd em templates/.
+#' @param funcoes_name nome do funcoes_*.R em templates/.
+#' @param df_clean    data.frame de dados limpos.
+#' @param info        import_info() — para nomear a planilha no dicionário.
+#' @param r_code      character único (o script .R de reprodutibilidade).
+#' @param customizar_qmd função opcional (caminho_qmd) -> character; se NULL, copia o template.
+#' @param readme      linhas do README.txt (opcional; usa um padrão se NULL).
+exportar_projeto_zip <- function(file, prefix, qmd_name, funcoes_name, df_clean, info,
+                                 r_code, customizar_qmd = NULL, readme = NULL) {
+  proj <- paste0("projeto_", prefix, "_", format(Sys.Date(), "%Y-%m-%d"))
+  temp_dir <- tempdir(); pd <- file.path(temp_dir, proj)
+  dir.create(pd, showWarnings = FALSE)
+  dd <- file.path(pd, "dados"); sc <- file.path(pd, "scripts"); rl <- file.path(pd, "relatorios")
+  for (x in c(dd, sc, rl)) dir.create(x, showWarnings = FALSE)
+
+  save(df_clean, file = file.path(dd, "dados_limpos.rda"))
+  utils::write.csv(df_clean, file = file.path(dd, "dados_limpos.csv"), row.names = FALSE)
+  ds_name <- if (!is.null(info) && identical(info$source, "package")) info$package_dataset
+             else if (!is.null(info)) info$excel_sheet else "dados"
+  tryCatch(export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dd, "dados_limpos.xlsx")),
+           error = function(e) NULL)
+
+  writeLines(r_code, file.path(sc, paste0(prefix, ".R")))
+  file.copy("templates/custom-reference.docx", file.path(rl, "custom-reference.docx"), overwrite = TRUE)
+  file.copy(file.path("templates", funcoes_name), file.path(sc, funcoes_name), overwrite = TRUE)
+  if (is.function(customizar_qmd)) writeLines(customizar_qmd(file.path("templates", qmd_name)), file.path(rl, qmd_name))
+  else file.copy(file.path("templates", qmd_name), file.path(rl, qmd_name), overwrite = TRUE)
+
+  writeLines(c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8"),
+             file.path(pd, "projeto_analise.Rproj"))
+  if (is.null(readme)) readme <- c(
+    paste0("PACOTE DE ESTUDO: ", toupper(prefix), " (CatalyseR)"),
+    "- projeto_analise.Rproj: duplo clique para abrir no RStudio.",
+    "- dados/     : dados limpos em .rda, .csv e .xlsx.",
+    "- scripts/   : script da analise e funcoes de apoio.",
+    "- relatorios/: relatorio Quarto (.qmd) e template Word.")
+  writeLines(readme, file.path(pd, "README.txt"))
+
+  old_wd <- getwd(); on.exit(setwd(old_wd), add = TRUE); setwd(temp_dir)
+  zip::zip(file, files = proj)
+}

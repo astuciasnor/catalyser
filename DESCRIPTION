@@ -33,7 +33,14 @@ Suggests:
     hexbin,
     rstatix,
     rcompanion,
-    multcompView
+    multcompView,
+    tsibble,
+    feasts,
+    fabletools,
+    dplyr,
+    tidyr,
+    tidyselect,
+    lubridate
 Depends: R (>= 4.0.0)
 Roxygen: list(markdown = TRUE)
 LazyData: true

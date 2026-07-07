@@ -200,74 +200,39 @@ mod_contingency_server <- function(id, data_rv, import_info) {
         )
     })
     
-    # Handlers de Download
+    # Customização do .qmd (parâmetros da análise) — compartilhada docx/zip
+    customizar_qmd_contingency <- function(qmd_path) {
+      customize_contingency_qmd_params(
+        qmd_path,
+        var_row  = input$var_row,
+        var_col  = input$var_col,
+        pct_type = input$pct_type
+      )
+    }
+
+    # Handlers de Download (migrados para os helpers de utils_export.R)
     output$download_report_docx <- downloadHandler(
       filename = function() {
         paste0("relatorio_contingencia_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
       },
       content = function(file) {
         req(data_rv())
-        
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_contingency.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_contingency.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_contingency.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_contingency.qmd", temp_qmd, overwrite = TRUE)
-        
-        df_clean <- data_rv()
-        save(df_clean, file = temp_data)
-        
-        custom_qmd_lines <- customize_contingency_qmd_params(
-          temp_qmd,
-          var_row = input$var_row,
-          var_col = input$var_col,
-          pct_type = input$pct_type
+        render_relatorio_docx(
+          file           = file,
+          qmd_name       = "relatorio_contingency.qmd",
+          funcoes_name   = "funcoes_contingency.R",
+          df_clean       = data_rv(),
+          customizar_qmd = customizar_qmd_contingency
         )
-        writeLines(custom_qmd_lines, temp_qmd)
-        
-        old_wd <- getwd()
-        setwd(temp_dir)
-        system2("quarto", args = c("render", "relatorio_contingency.qmd", "--to", "docx"))
-        setwd(old_wd)
-        
-        generated_docx <- file.path(temp_dir, "relatorio_contingency.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro ao compilar o Word.", file)
-        }
       }
     )
-    
+
     output$download_project_zip <- downloadHandler(
       filename = function() {
         paste0("projeto_contingencia_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
       },
       content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_contingencia_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        
-        dir.create(proj_dir, showWarnings = FALSE)
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        df_clean <- data_rv()
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
+        req(data_rv())
         r_script_content <- c(
           "# --- SCRIPT DE TABELA DE CONTINGÊNCIA E TESTE QUI-QUADRADO ---",
           "# Instalação de pacotes recomendados no RStudio:",
@@ -298,34 +263,25 @@ mod_contingency_server <- function(id, data_rv, import_info) {
           "  theme_minimal() +",
           "  labs(title = 'Distribuição de Frequências Cruzadas', x = var_row, y = 'Frequência Absoluta', fill = var_col)"
         )
-        
-        writeLines(r_script_content, file.path(dir_scripts, "analise_contingencia.R"))
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_contingency.R", file.path(dir_scripts, "funcoes_contingency.R"), overwrite = TRUE)
-        
-        custom_qmd_lines <- customize_contingency_qmd_params(
-          "templates/relatorio_contingency.qmd",
-          var_row = input$var_row,
-          var_col = input$var_col,
-          pct_type = input$pct_type
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_contingency.qmd"))
-        
-        rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
+
         readme_content <- c(
           "PACOTE DE TABELA DE CONTINGÊNCIA (CROSS-TAB & ASSOCIATIONS)",
           "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
           "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/analise_contingencia.R : Script contendo o cálculo da contingência e gráfico."
+          "- scripts/contingencia.R : Script contendo o cálculo da contingência e gráfico."
         )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
+
+        exportar_projeto_zip(
+          file           = file,
+          prefix         = "contingencia",
+          qmd_name       = "relatorio_contingency.qmd",
+          funcoes_name   = "funcoes_contingency.R",
+          df_clean       = data_rv(),
+          info           = import_info(),
+          r_code         = r_script_content,
+          customizar_qmd = customizar_qmd_contingency,
+          readme         = readme_content
+        )
       }
     )
 
