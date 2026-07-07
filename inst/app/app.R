@@ -328,7 +328,25 @@ ui <- page_navbar(
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       }
-      
+      /* Botões utilitários/secundários no tema Ocean:
+         troca o cinza de baixo contraste por um verde-água suave e legível.
+         Fundo seafoam claro + texto NAVY; hover em TEAL sólido com texto branco. */
+      .btn-outline-secondary {
+        background-color: #E6F2F1 !important;
+        color: #0F3B5F !important;
+        border-color: #A9D2D4 !important;
+        font-weight: 600 !important;
+      }
+      .btn-outline-secondary:hover,
+      .btn-outline-secondary:focus,
+      .btn-outline-secondary:active {
+        background-color: #2E7D8F !important;
+        color: #ffffff !important;
+        border-color: #2E7D8F !important;
+      }
+      .btn-outline-secondary:hover .fa,
+      .btn-outline-secondary:hover svg { color: #ffffff !important; }
+
       /* REFINAMENTO DE DENSIDADE E COMPACTAÇÃO VISUAL */
       /* 1. Compactação de Cards (Painel Lateral e Central) */
       .card-body {
@@ -3952,24 +3970,4 @@ RCatalyst::run_ide()</pre>
         "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
         "- dados/               : Dados limpos (.rda e .csv).",
         "- scripts/             : Scripts R executáveis de cada análise.",
-        if (length(scripts_incluidos) > 0) paste(paste0("  * ", scripts_incluidos), collapse = "\n") else "  * (Nenhum script selecionado)",
-        "- relatorios/relatorio_consolidado.qmd: Relatório Quarto unificado.",
-        "",
-        "INSTRUÇÕES DE USO:",
-        "1. Abra 'projeto_analise.Rproj' no RStudio.",
-        "2. Acesse os scripts na pasta 'scripts/' para rodar as análises linha a linha.",
-        "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório completo."
-      )
-      writeLines(readme_content, file.path(proj_dir, "README.txt"))
-      
-      # 6. Compactar
-      old_wd <- getwd()
-      setwd(temp_dir)
-      zip::zip(file, files = proj_dir_name)
-      setwd(old_wd)
-    }
-  )
-}
-
-# Inicializa o app
-shinyApp(ui, server)
+        if (length(scripts_in
