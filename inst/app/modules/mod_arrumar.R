@@ -78,24 +78,150 @@ arrumar_n_grupos <- function(regex) {
   if (length(m) == 1 && m[1] == -1) 0L else length(m)
 }
 
+# --- Suporte ao MODO DELIMITADOR (separar sem escrever regex) ----------------
+
+# Candidatos de separador, em ordem de prioridade. " - " vem antes de "-" e de
+# " " de propósito: em "2025 - Valor US$ FOB" queremos cortar no " - " (limpo),
+# não no "-" (deixaria espaços sobrando).
+arrumar_delim_candidatos <- c(" - ", "_", "-", ".", ";", ",", "|", "/", " ")
+
+# Rótulo amigável para mensagens (o espaço puro não aparece bem entre aspas).
+arrumar_delim_rotulo <- function(d) if (identical(d, " ")) "espaço" else d
+
+# Escapa metacaracteres de regex — usado só no names_sep do pivot_longer, que é
+# interpretado como regex (o delim do separate_wider_delim é string literal).
+arrumar_escape_regex <- function(s) {
+  especiais <- c(".", "\\", "|", "(", ")", "[", "]", "{", "}", "^", "$", "*", "+", "?")
+  chars <- strsplit(s, "", fixed = TRUE)[[1]]
+  paste(vapply(chars, function(c) if (c %in% especiais) paste0("\\", c) else c,
+               character(1)), collapse = "")
+}
+
+# Detecta o melhor separador olhando os textos: escolhe o 1º candidato que
+# aparece >= 1 vez e SEMPRE o mesmo número de vezes (divisão uniforme).
+# Devolve list(delim, n) ou NULL. `n` = nº de colunas resultantes.
+arrumar_detectar_delim <- function(x) {
+  x <- x[!is.na(x) & nzchar(x)]
+  if (!length(x)) return(NULL)
+  for (d in arrumar_delim_candidatos) {
+    cont <- lengths(regmatches(x, gregexpr(d, x, fixed = TRUE)))
+    if (all(cont >= 1) && length(unique(cont)) == 1)
+      return(list(delim = d, n = unique(cont) + 1L))
+  }
+  NULL
+}
+
+# Confere, ANTES de aplicar, se o separador divide tudo no mesmo nº de partes e
+# se esse nº bate com quantas colunas o usuário nomeou. Devolve msg ou NULL.
+arrumar_checar_delim <- function(x, delim, n_nomes, rotulo) {
+  x <- x[!is.na(x) & nzchar(x)]
+  if (!length(x)) return(NULL)
+  partes <- lengths(regmatches(x, gregexpr(delim, x, fixed = TRUE))) + 1L
+  d <- arrumar_delim_rotulo(delim)
+  if (length(unique(partes)) > 1)
+    return(sprintf(paste0("O separador '%s' divide %s em números diferentes de ",
+                          "partes (de %d a %d). Para casos irregulares, use o modo regex."),
+                   d, rotulo, min(partes), max(partes)))
+  if (unique(partes)[1] != n_nomes)
+    return(sprintf(paste0("Com o separador '%s', cada valor gera %d partes, mas você ",
+                          "nomeou %d coluna(s). Ajuste os nomes ou o separador."),
+                   d, unique(partes)[1], n_nomes))
+  NULL
+}
+
+# Nomes-rascunho para N colunas: parte1, parte2, ...
+arrumar_nomes_padrao <- function(n) paste(paste0("parte", seq_len(max(2L, n))), collapse = ", ")
+
+# --- Suporte à TIPAGEM (definir o tipo de cada coluna) -----------------------
+
+# Tokens de tipo -> função de conversão (para o script .R).
+arrumar_tipo_fun <- c(texto = "as.character", numero = "as.numeric",
+                      inteiro = "as.integer", fator = "as.factor", data = "as.Date")
+
+# Rótulos amigáveis para o seletor de tipo.
+arrumar_tipo_choices <- c("Texto" = "texto", "Número" = "numero",
+                          "Inteiro" = "inteiro", "Fator" = "fator", "Data" = "data")
+
+# Detecta o tipo atual de um vetor (para pré-selecionar no modal).
+arrumar_detectar_tipo <- function(x) {
+  if (is.factor(x)) "fator"
+  else if (inherits(x, "Date")) "data"
+  else if (is.integer(x)) "inteiro"
+  else if (is.numeric(x)) "numero"
+  else "texto"
+}
+
+# Converte um vetor para o tipo escolhido (defensivo: erro -> mantém original).
+arrumar_converter_tipo <- function(x, tipo) {
+  tryCatch(switch(tipo,
+    texto   = as.character(x),
+    numero  = as.numeric(as.character(x)),
+    inteiro = as.integer(as.character(x)),
+    fator   = as.factor(x),
+    data    = as.Date(x),
+    x), error = function(e) x)
+}
+
+# --- Suporte à RECODIFICAÇÃO de níveis (padronizar rótulos de fator) ---------
+
+# Sugere correções de níveis que diferem só por CAIXA / ACENTOS / ESPAÇOS /
+# PONTUAÇÃO (quase-duplicatas). Devolve vetor nomeado antigo -> novo, apontando
+# cada variante para a grafia mais frequente do seu grupo. NÃO junta rótulos
+# semanticamente diferentes (isso o usuário faz à mão).
+arrumar_sugerir_recode <- function(x) {
+  vals <- as.character(x); vals <- vals[!is.na(vals) & nzchar(vals)]
+  if (!length(vals)) return(character(0))
+  norm <- function(s) {
+    s <- tolower(trimws(s))
+    s <- iconv(s, to = "ASCII//TRANSLIT"); s[is.na(s)] <- ""
+    s <- gsub("[[:punct:]]", " ", s)
+    trimws(gsub("\\s+", " ", s))
+  }
+  tab  <- table(vals)                 # frequência por grafia
+  uniq <- names(tab)
+  chave <- norm(uniq)
+  sug <- character(0)
+  for (k in unique(chave)) {
+    grp <- uniq[chave == k]
+    if (length(grp) > 1) {
+      alvo <- grp[which.max(as.integer(tab[grp]))]   # grafia mais comum vira alvo
+      for (g in setdiff(grp, alvo)) sug[g] <- alvo
+    }
+  }
+  sug
+}
+
 # Validação da configuração antes de aplicar. Devolve NULL se OK, ou a mensagem.
 arrumar_validar <- function(cfg, df) {
-  # Comum aos dois modos: nomes novos + regex válida + nº de grupos == nº de nomes
   if (any(!nzchar(cfg$novas)))
     return("Dê um nome a cada coluna nova (separe por vírgula).")
-  ok <- tryCatch({ grepl(cfg$regex, "teste", perl = TRUE); TRUE }, error = function(e) FALSE)
-  if (!ok)
-    return("Regex inválida — confira os parênteses e as barras invertidas.")
-  ng <- arrumar_n_grupos(cfg$regex)
-  if (ng != length(cfg$novas))
-    return(sprintf("A regex tem %d grupo(s) de captura, mas você nomeou %d coluna(s) nova(s).",
-                   ng, length(cfg$novas)))
+
+  # Extração: por delimitador (simples) ou por regex (avançado)
+  if (identical(cfg$metodo, "delim")) {
+    if (is.null(cfg$delim) || !nzchar(cfg$delim))
+      return("Escolha ou digite o separador.")
+    if (length(cfg$novas) < 2)
+      return("Para separar por delimitador, defina pelo menos duas colunas (nomes separados por vírgula).")
+  } else {
+    ok <- tryCatch({ grepl(cfg$regex, "teste", perl = TRUE); TRUE }, error = function(e) FALSE)
+    if (!ok)
+      return("Regex inválida — confira os parênteses e as barras invertidas.")
+    ng <- arrumar_n_grupos(cfg$regex)
+    if (ng != length(cfg$novas))
+      return(sprintf("A regex tem %d grupo(s) de captura, mas você nomeou %d coluna(s) nova(s).",
+                     ng, length(cfg$novas)))
+  }
 
   if (identical(cfg$modo, "separar")) {
     if (is.null(cfg$col_separar) || !nzchar(cfg$col_separar))
       return("Escolha a coluna a separar.")
     if (!(cfg$col_separar %in% names(df)))
       return("A coluna a separar não foi encontrada no conjunto atual.")
+    if (identical(cfg$metodo, "delim")) {
+      msg <- arrumar_checar_delim(as.character(df[[cfg$col_separar]]), cfg$delim,
+                                  length(cfg$novas), "os valores")
+      if (!is.null(msg)) return(msg)
+    }
   } else {
     if (length(cfg$cols_medida) == 0)
       return("Selecione ao menos uma coluna de medida para empilhar.")
@@ -106,6 +232,11 @@ arrumar_validar <- function(cfg, df) {
       return("Informe o nome da coluna de valores (ex.: 'valor').")
     if (identical(cfg$saida, "largo") && !nzchar(cfg$wider_names))
       return("Escolha qual coluna vira as novas colunas no formato largo.")
+    if (identical(cfg$metodo, "delim")) {
+      msg <- arrumar_checar_delim(cfg$cols_medida, cfg$delim,
+                                  length(cfg$novas), "os nomes de coluna")
+      if (!is.null(msg)) return(msg)
+    }
   }
   NULL
 }
@@ -115,15 +246,24 @@ arrumar_aplicar <- function(cfg, df, on_warn = NULL, on_err = NULL) {
   withCallingHandlers(
     tryCatch({
       if (identical(cfg$modo, "separar")) {
-        # Extrai grupos da regex dos VALORES de uma coluna existente (sem pivô).
-        tidyr::extract(df, col = cfg$col_separar, into = cfg$novas,
-                       regex = cfg$regex, remove = !isTRUE(cfg$manter_original))
+        if (identical(cfg$metodo, "delim")) {
+          # Corta os VALORES no separador literal — uma coluna por pedaço.
+          tidyr::separate_wider_delim(
+            df, cols = tidyselect::all_of(cfg$col_separar),
+            delim = cfg$delim, names = cfg$novas,
+            cols_remove = !isTRUE(cfg$manter_original))
+        } else {
+          # Extrai grupos da regex dos VALORES de uma coluna existente (sem pivô).
+          tidyr::extract(df, col = cfg$col_separar, into = cfg$novas,
+                         regex = cfg$regex, remove = !isTRUE(cfg$manter_original))
+        }
       } else {
         long <- tidyr::pivot_longer(
           df,
           cols          = tidyselect::all_of(cfg$cols_medida),
           names_to      = cfg$novas,
-          names_pattern = cfg$regex,
+          names_sep     = if (identical(cfg$metodo, "delim")) arrumar_escape_regex(cfg$delim) else NULL,
+          names_pattern = if (identical(cfg$metodo, "delim")) NULL else cfg$regex,
           values_to     = cfg$values_to,
           values_transform = if (cfg$como_numero)
             stats::setNames(list(as.numeric), cfg$values_to) else NULL
@@ -149,8 +289,12 @@ arrumar_bt <- function(x) {
 
 # Gera o texto do script .R. CRÍTICO: escapar "\" da regex ao virar código.
 # `renomear`  : vetor nomeado names = nome antigo, valor = nome novo.
+# `tipos`     : lista/vetor nomeado coluna -> token de tipo (texto/numero/...).
+# `recodes`   : lista coluna -> vetor nomeado nivel_antigo -> nivel_novo.
 # `selecionar`: vetor de colunas a manter (no espaço já renomeado); NULL = todas.
-arrumar_gerar_codigo <- function(cfg, info, renomear = character(0), selecionar = NULL) {
+arrumar_gerar_codigo <- function(cfg, info, renomear = character(0),
+                                 tipos = character(0), recodes = list(),
+                                 selecionar = NULL) {
   esc <- function(s) gsub("\\", "\\\\", s, fixed = TRUE)
   q   <- function(v) paste(sprintf('"%s"', v), collapse = ", ")
 
@@ -181,16 +325,32 @@ arrumar_gerar_codigo <- function(cfg, info, renomear = character(0), selecionar 
     ""
   )
   if (identical(cfg$modo, "separar")) {
-    linhas <- c(linhas,
-      "# 2. Separar uma coluna existente em varias (extract via regex)",
-      "dados_arrumados <- dados_largo |>",
-      "  extract(",
-      sprintf("    col = %s,", arrumar_bt(cfg$col_separar)),
-      sprintf("    into = c(%s),", q(cfg$novas)),
-      sprintf('    regex = "%s",', esc(cfg$regex)),
-      sprintf("    remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
-      "  )")
+    if (identical(cfg$metodo, "delim")) {
+      linhas <- c(linhas,
+        "# 2. Separar uma coluna existente em varias (por delimitador)",
+        "dados_arrumados <- dados_largo |>",
+        "  separate_wider_delim(",
+        sprintf("    cols = %s,", arrumar_bt(cfg$col_separar)),
+        sprintf('    delim = "%s",', esc(cfg$delim)),
+        sprintf("    names = c(%s),", q(cfg$novas)),
+        sprintf("    cols_remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
+        "  )")
+    } else {
+      linhas <- c(linhas,
+        "# 2. Separar uma coluna existente em varias (extract via regex)",
+        "dados_arrumados <- dados_largo |>",
+        "  extract(",
+        sprintf("    col = %s,", arrumar_bt(cfg$col_separar)),
+        sprintf("    into = c(%s),", q(cfg$novas)),
+        sprintf('    regex = "%s",', esc(cfg$regex)),
+        sprintf("    remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
+        "  )")
+    }
   } else {
+    sep_linha <- if (identical(cfg$metodo, "delim"))
+      sprintf('    names_sep = "%s",', esc(arrumar_escape_regex(cfg$delim)))
+    else
+      sprintf('    names_pattern = "%s",', esc(cfg$regex))
     linhas <- c(linhas,
       "# 2. Colunas de medida que serao empilhadas",
       "cols_medida <- c(",
@@ -202,7 +362,7 @@ arrumar_gerar_codigo <- function(cfg, info, renomear = character(0), selecionar 
       "  pivot_longer(",
       "    cols = all_of(cols_medida),",
       sprintf("    names_to = c(%s),", q(cfg$novas)),
-      sprintf('    names_pattern = "%s",', esc(cfg$regex)),
+      sep_linha,
       sprintf('    values_to = "%s"%s', cfg$values_to, if (cfg$como_numero) "," else ""),
       if (cfg$como_numero) sprintf("    values_transform = list(%s = as.numeric)", cfg$values_to) else NULL,
       "  )")
@@ -222,9 +382,38 @@ arrumar_gerar_codigo <- function(cfg, info, renomear = character(0), selecionar 
       "dados_arrumados <- dados_arrumados |>",
       paste0("  rename(", paste(pares, collapse = ", "), ")"))
   }
+  if (length(recodes)) {
+    linhas <- c(linhas, "",
+      "# 6. Padronizar (recodificar) niveis de fator",
+      "dados_arrumados <- dados_arrumados |>",
+      "  mutate(")
+    cols <- names(recodes)
+    for (ci in seq_along(cols)) {
+      mapa <- recodes[[cols[ci]]]
+      pares <- vapply(seq_along(mapa), function(i)
+        sprintf('      `%s` = "%s"', names(mapa)[i], esc(unname(mapa[i]))), character(1))
+      linhas <- c(linhas,
+        sprintf("    %s = dplyr::recode(%s,", arrumar_bt(cols[ci]), arrumar_bt(cols[ci])),
+        paste(pares, collapse = ",\n"),
+        sprintf("    )%s", if (ci < length(cols)) "," else ""))
+    }
+    linhas <- c(linhas, "  )")
+  }
+  if (length(tipos)) {
+    cols <- names(tipos)
+    pares <- vapply(seq_along(cols), function(i) {
+      f <- arrumar_tipo_fun[[ tipos[[cols[i]]] ]]
+      sprintf("    %s = %s(%s)%s", arrumar_bt(cols[i]), f, arrumar_bt(cols[i]),
+              if (i < length(cols)) "," else "")
+    }, character(1))
+    linhas <- c(linhas, "",
+      "# 7. Tipar colunas (definir o tipo de cada variavel)",
+      "dados_arrumados <- dados_arrumados |>",
+      "  mutate(", pares, "  )")
+  }
   if (!is.null(selecionar) && length(selecionar)) {
     linhas <- c(linhas, "",
-      "# 6. Selecionar apenas as colunas desejadas",
+      "# 8. Selecionar apenas as colunas desejadas",
       "dados_arrumados <- dados_arrumados |>",
       paste0("  select(", paste(arrumar_bt(selecionar), collapse = ", "), ")"))
   }
@@ -293,31 +482,63 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             style = "padding: 12px 15px;",
             selectInput(ns("col_separar"), "Coluna a quebrar:", choices = NULL),
             checkboxInput(ns("manter_original"), "Manter a coluna original", value = FALSE),
-            helpText("A regex abaixo é aplicada aos VALORES desta coluna; cada grupo ( ) vira uma coluna nova.")
+            helpText("As partes dos VALORES desta coluna viram novas colunas.")
           )
         )),
 
-        # --- Extração (regex): comum aos dois modos ---
+        # --- Extração: comum aos dois modos (delimitador ou regex) ---
         card(
-          card_header(sprintf("%d. Extrair com regex", n_regex)),
+          card_header(sprintf("%d. Separar em colunas", n_regex)),
           card_body(
             style = "padding: 12px 15px;",
-            selectInput(ns("regex_preset"),
-              label = tagList(
-                "Padrão de extração ",
-                actionLink(ns("ajuda_regex"), label = NULL, icon = icon("circle-question"),
-                           style = "color:#2E7D8F; margin-left:2px;", title = "O que é regex? Ver guia rápido")),
-              choices = c("Ano + métrica  ( ^(\\d{4}) - (.*)$ )" = "ano_metrica",
-                          "Métrica + ano  ( ^(.*) - (\\d{4})$ )" = "metrica_ano",
-                          "Separar por ' - '"                    = "hifen",
-                          "Personalizado (escrever regex)"       = "custom")),
+            radioButtons(ns("metodo"), "Como separar as partes?",
+              choices = c("Por delimitador (mais simples)" = "delim",
+                          "Por padrão / regex (avançado)"   = "regex"),
+              selected = "delim"),
+
+            # --- Método DELIMITADOR: separador + nº de colunas + auto-detecção ---
             conditionalPanel(
-              condition = sprintf("input['%s'] == 'custom'", ns("regex_preset")),
-              textInput(ns("regex"), "Regex (cada parêntese vira uma coluna):",
-                        value = "^(\\d{4}) - (.*)$")
+              condition = sprintf("input['%s'] == 'delim'", ns("metodo")),
+              actionButton(ns("auto_detectar_sep"), "Detectar separador automaticamente",
+                           icon = icon("wand-magic-sparkles"),
+                           class = "btn-outline-primary btn-sm w-100 mb-2"),
+              selectInput(ns("delim_comum"), "Separador:",
+                choices = c("Underscore  _"                = "_",
+                            "Hífen  -"                     = "-",
+                            "Hífen entre espaços  ' - '"   = " - ",
+                            "Ponto  ."                     = ".",
+                            "Ponto e vírgula  ;"           = ";",
+                            "Vírgula  ,"                   = ",",
+                            "Espaço"                       = " ",
+                            "Outro (digitar)…"             = "__custom__")),
+              conditionalPanel(
+                condition = sprintf("input['%s'] == '__custom__'", ns("delim_comum")),
+                textInput(ns("delim_custom"), "Digite o separador:", value = "")),
+              numericInput(ns("n_cols"), "Número de colunas a criar:",
+                           value = 2, min = 2, max = 12, step = 1),
+              helpText("A IDE corta os valores no separador; cada pedaço vira uma coluna.")
             ),
-            textInput(ns("novas_cols"), "Nomes das colunas novas (ordem dos grupos):",
-                      value = "ano, metrica"),
+
+            # --- Método REGEX (avançado) ---
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'regex'", ns("metodo")),
+              selectInput(ns("regex_preset"),
+                label = tagList(
+                  "Padrão de extração ",
+                  actionLink(ns("ajuda_regex"), label = NULL, icon = icon("circle-question"),
+                             style = "color:#2E7D8F; margin-left:2px;", title = "O que é regex? Ver guia rápido")),
+                choices = c("Ano + métrica  ( ^(\\d{4}) - (.*)$ )" = "ano_metrica",
+                            "Métrica + ano  ( ^(.*) - (\\d{4})$ )" = "metrica_ano",
+                            "Separar por ' - '"                    = "hifen",
+                            "Personalizado (escrever regex)"       = "custom")),
+              conditionalPanel(
+                condition = sprintf("input['%s'] == 'custom'", ns("regex_preset")),
+                textInput(ns("regex"), "Regex (cada parêntese vira uma coluna):",
+                          value = "^(\\d{4}) - (.*)$"))
+            ),
+
+            textInput(ns("novas_cols"), "Nomes das colunas novas (na ordem):",
+                      value = "parte1, parte2"),
             if (mostrar_emp) so_modo("empilhar", tagList(
               textInput(ns("values_to"), "Nome da coluna de valores:", value = "valor"),
               checkboxInput(ns("como_numero"), "Converter valores para número", value = TRUE)
@@ -370,10 +591,14 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             style = "padding: 12px 15px;",
             uiOutput(ns("status_indicador")),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("abrir_selecionar"), "Selecionar variáveis",
-                         icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
             actionButton(ns("abrir_renomear"), "Renomear colunas",
                          icon = icon("i-cursor"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
+            actionButton(ns("abrir_recodificar"), "Recodificar níveis",
+                         icon = icon("tags"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
+            actionButton(ns("abrir_tipar"), "Tipar colunas",
+                         icon = icon("sliders"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
+            actionButton(ns("abrir_selecionar"), "Selecionar variáveis",
+                         icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
             downloadButton(ns("baixar_script"), "Baixar script .R",
                            class = "btn-outline-secondary btn-sm w-100 mb-2"),
             downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
@@ -388,13 +613,13 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
               tags$p(style = "margin: 0 0 6px;", strong("Empilhar"), " (metadados no nome da coluna):"),
               tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
                 tags$li("Escolha (ou detecte) as colunas de medida."),
-                tags$li("Defina a regex que extrai ano/métrica do nome."),
+                tags$li("Separe o nome por delimitador (ou regex) em ano/métrica."),
                 tags$li("Mantenha longo ou alargue uma métrica."))),
             if (mostrar_sep) tagList(
               tags$p(style = "margin: 0 0 6px;", strong("Separar"), " (metadados dentro de uma coluna):"),
               tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
                 tags$li("Escolha a coluna a quebrar."),
-                tags$li("Defina a regex; cada grupo ( ) vira uma coluna."))),
+                tags$li("Detecte/escolha o separador; cada pedaço vira uma coluna."))),
             tags$p(style = "margin: 0;", "Depois: renomeie, selecione e baixe o script .R + os dados.")
           )
         )
@@ -419,252 +644,13 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL) {
     cfg_rv       <- reactiveVal(NULL)                  # última config aplicada
     renomear_rv  <- reactiveVal(character(0))          # mapa nome_antigo -> nome_novo
     rn_cols      <- reactiveVal(character(0))          # ordem das colunas no modal
+    tipos_rv     <- reactiveVal(list())                # coluna -> token de tipo
+    recode_rv    <- reactiveVal(list())                # coluna -> mapa nivel_antigo->novo
+    tp_cols      <- reactiveVal(character(0))          # ordem das colunas no modal de tipagem
+    recode_niveis_atual <- reactiveVal(character(0))   # níveis exibidos no modal de recode
     sel_cols_rv  <- reactiveVal(NULL)                  # colunas a manter (NULL = todas)
 
     # Popular seletores de coluna quando os dados chegam
     observeEvent(base_data(), {
       updateSelectizeInput(session, "cols_medida", choices = names(base_data()),
-                           selected = character(0), server = TRUE)
-      updateSelectInput(session, "col_separar", choices = names(base_data()))
-      resultado_rv(NULL)
-      cfg_rv(NULL)
-      renomear_rv(character(0))
-      sel_cols_rv(NULL)
-      codigo_rv("# Configure à esquerda e clique em 'Aplicar transformação'.")
-    })
-
-    # Detecção automática (heurística: começa com 4 dígitos)
-    observeEvent(input$auto_detectar, {
-      med <- grep("^\\d{4}", names(base_data()), value = TRUE)
-      if (length(med) == 0) {
-        showNotification("Nenhuma coluna começando com 4 dígitos foi encontrada.", type = "warning")
-      } else {
-        updateSelectizeInput(session, "cols_medida", selected = med)
-      }
-    })
-
-    # Identificadores = complemento (como o setdiff do script)
-    output$cols_id_preview <- renderText({
-      req(base_data())
-      ids <- setdiff(names(base_data()), input$cols_medida)
-      if (length(ids) == 0) "—" else paste(ids, collapse = ", ")
-    })
-
-    # Ajuda "?" ao lado do seletor: abre o guia rápido de regex
-    observeEvent(input$ajuda_regex, { showModal(arrumar_ajuda_regex_modal()) })
-
-    # Preset -> sugerir regex e nomes das colunas novas
-    observeEvent(input$regex_preset, {
-      if (input$regex_preset != "custom") {
-        p <- arrumar_presets[[input$regex_preset]]
-        updateTextInput(session, "novas_cols", value = p$novas)
-        updateTextInput(session, "regex", value = p$regex)
-      }
-    })
-
-    # Regex efetiva (preset ou personalizada)
-    regex_efetiva <- reactive({
-      if (input$regex_preset == "custom") input$regex
-      else arrumar_presets[[input$regex_preset]]$regex
-    })
-
-    # Atualizar as opções de "coluna que vira colunas" conforme os nomes novos
-    observe({
-      novas <- trimws(strsplit(input$novas_cols %||% "", ",")[[1]])
-      novas <- novas[nzchar(novas)]
-      updateSelectInput(session, "wider_names", choices = novas,
-                        selected = if (length(novas)) novas[length(novas)] else NULL)
-    })
-
-    # Aplicar (validar -> transformar -> guardar) — calcula uma vez por clique
-    observeEvent(input$aplicar, {
-      cfg <- list(
-        modo        = modo_atual(),
-        regex       = regex_efetiva(),
-        novas       = trimws(strsplit(input$novas_cols %||% "", ",")[[1]]),
-        # campos do modo EMPILHAR:
-        cols_medida = input$cols_medida,
-        values_to   = trimws(input$values_to %||% ""),
-        como_numero = isTRUE(input$como_numero),
-        saida       = input$saida,
-        wider_names = input$wider_names %||% "",
-        # campos do modo SEPARAR:
-        col_separar     = input$col_separar %||% "",
-        manter_original = isTRUE(input$manter_original)
-      )
-      cfg$novas <- cfg$novas[nzchar(cfg$novas)]
-
-      msg <- arrumar_validar(cfg, base_data())
-      if (!is.null(msg)) { showNotification(msg, type = "error", duration = 9); return() }
-
-      res <- arrumar_aplicar(
-        cfg, base_data(),
-        on_warn = function(m) showNotification(paste("Aviso:", m), type = "warning", duration = 9),
-        on_err  = function(m) showNotification(paste("Erro:", m), type = "error", duration = 12)
-      )
-      if (is.null(res)) return()
-
-      # Aviso informativo de coerção numérica (só no modo empilhar)
-      if (identical(cfg$modo, "empilhar") && cfg$como_numero && cfg$values_to %in% names(res)) {
-        n_na <- sum(is.na(res[[cfg$values_to]]))
-        if (n_na > 0)
-          showNotification(sprintf("%d valor(es) não puderam ser convertidos para número (viraram NA).", n_na),
-                           type = "warning", duration = 9)
-      }
-      # Aviso se o padrão não casou (coluna extraída toda NA)
-      if (length(cfg$novas) && cfg$novas[1] %in% names(res) && all(is.na(res[[cfg$novas[1]]])))
-        showNotification(if (identical(cfg$modo, "separar"))
-            "O padrão não casou com os valores da coluna — confira a regex."
-          else
-            "O padrão de extração não casou com os nomes das colunas — confira a regex.",
-          type = "warning", duration = 10)
-
-      resultado_rv(res)
-      cfg_rv(cfg)
-      renomear_rv(character(0))                        # renomeações reiniciam a cada aplicação
-      sel_cols_rv(NULL)                                # seleção também reinicia
-      codigo_rv(arrumar_gerar_codigo(cfg, import_info()))
-      showNotification("Transformação aplicada.", type = "message", duration = 3)
-    })
-
-    # Nomes das colunas do resultado no espaço JÁ renomeado (base do modal de seleção)
-    nomes_renomeados <- reactive({
-      r <- resultado_rv(); req(r)
-      nm <- names(r); mp <- renomear_rv()
-      if (length(mp)) for (o in names(mp)) nm[nm == o] <- unname(mp[o])
-      nm
-    })
-
-    # Resultado final = pivot + renomeações + seleção de colunas
-    resultado_final <- reactive({
-      r <- resultado_rv(); req(r)
-      mp <- renomear_rv()
-      if (length(mp)) {
-        nm <- names(r)
-        for (o in names(mp)) nm[nm == o] <- unname(mp[o])
-        names(r) <- nm
-      }
-      sel <- sel_cols_rv()
-      if (!is.null(sel)) {
-        keep <- intersect(sel, names(r))
-        if (length(keep)) r <- r[, keep, drop = FALSE]
-      }
-      r
-    })
-
-    # --- Renomear colunas (modal: mantém a tela limpa) ---
-    observeEvent(input$abrir_renomear, {
-      r <- resultado_rv()
-      if (is.null(r)) {
-        showNotification("Aplique uma transformação antes de renomear.", type = "warning"); return()
-      }
-      cols <- names(r); rn_cols(cols)
-      atual <- cols
-      mp <- renomear_rv()
-      if (length(mp)) for (o in names(mp)) atual[cols == o] <- unname(mp[o])
-      showModal(modalDialog(
-        title = "Renomear colunas", size = "l", easyClose = TRUE,
-        helpText("Ajuste os nomes à direita. Dica: nomes 'tidy' evitam espaços e símbolos (ex.: valor_usd, massa_kg)."),
-        div(style = "max-height: 430px; overflow-y: auto; padding-right: 6px;",
-          lapply(seq_along(cols), function(i)
-            div(style = "display:flex; gap:10px; align-items:center; margin-bottom:6px;",
-              div(style = "flex:1; font-size:0.82rem; color:#666; word-break:break-word;", cols[i]),
-              div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
-              div(style = "flex:1;", textInput(ns(paste0("rn_", i)), NULL, value = atual[i], width = "100%"))))),
-        footer = tagList(modalButton("Cancelar"),
-                         actionButton(ns("confirmar_renomear"), "Aplicar", class = "btn-primary"))
-      ))
-    })
-
-    observeEvent(input$confirmar_renomear, {
-      cols <- rn_cols(); req(length(cols) > 0)
-      novos <- vapply(seq_along(cols), function(i) {
-        v <- input[[paste0("rn_", i)]]; if (is.null(v)) cols[i] else trimws(v)
-      }, character(1))
-      if (any(!nzchar(novos))) { showNotification("Os nomes não podem ficar vazios.", type = "error"); return() }
-      if (anyDuplicated(novos)) { showNotification("Há nomes de coluna duplicados.", type = "error"); return() }
-      mudou <- novos != cols
-      mp <- stats::setNames(novos[mudou], cols[mudou])   # names = antigo, valor = novo
-      renomear_rv(mp)
-      sel_cols_rv(NULL)                                  # renomear reinicia a seleção (nomes mudaram)
-      codigo_rv(arrumar_gerar_codigo(cfg_rv(), import_info(), mp, NULL))
-      removeModal()
-      showNotification(if (length(mp)) sprintf("%d coluna(s) renomeada(s).", length(mp))
-                       else "Nenhuma alteração de nome.", type = "message", duration = 3)
-    })
-
-    # --- Selecionar variáveis (modal): escolher quais colunas manter no resultado ---
-    observeEvent(input$abrir_selecionar, {
-      if (is.null(resultado_rv())) {
-        showNotification("Aplique uma transformação antes de selecionar.", type = "warning"); return()
-      }
-      nm <- nomes_renomeados()
-      atual <- sel_cols_rv(); if (is.null(atual)) atual <- nm
-      showModal(modalDialog(
-        title = "Selecionar variáveis", size = "l", easyClose = TRUE,
-        helpText("Marque as colunas que deseja manter no resultado arrumado."),
-        checkboxGroupInput(ns("sel_check"), NULL, choices = nm, selected = atual),
-        footer = tagList(
-          actionButton(ns("sel_todas"), "Marcar todas", class = "btn btn-sm btn-outline-secondary"),
-          modalButton("Cancelar"),
-          actionButton(ns("confirmar_selecionar"), "Aplicar", class = "btn-primary"))
-      ))
-    })
-
-    observeEvent(input$sel_todas, {
-      updateCheckboxGroupInput(session, "sel_check", selected = nomes_renomeados())
-    })
-
-    observeEvent(input$confirmar_selecionar, {
-      sel <- input$sel_check
-      if (is.null(sel) || length(sel) == 0) {
-        showNotification("Selecione ao menos uma coluna.", type = "error"); return()
-      }
-      nm <- nomes_renomeados()
-      sel <- nm[nm %in% sel]                # mantém a ordem original das colunas
-      # Se todas marcadas, guarda NULL (sem select() no script); senão, guarda a seleção.
-      sel_cols_rv(if (setequal(sel, nm)) NULL else sel)
-      codigo_rv(arrumar_gerar_codigo(cfg_rv(), import_info(), renomear_rv(), sel_cols_rv()))
-      removeModal()
-      showNotification("Seleção de variáveis aplicada.", type = "message", duration = 3)
-    })
-
-    # Prévias
-    output$preview_antes <- renderDT({
-      req(base_data())
-      datatable(head(base_data(), 100), options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
-    })
-    output$preview_depois <- renderDT({
-      validate(need(!is.null(resultado_rv()), "Aplique uma transformação para ver o resultado aqui."))
-      datatable(head(resultado_final(), 200), options = list(scrollX = TRUE, pageLength = 12), rownames = FALSE)
-    })
-    output$script_preview <- renderText(codigo_rv())
-
-    output$status_indicador <- renderUI({
-      if (is.null(resultado_rv())) {
-        div(style = "color:#888; font-size:0.85rem;", "Nenhuma transformação aplicada ainda.")
-      } else {
-        r <- resultado_final()
-        div(style = "font-size:0.85rem;",
-            span(style = "color:#2E7D8F; font-weight:600;", "✓ Dados arrumados"), br(),
-            sprintf("%d linhas × %d colunas", nrow(r), ncol(r)))
-      }
-    })
-
-    # Downloads
-    output$baixar_script <- downloadHandler(
-      filename = function() paste0("arrumar_dados_", Sys.Date(), ".R"),
-      content  = function(file) writeLines(codigo_rv(), file)
-    )
-    output$baixar_dados <- downloadHandler(
-      filename = function() paste0("dados_arrumados_", Sys.Date(), ".xlsx"),
-      content  = function(file) {
-        req(resultado_rv())
-        writexl::write_xlsx(resultado_final(), file)
-      }
-    )
-  })
-}
-
-# Operador auxiliar (caso não exista no escopo do app)
-if (!exists("%||%")) `%||%` <- function(a, b) if (is.null(a)) b else a
+                           selected
