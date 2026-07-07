@@ -2057,8 +2057,28 @@ RCatalyst::run_ide()</pre>
               })
             )
           )
-        )
+        ),
+        # Linha do DATASET ATIVO das análises (reage à promoção do Arrumar)
+        uiOutput("dataset_ativo_linha")
       )
+    }
+  })
+
+  # Mostra qual tabela as análises estão usando (importados x resultado do Arrumar)
+  output$dataset_ativo_linha <- renderUI({
+    da <- dataset_ativo_rv()
+    if (is.null(da)) {
+      div(style = "margin-top: 8px; font-size: 0.82rem; color: #2E7D8F;",
+          icon("circle-info"), " Análises usando: dados importados.")
+    } else {
+      div(style = "margin-top: 8px;",
+        div(class = "alert alert-info",
+            style = "padding: 8px 10px; border-radius: 8px; font-size: 0.82rem; margin-bottom: 6px;",
+            icon("wand-magic-sparkles"),
+            sprintf(" Análises usando: %s (%d x %d).", da$fonte, nrow(da$df), ncol(da$df))),
+        actionButton("voltar_importados", "Voltar aos dados importados",
+                     icon = icon("rotate-left"),
+                     class = "btn btn-sm btn-outline-secondary w-100"))
     }
   })
   
@@ -2206,51 +2226,82 @@ RCatalyst::run_ide()</pre>
       package_dataset = input$package_dataset
     )
   })
-  
+
+  # ============================================================================
+  # DATASET ATIVO PARA AS ANÁLISES
+  # Por padrão, as análises usam os dados importados (current_data). Quando um
+  # módulo Arrumar promove seu resultado ("Usar nas análises"), ele vira o
+  # dataset ativo até você voltar aos importados ou trocar de arquivo.
+  # ============================================================================
+  dataset_ativo_rv <- reactiveVal(NULL)   # NULL = usar dados importados
+
+  dados_analise <- reactive({
+    da <- dataset_ativo_rv()
+    if (is.null(da)) current_data() else da$df
+  })
+
+  # Callback que os módulos Arrumar chamam ao clicar "Usar nas análises".
+  promover_dataset <- function(df, fonte) {
+    dataset_ativo_rv(list(df = df, fonte = fonte))
+    showNotification(sprintf("Análises agora usam: %s (%d linhas x %d colunas).",
+                             fonte, nrow(df), ncol(df)), type = "message", duration = 6)
+  }
+
+  # Voltar aos dados importados
+  observeEvent(input$voltar_importados, {
+    dataset_ativo_rv(NULL)
+    showNotification("Análises voltaram aos dados importados.", type = "message", duration = 4)
+  })
+
+  # Trocar de arquivo/fonte descarta a promoção (evita dado velho)
+  observeEvent(raw_data(), { dataset_ativo_rv(NULL) }, ignoreInit = TRUE)
+
   # --- CHAMADA DO MÓDULO DE REGRESSÃO ---
-  mod_regression_server("regression", current_data, import_info)
+  mod_regression_server("regression", dados_analise, import_info)
   
   # --- CHAMADA DOS MÓDULOS DE REGRESSÃO NÃO LINEAR ---
-  mod_nonlinear_server("exponencial", current_data, import_info, "exponencial")
-  mod_nonlinear_server("potencia", current_data, import_info, "potencia")
-  mod_nonlinear_server("von_bertalanffy", current_data, import_info, "von_bertalanffy")
-  mod_nonlinear_server("polinomial", current_data, import_info, "polinomial")
-  mod_nonlinear_server("logaritmica", current_data, import_info, "logaritmica")
-  mod_regression_server("logistic_regression", current_data, import_info, is_logistic = TRUE)
-  mod_model_discovery_server("discovery", current_data, import_info)
-  
+  mod_nonlinear_server("exponencial", dados_analise, import_info, "exponencial")
+  mod_nonlinear_server("potencia", dados_analise, import_info, "potencia")
+  mod_nonlinear_server("von_bertalanffy", dados_analise, import_info, "von_bertalanffy")
+  mod_nonlinear_server("polinomial", dados_analise, import_info, "polinomial")
+  mod_nonlinear_server("logaritmica", dados_analise, import_info, "logaritmica")
+  mod_regression_server("logistic_regression", dados_analise, import_info, is_logistic = TRUE)
+  mod_model_discovery_server("discovery", dados_analise, import_info)
+
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
-  mod_descr_stats_server("descr_stats", current_data, import_info)
-  mod_histogram_server("histogram", current_data, import_info)
-  mod_boxplot_server("boxplot", current_data, import_info)
-  mod_pizza_server("pizza", current_data, import_info)
-  mod_scatter_server("scatter", current_data, import_info)
-  mod_lines_server("lines", current_data, import_info)
-  mod_bar_server("bar", current_data, import_info)
-  mod_mapa_server("mapa", current_data, import_info)
-  mod_mapa_pontos_server("mapa_pontos", current_data, import_info, "pontos")
-  mod_mapa_pontos_server("mapa_bolhas", current_data, import_info, "bolhas")
-  mod_series_temporais_server("series", current_data, import_info)
-  
+  mod_descr_stats_server("descr_stats", dados_analise, import_info)
+  mod_histogram_server("histogram", dados_analise, import_info)
+  mod_boxplot_server("boxplot", dados_analise, import_info)
+  mod_pizza_server("pizza", dados_analise, import_info)
+  mod_scatter_server("scatter", dados_analise, import_info)
+  mod_lines_server("lines", dados_analise, import_info)
+  mod_bar_server("bar", dados_analise, import_info)
+  mod_mapa_server("mapa", dados_analise, import_info)
+  mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
+  mod_mapa_pontos_server("mapa_bolhas", dados_analise, import_info, "bolhas")
+  mod_series_temporais_server("series", dados_analise, import_info)
+
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
-  mod_parametric_server("parametric", current_data, import_info)
+  mod_parametric_server("parametric", dados_analise, import_info)
 
   # --- CHAMADAS DOS NOVOS MÓDULOS ---
-  mod_aas_server("aas", current_data, import_info)
-  mod_aep_server("aep", current_data, import_info)
-  mod_as_server("as", current_data, import_info)
-  contingency_shared <- mod_contingency_server("contingency", current_data, import_info)
-  mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar")
-  mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar")
-  mod_anova_server("anova", current_data, import_info)
+  mod_aas_server("aas", dados_analise, import_info)
+  mod_aep_server("aep", dados_analise, import_info)
+  mod_as_server("as", dados_analise, import_info)
+  contingency_shared <- mod_contingency_server("contingency", dados_analise, import_info)
+  # Arrumar continua lendo os dados IMPORTADOS (current_data) e promove seu
+  # resultado às análises via callback on_usar.
+  mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar", on_usar = promover_dataset)
+  mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar", on_usar = promover_dataset)
+  mod_anova_server("anova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
-  mod_nonparametric_server("np_qui", current_data, import_info, contingency_shared, "quiquadrado")
-  mod_nonparametric_server("np_mw",  current_data, import_info, contingency_shared, "mannwhitney")
-  mod_nonparametric_server("np_wil", current_data, import_info, contingency_shared, "wilcoxon")
-  mod_nonparametric_server("np_kw",  current_data, import_info, contingency_shared, "kruskal")
-  mod_pca_server("pca", current_data, import_info)
-  mod_hca_server("hca", current_data, import_info)
+  mod_nonparametric_server("np_qui", dados_analise, import_info, contingency_shared, "quiquadrado")
+  mod_nonparametric_server("np_mw",  dados_analise, import_info, contingency_shared, "mannwhitney")
+  mod_nonparametric_server("np_wil", dados_analise, import_info, contingency_shared, "wilcoxon")
+  mod_nonparametric_server("np_kw",  dados_analise, import_info, contingency_shared, "kruskal")
+  mod_pca_server("pca", dados_analise, import_info)
+  mod_hca_server("hca", dados_analise, import_info)
   mod_experimental_design_server("experimental_design")
   
   # --- CONTROLE E RASTREAMENTO PARA EXPORTAÇÃO CONSOLIDADA ---
@@ -3970,4 +4021,24 @@ RCatalyst::run_ide()</pre>
         "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
         "- dados/               : Dados limpos (.rda e .csv).",
         "- scripts/             : Scripts R executáveis de cada análise.",
-        if (length(scripts_in
+        if (length(scripts_incluidos) > 0) paste(paste0("  * ", scripts_incluidos), collapse = "\n") else "  * (Nenhum script selecionado)",
+        "- relatorios/relatorio_consolidado.qmd: Relatório Quarto unificado.",
+        "",
+        "INSTRUÇÕES DE USO:",
+        "1. Abra 'projeto_analise.Rproj' no RStudio.",
+        "2. Acesse os scripts na pasta 'scripts/' para rodar as análises linha a linha.",
+        "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório completo."
+      )
+      writeLines(readme_content, file.path(proj_dir, "README.txt"))
+      
+      # 6. Compactar
+      old_wd <- getwd()
+      setwd(temp_dir)
+      zip::zip(file, files = proj_dir_name)
+      setwd(old_wd)
+    }
+  )
+}
+
+# Inicializa o app
+shinyApp(ui, server)

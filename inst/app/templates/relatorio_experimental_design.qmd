@@ -78,7 +78,7 @@ plotar_croqui(delineamento_res, design_type)
 
 # Tabela de Unidades Experimentais (Ficha de Campo)
 
-A tabela abaixo lista todas as unidades experimentais de forma ordenada. A coluna **`r delineamento_res$response_var`** destina-se ao preenchimento manual dos dados coletados em campo ou à digitação direta no arquivo Word para posterior importação e processamento estatístico. A coloração de cada tratamento corresponde exatamente àquela visualizada no croqui gráfico.
+A tabela abaixo lista todas as unidades experimentais de forma ordenada. A(s) coluna(s) **`r paste(delineamento_res$response_var, collapse = ", ")`** destina(m)-se ao preenchimento manual dos dados coletados em campo ou à digitação direta no arquivo Word para posterior importação e processamento estatístico. A coloração de cada tratamento corresponde exatamente àquela visualizada no croqui gráfico.
 
 A tabela é estruturada no formato longo (*long/tidy*), ideal para importação no RStudio e condução de modelos lineares ou testes estatísticos.
 

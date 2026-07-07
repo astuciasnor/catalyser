@@ -53,8 +53,8 @@ gerar_delineamento_dic <- function(factor_name, levels_vec, reps, nrows, ncols, 
     stringsAsFactors = FALSE
   )
   
-  # Coluna da variável de resposta (vazia)
-  df[[response_var]] <- NA_real_
+  # Coluna(s) da(s) variável(is) de resposta (vazias) — uma por nome informado
+  for (rv in response_var) df[[rv]] <- NA_real_
   
   # Paleta de cores vibrantes/pastéis
   palette <- c("#FF6B6B", "#4D96FF", "#6BCB77", "#FFE66D", "#B983FF", "#FF9F29", "#35858B", "#FF8AAE", "#95CD41", "#8758FF", "#54BAB9", "#FF9F43")
@@ -123,7 +123,7 @@ gerar_delineamento_dbc <- function(factor_name, levels_vec, blocks, nrows, ncols
   df$Rotulo <- mapply(make_cell_label, df$Tratamento, df$Bloco)
   
   # Coluna da variável de resposta
-  df[[response_var]] <- NA_real_
+  for (rv in response_var) df[[rv]] <- NA_real_
   
   # Paleta de cores
   palette <- c("#FF6B6B", "#4D96FF", "#6BCB77", "#FFE66D", "#B983FF", "#FF9F29", "#35858B", "#FF8AAE", "#95CD41", "#8758FF", "#54BAB9", "#FF9F43")
@@ -192,7 +192,7 @@ gerar_delineamento_dql <- function(factor_name, levels_vec, seed, response_var =
   df <- do.call(rbind, df_list)
   
   df$Rotulo <- sapply(df$Tratamento, make_cell_label)
-  df[[response_var]] <- NA_real_
+  for (rv in response_var) df[[rv]] <- NA_real_
   
   palette <- c("#FF6B6B", "#4D96FF", "#6BCB77", "#FFE66D", "#B983FF", "#FF9F29", "#35858B", "#FF8AAE", "#95CD41", "#8758FF", "#54BAB9", "#FF9F43")
   level_colors <- palette[1:min(k, length(palette))]
@@ -260,7 +260,7 @@ gerar_delineamento_fatorial <- function(fator_a_name, fator_a_levels, fator_b_na
     paste0(p1, p2, r_val)
   }
   df$Rotulo <- mapply(make_fatorial_label, df$Tratamento, df$Repeticao)
-  df[[response_var]] <- NA_real_
+  for (rv in response_var) df[[rv]] <- NA_real_
   
   palette <- c("#FF6B6B", "#4D96FF", "#6BCB77", "#FFE66D", "#B983FF", "#FF9F29", "#35858B", "#FF8AAE", "#95CD41", "#8758FF", "#54BAB9", "#FF9F43")
   level_colors <- palette[1:min(k, length(palette))]
@@ -338,7 +338,7 @@ gerar_delineamento_split_plot <- function(fator_main_name, fator_main_levels, fa
     paste0(m_lbl, s_lbl, block)
   }
   df$Rotulo <- mapply(make_split_label, df$Fator_Main, df$Fator_Sub, df$Bloco)
-  df[[response_var]] <- NA_real_
+  for (rv in response_var) df[[rv]] <- NA_real_
   
   comb_levels <- unique(df$Tratamento)
   k <- length(comb_levels)
@@ -559,7 +559,8 @@ relatar_delineamento <- function(r, design_type) {
   factor_text <- ""
   levels_text <- ""
   design_name <- ""
-  
+  resp_text <- paste(r$response_var, collapse = ", ")   # 1 ou mais respostas
+
   if (design_type == "DIC") {
     design_name <- "Delineamento Inteiramente Casualizado (DIC)"
     factor_text <- r$factor_name
@@ -567,7 +568,7 @@ relatar_delineamento <- function(r, design_type) {
     
     txt <- sprintf(
       "O experimento foi planejado utilizando o %s. O estudo avalia o fator '%s' com %d níveis (%s). Cada tratamento possui %d repetições, totalizando %d unidades experimentais. A variável de resposta principal a ser medida é '%s'. A distribuição espacial das unidades foi totalmente casualizada com a semente aleatória %d.",
-      design_name, factor_text, length(r$levels_vec), levels_text, r$reps, nrow(r$df), r$response_var, r$seed
+      design_name, factor_text, length(r$levels_vec), levels_text, r$reps, nrow(r$df), resp_text, r$seed
     )
   } else if (design_type == "DBC") {
     design_name <- "Delineamento em Blocos Casualizados (DBC)"
@@ -576,7 +577,7 @@ relatar_delineamento <- function(r, design_type) {
     
     txt <- sprintf(
       "O experimento foi planejado sob o %s, indicado para controlar gradientes locais de variabilidade. O estudo avalia o fator '%s' com %d níveis (%s) distribuídos em %d blocos. Cada bloco contém todos os tratamentos em ordem casualizada, totalizando %d unidades experimentais. A variável de resposta avaliada é '%s'. O sorteio foi realizado com a semente aleatória %d.",
-      design_name, factor_text, length(r$levels_vec), levels_text, r$blocks, nrow(r$df), r$response_var, r$seed
+      design_name, factor_text, length(r$levels_vec), levels_text, r$blocks, nrow(r$df), resp_text, r$seed
     )
   } else if (design_type == "DQL") {
     design_name <- "Delineamento em Quadrado Latino (DQL)"
@@ -586,7 +587,7 @@ relatar_delineamento <- function(r, design_type) {
     
     txt <- sprintf(
       "O experimento foi estruturado no %s, indicado para controlar duas fontes independentes de variação local (linhas e colunas). O estudo avalia o fator '%s' com %d níveis (%s) em uma grade de %d linhas por %d colunas, totalizando %d unidades experimentais. Cada tratamento aparece exatamente uma vez em cada linha e em cada coluna. A variável de resposta avaliada é '%s'. O sorteio foi realizado com a semente aleatória %d.",
-      design_name, factor_text, k, levels_text, k, k, nrow(r$df), r$response_var, r$seed
+      design_name, factor_text, k, levels_text, k, k, nrow(r$df), resp_text, r$seed
     )
   } else if (design_type == "fatorial") {
     design_name <- "Delineamento Fatorial"
@@ -596,7 +597,7 @@ relatar_delineamento <- function(r, design_type) {
     
     txt <- sprintf(
       "O experimento foi planejado em %s para avaliar a interação entre dois fatores. O Fator A '%s' possui %d níveis (%s) e o Fator B '%s' possui %d níveis (%s), totalizando %d combinações de tratamentos. O experimento conta com %d repetições por combinação, totalizando %d unidades experimentais organizadas de forma casualizada. A variável de resposta avaliada é '%s'. A semente de randomização foi %d.",
-      design_name, r$fator_a_name, length(r$fator_a_levels), levels_a, r$fator_b_name, length(r$fator_b_levels), levels_b, k, r$reps, nrow(r$df), r$response_var, r$seed
+      design_name, r$fator_a_name, length(r$fator_a_levels), levels_a, r$fator_b_name, length(r$fator_b_levels), levels_b, k, r$reps, nrow(r$df), resp_text, r$seed
     )
   } else if (design_type == "split_plot") {
     design_name <- "Delineamento em Parcelas Subdivididas (Split-Plot)"
@@ -605,7 +606,7 @@ relatar_delineamento <- function(r, design_type) {
     
     txt <- sprintf(
       "O experimento foi estruturado em %s. O Fator Principal '%s' possui %d níveis (%s) alocados às parcelas principais, e o Fator Subdividido '%s' possui %d níveis (%s) alocados às subparcelas. O experimento foi conduzido em %d blocos, totalizando %d unidades experimentais. A casualização das parcelas principais ocorreu dentro de cada bloco, e a casualização das subparcelas ocorreu dentro de cada parcela principal. A variável de resposta medida é '%s'. A semente de randomização foi %d.",
-      design_name, r$fator_main_name, length(r$fator_main_levels), levels_main, r$fator_sub_name, length(r$fator_sub_levels), levels_sub, r$blocks, nrow(r$df), r$response_var, r$seed
+      design_name, r$fator_main_name, length(r$fator_main_levels), levels_main, r$fator_sub_name, length(r$fator_sub_levels), levels_sub, r$blocks, nrow(r$df), resp_text, r$seed
     )
   } else {
     txt <- "Planejamento experimental estruturado."

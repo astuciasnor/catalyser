@@ -193,6 +193,21 @@ arrumar_sugerir_recode <- function(x) {
 
 # Validação da configuração antes de aplicar. Devolve NULL se OK, ou a mensagem.
 arrumar_validar <- function(cfg, df) {
+  # ALARGAR (pivot_wider avulso): só precisa de names_from e values_from.
+  if (identical(cfg$modo, "alargar")) {
+    if (is.null(cfg$names_from) || !nzchar(cfg$names_from))
+      return("Escolha a coluna que vira novas colunas (names_from).")
+    if (is.null(cfg$values_from) || !nzchar(cfg$values_from))
+      return("Escolha a coluna com os valores (values_from).")
+    if (!(cfg$names_from %in% names(df)))
+      return("A coluna 'names_from' não existe no resultado atual.")
+    if (!(cfg$values_from %in% names(df)))
+      return("A coluna 'values_from' não existe no resultado atual.")
+    if (identical(cfg$names_from, cfg$values_from))
+      return("As colunas 'names_from' e 'values_from' devem ser diferentes.")
+    return(NULL)
+  }
+
   if (any(!nzchar(cfg$novas)))
     return("Dê um nome a cada coluna nova (separe por vírgula).")
 
@@ -245,7 +260,12 @@ arrumar_validar <- function(cfg, df) {
 arrumar_aplicar <- function(cfg, df, on_warn = NULL, on_err = NULL) {
   withCallingHandlers(
     tryCatch({
-      if (identical(cfg$modo, "separar")) {
+      if (identical(cfg$modo, "alargar")) {
+        # Espalha os níveis de names_from em colunas, preenchidas por values_from.
+        tidyr::pivot_wider(df,
+                           names_from  = tidyselect::all_of(cfg$names_from),
+                           values_from = tidyselect::all_of(cfg$values_from))
+      } else if (identical(cfg$modo, "separar")) {
         if (identical(cfg$metodo, "delim")) {
           # Corta os VALORES no separador literal — uma coluna por pedaço.
           tidyr::separate_wider_delim(
@@ -287,12 +307,68 @@ arrumar_bt <- function(x) {
   ifelse(ok, x, paste0("`", x, "`"))
 }
 
-# Gera o texto do script .R. CRÍTICO: escapar "\" da regex ao virar código.
+# Linhas de UMA etapa de transformação, sempre canalizando `dados_arrumados`
+# nele mesmo (encadeável). `n` é o número da etapa (para o comentário).
+arrumar_codigo_transformacao <- function(cfg, n, esc, q) {
+  if (identical(cfg$modo, "alargar")) {
+    c(sprintf("# Etapa %d: alargar (longo -> largo)", n),
+      "dados_arrumados <- dados_arrumados |>",
+      sprintf("  pivot_wider(names_from = %s, values_from = %s)",
+              arrumar_bt(cfg$names_from), arrumar_bt(cfg$values_from)))
+  } else if (identical(cfg$modo, "separar")) {
+    if (identical(cfg$metodo, "delim")) {
+      c(sprintf("# Etapa %d: separar '%s' pelo delimitador '%s'", n, cfg$col_separar, cfg$delim),
+        "dados_arrumados <- dados_arrumados |>",
+        "  separate_wider_delim(",
+        sprintf("    cols = %s,", arrumar_bt(cfg$col_separar)),
+        sprintf('    delim = "%s",', esc(cfg$delim)),
+        sprintf("    names = c(%s),", q(cfg$novas)),
+        sprintf("    cols_remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
+        "  )")
+    } else {
+      c(sprintf("# Etapa %d: separar '%s' por regex", n, cfg$col_separar),
+        "dados_arrumados <- dados_arrumados |>",
+        "  extract(",
+        sprintf("    col = %s,", arrumar_bt(cfg$col_separar)),
+        sprintf("    into = c(%s),", q(cfg$novas)),
+        sprintf('    regex = "%s",', esc(cfg$regex)),
+        sprintf("    remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
+        "  )")
+    }
+  } else {
+    sep_linha <- if (identical(cfg$metodo, "delim"))
+      sprintf('    names_sep = "%s",', esc(arrumar_escape_regex(cfg$delim)))
+    else
+      sprintf('    names_pattern = "%s",', esc(cfg$regex))
+    linhas <- c(
+      sprintf("# Etapa %d: empilhar colunas largas (largo -> longo)", n),
+      "cols_medida <- c(",
+      paste0("  ", q(cfg$cols_medida)),
+      ")",
+      "dados_arrumados <- dados_arrumados |>",
+      "  pivot_longer(",
+      "    cols = all_of(cols_medida),",
+      sprintf("    names_to = c(%s),", q(cfg$novas)),
+      sep_linha,
+      sprintf('    values_to = "%s"%s', cfg$values_to, if (cfg$como_numero) "," else ""),
+      if (cfg$como_numero) sprintf("    values_transform = list(%s = as.numeric)", cfg$values_to) else NULL,
+      "  )")
+    if (identical(cfg$saida, "largo")) {
+      linhas <- c(linhas,
+        "dados_arrumados <- dados_arrumados |>",
+        sprintf("  pivot_wider(names_from = %s, values_from = %s)", cfg$wider_names, cfg$values_to))
+    }
+    linhas
+  }
+}
+
+# Gera o texto do script .R a partir da PILHA de etapas (`passos`, lista de cfgs)
+# aplicadas em sequência, mais os passos finais de polimento.
 # `renomear`  : vetor nomeado names = nome antigo, valor = nome novo.
 # `tipos`     : lista/vetor nomeado coluna -> token de tipo (texto/numero/...).
 # `recodes`   : lista coluna -> vetor nomeado nivel_antigo -> nivel_novo.
 # `selecionar`: vetor de colunas a manter (no espaço já renomeado); NULL = todas.
-arrumar_gerar_codigo <- function(cfg, info, renomear = character(0),
+arrumar_gerar_codigo <- function(passos, info, renomear = character(0),
                                  tipos = character(0), recodes = list(),
                                  selecionar = NULL) {
   esc <- function(s) gsub("\\", "\\\\", s, fixed = TRUE)
@@ -310,81 +386,31 @@ arrumar_gerar_codigo <- function(cfg, info, renomear = character(0),
     usa_readxl <- TRUE
   }
 
-  titulo <- if (identical(cfg$modo, "separar"))
-    "# Script gerado pela CatalyseR — Arrumacao (separar uma coluna)"
-  else
-    "# Script gerado pela CatalyseR — Arrumacao (largo -> longo)"
-
   linhas <- c(
-    titulo,
+    "# Script gerado pela CatalyseR — Arrumacao dos dados",
     "library(tidyverse)",
     if (usa_readxl) "library(readxl)" else NULL,
     "",
     "# 1. Dados de entrada (ajuste o caminho/aba se necessario)",
     leitura,
+    "dados_arrumados <- dados_largo",
     ""
   )
-  if (identical(cfg$modo, "separar")) {
-    if (identical(cfg$metodo, "delim")) {
-      linhas <- c(linhas,
-        "# 2. Separar uma coluna existente em varias (por delimitador)",
-        "dados_arrumados <- dados_largo |>",
-        "  separate_wider_delim(",
-        sprintf("    cols = %s,", arrumar_bt(cfg$col_separar)),
-        sprintf('    delim = "%s",', esc(cfg$delim)),
-        sprintf("    names = c(%s),", q(cfg$novas)),
-        sprintf("    cols_remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
-        "  )")
-    } else {
-      linhas <- c(linhas,
-        "# 2. Separar uma coluna existente em varias (extract via regex)",
-        "dados_arrumados <- dados_largo |>",
-        "  extract(",
-        sprintf("    col = %s,", arrumar_bt(cfg$col_separar)),
-        sprintf("    into = c(%s),", q(cfg$novas)),
-        sprintf('    regex = "%s",', esc(cfg$regex)),
-        sprintf("    remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
-        "  )")
-    }
-  } else {
-    sep_linha <- if (identical(cfg$metodo, "delim"))
-      sprintf('    names_sep = "%s",', esc(arrumar_escape_regex(cfg$delim)))
-    else
-      sprintf('    names_pattern = "%s",', esc(cfg$regex))
-    linhas <- c(linhas,
-      "# 2. Colunas de medida que serao empilhadas",
-      "cols_medida <- c(",
-      paste0("  ", q(cfg$cols_medida)),
-      ")",
-      "",
-      "# 3. Empilhar e extrair metadados do nome da coluna",
-      "dados_arrumados <- dados_largo |>",
-      "  pivot_longer(",
-      "    cols = all_of(cols_medida),",
-      sprintf("    names_to = c(%s),", q(cfg$novas)),
-      sep_linha,
-      sprintf('    values_to = "%s"%s', cfg$values_to, if (cfg$como_numero) "," else ""),
-      if (cfg$como_numero) sprintf("    values_transform = list(%s = as.numeric)", cfg$values_to) else NULL,
-      "  )")
-    if (identical(cfg$saida, "largo")) {
-      linhas <- c(linhas, "",
-        "# 4. Alargar uma metrica em colunas (pivot_wider)",
-        "dados_arrumados <- dados_arrumados |>",
-        sprintf("  pivot_wider(names_from = %s, values_from = %s)", cfg$wider_names, cfg$values_to))
-    }
+  for (i in seq_along(passos)) {
+    linhas <- c(linhas, arrumar_codigo_transformacao(passos[[i]], i, esc, q), "")
   }
   if (length(renomear)) {
     pares <- vapply(seq_along(renomear), function(i)
       sprintf("%s = %s", arrumar_bt(unname(renomear[i])), arrumar_bt(names(renomear)[i])),
       character(1))
     linhas <- c(linhas, "",
-      "# 5. Renomear colunas",
+      "# Renomear colunas",
       "dados_arrumados <- dados_arrumados |>",
       paste0("  rename(", paste(pares, collapse = ", "), ")"))
   }
   if (length(recodes)) {
     linhas <- c(linhas, "",
-      "# 6. Padronizar (recodificar) niveis de fator",
+      "# Padronizar (recodificar) niveis de fator",
       "dados_arrumados <- dados_arrumados |>",
       "  mutate(")
     cols <- names(recodes)
@@ -407,13 +433,13 @@ arrumar_gerar_codigo <- function(cfg, info, renomear = character(0),
               if (i < length(cols)) "," else "")
     }, character(1))
     linhas <- c(linhas, "",
-      "# 7. Tipar colunas (definir o tipo de cada variavel)",
+      "# Tipar colunas (definir o tipo de cada variavel)",
       "dados_arrumados <- dados_arrumados |>",
       "  mutate(", pares, "  )")
   }
   if (!is.null(selecionar) && length(selecionar)) {
     linhas <- c(linhas, "",
-      "# 8. Selecionar apenas as colunas desejadas",
+      "# Selecionar apenas as colunas desejadas",
       "dados_arrumados <- dados_arrumados |>",
       paste0("  select(", paste(arrumar_bt(selecionar), collapse = ", "), ")"))
   }
@@ -432,6 +458,12 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
   # Embrulha em conditionalPanel(modo == X) só quando os dois modos convivem.
   so_modo <- function(modo, ui) if (combinado)
     conditionalPanel(sprintf("input['%s'] == '%s'", ns("modo"), modo), ui) else ui
+
+  # No menu "Empilhar" também oferecemos ALARGAR (pivot_wider avulso) como
+  # operação da etapa. op_emp() mostra os cartões de empilhar só quando op=='empilhar'.
+  reshape_fixo <- identical(modo_fixo, "empilhar")
+  op_emp <- function(ui) if (reshape_fixo)
+    conditionalPanel(sprintf("input['%s'] == 'empilhar'", ns("op")), ui) else ui
 
   # Numeração dos cartões conforme o contexto.
   if (combinado) { n_grp <- 2L; n_regex <- 3L; n_saida <- 4L }
@@ -457,8 +489,35 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
           )
         ),
 
+        # --- Escolha da operação (só no menu Empilhar): empilhar ou alargar ---
+        if (reshape_fixo) card(
+          card_header("Operação desta etapa"),
+          card_body(
+            style = "padding: 12px 15px;",
+            radioButtons(ns("op"), NULL,
+              choices = c("Empilhar (largo → longo)" = "empilhar",
+                          "Alargar (longo → largo)"  = "alargar"),
+              selected = "empilhar"),
+            helpText(HTML("<b>Empilhar</b>: junta colunas largas numa só.<br><b>Alargar</b>: espalha os níveis de uma coluna em várias (útil após empilhar)."))
+          )
+        ),
+
+        # --- Modo ALARGAR (pivot_wider avulso): só no menu Empilhar ---
+        if (reshape_fixo) conditionalPanel(
+          condition = sprintf("input['%s'] == 'alargar'", ns("op")),
+          card(
+            card_header("Alargar (longo → largo)"),
+            card_body(
+              style = "padding: 12px 15px;",
+              selectInput(ns("wider_names2"), "Coluna que vira novas colunas (names_from):", choices = NULL),
+              selectInput(ns("wider_values"), "Coluna com os valores (values_from):", choices = NULL),
+              helpText("Espalha os níveis da 1ª coluna em colunas novas, preenchidas pela 2ª.")
+            )
+          )
+        ),
+
         # --- Modo EMPILHAR: colunas de medida ---
-        if (mostrar_emp) so_modo("empilhar", card(
+        if (mostrar_emp) so_modo("empilhar", op_emp(card(
           card_header(sprintf("%d. Colunas de medida", n_grp)),
           card_body(
             style = "padding: 12px 15px;",
@@ -473,7 +532,7 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                 strong("Identificadores (automático): "),
                 textOutput(ns("cols_id_preview"), inline = TRUE))
           )
-        )),
+        ))),
 
         # --- Modo SEPARAR: coluna a quebrar ---
         if (mostrar_sep) so_modo("separar", card(
@@ -486,8 +545,8 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
           )
         )),
 
-        # --- Extração: comum aos dois modos (delimitador ou regex) ---
-        card(
+        # --- Extração: comum a separar e empilhar (delimitador ou regex) ---
+        op_emp(card(
           card_header(sprintf("%d. Separar em colunas", n_regex)),
           card_body(
             style = "padding: 12px 15px;",
@@ -544,25 +603,19 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
               checkboxInput(ns("como_numero"), "Converter valores para número", value = TRUE)
             ))
           )
-        ),
-
-        # --- Saída: só no modo empilhar ---
-        if (mostrar_emp) so_modo("empilhar", card(
-          card_header(sprintf("%d. Saída", n_saida)),
-          card_body(
-            style = "padding: 12px 15px;",
-            radioButtons(ns("saida"), NULL,
-              choices = c("Manter em formato LONGO" = "longo",
-                          "ALARGAR uma métrica (pivot_wider)" = "largo")),
-            conditionalPanel(
-              condition = sprintf("input['%s'] == 'largo'", ns("saida")),
-              selectInput(ns("wider_names"), "Coluna que vira novas colunas:", choices = NULL)
-            )
-          )
         )),
 
+        # (O "alargar" agora é uma OPERAÇÃO à parte — não mais um modo de saída do
+        # empilhar. Empilhar sempre gera formato LONGO; para alargar, escolha a
+        # operação "Alargar (longo → largo)" acima e aplique como nova etapa.)
+
         actionButton(ns("aplicar"), "Aplicar transformação",
-                     icon = icon("play"), class = "btn-primary w-100 mt-2")
+                     icon = icon("play"), class = "btn-primary w-100 mt-2"),
+        div(class = "d-flex gap-2 mt-2",
+          actionButton(ns("desfazer"), "Desfazer última etapa",
+                       icon = icon("rotate-left"), class = "btn-outline-secondary btn-sm w-100"),
+          uiOutput(ns("passos_indicador"), inline = TRUE)),
+        helpText("As etapas se acumulam: você separa uma coluna, depois outra, e assim por diante. 'Desfazer' remove a última.")
       ),
 
       # COLUNA 2: PRÉVIA + SCRIPT
@@ -602,7 +655,11 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             downloadButton(ns("baixar_script"), "Baixar script .R",
                            class = "btn-outline-secondary btn-sm w-100 mb-2"),
             downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
-                           class = "btn-outline-primary btn-sm w-100")
+                           class = "btn-outline-primary btn-sm w-100 mb-2"),
+            hr(style = "margin: 10px 0;"),
+            actionButton(ns("usar_analises"), "Usar este resultado nas análises",
+                         icon = icon("share-from-square"), class = "btn-primary w-100"),
+            helpText("As análises passam a trabalhar sobre esta tabela arrumada (você pode voltar aos dados importados no painel de importação).")
           )
         ),
         card(
@@ -630,14 +687,19 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
 
 # --- SERVER ------------------------------------------------------------------
 
-mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL) {
+mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_usar = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     base_data <- reactive({ req(data_rv()); data_rv() })
 
-    # Modo efetivo: fixo (quando o menu já define) ou o do seletor (modo combinado).
-    modo_atual <- reactive({ if (!is.null(modo_fixo)) modo_fixo else input$modo })
+    # Modo efetivo: no menu Empilhar, a operação vem do seletor (empilhar/alargar);
+    # no menu Separar é fixo; no modo combinado, do radio principal.
+    modo_atual <- reactive({
+      if (identical(modo_fixo, "empilhar")) (input$op %||% "empilhar")
+      else if (!is.null(modo_fixo)) modo_fixo
+      else input$modo
+    })
 
     resultado_rv <- reactiveVal(NULL)                 # resultado do pivot (sem renomear)
     codigo_rv    <- reactiveVal("# Configure à esquerda e clique em 'Aplicar transformação'.")
@@ -649,8 +711,527 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL) {
     tp_cols      <- reactiveVal(character(0))          # ordem das colunas no modal de tipagem
     recode_niveis_atual <- reactiveVal(character(0))   # níveis exibidos no modal de recode
     sel_cols_rv  <- reactiveVal(NULL)                  # colunas a manter (NULL = todas)
+    passos_rv    <- reactiveVal(list())                # PILHA de transformações aplicadas (cfgs)
 
-    # Popular seletores de coluna quando os dados chegam
+    # Entrada da PRÓXIMA transformação = resultado acumulado (ou o original, se
+    # nada foi aplicado ainda). É isso que torna as separações ENCADEÁVEIS.
+    entrada_atual <- reactive({
+      r <- resultado_rv(); if (is.null(r)) base_data() else r
+    })
+
+    # Atualiza os seletores de coluna para refletir a entrada atual (encadeada).
+    atualizar_seletores <- function(df) {
+      updateSelectizeInput(session, "cols_medida", choices = names(df),
+                           selected = character(0), server = TRUE)
+      updateSelectInput(session, "col_separar", choices = names(df))
+      # Alargar: names_from (coluna que vira colunas) e values_from (os valores).
+      updateSelectInput(session, "wider_names2", choices = names(df))
+      updateSelectInput(session, "wider_values", choices = names(df))
+    }
+
+    # Popular seletores de coluna quando os dados chegam (reinicia tudo)
     observeEvent(base_data(), {
-      updateSelectizeInput(session, "cols_medida", choices = names(base_data()),
-                           selected
+      atualizar_seletores(base_data())
+      resultado_rv(NULL)
+      passos_rv(list())
+      cfg_rv(NULL)
+      renomear_rv(character(0))
+      tipos_rv(list())
+      recode_rv(list())
+      sel_cols_rv(NULL)
+      codigo_rv("# Configure à esquerda e clique em 'Aplicar transformação'.")
+    })
+
+    # Detecção automática (heurística: começa com 4 dígitos)
+    observeEvent(input$auto_detectar, {
+      med <- grep("^\\d{4}", names(entrada_atual()), value = TRUE)
+      if (length(med) == 0) {
+        showNotification("Nenhuma coluna começando com 4 dígitos foi encontrada.", type = "warning")
+      } else {
+        updateSelectizeInput(session, "cols_medida", selected = med)
+      }
+    })
+
+    # Identificadores = complemento (como o setdiff do script)
+    output$cols_id_preview <- renderText({
+      req(entrada_atual())
+      ids <- setdiff(names(entrada_atual()), input$cols_medida)
+      if (length(ids) == 0) "—" else paste(ids, collapse = ", ")
+    })
+
+    # Ajuda "?" ao lado do seletor: abre o guia rápido de regex
+    observeEvent(input$ajuda_regex, { showModal(arrumar_ajuda_regex_modal()) })
+
+    # Preset -> sugerir regex e nomes das colunas novas (só no método regex)
+    observeEvent(input$regex_preset, {
+      req(identical(input$metodo, "regex"))
+      if (input$regex_preset != "custom") {
+        p <- arrumar_presets[[input$regex_preset]]
+        updateTextInput(session, "novas_cols", value = p$novas)
+        updateTextInput(session, "regex", value = p$regex)
+      }
+    }, ignoreInit = TRUE)
+
+    # Regex efetiva (preset ou personalizada)
+    regex_efetiva <- reactive({
+      if ((input$regex_preset %||% "custom") == "custom") input$regex %||% ""
+      else arrumar_presets[[input$regex_preset]]$regex
+    })
+
+    # Separador efetivo: opção comum ou o campo "Outro (digitar)".
+    delim_efetivo <- reactive({
+      if ((input$delim_comum %||% "") == "__custom__") input$delim_custom %||% ""
+      else input$delim_comum %||% ""
+    })
+
+    # Nº de colunas -> gera nomes-rascunho (parte1, parte2, ...) no método delim.
+    observeEvent(input$n_cols, {
+      req(identical(input$metodo, "delim"))
+      nn <- input$n_cols; if (is.null(nn) || is.na(nn)) nn <- 2
+      updateTextInput(session, "novas_cols", value = arrumar_nomes_padrao(as.integer(nn)))
+    })
+
+    # Detectar o separador automaticamente, olhando os valores (separar) ou os
+    # nomes das colunas de medida (empilhar).
+    observeEvent(input$auto_detectar_sep, {
+      if (identical(modo_atual(), "separar")) {
+        if (is.null(input$col_separar) || !(input$col_separar %in% names(entrada_atual()))) {
+          showNotification("Escolha primeiro a coluna a separar.", type = "warning"); return()
+        }
+        x <- as.character(entrada_atual()[[input$col_separar]]); contexto <- "os valores"
+      } else {
+        if (length(input$cols_medida) == 0) {
+          showNotification("Selecione primeiro as colunas de medida.", type = "warning"); return()
+        }
+        x <- input$cols_medida; contexto <- "os nomes das colunas"
+      }
+      det <- arrumar_detectar_delim(x)
+      if (is.null(det)) {
+        showNotification(sprintf(
+          "Não encontrei um separador que divida %s no mesmo número de partes. Tente o modo regex.",
+          contexto), type = "warning", duration = 9)
+        return()
+      }
+      opcoes <- c("_", "-", " - ", ".", ";", ",", " ")
+      if (det$delim %in% opcoes) {
+        updateSelectInput(session, "delim_comum", selected = det$delim)
+      } else {
+        updateSelectInput(session, "delim_comum", selected = "__custom__")
+        updateTextInput(session, "delim_custom", value = det$delim)
+      }
+      updateNumericInput(session, "n_cols", value = det$n)
+      updateTextInput(session, "novas_cols", value = arrumar_nomes_padrao(det$n))
+      showNotification(sprintf("Separador detectado: '%s' → %d colunas.",
+                               arrumar_delim_rotulo(det$delim), det$n),
+                       type = "message", duration = 6)
+    })
+
+    # Atualizar as opções de "coluna que vira colunas" conforme os nomes novos
+    observe({
+      novas <- trimws(strsplit(input$novas_cols %||% "", ",")[[1]])
+      novas <- novas[nzchar(novas)]
+      updateSelectInput(session, "wider_names", choices = novas,
+                        selected = if (length(novas)) novas[length(novas)] else NULL)
+    })
+
+    # Aplicar (validar -> transformar -> guardar) — calcula uma vez por clique
+    observeEvent(input$aplicar, {
+      cfg <- list(
+        modo        = modo_atual(),
+        metodo      = input$metodo %||% "delim",
+        delim       = delim_efetivo(),
+        regex       = if (identical(input$metodo, "regex")) regex_efetiva() else "",
+        novas       = trimws(strsplit(input$novas_cols %||% "", ",")[[1]]),
+        # campos do modo EMPILHAR:
+        cols_medida = input$cols_medida,
+        values_to   = trimws(input$values_to %||% ""),
+        como_numero = isTRUE(input$como_numero),
+        saida       = input$saida,
+        wider_names = input$wider_names %||% "",
+        # campos do modo SEPARAR:
+        col_separar     = input$col_separar %||% "",
+        manter_original = isTRUE(input$manter_original),
+        # campos do modo ALARGAR (pivot_wider avulso):
+        names_from  = input$wider_names2 %||% "",
+        values_from = input$wider_values %||% ""
+      )
+      cfg$novas <- cfg$novas[nzchar(cfg$novas)]
+
+      # Valida e aplica sobre a ENTRADA ATUAL (resultado acumulado), não o original.
+      entrada <- entrada_atual()
+      msg <- arrumar_validar(cfg, entrada)
+      if (!is.null(msg)) { showNotification(msg, type = "error", duration = 9); return() }
+
+      res <- arrumar_aplicar(
+        cfg, entrada,
+        on_warn = function(m) showNotification(paste("Aviso:", m), type = "warning", duration = 9),
+        on_err  = function(m) showNotification(paste("Erro:", m), type = "error", duration = 12)
+      )
+      if (is.null(res)) return()
+
+      # Aviso informativo de coerção numérica (só no modo empilhar)
+      if (identical(cfg$modo, "empilhar") && cfg$como_numero && cfg$values_to %in% names(res)) {
+        n_na <- sum(is.na(res[[cfg$values_to]]))
+        if (n_na > 0)
+          showNotification(sprintf("%d valor(es) não puderam ser convertidos para número (viraram NA).", n_na),
+                           type = "warning", duration = 9)
+      }
+      # Aviso se o padrão não casou (coluna extraída toda NA)
+      if (length(cfg$novas) && cfg$novas[1] %in% names(res) && all(is.na(res[[cfg$novas[1]]])))
+        showNotification(if (identical(cfg$modo, "separar"))
+            "O padrão não casou com os valores da coluna — confira a regex."
+          else
+            "O padrão de extração não casou com os nomes das colunas — confira a regex.",
+          type = "warning", duration = 10)
+
+      # Empilha a etapa na pilha e guarda o resultado acumulado.
+      passos_rv(c(passos_rv(), list(cfg)))
+      resultado_rv(res)
+      cfg_rv(cfg)
+      # Modelo "primeiro estrutura, depois polir": o polimento (renomear/
+      # recodificar/tipar/selecionar) reinicia a cada nova etapa estrutural, para
+      # que os nomes exibidos nunca divirjam dos que a próxima etapa enxerga.
+      renomear_rv(character(0))
+      tipos_rv(list())
+      recode_rv(list())
+      sel_cols_rv(NULL)
+      atualizar_seletores(res)                          # próxima etapa pode mirar as colunas criadas
+      codigo_rv(arrumar_gerar_codigo(passos_rv(), import_info()))
+      showNotification(sprintf("Etapa %d aplicada.", length(passos_rv())),
+                       type = "message", duration = 3)
+    })
+
+    # --- Desfazer: remove a última etapa da pilha e recalcula do zero ---
+    observeEvent(input$desfazer, {
+      passos <- passos_rv()
+      if (!length(passos)) {
+        showNotification("Não há etapas para desfazer.", type = "warning"); return()
+      }
+      passos <- passos[-length(passos)]                 # remove a última
+      # Recalcula a partir do original, aplicando as etapas restantes em ordem.
+      res <- base_data()
+      ok <- TRUE
+      for (cfg in passos) {
+        res <- arrumar_aplicar(cfg, res,
+          on_warn = function(m) NULL,
+          on_err  = function(m) { showNotification(paste("Erro ao recalcular:", m), type = "error"); NULL })
+        if (is.null(res)) { ok <- FALSE; break }
+      }
+      passos_rv(passos)
+      resultado_rv(if (length(passos) && ok) res else NULL)
+      renomear_rv(character(0)); tipos_rv(list()); recode_rv(list()); sel_cols_rv(NULL)
+      atualizar_seletores(if (is.null(resultado_rv())) base_data() else resultado_rv())
+      if (length(passos)) {
+        codigo_rv(arrumar_gerar_codigo(passos, import_info()))
+      } else {
+        codigo_rv("# Configure à esquerda e clique em 'Aplicar transformação'.")
+      }
+      showNotification("Última etapa desfeita.", type = "message", duration = 3)
+    })
+
+    # Nomes das colunas do resultado no espaço JÁ renomeado (base do modal de seleção)
+    nomes_renomeados <- reactive({
+      r <- resultado_rv(); req(r)
+      nm <- names(r); mp <- renomear_rv()
+      if (length(mp)) for (o in names(mp)) nm[nm == o] <- unname(mp[o])
+      nm
+    })
+
+    # Cadeia do resultado: pivot -> renomear -> recodificar -> tipar -> selecionar.
+    # Cada etapa é um reactive, então os modais leem o estado da etapa anterior.
+    res_renomeado <- reactive({
+      r <- resultado_rv(); req(r)
+      mp <- renomear_rv()
+      if (length(mp)) {
+        nm <- names(r)
+        for (o in names(mp)) nm[nm == o] <- unname(mp[o])
+        names(r) <- nm
+      }
+      r
+    })
+    res_recodificado <- reactive({
+      r <- res_renomeado()
+      rc <- recode_rv()
+      for (col in names(rc)) if (col %in% names(r)) {
+        mapa <- rc[[col]]; x <- as.character(r[[col]])
+        for (o in names(mapa)) x[!is.na(x) & x == o] <- unname(mapa[o])
+        r[[col]] <- x
+      }
+      r
+    })
+    res_tipado <- reactive({
+      r <- res_recodificado()
+      tp <- tipos_rv()
+      for (col in names(tp)) if (col %in% names(r))
+        r[[col]] <- arrumar_converter_tipo(r[[col]], tp[[col]])
+      r
+    })
+    resultado_final <- reactive({
+      r <- res_tipado()
+      sel <- sel_cols_rv()
+      if (!is.null(sel)) {
+        keep <- intersect(sel, names(r))
+        if (length(keep)) r <- r[, keep, drop = FALSE]
+      }
+      r
+    })
+
+    # --- Renomear colunas (modal: mantém a tela limpa) ---
+    observeEvent(input$abrir_renomear, {
+      r <- resultado_rv()
+      if (is.null(r)) {
+        showNotification("Aplique uma transformação antes de renomear.", type = "warning"); return()
+      }
+      cols <- names(r); rn_cols(cols)
+      atual <- cols
+      mp <- renomear_rv()
+      if (length(mp)) for (o in names(mp)) atual[cols == o] <- unname(mp[o])
+      showModal(modalDialog(
+        title = "Renomear colunas", size = "l", easyClose = TRUE,
+        helpText("Ajuste os nomes à direita. Dica: nomes 'tidy' evitam espaços e símbolos (ex.: valor_usd, massa_kg)."),
+        div(style = "max-height: 430px; overflow-y: auto; padding-right: 6px;",
+          lapply(seq_along(cols), function(i)
+            div(style = "display:flex; gap:10px; align-items:center; margin-bottom:6px;",
+              div(style = "flex:1; font-size:0.82rem; color:#666; word-break:break-word;", cols[i]),
+              div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
+              div(style = "flex:1;", textInput(ns(paste0("rn_", i)), NULL, value = atual[i], width = "100%"))))),
+        footer = tagList(modalButton("Cancelar"),
+                         actionButton(ns("confirmar_renomear"), "Aplicar", class = "btn-primary"))
+      ))
+    })
+
+    observeEvent(input$confirmar_renomear, {
+      cols <- rn_cols(); req(length(cols) > 0)
+      novos <- vapply(seq_along(cols), function(i) {
+        v <- input[[paste0("rn_", i)]]; if (is.null(v)) cols[i] else trimws(v)
+      }, character(1))
+      if (any(!nzchar(novos))) { showNotification("Os nomes não podem ficar vazios.", type = "error"); return() }
+      if (anyDuplicated(novos)) { showNotification("Há nomes de coluna duplicados.", type = "error"); return() }
+      mudou <- novos != cols
+      mp <- stats::setNames(novos[mudou], cols[mudou])   # names = antigo, valor = novo
+      renomear_rv(mp)
+      # nomes mudaram: tipagem, recodificação e seleção (que dependem dos nomes) reiniciam
+      tipos_rv(list())
+      recode_rv(list())
+      sel_cols_rv(NULL)
+      codigo_rv(arrumar_gerar_codigo(passos_rv(), import_info(), mp))
+      removeModal()
+      showNotification(if (length(mp)) sprintf("%d coluna(s) renomeada(s).", length(mp))
+                       else "Nenhuma alteração de nome.", type = "message", duration = 3)
+    })
+
+    # --- Selecionar variáveis (modal): escolher quais colunas manter no resultado ---
+    observeEvent(input$abrir_selecionar, {
+      if (is.null(resultado_rv())) {
+        showNotification("Aplique uma transformação antes de selecionar.", type = "warning"); return()
+      }
+      nm <- nomes_renomeados()
+      atual <- sel_cols_rv(); if (is.null(atual)) atual <- nm
+      showModal(modalDialog(
+        title = "Selecionar variáveis", size = "l", easyClose = TRUE,
+        helpText("Marque as colunas que deseja manter no resultado arrumado."),
+        checkboxGroupInput(ns("sel_check"), NULL, choices = nm, selected = atual),
+        footer = tagList(
+          actionButton(ns("sel_todas"), "Marcar todas", class = "btn btn-sm btn-outline-secondary"),
+          modalButton("Cancelar"),
+          actionButton(ns("confirmar_selecionar"), "Aplicar", class = "btn-primary"))
+      ))
+    })
+
+    observeEvent(input$sel_todas, {
+      updateCheckboxGroupInput(session, "sel_check", selected = nomes_renomeados())
+    })
+
+    observeEvent(input$confirmar_selecionar, {
+      sel <- input$sel_check
+      if (is.null(sel) || length(sel) == 0) {
+        showNotification("Selecione ao menos uma coluna.", type = "error"); return()
+      }
+      nm <- nomes_renomeados()
+      sel <- nm[nm %in% sel]                # mantém a ordem original das colunas
+      # Se todas marcadas, guarda NULL (sem select() no script); senão, guarda a seleção.
+      sel_cols_rv(if (setequal(sel, nm)) NULL else sel)
+      codigo_rv(arrumar_gerar_codigo(passos_rv(), import_info(), renomear_rv(),
+                                     tipos = tipos_rv(), recodes = recode_rv(),
+                                     selecionar = sel_cols_rv()))
+      removeModal()
+      showNotification("Seleção de variáveis aplicada.", type = "message", duration = 3)
+    })
+
+    # --- Tipar colunas (modal): definir o tipo de cada variável ---
+    observeEvent(input$abrir_tipar, {
+      if (is.null(resultado_rv())) {
+        showNotification("Aplique uma transformação antes de tipar.", type = "warning"); return()
+      }
+      r <- res_recodificado()                 # tipagem age depois da recodificação
+      cols <- names(r); tp_cols(cols)
+      atual <- tipos_rv()
+      showModal(modalDialog(
+        title = "Tipar colunas", size = "l", easyClose = TRUE,
+        helpText("Defina o tipo de cada coluna. O padrão já reflete o tipo atual; mude só o que precisar (ex.: 'ano' para Inteiro, 'periodo' para Fator)."),
+        div(style = "max-height: 430px; overflow-y: auto; padding-right: 6px;",
+          lapply(seq_along(cols), function(i) {
+            sel_tipo <- if (!is.null(atual[[cols[i]]])) atual[[cols[i]]] else arrumar_detectar_tipo(r[[cols[i]]])
+            div(style = "display:flex; gap:10px; align-items:center; margin-bottom:6px;",
+              div(style = "flex:1; font-size:0.82rem; color:#666; word-break:break-word;", cols[i]),
+              div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
+              div(style = "flex:1;", selectInput(ns(paste0("tp_", i)), NULL,
+                    choices = arrumar_tipo_choices, selected = sel_tipo, width = "100%")))
+          })),
+        footer = tagList(modalButton("Cancelar"),
+                         actionButton(ns("confirmar_tipar"), "Aplicar", class = "btn-primary"))
+      ))
+    })
+
+    observeEvent(input$confirmar_tipar, {
+      cols <- tp_cols(); req(length(cols) > 0)
+      r <- res_recodificado()
+      novo <- list()
+      for (i in seq_along(cols)) {
+        sel <- input[[paste0("tp_", i)]]
+        if (is.null(sel)) next
+        natural <- if (cols[i] %in% names(r)) arrumar_detectar_tipo(r[[cols[i]]]) else "texto"
+        if (!identical(sel, natural)) novo[[cols[i]]] <- sel   # guarda só as mudanças
+      }
+      tipos_rv(novo)
+      codigo_rv(arrumar_gerar_codigo(passos_rv(), import_info(), renomear_rv(),
+                                     tipos = novo, recodes = recode_rv(),
+                                     selecionar = sel_cols_rv()))
+      removeModal()
+      showNotification(if (length(novo)) sprintf("%d coluna(s) tipada(s).", length(novo))
+                       else "Nenhuma mudança de tipo.", type = "message", duration = 3)
+    })
+
+    # --- Recodificar níveis (modal): padronizar rótulos de uma coluna ---
+    observeEvent(input$abrir_recodificar, {
+      if (is.null(resultado_rv())) {
+        showNotification("Aplique uma transformação antes de recodificar.", type = "warning"); return()
+      }
+      r <- res_renomeado()
+      cand <- names(r)[vapply(r, function(x) is.character(x) || is.factor(x), logical(1))]
+      if (!length(cand)) {
+        showNotification("Nenhuma coluna de texto/fator para recodificar.", type = "warning"); return()
+      }
+      showModal(modalDialog(
+        title = "Recodificar níveis", size = "l", easyClose = TRUE,
+        helpText("Escolha a coluna e ajuste os níveis (antigo → novo). 'Detectar' sugere correções de caixa, acentos e espaços; junções por significado você faz à mão."),
+        selectInput(ns("recode_col"), "Coluna:", choices = cand),
+        actionButton(ns("recode_detectar"), "Detectar variações automaticamente",
+                     icon = icon("wand-magic-sparkles"), class = "btn-outline-primary btn-sm mb-2"),
+        uiOutput(ns("recode_niveis")),
+        footer = tagList(modalButton("Cancelar"),
+                         actionButton(ns("confirmar_recodificar"), "Aplicar", class = "btn-primary"))
+      ))
+    })
+
+    # Lista os níveis da coluna escolhida (antigo -> campo editável com o novo)
+    output$recode_niveis <- renderUI({
+      req(input$recode_col)
+      r <- res_renomeado(); req(input$recode_col %in% names(r))
+      niveis <- sort(unique(as.character(r[[input$recode_col]])))
+      niveis <- niveis[!is.na(niveis) & nzchar(niveis)]
+      recode_niveis_atual(niveis)
+      mp <- recode_rv()[[input$recode_col]]
+      div(style = "max-height: 340px; overflow-y: auto; padding-right: 6px;",
+        lapply(seq_along(niveis), function(i) {
+          valor <- if (!is.null(mp) && niveis[i] %in% names(mp)) unname(mp[niveis[i]]) else niveis[i]
+          div(style = "display:flex; gap:10px; align-items:center; margin-bottom:6px;",
+            div(style = "flex:1; font-size:0.82rem; color:#666; word-break:break-word;", niveis[i]),
+            div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
+            div(style = "flex:1;", textInput(ns(paste0("rec_", i)), NULL, value = valor, width = "100%")))
+        }))
+    })
+
+    observeEvent(input$recode_detectar, {
+      req(input$recode_col)
+      r <- res_renomeado(); req(input$recode_col %in% names(r))
+      sug <- arrumar_sugerir_recode(r[[input$recode_col]])
+      if (!length(sug)) {
+        showNotification("Nenhuma variação óbvia (caixa/acentos/espaços) encontrada.",
+                         type = "message", duration = 5); return()
+      }
+      niveis <- recode_niveis_atual()
+      for (i in seq_along(niveis))
+        if (niveis[i] %in% names(sug))
+          updateTextInput(session, paste0("rec_", i), value = unname(sug[niveis[i]]))
+      showNotification(sprintf("%d nível(is) com sugestão de padronização.", length(sug)),
+                       type = "message", duration = 5)
+    })
+
+    observeEvent(input$confirmar_recodificar, {
+      col <- input$recode_col; req(col)
+      niveis <- recode_niveis_atual(); req(length(niveis) > 0)
+      novos <- vapply(seq_along(niveis), function(i) {
+        v <- input[[paste0("rec_", i)]]; if (is.null(v)) niveis[i] else trimws(v)
+      }, character(1))
+      mapa <- stats::setNames(novos, niveis)
+      mapa <- mapa[nzchar(mapa) & unname(mapa) != names(mapa)]   # só mudanças reais
+      rc <- recode_rv()
+      if (length(mapa)) rc[[col]] <- mapa else rc[[col]] <- NULL
+      recode_rv(rc)
+      codigo_rv(arrumar_gerar_codigo(passos_rv(), import_info(), renomear_rv(),
+                                     tipos = tipos_rv(), recodes = rc,
+                                     selecionar = sel_cols_rv()))
+      removeModal()
+      showNotification(if (length(mapa)) sprintf("%d nível(is) recodificado(s) em '%s'.", length(mapa), col)
+                       else "Nenhuma alteração de nível.", type = "message", duration = 3)
+    })
+
+    # Prévias
+    output$preview_antes <- renderDT({
+      req(base_data())
+      datatable(head(base_data(), 100), options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+    })
+    output$preview_depois <- renderDT({
+      validate(need(!is.null(resultado_rv()), "Aplique uma transformação para ver o resultado aqui."))
+      datatable(head(resultado_final(), 200), options = list(scrollX = TRUE, pageLength = 12), rownames = FALSE)
+    })
+    output$script_preview <- renderText(codigo_rv())
+
+    output$status_indicador <- renderUI({
+      if (is.null(resultado_rv())) {
+        div(style = "color:#888; font-size:0.85rem;", "Nenhuma transformação aplicada ainda.")
+      } else {
+        r <- resultado_final(); np <- length(passos_rv())
+        div(style = "font-size:0.85rem;",
+            span(style = "color:#2E7D8F; font-weight:600;", "✓ Dados arrumados"), br(),
+            sprintf("%d etapa(s) · %d linhas × %d colunas", np, nrow(r), ncol(r)))
+      }
+    })
+
+    # Indicador compacto de nº de etapas ao lado do botão Desfazer
+    output$passos_indicador <- renderUI({
+      np <- length(passos_rv())
+      span(style = "font-size:0.78rem; color:#2E7D8F; white-space:nowrap; align-self:center;",
+           sprintf("%d etapa(s)", np))
+    })
+
+    # Downloads
+    output$baixar_script <- downloadHandler(
+      filename = function() paste0("arrumar_dados_", Sys.Date(), ".R"),
+      content  = function(file) writeLines(codigo_rv(), file)
+    )
+    output$baixar_dados <- downloadHandler(
+      filename = function() paste0("dados_arrumados_", Sys.Date(), ".xlsx"),
+      content  = function(file) {
+        req(resultado_rv())
+        writexl::write_xlsx(resultado_final(), file)
+      }
+    )
+
+    # Promover o resultado arrumado para ser o dataset ativo das análises.
+    observeEvent(input$usar_analises, {
+      if (is.null(resultado_rv())) {
+        showNotification("Aplique uma transformação antes de usar nas análises.", type = "warning")
+        return()
+      }
+      if (is.function(on_usar)) {
+        fonte <- if (identical(modo_fixo, "separar")) "resultado do Separar" else "resultado do Empilhar"
+        on_usar(resultado_final(), fonte)
+      }
+    })
+  })
+}
+
+# Operador auxiliar (caso não exista no escopo do app)
+if (!exists("%||%")) `%||%` <- function(a, b) if (is.null(a)) b else a

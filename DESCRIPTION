@@ -43,4 +43,3 @@ Suggests:
     lubridate
 Depends: R (>= 4.0.0)
 Roxygen: list(markdown = TRUE)
-Lazy

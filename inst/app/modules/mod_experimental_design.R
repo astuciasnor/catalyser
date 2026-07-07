@@ -93,7 +93,8 @@ mod_experimental_design_ui <- function(id) {
             ),
             
             hr(style = "margin: 10px 0;"),
-            textInput(ns("response_var"), "Variável de Resposta (Coluna vazia):", value = "Produtividade"),
+            textInput(ns("response_var"), "Variável(is) de Resposta (separe por vírgula):", value = "Produtividade"),
+            helpText("Cada nome vira uma coluna vazia no croqui/planilha para o discente coletar os dados. Ex.: Produtividade, Altura, Peso."),
             numericInput(ns("seed"), "Semente Aleatória:", value = 42, min = 1),
             actionButton(ns("btn_generate"), "Gerar Croqui", class = "btn-primary w-100")
           )
@@ -155,8 +156,8 @@ mod_experimental_design_server <- function(id) {
     # Evento de geração do croqui
     observeEvent(input$btn_generate, {
       type <- input$design_type
-      resp <- input$response_var
-      if (trimws(resp) == "") resp <- "Resposta"
+      resp <- parse_levels(input$response_var)   # vetor: uma coluna por resposta
+      if (length(resp) == 0) resp <- "Resposta"
       
       res <- NULL
       
@@ -426,20 +427,21 @@ mod_experimental_design_server <- function(id) {
           "print(ft)",
           "",
           "# 4. EXEMPLO DE ANÁLISE DE VARIÂNCIA (ANOVA) APÓS A COLETA",
-          sprintf("# Quando você preencher a coluna '%s', execute:", res$response_var),
-          sprintf("# fit <- aov(%s ~ Tratamento, data = dados)", res$response_var),
+          sprintf("# Quando você preencher a(s) coluna(s) %s, execute (repita a analise para cada resposta):",
+                  paste0("'", res$response_var, "'", collapse = ", ")),
+          sprintf("# fit <- aov(%s ~ Tratamento, data = dados)", res$response_var[1]),
           "# summary(fit)"
         )
         
         # Se for DBC ou Split-Plot, ajustar o exemplo de ANOVA no script
         if (input$design_type == "DBC") {
           r_script_content <- c(r_script_content,
-            sprintf("# fit_dbc <- aov(%s ~ Tratamento + factor(Bloco), data = dados)", res$response_var),
+            sprintf("# fit_dbc <- aov(%s ~ Tratamento + factor(Bloco), data = dados)", res$response_var[1]),
             "# summary(fit_dbc)"
           )
         } else if (input$design_type == "DQL") {
           r_script_content <- c(r_script_content,
-            sprintf("# fit_dql <- aov(%s ~ Tratamento + factor(Linha) + factor(Coluna), data = dados)", res$response_var),
+            sprintf("# fit_dql <- aov(%s ~ Tratamento + factor(Linha) + factor(Coluna), data = dados)", res$response_var[1]),
             "# summary(fit_dql)"
           )
         } else if (input$design_type == "fatorial") {
@@ -449,13 +451,13 @@ mod_experimental_design_server <- function(id) {
             "# # Separando os fatores:",
             "dados$Fator_A <- sapply(strsplit(dados$Tratamento, '-'), function(x) x[1])",
             "dados$Fator_B <- sapply(strsplit(dados$Tratamento, '-'), function(x) x[2])",
-            sprintf("# fit_fat <- aov(%s ~ Fator_A * Fator_B, data = dados)", res$response_var),
+            sprintf("# fit_fat <- aov(%s ~ Fator_A * Fator_B, data = dados)", res$response_var[1]),
             "# summary(fit_fat)"
           )
         } else if (input$design_type == "split_plot") {
           r_script_content <- c(r_script_content,
             "# # Para parcelas subdivididas, usamos termo de erro para a parcela principal:",
-            sprintf("# fit_sp <- aov(%s ~ Fator_Main * Fator_Sub + Error(factor(Bloco)/Fator_Main), data = dados)", res$response_var),
+            sprintf("# fit_sp <- aov(%s ~ Fator_Main * Fator_Sub + Error(factor(Bloco)/Fator_Main), data = dados)", res$response_var[1]),
             "# summary(fit_sp)"
           )
         }
@@ -493,7 +495,7 @@ mod_experimental_design_server <- function(id) {
           "- relatorios/                   : Pasta com o arquivo Quarto (.qmd) do relatório.",
           "",
           "COMO PREENCHER E ANALISAR SEUS DADOS:",
-          sprintf("1. Abra a planilha Excel 'dados/dados_experimento.xlsx' e insira os valores da variável de resposta '%s' para cada Unidade Experimental (UE).", res$response_var),
+          sprintf("1. Abra a planilha Excel 'dados/dados_experimento.xlsx' e insira os valores da(s) variável(is) de resposta %s para cada Unidade Experimental (UE).", paste0("'", res$response_var, "'", collapse = ", ")),
           "2. Salve o arquivo Excel.",
           "3. Para analisar os dados, abra o projeto no RStudio, carregue os dados do Excel e execute a ANOVA (Análise de Variância):",
           "   Execute o script 'scripts/analise_experimento.R' para ver exemplos prontos correspondentes ao seu delineamento!"
