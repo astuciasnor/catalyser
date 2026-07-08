@@ -28,6 +28,7 @@ source("modules/mod_mapa.R")
 source("modules/mod_mapa_pontos.R")
 source("modules/mod_series_temporais.R")
 source("modules/mod_arrumar.R")
+source("modules/mod_frequencia.R")
 # Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
 # source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
 # source("modules/mod_mapa_raster.R")    # raster ambiental isolado
@@ -588,6 +589,11 @@ ui <- page_navbar(
       title = "Estatística Descritiva",
       icon = icon("table-list"),
       mod_descr_stats_ui("descr_stats")
+    ),
+    nav_panel(
+      title = "Tabela de Frequência",
+      icon = icon("layer-group"),
+      mod_frequencia_ui("frequencia")
     ),
     nav_panel(
       title = "Histogramas",
@@ -2270,6 +2276,7 @@ RCatalyst::run_ide()</pre>
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
   mod_descr_stats_server("descr_stats", dados_analise, import_info)
+  mod_frequencia_server("frequencia", dados_analise, import_info)
   mod_histogram_server("histogram", dados_analise, import_info)
   mod_boxplot_server("boxplot", dados_analise, import_info)
   mod_pizza_server("pizza", dados_analise, import_info)

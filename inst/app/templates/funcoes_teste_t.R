@@ -76,7 +76,7 @@ calcular_teste_t <- function(x, mu = 0, conf = 0.95) {
     d           = d,
     efeito      = interpretar_d(d),
     conf        = conf,
-    significativo = teste$p.value < 0.05
+    significativo = teste$p.value < (1 - conf)
   )
 }
 
@@ -167,7 +167,7 @@ calcular_teste_t_ind <- function(formula_obj, data, equal_var = FALSE, conf = 0.
     efeito = interpretar_d(d),
     equal_var = equal_var,
     conf = conf,
-    significativo = teste$p.value < 0.05
+    significativo = teste$p.value < (1 - conf)
   )
 }
 
@@ -245,7 +245,7 @@ calcular_teste_t_pareado <- function(x1, x2, conf = 0.95) {
     d  = d,
     efeito = interpretar_d(d),
     conf = conf,
-    significativo = teste$p.value < 0.05
+    significativo = teste$p.value < (1 - conf)
   )
 }
 
