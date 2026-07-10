@@ -18,3 +18,8 @@ src/*.o
 src/*.so
 .Rbuildignore
 
+
+# Artefatos de checagem
+*.Rcheck/
+..Rcheck/
+instalar_dependencias.R
