@@ -17,8 +17,8 @@
 # =============================================================================
 
 suppressWarnings(suppressMessages({
-  library(tibble)
-  library(flextable)
+  if (requireNamespace("tibble", quietly = TRUE))    library(tibble)
+  if (requireNamespace("flextable", quietly = TRUE)) library(flextable)
 }))
 
 # Paleta Ocean Gradient

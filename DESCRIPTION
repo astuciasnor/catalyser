@@ -21,7 +21,14 @@ Imports:
     readxl,
     markdown,
     zip,
-    writexl
+    writexl,
+    flextable,
+    ggpubr,
+    tibble,
+    stringr,
+    dplyr,
+    tidyr,
+    tidyselect
 Suggests:
     geobr,
     sf,

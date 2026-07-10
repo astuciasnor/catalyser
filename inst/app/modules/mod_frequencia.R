@@ -5,7 +5,7 @@
 # polígono de frequência. Fonte canônica em templates/funcoes_frequencia.R.
 # =============================================================================
 
-source("templates/funcoes_frequencia.R")
+source("templates/funcoes_frequencia.R", encoding = "UTF-8")
 
 mod_frequencia_ui <- function(id) {
   ns <- NS(id)
