@@ -27,7 +27,7 @@ fmt <- function(x, dig = 2) {
 }
 
 #' Executa a AAH, calcula distâncias, ligação e agrupamento
-calcular_hca <- function(df, vars_selected, distance_method = "euclidean", linkage_method = "ward.D2", k_groups = 3, scale = TRUE) {
+calcular_hca <- function(df, vars_selected, distance_method = "euclidean", linkage_method = "ward.D2", k_groups = 3, scale = TRUE, label_var = NULL) {
   req(df, length(vars_selected) >= 2)
   
   # Filtrar e limpar observações com NAs nas variáveis selecionadas
@@ -38,8 +38,8 @@ calcular_hca <- function(df, vars_selected, distance_method = "euclidean", linka
   
   # Padronizar se necessário
   X_scaled <- X_clean
-  if (scale) {
-    X_scaled <- scale(X_clean)
+  if (isTRUE(scale) && !identical(distance_method, "binary")) {
+    X_scaled <- scale(X_clean)   # nunca padronizar dados de presenca-ausencia (Jaccard)
   }
   
   # Matriz de distâncias
@@ -47,6 +47,11 @@ calcular_hca <- function(df, vars_selected, distance_method = "euclidean", linka
   
   # Ligação hierárquica
   fit <- hclust(d_mat, method = linkage_method)
+
+  # Rotulos das folhas: valores de uma variavel escolhida (opcional)
+  if (!is.null(label_var) && nzchar(label_var) && label_var %in% names(df_clean)) {
+    fit$labels <- as.character(df_clean[[label_var]])
+  }
   
   # Corte da árvore (clusters)
   clusters <- cutree(fit, k = k_groups)
@@ -121,6 +126,7 @@ relatar_hca <- function(r) {
   dist_label <- switch(r$distance_method,
                        "euclidean" = "Euclidiana",
                        "manhattan" = "Manhattan",
+                       "binary" = "Jaccard (binaria, presenca-ausencia)",
                        r$distance_method)
                        
   link_label <- switch(r$linkage_method,

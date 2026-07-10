@@ -28,6 +28,13 @@ source("modules/mod_mapa.R")
 source("modules/mod_mapa_pontos.R")
 source("modules/mod_series_temporais.R")
 source("modules/mod_arrumar.R")
+source("modules/mod_calcular.R")
+source("modules/registro_tratamentos.R")
+source("modules/mod_tratar.R")
+source("modules/mod_comunicacao.R")
+source("modules/mod_correlacao.R")
+source("modules/mod_laboratorio.R")
+source("modules/mod_ancova.R")
 source("modules/mod_frequencia.R")
 # Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
 # source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
@@ -543,6 +550,16 @@ ui <- page_navbar(
       mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
     ),
     nav_panel(
+      title = "Calcular / Reescalar Variável",
+      icon = icon("calculator"),
+      mod_calcular_ui("calcular")
+    ),
+    nav_panel(
+      title = "Trilha de Preparo",
+      icon = icon("timeline"),
+      mod_tratar_ui("tratar")
+    ),
+    nav_panel(
       title = "Criando Tabela de Contingência",
       icon = icon("border-all"),
       mod_contingency_ui("contingency")
@@ -612,6 +629,11 @@ ui <- page_navbar(
     title = HTML("Modelos de<br>Regressão"),
     icon = icon("chart-line"),
     nav_panel(
+      title = "Correlação",
+      icon = icon("square-root-variable"),
+      mod_correlacao_ui("correlacao")
+    ),
+    nav_panel(
       title = "Descobrindo o Modelo",
       icon = icon("magnifying-glass-chart"),
       mod_model_discovery_ui("discovery")
@@ -638,6 +660,11 @@ ui <- page_navbar(
           )
         )
       )
+    ),
+    nav_panel(
+      title = "Séries Temporais",
+      icon = icon("chart-area"),
+      mod_series_temporais_ui("series")
     )
   ),
 
@@ -690,6 +717,11 @@ ui <- page_navbar(
       title = "ANOVA (Análise de Variância)",
       icon = icon("sliders"),
       mod_anova_ui("anova")
+    ),
+    nav_panel(
+      title = "ANCOVA (Análise de Covariância)",
+      icon = icon("chart-line"),
+      mod_ancova_ui("ancova")
     )
   ),
 
@@ -735,14 +767,14 @@ ui <- page_navbar(
     )
   ),
   
-  # 7. Estatísticas Avançadas
+  # 7. Comunicação de Resultados (antiga "Estatísticas Avançadas")
   nav_menu(
-    title = HTML("Estatísticas<br>Avançadas"),
-    icon = icon("wave-square"),
+    title = HTML("Comunicação<br>de Resultados"),
+    icon = icon("file-export"),
     nav_panel(
-      title = "Séries Temporais",
-      icon = icon("chart-area"),
-      mod_series_temporais_ui("series")
+      title = "Projeto de Comunicação",
+      icon = icon("file-export"),
+      mod_comunicacao_ui("comunicacao")
     )
   ),
   
@@ -793,31 +825,49 @@ ui <- page_navbar(
     )
   ),
   
-  # 8. Calculando Probabilidades
+  # 8. Laboratório de Conceitos (repurpose de "Calculando Probabilidades")
   nav_menu(
-    title = HTML("Calculando<br>Probabilidades"),
-    icon = icon("dice"),
+    title = HTML("Laboratório<br>de Conceitos"),
+    icon = icon("flask"),
     nav_panel(
-      title = "Distribuição Binomial",
-      icon = icon("cubes"),
-      card(
-        card_header("Distribuição Binomial"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Cálculo e simulação interativa de probabilidades Binomiais em breve!")
-        )
-      )
+      title = "Visão geral",
+      icon = icon("compass"),
+      mod_laboratorio_ui("laboratorio")
+    ),
+    nav_panel(
+      title = "Teorema do Limite Central",
+      icon = icon("bell"),
+      lab_placeholder("Teorema do Limite Central (TLC)", "Médias de qualquer distribuição viram um sino conforme n cresce; sliders de n e nº de amostras.", "bell")
+    ),
+    nav_panel(
+      title = "Lei dos Grandes Números",
+      icon = icon("arrow-trend-up"),
+      lab_placeholder("Lei dos Grandes Números", "A média amostral converge para o valor esperado à medida que n aumenta.", "arrow-trend-up")
+    ),
+    nav_panel(
+      title = "Cobertura do IC",
+      icon = icon("bullseye"),
+      lab_placeholder("Cobertura do Intervalo de Confiança", "100 amostras, 100 intervalos: cerca de 95% contêm a média verdadeira.", "bullseye")
+    ),
+    nav_panel(
+      title = "Distribuição sob H0 / p-valor",
+      icon = icon("chart-area"),
+      lab_placeholder("Distribuição sob H0 / p-valor", "A distribuição nula, a estatística observada e a área do p-valor / região crítica.", "chart-area")
+    ),
+    nav_panel(
+      title = "Curvas z / t / F / qui-quadrado",
+      icon = icon("wave-square"),
+      lab_placeholder("Curvas de distribuição (z, t, F, qui-quadrado)", "Forma das curvas conforme os graus de liberdade; áreas e quantis.", "wave-square")
     ),
     nav_panel(
       title = "Distribuição Normal",
       icon = icon("circle-nodes"),
-      card(
-        card_header("Distribuição Normal"),
-        card_body(
-          h5("Módulo em Desenvolvimento", class = "text-primary"),
-          p("Cálculo de áreas sob a curva e visualização da Distribuição Normal em breve!")
-        )
-      )
+      lab_placeholder("Distribuição Normal", "Áreas sob a curva e visualização da Normal (parâmetros mu e sigma).", "circle-nodes")
+    ),
+    nav_panel(
+      title = "Distribuição Binomial",
+      icon = icon("cubes"),
+      lab_placeholder("Distribuição Binomial", "Cálculo e simulação interativa de probabilidades Binomiais (n, p).", "cubes")
     )
   ),
   
@@ -2234,33 +2284,46 @@ RCatalyst::run_ide()</pre>
   })
 
   # ============================================================================
-  # DATASET ATIVO PARA AS ANÁLISES
-  # Por padrão, as análises usam os dados importados (current_data). Quando um
-  # módulo Arrumar promove seu resultado ("Usar nas análises"), ele vira o
-  # dataset ativo até você voltar aos importados ou trocar de arquivo.
+  # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
+  # A Trilha de Preparo é a camada MAIS EXTERNA do dataset ativo. Resolução:
+  #   importados (current_data)
+  #     -> Arrumar/Calcular promovem via dataset_ativo_rv -> base_resolvida
+  #     -> replay(base_resolvida, pipeline_rv)            -> dados_analise
+  # REGRA anti-dupla-aplicação: Arrumar/Calcular/Trilha leem a base_resolvida
+  # (pré-trilha), NUNCA o dados_analise. A trilha é sempre a última camada.
   # ============================================================================
   dataset_ativo_rv <- reactiveVal(NULL)   # NULL = usar dados importados
+  pipeline_rv      <- reactiveVal(list()) # trilha de preparo (lista de etapas)
+  base_externa_rv  <- reactiveVal(NULL)   # provenance da base promovida (Arrumar): list(fonte, codigo)
 
-  dados_analise <- reactive({
+  # Base sobre a qual a trilha atua (importados ou resultado promovido).
+  base_resolvida <- reactive({
     da <- dataset_ativo_rv()
     if (is.null(da)) current_data() else da$df
   })
 
+  # Replay da trilha (uma vez só): devolve df + erros por etapa.
+  replay_res <- reactive({ replay_pipeline(base_resolvida(), pipeline_rv()) })
+
+  # Dataset que TODAS as análises leem (base_resolvida + trilha).
+  dados_analise <- reactive({ replay_res()$df })
+
   # Callback que os módulos Arrumar chamam ao clicar "Usar nas análises".
-  promover_dataset <- function(df, fonte) {
+  promover_dataset <- function(df, fonte, codigo = NULL) {
     dataset_ativo_rv(list(df = df, fonte = fonte))
+    base_externa_rv(if (!is.null(codigo) && nzchar(codigo)) list(fonte = fonte, codigo = codigo) else NULL)
     showNotification(sprintf("Análises agora usam: %s (%d linhas x %d colunas).",
                              fonte, nrow(df), ncol(df)), type = "message", duration = 6)
   }
 
   # Voltar aos dados importados
   observeEvent(input$voltar_importados, {
-    dataset_ativo_rv(NULL)
+    dataset_ativo_rv(NULL); base_externa_rv(NULL)
     showNotification("Análises voltaram aos dados importados.", type = "message", duration = 4)
   })
 
-  # Trocar de arquivo/fonte descarta a promoção (evita dado velho)
-  observeEvent(raw_data(), { dataset_ativo_rv(NULL) }, ignoreInit = TRUE)
+  # Trocar de arquivo/fonte descarta a promoção E a trilha (evita dado velho)
+  observeEvent(raw_data(), { dataset_ativo_rv(NULL); pipeline_rv(list()); base_externa_rv(NULL) }, ignoreInit = TRUE)
 
   # --- CHAMADA DO MÓDULO DE REGRESSÃO ---
   mod_regression_server("regression", dados_analise, import_info)
@@ -2287,6 +2350,9 @@ RCatalyst::run_ide()</pre>
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
   mod_mapa_pontos_server("mapa_bolhas", dados_analise, import_info, "bolhas")
   mod_series_temporais_server("series", dados_analise, import_info)
+  mod_comunicacao_server("comunicacao", dados_analise, import_info)
+  mod_correlacao_server("correlacao", dados_analise, import_info)
+  mod_laboratorio_server("laboratorio")
 
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
   mod_parametric_server("parametric", dados_analise, import_info)
@@ -2300,7 +2366,14 @@ RCatalyst::run_ide()</pre>
   # resultado às análises via callback on_usar.
   mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar", on_usar = promover_dataset)
   mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar", on_usar = promover_dataset)
+  # Calcular/Reescalar lê a BASE RESOLVIDA (pré-trilha, para não aplicar a trilha
+  # duas vezes) e promove seu resultado pelo mesmo callback.
+  mod_calcular_server("calcular", base_resolvida, import_info, on_usar = promover_dataset)
+  # Trilha de Preparo (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
+  # do dados_analise, automática (sem "Usar nas análises").
+  mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
   mod_anova_server("anova", dados_analise, import_info)
+  mod_ancova_server("ancova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
   mod_nonparametric_server("np_qui", dados_analise, import_info, contingency_shared, "quiquadrado")
@@ -4014,15 +4087,16 @@ RCatalyst::run_ide()</pre>
         "NumSpacesForTab: 2",
         "Encoding: UTF-8"
       )
+
       writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
       
       # 5. Criar README.txt
       readme_content <- c(
         "===========================================================",
-        " PACOTE DE ESTUDOS MULTI-ANÁLISE (IDE_R CIENTÍFICA)",
+        " PACOTE DE ESTUDOS MULTI-ANÁLISE (CatalyseR)",
         "===========================================================",
         "",
-        "Este pacote contém o ambiente de estudo consolidado da IDE_R.",
+        "Este pacote contém o ambiente de estudo consolidado da CatalyseR.",
         "",
         "ESTRUTURA DE PASTAS:",
         "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
@@ -4034,14 +4108,14 @@ RCatalyst::run_ide()</pre>
         "INSTRUÇÕES DE USO:",
         "1. Abra 'projeto_analise.Rproj' no RStudio.",
         "2. Acesse os scripts na pasta 'scripts/' para rodar as análises linha a linha.",
-        "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório completo."
+        "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório."
       )
       writeLines(readme_content, file.path(proj_dir, "README.txt"))
       
       # 6. Compactar
       old_wd <- getwd()
       setwd(temp_dir)
-      zip::zip(file, files = proj_dir_name)
+      utils::zip(file, files = proj_dir_name)
       setwd(old_wd)
     }
   )

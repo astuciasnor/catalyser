@@ -33,9 +33,12 @@ mod_hca_ui <- function(id) {
           card_body(
             style = "padding: 12px 15px;",
             checkboxGroupInput(ns("vars_selected"), "Selecione as Variáveis Numéricas (mínimo 2):", choices = NULL),
+            actionButton(ns("sel_all_num"), "Selecionar todas as numéricas",
+                         icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
             selectInput(ns("distance_method"), "Métrica de Distância:",
                         choices = c("Euclidiana" = "euclidean",
-                                    "Manhattan (City-Block)" = "manhattan"),
+                                    "Manhattan (City-Block)" = "manhattan",
+                                    "Jaccard / binária (presença-ausência)" = "binary"),
                         selected = "euclidean"),
             selectInput(ns("linkage_method"), "Método de Ligação:",
                         choices = c("Ward.D2 (Mínima Variância)" = "ward.D2",
@@ -45,7 +48,9 @@ mod_hca_ui <- function(id) {
                         selected = "ward.D2"),
             sliderInput(ns("k_groups"), "Número de Grupos (k):",
                         min = 2, max = 8, value = 3, step = 1),
-            checkboxInput(ns("scale"), "Padronizar Variáveis (Z-Score)", value = TRUE)
+            checkboxInput(ns("scale"), "Padronizar Variáveis (Z-Score)", value = TRUE),
+            selectInput(ns("label_var"), "Rótulo das folhas do dendrograma:", choices = NULL),
+            helpText(HTML("A AAH agrupa as <b>linhas</b> (observações). Em matriz espécie × local: marque os <b>locais</b> como variáveis, escolha <b>Jaccard</b> e ponha a coluna de <b>espécies</b> em \"Rótulo das folhas\". Jaccard/binária é para presença-ausência (não padroniza)."))
           )
         ),
         card(
@@ -129,6 +134,20 @@ mod_hca_server <- function(id, data_rv, import_info) {
         updateCheckboxGroupInput(session, "vars_selected", choices = num_cols, selected = NULL)
       }
     })
+
+    # Botao: selecionar todas as numericas
+    observeEvent(input$sel_all_num, {
+      df <- data_rv(); req(df)
+      num_cols <- names(df)[sapply(df, is.numeric)]
+      updateCheckboxGroupInput(session, "vars_selected", selected = num_cols)
+    })
+    # Popular o seletor de rotulo das folhas (todas as colunas; "" = numero da linha)
+    observe({
+      df <- data_rv(); req(df)
+      updateSelectInput(session, "label_var",
+                        choices = c("(numero da linha)" = "", stats::setNames(names(df), names(df))),
+                        selected = isolate(input$label_var))
+    })
     
     # Executa a AAH de forma reativa
     result_rv <- reactive({
@@ -144,7 +163,8 @@ mod_hca_server <- function(id, data_rv, import_info) {
         distance_method = input$distance_method,
         linkage_method = input$linkage_method,
         k_groups = input$k_groups,
-        scale = input$scale
+        scale = input$scale,
+        label_var = input$label_var
       )
     })
     
@@ -163,13 +183,15 @@ mod_hca_server <- function(id, data_rv, import_info) {
       
       # Rótulos das observações
       lbls <- if (input$show_labels) NULL else FALSE
+      dist_nome <- switch(r$distance_method, euclidean = "Euclidiana",
+                          manhattan = "Manhattan", binary = "Jaccard (binária)", r$distance_method)
       
       plot(
         r$fit,
         labels = lbls,
         hang = -1,
         main = "Dendrograma de Agrupamento Hierárquico",
-        sub = paste0("Distância: ", r$distance_method, " | Ligação: ", r$linkage_method),
+        sub = paste0("Distância: ", dist_nome, " | Ligação: ", r$linkage_method),
         xlab = "Observações",
         ylab = "Altura (Distância de Agregação)",
         col = "#333333",
@@ -304,8 +326,9 @@ mod_hca_server <- function(id, data_rv, import_info) {
           "",
           "# 2. EXECUTAR AAH E MOSTRAR ESTATÍSTICAS",
           sprintf("vars_selected <- c(%s)", vars_str),
-          sprintf("r <- calcular_hca(dados, vars_selected, distance_method = '%s', linkage_method = '%s', k_groups = %s, scale = %s)", 
-                  input$distance_method, input$linkage_method, input$k_groups, as.character(input$scale)),
+          sprintf("r <- calcular_hca(dados, vars_selected, distance_method = '%s', linkage_method = '%s', k_groups = %s, scale = %s, label_var = %s)", 
+                  input$distance_method, input$linkage_method, input$k_groups, as.character(input$scale),
+                  if (is.null(input$label_var) || !nzchar(input$label_var)) "NULL" else sprintf("'%s'", input$label_var)),
           "print(mostrar_hca_perfil(r))",
           "print(head(mostrar_hca_pertinencia(r), 20))",
           "cat(relatar_hca(r))",

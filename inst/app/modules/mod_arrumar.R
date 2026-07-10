@@ -1227,7 +1227,7 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
       }
       if (is.function(on_usar)) {
         fonte <- if (identical(modo_fixo, "separar")) "resultado do Separar" else "resultado do Empilhar"
-        on_usar(resultado_final(), fonte)
+        on_usar(resultado_final(), fonte, codigo_rv())
       }
     })
   })
