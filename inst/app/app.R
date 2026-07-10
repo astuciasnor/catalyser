@@ -1742,7 +1742,10 @@ RCatalyst::run_ide()</pre>
   output$variable_type_converter_ui <- renderUI({
     df <- raw_data()
     req(df)
-    cols_to_keep <- selected_cols_rv()
+    # Só mantém colunas que existem no dataset atual (evita "colunas indefinidas
+    # selecionadas" ao trocar/abrir um conjunto com colunas diferentes das do estado
+    # anterior). Espelha a proteção usada em current_data().
+    cols_to_keep <- intersect(selected_cols_rv(), names(df))
     if (length(cols_to_keep) > 0) {
       df <- df[, cols_to_keep, drop = FALSE]
     }
@@ -4110,16 +4113,4 @@ RCatalyst::run_ide()</pre>
         "2. Acesse os scripts na pasta 'scripts/' para rodar as análises linha a linha.",
         "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório."
       )
-      writeLines(readme_content, file.path(proj_dir, "README.txt"))
-      
-      # 6. Compactar
-      old_wd <- getwd()
-      setwd(temp_dir)
-      utils::zip(file, files = proj_dir_name)
-      setwd(old_wd)
-    }
-  )
-}
-
-# Inicializa o app
-shinyApp(ui, server)
+      writeLines(r
