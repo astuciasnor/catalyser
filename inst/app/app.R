@@ -4113,4 +4113,16 @@ RCatalyst::run_ide()</pre>
         "2. Acesse os scripts na pasta 'scripts/' para rodar as análises linha a linha.",
         "3. Abra 'relatorios/relatorio_consolidado.qmd' e clique em 'Render' para compilar o relatório."
       )
-      writeLines(r
+      writeLines(readme_content, file.path(proj_dir, "README.txt"))
+
+      # 6. Compactar
+      old_wd <- getwd()
+      setwd(temp_dir)
+      utils::zip(file, files = proj_dir_name)
+      setwd(old_wd)
+    }
+  )
+}
+
+# Inicializa o app
+shinyApp(ui, server)

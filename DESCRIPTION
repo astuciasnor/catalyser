@@ -1,7 +1,7 @@
 Package: catalyser
 Type: Package
 Title: CatalyseR: IDE Científica para Análise de Dados em R
-Version: 0.1.1
+Version: 0.1.2
 Authors@R: c(
     person(
       "Evaldo", "Silva",
@@ -19,6 +19,7 @@ Imports:
     ggplot2,
     DT,
     readxl,
+    readr,
     markdown,
     zip,
     writexl,
@@ -27,26 +28,31 @@ Imports:
     tibble,
     stringr,
     dplyr,
-    tidyr,
-    tidyselect
+    tidyr (>= 1.3.0),
+    tidyselect,
+    scales,
+    cowplot,
+    ggrepel,
+    car,
+    emmeans,
+    effectsize,
+    rstatix,
+    rcompanion,
+    vistributions,
+    EAPADados (>= 0.1.10)
 Suggests:
     geobr,
     sf,
     ggspatial,
     RColorBrewer,
     leaflet,
-    ggrepel,
-    cowplot,
     hexbin,
-    rstatix,
-    rcompanion,
     multcompView,
     tsibble,
     feasts,
     fabletools,
-    dplyr,
-    tidyr (>= 1.3.0),
-    tidyselect,
     lubridate
+Remotes:
+    astuciasnor/EAPADados
 Depends: R (>= 4.3.0)
 Roxygen: list(markdown = TRUE)

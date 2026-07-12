@@ -26,17 +26,15 @@ A plataforma é dividida em módulos analíticos completos e independentes:
 
 ## 🛠️ Instalação
 
-Como o **CatalyseR** está estruturado como um pacote R, você pode instalá-lo diretamente do GitHub executando os seguintes comandos no console do R/RStudio:
+A forma **recomendada** instala tudo de uma vez — dados (EAPADados) e dependências, em **binário** (sem precisar de Rtools) — e abre a IDE ao final. No console do R/RStudio, rode:
 
 ```r
-# Instalar o pacote remotes (caso ainda não possua)
-if (!requireNamespace("remotes", quietly = TRUE)) {
-  install.packages("remotes")
-}
-
-# Instalar o CatalyseR a partir do GitHub
-remotes::install_github("astuciasnor/catalyser")
+source("https://raw.githubusercontent.com/astuciasnor/catalyser/main/instalar_catalyser.R")
 ```
+
+Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar de novo quando quiser — ele só reinstala o que faltar e reabre a IDE.
+
+> **Menu Mapas (opcional):** exige os pacotes `sf` e `geobr`, que dependem de bibliotecas de fonte. No Windows pode ser preciso instalar o [Rtools](https://cran.r-project.org/bin/windows/Rtools/) antes. As demais análises da CatalyseR **não** precisam desses pacotes.
 
 ---
 

@@ -155,7 +155,13 @@ mod_mapa_server <- function(id, data_rv, import_info) {
     # --- Limites estaduais do geobr (baixados uma vez por sessão) ---------
     estados_sf <- reactive({
       validate(need(requireNamespace("geobr", quietly = TRUE) && requireNamespace("sf", quietly = TRUE),
-                    "Para usar os mapas, instale os pacotes: install.packages(c('geobr','sf'))."))
+                    paste0(
+                      "Para usar os mapas, instale os pacotes 'sf' e 'geobr':\n",
+                      "    install.packages(c('sf','geobr'))\n\n",
+                      "Atencao: sf e geobr dependem de bibliotecas de fonte. No Windows pode ",
+                      "ser necessario instalar o Rtools antes (https://cran.r-project.org/bin/windows/Rtools/ ",
+                      "ou o tutorial do curso). As demais analises da CatalyseR NAO precisam desses pacotes."
+                    )))
       out <- tryCatch(geobr::read_state(code_state = "all", year = 2020, showProgress = FALSE),
                       error = function(e) e)
       validate(need(!inherits(out, "error"),
