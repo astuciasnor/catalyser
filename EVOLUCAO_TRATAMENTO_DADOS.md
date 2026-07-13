@@ -380,10 +380,16 @@ da última prévia válida, isolamento de falhas e bloqueio de cache inválido p
 os futuros seletores analíticos. Nenhuma interação comum dispara recálculo em
 cascata.
 
-**A fazer (Fase 3B+):** editar transformações específicas dentro dos ramos,
-integrar o seletor de base aos módulos e aposentar `dataset_ativo_rv`
-gradualmente (Arrumar/Calcular viram etapas do registro). O divisor
-"── base ──" e as sugestões contextuais entram nessa migração.
+**Feito (Fase 3B.1):** editor da receita específica de cada ramo, reutilizando o
+registro canônico de tratamentos. Permite adicionar, ordenar, ativar/desativar,
+remover e limpar etapas somente em rascunhos. Toda edição incrementa a versão e
+invalida o cache sem recálculo automático; o ramo continua nascendo diretamente
+de `dados_analise`.
+
+**A fazer (Fase 3B.2+):** integrar, de forma incremental, o seletor de base aos
+módulos analíticos e aposentar `dataset_ativo_rv` gradualmente
+(Arrumar/Calcular viram etapas do registro). O divisor "── base ──" e as
+sugestões contextuais entram nessa migração.
 
 **Dataset de treino:** `inst/app/dados/Treino-Transformacoes.xlsx` — abas
 `biometria` (bagunçada de propósito: NA, 3 duplicatas, texto inconsistente, escalas

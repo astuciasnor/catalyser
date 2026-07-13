@@ -24,8 +24,8 @@ produzir uma representação reprodutível em R.
 | `dados_analise` compartilhado | Implementado |
 | Registro e gerenciamento de bases derivadas | **Implementado (Fase 3A)** |
 | Cache lazy, estados e recálculo manual | **Implementado (Fase 3A.1)** |
-| Transformações específicas dentro dos ramos | Planejado (Fase 3B) |
-| Seletor de base em cada análise | Planejado (Fase 3) |
+| Transformações específicas dentro dos ramos | **Implementado (Fase 3B.1)** |
+| Seletor de base em cada análise | Planejado (Fase 3B.2) |
 | Registro de execuções/resultados | Planejado para a Comunicação |
 | Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
@@ -102,21 +102,33 @@ deve alterar todas as demais. Exemplos:
 Não se cria `base_graficos` apenas porque será gerado um gráfico. Se
 `dados_analise` já estiver adequado, o gráfico usa diretamente essa base.
 
-#### Fluxo de criação — Fase 3A implementada
+#### Fluxo de criação e edição — Fases 3A a 3B.1 implementadas
 
 1. Em `dados_analise`, clicar em **Criar base derivada**.
 2. Informar finalidade e nome amigável.
 3. A IDE sugerir um nome R válido, como `base_reg_logistica`.
-4. Inspecionar a prévia e o código do ramo.
-5. Clicar em **Finalizar preparo**.
-6. Reabrir, renomear ou excluir o ramo quando necessário.
+4. No editor de receita, adicionar, ordenar, ativar ou remover tratamentos
+   específicos do ramo.
+5. Clicar em **Recalcular esta base** para materializar a receita.
+6. Inspecionar a prévia e o código R do ramo.
+7. Clicar em **Finalizar preparo**.
+8. Reabrir, renomear ou excluir o ramo quando necessário.
 
-Na Fase 3A, um ramo novo tem zero etapas e, portanto, é inicialmente idêntico a
-`dados_analise`. Aplicar transformações dentro dele e disponibilizá-lo nos
-seletores dos módulos analíticos pertence à Fase 3B.
+Um ramo novo tem zero etapas e, portanto, é inicialmente idêntico a
+`dados_analise`. A Fase 3B.1 permite editar sua receita usando o mesmo registro
+canônico da Trilha: tratar NA, dicotomizar, padronizar, criar classes, remover
+duplicatas, padronizar texto, calcular, reescalar e filtrar. A edição só é
+permitida em rascunhos; bases prontas precisam ser reabertas.
 
-Mesmo um ramo vazio precisa ser recalculado manualmente antes de ser finalizado.
-Essa regra valida desde já o contrato de cache que será usado pela Fase 3B.
+Alterar a receita incrementa sua versão e torna o cache **Desatualizado**, sem
+executar replay automático. A primeira etapa é validada contra `dados_analise`;
+as seguintes são validadas contra o cache atual. Por isso, uma nova etapa só
+pode ser adicionada depois de recalcular a anterior. Ordenar, ativar/desativar
+ou remover permanece livre e apenas invalida o cache. A materialização continua
+exclusiva do botão **Recalcular esta base**.
+
+Disponibilizar bases prontas nos seletores dos módulos analíticos pertence à
+Fase 3B.2.
 
 Cada base deve possuir:
 

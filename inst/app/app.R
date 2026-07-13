@@ -2409,8 +2409,8 @@ RCatalyst::run_ide()</pre>
   # Trilha de Preparo (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
   # do dados_analise, automática (sem "Usar nas análises").
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
-  # Fase 3A: cadastro e replay de ramos em estrela. Ainda não troca a base dos
-  # módulos analíticos; esse seletor será integrado de forma incremental na 3B.
+  # Fases 3A/3B: cadastro, receita e replay lazy de ramos em estrela. A escolha
+  # da base pelos módulos analíticos entra na próxima integração incremental.
   bases_derivadas <- mod_bases_derivadas_server(
     "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv

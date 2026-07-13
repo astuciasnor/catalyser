@@ -1,4 +1,4 @@
-# Registro de bases derivadas da CatalyseR — Fase 3A
+# Registro de bases derivadas da CatalyseR — Fases 3A a 3B
 # ---------------------------------------------------------------------------
 # Contrato puro para o modelo base/ramos em estrela. Toda base derivada nasce
 # DIRETAMENTE de `dados_analise`; não existe ramo de ramo. As etapas usam o
@@ -201,6 +201,85 @@ bases_atualizar_etapas <- function(registros, id, etapas) {
   registros[[idx]]$estado <- "rascunho"
   registros[[idx]]$atualizada_em <- Sys.time()
   registros
+}
+
+bases_validar_edicao <- function(base) {
+  if (is.null(base)) stop("Selecione uma base derivada.", call. = FALSE)
+  if (!identical(base$origem_id, "dados_analise"))
+    stop("A receita só pode ser editada sobre dados_analise.", call. = FALSE)
+  if (!identical(base$estado, "rascunho"))
+    stop("Reabra a base como rascunho antes de alterar a receita.", call. = FALSE)
+  invisible(TRUE)
+}
+
+# Adicionar uma etapa valida parâmetros contra dados já disponíveis (a raiz para
+# uma receita vazia ou o cache atual). Esta função nunca executa replay.
+bases_adicionar_etapa <- function(registros, id, tipo, params, dados_validacao,
+                                  reg_tratamentos = tratamentos) {
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  tt <- reg_tratamentos[[tipo]]
+  if (is.null(tt)) stop("Tipo de tratamento não registrado.", call. = FALSE)
+  if (!is.data.frame(dados_validacao))
+    stop("Não há dados atuais para validar a nova etapa. Recalcule o ramo.", call. = FALSE)
+  msg <- tt$validar(dados_validacao, params)
+  if (!is.null(msg)) stop(msg, call. = FALSE)
+
+  nova <- list(tipo = tipo, params = params, ativa = TRUE)
+  bases_atualizar_etapas(registros, id, c(base$etapas %||% list(), list(nova)))
+}
+
+bases_mover_etapa <- function(registros, id, indice, direcao = c("subir", "descer")) {
+  direcao <- match.arg(direcao)
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  etapas <- base$etapas %||% list()
+  indice <- as.integer(indice)
+  destino <- indice + if (identical(direcao, "subir")) -1L else 1L
+  if (is.na(indice) || indice < 1L || indice > length(etapas) ||
+      destino < 1L || destino > length(etapas)) return(registros)
+  etapas[c(indice, destino)] <- etapas[c(destino, indice)]
+  bases_atualizar_etapas(registros, id, etapas)
+}
+
+bases_alternar_etapa <- function(registros, id, indice) {
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  etapas <- base$etapas %||% list()
+  indice <- as.integer(indice)
+  if (is.na(indice) || indice < 1L || indice > length(etapas)) return(registros)
+  etapas[[indice]]$ativa <- !isTRUE(etapas[[indice]]$ativa)
+  bases_atualizar_etapas(registros, id, etapas)
+}
+
+bases_remover_etapa <- function(registros, id, indice) {
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  etapas <- base$etapas %||% list()
+  indice <- as.integer(indice)
+  if (is.na(indice) || indice < 1L || indice > length(etapas)) return(registros)
+  bases_atualizar_etapas(registros, id, etapas[-indice])
+}
+
+bases_limpar_etapas <- function(registros, id) {
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  if (!length(base$etapas %||% list())) return(registros)
+  bases_atualizar_etapas(registros, id, list())
+}
+
+bases_rotulos_etapas <- function(base, reg_tratamentos = tratamentos) {
+  etapas <- base$etapas %||% list()
+  if (!length(etapas)) return(character(0))
+  stats::setNames(
+    as.character(seq_along(etapas)),
+    vapply(seq_along(etapas), function(i) {
+      et <- etapas[[i]]
+      tt <- reg_tratamentos[[et$tipo]]
+      rotulo <- if (is.null(tt)) et$tipo else tt$rotulo(et$params)
+      sprintf("%d. %s%s", i, if (isTRUE(et$ativa)) "" else "[inativa] ", rotulo)
+    }, character(1))
+  )
 }
 
 bases_codigo <- function(base, reg_tratamentos = tratamentos) {
