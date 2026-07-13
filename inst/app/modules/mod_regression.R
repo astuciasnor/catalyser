@@ -22,6 +22,12 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           card_header(if (is_logistic) "Configuração da Regressão Logística" else "Configuração do Modelo"),
           card_body(
             style = "padding: 12px 15px;",
+            if (is_logistic) tagList(
+              selectInput(ns("dataset_entrada"), "Base utilizada:",
+                          choices = c("Base compartilhada — dados_analise" = "dados_analise")),
+              uiOutput(ns("base_status")),
+              hr(style = "margin: 8px 0 12px;")
+            ),
             selectInput(ns("var_y"), "Variável Dependente (Y):", choices = NULL),
             div(style = "margin-top: -8px;", selectInput(ns("var_x"), "Variável Independente (X):", choices = NULL)),
             if (is_logistic) {
@@ -151,12 +157,82 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
   )
 }
 
-mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE) {
+mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
+                                  registro_bases_rv = NULL, cache_bases_rv = NULL,
+                                  revisao_origem_rv = NULL) {
   moduleServer(id, function(input, output, session) {
-    
+
+    registros_bases <- reactive({
+      if (is.function(registro_bases_rv)) registro_bases_rv() %||% list() else list()
+    })
+    caches_bases <- reactive({
+      if (is.function(cache_bases_rv)) cache_bases_rv() %||% list() else list()
+    })
+    revisao_bases <- reactive({
+      if (is.function(revisao_origem_rv)) as.integer(revisao_origem_rv()) else 1L
+    })
+
+    opcoes_bases <- reactive({
+      if (!isTRUE(is_logistic))
+        return(stats::setNames("dados_analise", "Base compartilhada — dados_analise"))
+      bases_opcoes_analise(
+        registros_bases(), caches_bases(), revisao_bases(),
+        finalidade_preferida = "reg_logistica"
+      )
+    })
+
+    observe({
+      if (!isTRUE(is_logistic)) return()
+      escolhas <- opcoes_bases()
+      atual <- isolate(input$dataset_entrada %||% "dados_analise")
+      if (!atual %in% unname(escolhas)) {
+        if (!identical(atual, "dados_analise"))
+          showNotification(
+            "A base escolhida deixou de estar pronta e atualizada. A regressão logística voltou para dados_analise.",
+            type = "warning", duration = 10
+          )
+        atual <- "dados_analise"
+      }
+      updateSelectInput(session, "dataset_entrada", choices = escolhas, selected = atual)
+    })
+
+    base_contexto <- reactive({
+      raiz <- data_rv()
+      req(raiz)
+      if (!isTRUE(is_logistic))
+        return(list(df = as.data.frame(raiz), base_id = "dados_analise",
+                    base_objeto = "dados_analise", nome_amigavel = "Base compartilhada",
+                    derivada = FALSE))
+      chave <- input$dataset_entrada %||% "dados_analise"
+      resolvida <- tryCatch(
+        bases_resolver_analise(
+          chave, as.data.frame(raiz), registros_bases(), caches_bases(), revisao_bases()
+        ),
+        error = function(e) e
+      )
+      if (inherits(resolvida, "error"))
+        validate(need(FALSE, conditionMessage(resolvida)))
+      resolvida
+    })
+
+    dados_modulo <- reactive({ base_contexto()$df })
+
+    output$base_status <- renderUI({
+      if (!isTRUE(is_logistic)) return(NULL)
+      base <- base_contexto()
+      if (isTRUE(base$derivada)) {
+        div(class = "alert alert-info", style = "font-size:0.78rem; padding:7px 9px; margin-bottom:8px;",
+            icon("diagram-project"), " Usando ", tags$code(base$base_objeto),
+            sprintf(" (%d linhas × %d colunas).", nrow(base$df), ncol(base$df)))
+      } else {
+        div(class = "alert alert-light border", style = "font-size:0.78rem; padding:7px 9px; margin-bottom:8px;",
+            icon("database"), " Usando a base compartilhada ", tags$code("dados_analise"), ".")
+      }
+    })
+
     # Atualiza as escolhas de variáveis com base nos dados importados
     observe({
-      df <- data_rv()
+      df <- dados_modulo()
       req(df)
       
       # Para Y e X, permitimos todas as colunas (sem supressão de tipo)
@@ -199,7 +275,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
     
     # Modelo estatístico reativo (linear, não-linear ou regressão logística)
     model_fit <- reactive({
-      df <- data_rv()
+      df <- dados_modulo()
       req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
 
@@ -383,7 +459,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
     
     # Gráfico 1: Reta / Curva Ajustada
     output$fit_plot <- renderPlot({
-      df <- data_rv()
+      df <- dados_modulo()
       req(df, input$var_x, input$var_y)
       fit <- model_fit()
       req(fit)
@@ -650,6 +726,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
     r_code_text <- reactive({
       req(input$var_x, input$var_y, import_info())
       info <- import_info()
+      base_execucao <- base_contexto()
       
       # 1. Carregamento de Pacotes
       code <- c(
@@ -697,7 +774,24 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
           )
         }
       }
-      
+
+      if (isTRUE(base_execucao$derivada)) {
+        base_registro <- bases_obter(registros_bases(), base_execucao$base_id)
+        receita <- strsplit(bases_codigo(base_registro), "\n", fixed = TRUE)[[1]]
+        receita <- receita[!grepl("^print\\(", receita)]
+        code <- c(
+          code,
+          "# Base derivada escolhida na CatalyseR",
+          "# O Projeto R integrado incluirá antes a Trilha de Preparo compartilhada.",
+          "dados_analise <- dados",
+          receita,
+          sprintf("dados <- %s", base_execucao$base_objeto),
+          ""
+        )
+      } else {
+        code <- c(code, "# Base utilizada na análise: dados_analise", "")
+      }
+
       # 3. Ajuste do Modelo
       mt <- input$model_type
       if (is.null(mt) || !nzchar(mt)) mt <- "linear"
@@ -1119,7 +1213,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
           writeLines("O relatório está disponível apenas para o modelo Linear (reta) nesta versão.", file)
           return()
         }
-        req(data_rv())
+        req(dados_modulo())
         
         # Criar diretório temporário para compilação
         temp_dir <- tempdir()
@@ -1134,7 +1228,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
         file.copy("templates/relatorio_regressao.qmd", temp_qmd, overwrite = TRUE)
         
         # Salvar os dados limpos ativos
-        df_clean <- data_rv()
+        df_clean <- dados_modulo()
         save(df_clean, file = temp_data)
         
         # Obter os nomes das variáveis
@@ -1199,7 +1293,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
         dir.create(dir_relatorios, showWarnings = FALSE)
         
         # 1. Salvar os dados limpos (.rda, .csv e .xlsx)
-        df_clean <- data_rv()
+        df_clean <- dados_modulo()
         req(df_clean)
         # Salva o data frame com o nome 'dados' dentro do arquivo .rda
         save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
@@ -1389,5 +1483,11 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE)
         setwd(old_wd)
       }
     )
+
+    invisible(list(
+      modelo = model_fit,
+      base_contexto = base_contexto,
+      dados = dados_modulo
+    ))
   })
 }

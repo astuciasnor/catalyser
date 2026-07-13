@@ -334,3 +334,56 @@ bases_disponiveis_analise <- function(registros, cache, revisao_origem_atual) {
                                    revisao_origem_atual), "Atualizada")
   }, registros)
 }
+
+bases_opcoes_analise <- function(registros, cache, revisao_origem_atual,
+                                 finalidade_preferida = NULL) {
+  disponiveis <- bases_disponiveis_analise(registros, cache, revisao_origem_atual)
+  if (length(disponiveis) && !is.null(finalidade_preferida)) {
+    preferida <- vapply(disponiveis, function(base)
+      identical(base$finalidade, finalidade_preferida), logical(1))
+    disponiveis <- disponiveis[order(!preferida)]
+  }
+  raiz <- stats::setNames("dados_analise", "Base compartilhada — dados_analise")
+  if (!length(disponiveis)) return(raiz)
+  ids <- vapply(disponiveis, `[[`, character(1), "id")
+  rotulos <- vapply(disponiveis, function(base) {
+    destaque <- if (!is.null(finalidade_preferida) &&
+                    identical(base$finalidade, finalidade_preferida)) "★ " else ""
+    sprintf("%s%s — %s", destaque, base$nome_amigavel, base$nome_r)
+  }, character(1))
+  c(raiz, stats::setNames(ids, rotulos))
+}
+
+bases_resolver_analise <- function(chave, dados_analise, registros, cache,
+                                   revisao_origem_atual) {
+  chave <- chave %||% "dados_analise"
+  if (identical(chave, "dados_analise")) {
+    if (!is.data.frame(dados_analise))
+      stop("dados_analise não está disponível.", call. = FALSE)
+    return(list(
+      df = dados_analise,
+      base_id = "dados_analise",
+      base_objeto = "dados_analise",
+      nome_amigavel = "Base compartilhada",
+      derivada = FALSE
+    ))
+  }
+
+  base <- bases_obter(registros, chave)
+  if (is.null(base)) stop("A base derivada selecionada não existe mais.", call. = FALSE)
+  entrada <- bases_cache_obter(cache, base$id)
+  estado_cache <- bases_estado_cache(base, entrada, revisao_origem_atual)
+  if (!identical(base$estado, "pronta") || !identical(estado_cache, "Atualizada") ||
+      is.null(entrada$df))
+    stop(sprintf("A base '%s' não está disponível: preparo %s, cache %s.",
+                 base$nome_r, base$estado, tolower(estado_cache)), call. = FALSE)
+  list(
+    df = entrada$df,
+    base_id = base$id,
+    base_objeto = base$nome_r,
+    nome_amigavel = base$nome_amigavel,
+    finalidade = base$finalidade,
+    versao_receita = base$versao,
+    derivada = TRUE
+  )
+}

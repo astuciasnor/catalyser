@@ -25,7 +25,7 @@ produzir uma representação reprodutível em R.
 | Registro e gerenciamento de bases derivadas | **Implementado (Fase 3A)** |
 | Cache lazy, estados e recálculo manual | **Implementado (Fase 3A.1)** |
 | Transformações específicas dentro dos ramos | **Implementado (Fase 3B.1)** |
-| Seletor de base em cada análise | Planejado (Fase 3B.2) |
+| Seletor de base em cada análise | **Piloto na Regressão Logística (Fase 3B.2)** |
 | Registro de execuções/resultados | Planejado para a Comunicação |
 | Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
@@ -185,6 +185,18 @@ Base utilizada: [ dados_analise ▼ ]
 
 `dados_analise` é a opção padrão. Bases derivadas compatíveis podem ser
 sugeridas, mas a escolha final é do usuário.
+
+**Piloto implementado na Fase 3B.2:** a Regressão Logística oferece
+`dados_analise` e somente bases derivadas simultaneamente `pronta` e com cache
+`Atualizada`. Ramos de finalidade `reg_logistica` aparecem primeiro como
+sugestão, mas outros ramos válidos permanecem disponíveis. A escolha altera de
+fato os dados usados pelo modelo, tabelas e gráficos. Se o ramo escolhido for
+reaberto, excluído ou ficar desatualizado, a IDE avisa e retorna explicitamente
+para `dados_analise`; uma prévia antiga nunca alimenta o modelo.
+
+O módulo também expõe internamente `base_contexto` — ID estável, nome do objeto
+R e dados resolvidos — para o futuro registro de execuções. A expansão do mesmo
+contrato para outros módulos será feita depois do teste deste piloto.
 
 Ao executar uma análise, a IDE deve registrar, no mínimo:
 

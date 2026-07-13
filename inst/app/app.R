@@ -2367,7 +2367,12 @@ RCatalyst::run_ide()</pre>
   mod_nonlinear_server("von_bertalanffy", dados_analise, import_info, "von_bertalanffy")
   mod_nonlinear_server("polinomial", dados_analise, import_info, "polinomial")
   mod_nonlinear_server("logaritmica", dados_analise, import_info, "logaritmica")
-  mod_regression_server("logistic_regression", dados_analise, import_info, is_logistic = TRUE)
+  regressao_logistica <- mod_regression_server(
+    "logistic_regression", dados_analise, import_info, is_logistic = TRUE,
+    registro_bases_rv = registro_bases_rv,
+    cache_bases_rv = cache_bases_rv,
+    revisao_origem_rv = revisao_dados_analise_rv
+  )
   mod_model_discovery_server("discovery", dados_analise, import_info)
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---

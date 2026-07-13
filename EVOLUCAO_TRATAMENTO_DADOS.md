@@ -386,8 +386,14 @@ remover e limpar etapas somente em rascunhos. Toda edição incrementa a versão
 invalida o cache sem recálculo automático; o ramo continua nascendo diretamente
 de `dados_analise`.
 
-**A fazer (Fase 3B.2+):** integrar, de forma incremental, o seletor de base aos
-módulos analíticos e aposentar `dataset_ativo_rv` gradualmente
+**Feito (Fase 3B.2 — piloto):** seletor de base na Regressão Logística. Mostra a
+base compartilhada e somente ramos prontos/atualizados, prioriza a finalidade
+logística, resolve o `data.frame` pelo ID estável e volta com aviso para
+`dados_analise` quando o ramo deixa de estar disponível. O módulo expõe o
+contexto da base para o futuro registro de execuções.
+
+**A fazer (Fase 3B.3+):** após testar o piloto, expandir o contrato de seleção
+para outros módulos e aposentar `dataset_ativo_rv` gradualmente
 (Arrumar/Calcular viram etapas do registro). O divisor "── base ──" e as
 sugestões contextuais entram nessa migração.
 
