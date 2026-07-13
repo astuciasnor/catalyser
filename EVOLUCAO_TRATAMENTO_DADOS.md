@@ -362,11 +362,28 @@ SVG ao vivo) e Fase 2 (replay = `dados_analise` global; produtores leem a
 `base_resolvida` para não aplicar a trilha duas vezes; trilha automática, sem "Usar
 nas análises"). Registro com **6 tratamentos**: `tratar_na`, `dicotomizar`,
 `padronizar` (z-score/centralizar/normalizar), `binning` (classes de tamanho),
-`remover_duplicatas`, `padronizar_texto`. Escopo v1 fechado: o resto é Excel.
+`remover_duplicatas`, `padronizar_texto`. O módulo estrutural
+**Agrupar/Sumarizar** também integra a v1 (uma linha por grupo; `n`, soma, média,
+mediana, mínimo, máximo e desvio-padrão) e promove seu resultado antes do replay
+da Trilha. A arquitetura integrada está em `PIPELINE_DADOS_E_RELATORIOS.md`.
+Fora desse conjunto frequente, o usuário continua fazendo a transformação no
+Excel.
 
-**A fazer (Fase 3):** aposentar `dataset_ativo_rv` (Arrumar/Calcular viram etapas do
-registro), divisor "── base ──" com marcação (pergunta + manual) e ramos
-`base_<analise>`.
+**Feito (Fase 3A):** registro central e painel de bases derivadas, com topologia
+em estrela obrigatória, nomes R validados, criação, replay, prévia, código,
+renomeação, finalização, reabertura e exclusão confirmada. Ramos novos ainda têm
+zero etapas e são idênticos a `dados_analise`.
+
+**Feito (Fase 3A.1):** cache por ramo separado da receita, replay lazy somente
+por botão, estados Não calculada/Atualizada/Desatualizada/Com erro, preservação
+da última prévia válida, isolamento de falhas e bloqueio de cache inválido para
+os futuros seletores analíticos. Nenhuma interação comum dispara recálculo em
+cascata.
+
+**A fazer (Fase 3B+):** editar transformações específicas dentro dos ramos,
+integrar o seletor de base aos módulos e aposentar `dataset_ativo_rv`
+gradualmente (Arrumar/Calcular viram etapas do registro). O divisor
+"── base ──" e as sugestões contextuais entram nessa migração.
 
 **Dataset de treino:** `inst/app/dados/Treino-Transformacoes.xlsx` — abas
 `biometria` (bagunçada de propósito: NA, 3 duplicatas, texto inconsistente, escalas

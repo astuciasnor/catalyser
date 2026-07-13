@@ -29,8 +29,11 @@ source("modules/mod_mapa_pontos.R", encoding = "UTF-8")
 source("modules/mod_series_temporais.R", encoding = "UTF-8")
 source("modules/mod_arrumar.R", encoding = "UTF-8")
 source("modules/mod_calcular.R", encoding = "UTF-8")
+source("modules/mod_agrupar_sumarizar.R", encoding = "UTF-8")
 source("modules/registro_tratamentos.R", encoding = "UTF-8")
+source("modules/registro_bases.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
+source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_correlacao.R", encoding = "UTF-8")
 source("modules/mod_laboratorio.R", encoding = "UTF-8")
@@ -555,9 +558,19 @@ ui <- page_navbar(
       mod_calcular_ui("calcular")
     ),
     nav_panel(
+      title = "Agrupar / Sumarizar",
+      icon = icon("layer-group"),
+      mod_agrupar_sumarizar_ui("agrupar_sumarizar")
+    ),
+    nav_panel(
       title = "Trilha de Preparo",
       icon = icon("timeline"),
       mod_tratar_ui("tratar")
+    ),
+    nav_panel(
+      title = "Bases Derivadas",
+      icon = icon("diagram-project"),
+      mod_bases_derivadas_ui("bases_derivadas")
     ),
     nav_panel(
       title = "Criando Tabela de Contingência",
@@ -922,9 +935,9 @@ ui <- page_navbar(
       div(
         style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 2px;"
       ),
-      # Logo do CatalyseR (a mesma do projeto do livro)
+      # Logo do CatalyseR (nova identidade "CatalyseR Studio")
       tags$img(
-        src = "logo_catalyser.png",
+        src = "catalyser_logo2.png",
         height = "76px", # Ajustado para a nova altura de 90px
         style = "border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); object-fit: contain;"
       )
@@ -2298,6 +2311,9 @@ RCatalyst::run_ide()</pre>
   dataset_ativo_rv <- reactiveVal(NULL)   # NULL = usar dados importados
   pipeline_rv      <- reactiveVal(list()) # trilha de preparo (lista de etapas)
   base_externa_rv  <- reactiveVal(NULL)   # provenance da base promovida (Arrumar): list(fonte, codigo)
+  registro_bases_rv <- reactiveVal(bases_vazio()) # Fase 3A: ramos diretos de dados_analise
+  cache_bases_rv <- reactiveVal(bases_cache_vazio()) # Fase 3A.1: resultados somente em memória
+  revisao_dados_analise_rv <- reactiveVal(1L)
 
   # Base sobre a qual a trilha atua (importados ou resultado promovido).
   base_resolvida <- reactive({
@@ -2310,6 +2326,13 @@ RCatalyst::run_ide()</pre>
 
   # Dataset que TODAS as análises leem (base_resolvida + trilha).
   dados_analise <- reactive({ replay_res()$df })
+
+  # A revisão acompanha as FONTES de dados_analise, não sua mera leitura. Assim,
+  # abrir uma prévia ou recalcular um ramo nunca o torna obsoleto imediatamente.
+  # Na Fase 3C, análises registradas usarão o mesmo número para pedir atualização.
+  observeEvent(list(current_data(), dataset_ativo_rv(), pipeline_rv()), {
+    revisao_dados_analise_rv(revisao_dados_analise_rv() + 1L)
+  }, ignoreInit = TRUE)
 
   # Callback que os módulos Arrumar chamam ao clicar "Usar nas análises".
   promover_dataset <- function(df, fonte, codigo = NULL) {
@@ -2326,7 +2349,14 @@ RCatalyst::run_ide()</pre>
   })
 
   # Trocar de arquivo/fonte descarta a promoção E a trilha (evita dado velho)
-  observeEvent(raw_data(), { dataset_ativo_rv(NULL); pipeline_rv(list()); base_externa_rv(NULL) }, ignoreInit = TRUE)
+  observeEvent(raw_data(), {
+    dataset_ativo_rv(NULL)
+    pipeline_rv(list())
+    base_externa_rv(NULL)
+    registro_bases_rv(bases_vazio())
+    cache_bases_rv(bases_cache_vazio())
+    revisao_dados_analise_rv(1L)
+  }, ignoreInit = TRUE)
 
   # --- CHAMADA DO MÓDULO DE REGRESSÃO ---
   mod_regression_server("regression", dados_analise, import_info)
@@ -2372,9 +2402,19 @@ RCatalyst::run_ide()</pre>
   # Calcular/Reescalar lê a BASE RESOLVIDA (pré-trilha, para não aplicar a trilha
   # duas vezes) e promove seu resultado pelo mesmo callback.
   mod_calcular_server("calcular", base_resolvida, import_info, on_usar = promover_dataset)
+  # Agrupar/Sumarizar também atua antes da Trilha: cria uma base com uma linha
+  # por grupo e só a promove quando o usuário confirma o resultado.
+  mod_agrupar_sumarizar_server("agrupar_sumarizar", base_resolvida, import_info,
+                               on_usar = promover_dataset)
   # Trilha de Preparo (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
   # do dados_analise, automática (sem "Usar nas análises").
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
+  # Fase 3A: cadastro e replay de ramos em estrela. Ainda não troca a base dos
+  # módulos analíticos; esse seletor será integrado de forma incremental na 3B.
+  bases_derivadas <- mod_bases_derivadas_server(
+    "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv
+  )
   mod_anova_server("anova", dados_analise, import_info)
   mod_ancova_server("ancova", dados_analise, import_info)
 
