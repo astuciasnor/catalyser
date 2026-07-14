@@ -43,6 +43,10 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       execucoes_da_analise(registro_execucoes_rv(), analise_id)
     })
 
+    estado_disponivel <- reactive({
+      tryCatch(estado_execucao_rv(), error = function(e) NULL)
+    })
+
     estado_seguro <- function() {
       tryCatch(
         isolate(estado_execucao_rv()),
@@ -84,6 +88,7 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
 
     output$gerenciamento <- renderUI({
       execs <- execucoes_modulo()
+      pronto <- !is.null(estado_disponivel())
       escolhas <- c("Nova execução" = "")
       if (length(execs)) {
         ids <- vapply(execs, `[[`, character(1), "id")
@@ -92,21 +97,29 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       }
       atual <- selecionada_rv()
       if (!atual %in% unname(escolhas)) atual <- ""
+      botao <- function(id, rotulo, icone, classe, habilitado = TRUE) {
+        tag <- actionButton(session$ns(id), rotulo, icon = icon(icone), class = classe)
+        if (!isTRUE(habilitado))
+          tag <- tagAppendAttributes(tag, disabled = "disabled",
+                                     title = "Execute a análise com a configuração atual primeiro.")
+        tag
+      }
       tagList(
         selectInput(session$ns("execucao_id"), "Execução selecionada:",
                     choices = escolhas, selected = atual),
         if (!nzchar(atual)) {
-          actionButton(session$ns("adicionar"), "Adicionar aos resultados",
-                       icon = icon("plus"), class = "btn-success")
+          botao("adicionar", "Adicionar aos resultados", "plus", "btn-success", pronto)
         } else {
           div(class = "d-flex gap-2 flex-wrap",
-              actionButton(session$ns("atualizar"), "Atualizar resultado",
-                           icon = icon("rotate"), class = "btn-primary"),
-              actionButton(session$ns("salvar_novo"), "Salvar como novo",
-                           icon = icon("copy"), class = "btn-outline-success"),
-              actionButton(session$ns("remover"), "Remover dos resultados",
-                           icon = icon("trash"), class = "btn-outline-danger"))
-        }
+              botao("atualizar", "Atualizar resultado", "rotate", "btn-primary", pronto),
+              botao("salvar_novo", "Salvar como novo", "copy", "btn-outline-success", pronto),
+              botao("remover", "Remover dos resultados", "trash", "btn-outline-danger", TRUE))
+        },
+        if (!pronto) div(
+          class = "small text-warning mt-2",
+          icon("triangle-exclamation"),
+          " Execute a análise com a configuração atual antes de adicionar ou atualizar."
+        )
       )
     })
 
@@ -200,9 +213,12 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
 
     output$dependencia <- renderUI({
       id_atual <- selecionada_rv()
-      if (!nzchar(id_atual))
+      if (!nzchar(id_atual)) {
+        pronta <- !is.null(estado_disponivel())
         return(div(class = "alert alert-light border", style = "font-size:0.78rem; margin:20px 0 0; padding:7px 9px;",
-                   icon("eye"), " Prévia ainda não registrada"))
+                   icon(if (pronta) "eye" else "play"),
+                   if (pronta) " Prévia executada, ainda não registrada" else " Aguardando execução da análise"))
+      }
       execucao <- execucoes_obter(registro_execucoes_rv(), id_atual)
       estado <- execucoes_estado_dependencia(
         execucao, registro_bases_rv(), cache_bases_rv(), revisao_origem_rv()

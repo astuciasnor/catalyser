@@ -18,16 +18,19 @@ mod_descr_stats_ui <- function(id) {
           card_body(
             style = "padding: 12px 15px;",
             selectInput(ns("vars_selected"), "Variáveis Numéricas:", choices = NULL, multiple = TRUE),
-            div(style = "margin-top: -8px;", 
+            div(style = "margin-top: -8px;",
                 selectInput(ns("var_group"), "Agrupar por (Categórica):", choices = c("Nenhuma" = "none"))),
+            execucao_explicita_controles_ui(ns),
             card(
               card_header("Relatório e Pacote de Estudo"),
               card_body(
                 style = "padding: 12px 15px;",
-                downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-                div(style = "margin-top: 8px;"),
-                downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-                helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+                execucao_explicita_downloads_ui(ns, tagList(
+                  downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+                  div(style = "margin-top: 8px;"),
+                  downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+                  helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+                ))
               )
             )
           )
@@ -35,7 +38,7 @@ mod_descr_stats_ui <- function(id) {
       ),
       
       # COLUNA 2: RESULTADOS (TABELA PRINCIPAL)
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         title = "Tabela de Medidas Resumo",
         nav_panel(
           title = "Estatísticas de Resumo",
@@ -45,7 +48,7 @@ mod_descr_stats_ui <- function(id) {
             div(style = "margin-bottom: -20px;", DTOutput(ns("summary_table"), height = "auto"))
           )
         )
-      ),
+      )),
       
       # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
       card(
@@ -69,6 +72,7 @@ mod_descr_stats_ui <- function(id) {
 
 mod_descr_stats_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
+    revisao_execucao <- execucao_revisao_dados(data_rv)
     
     # Atualiza as escolhas de variáveis com base nos dados importados
     observe({
@@ -77,16 +81,31 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
       
       # Filtra variáveis numéricas
       num_cols <- names(df)[sapply(df, is.numeric)]
-      updateSelectInput(session, "vars_selected", choices = num_cols, selected = num_cols[1:min(2, length(num_cols))])
+      atuais <- isolate(input$vars_selected)
+      selecionadas <- intersect(atuais %||% character(), num_cols)
+      if (!length(selecionadas)) selecionadas <- head(num_cols, 2)
+      updateSelectInput(session, "vars_selected", choices = num_cols, selected = selecionadas)
       
       # Atualiza a variável de agrupamento (categórica ou caractere, ou numérica com poucos valores únicos)
       all_cols <- names(df)
       cat_cols <- all_cols[!sapply(df, is.numeric) | sapply(df, function(col) length(unique(col)) < 10)]
-      updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", cat_cols), selected = "none")
+      grupo_atual <- isolate(input$var_group %||% "none")
+      if (!grupo_atual %in% c("none", cat_cols)) grupo_atual <- "none"
+      updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", cat_cols), selected = grupo_atual)
     })
-    
-    # Calcula as medidas estatísticas de forma reativa
-    descr_data <- reactive({
+
+    assinatura_execucao <- reactive({
+      req(length(input$vars_selected) > 0)
+      execucao_assinatura(
+        input,
+        c("vars_selected", "var_group", "show_n", "show_nas", "show_mean",
+          "show_median", "show_sd", "show_var", "show_minmax", "show_quartiles"),
+        revisao_execucao()
+      )
+    })
+
+    # Calcula somente quando o usuário confirma a configuração.
+    descr_data <- eventReactive(input$executar_analise, {
       df <- data_rv()
       req(df, input$vars_selected)
       
@@ -111,7 +130,12 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
       res_df <- do.call(rbind, stats_list)
       rownames(res_df) <- NULL
       res_df
-    })
+    }, ignoreInit = TRUE)
+
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, descr_data,
+      nome_analise = "A estatística descritiva"
+    )
     
     # Renderiza a tabela DT formatada
     output$summary_table <- renderDT({
@@ -349,6 +373,7 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       req(length(input$vars_selected) > 0)
       resumo <- descr_data()
       req(resumo)
@@ -376,7 +401,11 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
       )
     })
 
-    invisible(list(estado_execucao = estado_execucao))
+    invisible(list(
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
+    ))
   })
 }
 

@@ -110,23 +110,28 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
           card_header(paste0("Configuração — ", np_titulo(fixed_test))),
           card_body(
             style = "padding: 12px 15px;",
-            np_config_ui(ns, fixed_test)
+            np_config_ui(ns, fixed_test),
+            execucao_explicita_controles_ui(
+              ns, ativo = identical(fixed_test, "quiquadrado")
+            )
           )
         ),
         card(
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera o relatório em DOCX ou exporta um projeto Quarto completo.", style = "margin-top: 10px; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+              div(style = "margin-top: 8px;"),
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera o relatório em DOCX ou exporta um projeto Quarto completo.", style = "margin-top: 10px; font-size: 0.85rem;")
+            ), ativo = identical(fixed_test, "quiquadrado"))
           )
         )
       ),
 
       # COLUNA 2: RESULTADOS
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados",
         nav_panel(
@@ -147,7 +152,7 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
             plotOutput(ns("test_plot"), height = "450px")
           )
         )
-      ),
+      ), ativo = identical(fixed_test, "quiquadrado")),
 
       # COLUNA 3: AJUDA
       card(
@@ -170,6 +175,8 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
 mod_nonparametric_server <- function(id, data_rv, import_info, contingency_shared = NULL, fixed_test = "quiquadrado") {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    modo_explicito <- identical(fixed_test, "quiquadrado")
+    revisao_execucao <- if (modo_explicito) execucao_revisao_dados(data_rv) else reactive(0L)
 
     # Atualiza os seletores de variáveis
     observe({
@@ -180,14 +187,27 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
       if (length(cat_cols) == 0) cat_cols <- names(df)
       if (length(num_cols) == 0) num_cols <- names(df)
 
-      updateSelectInput(session, "chi_row", choices = cat_cols, selected = cat_cols[1])
-      updateSelectInput(session, "chi_col", choices = cat_cols, selected = if (length(cat_cols) > 1) cat_cols[2] else cat_cols[1])
-      updateSelectInput(session, "mw_y", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "mw_x", choices = cat_cols, selected = cat_cols[1])
-      updateSelectInput(session, "wil_1", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "wil_2", choices = num_cols, selected = if (length(num_cols) > 1) num_cols[2] else num_cols[1])
-      updateSelectInput(session, "kw_y", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "kw_x", choices = cat_cols, selected = cat_cols[1])
+      manter <- function(atual, escolhas, padrao = NULL) {
+        if (!is.null(atual) && atual %in% escolhas) atual else padrao
+      }
+      updateSelectInput(session, "chi_row", choices = cat_cols,
+                        selected = manter(isolate(input$chi_row), cat_cols, cat_cols[1]))
+      updateSelectInput(session, "chi_col", choices = cat_cols,
+                        selected = manter(isolate(input$chi_col), cat_cols,
+                                          if (length(cat_cols) > 1) cat_cols[2] else cat_cols[1]))
+      updateSelectInput(session, "mw_y", choices = num_cols,
+                        selected = manter(isolate(input$mw_y), num_cols, num_cols[1]))
+      updateSelectInput(session, "mw_x", choices = cat_cols,
+                        selected = manter(isolate(input$mw_x), cat_cols, cat_cols[1]))
+      updateSelectInput(session, "wil_1", choices = num_cols,
+                        selected = manter(isolate(input$wil_1), num_cols, num_cols[1]))
+      updateSelectInput(session, "wil_2", choices = num_cols,
+                        selected = manter(isolate(input$wil_2), num_cols,
+                                          if (length(num_cols) > 1) num_cols[2] else num_cols[1]))
+      updateSelectInput(session, "kw_y", choices = num_cols,
+                        selected = manter(isolate(input$kw_y), num_cols, num_cols[1]))
+      updateSelectInput(session, "kw_x", choices = cat_cols,
+                        selected = manter(isolate(input$kw_x), cat_cols, cat_cols[1]))
     })
 
     # Grade de entrada manual da tabela de contingência
@@ -263,8 +283,25 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
       }
     })
 
+    assinatura_execucao <- reactive({
+      req(modo_explicito)
+      ci <- chi_input()
+      fonte <- input$chi_source %||% "vars"
+      list(
+        revisao_dados = if (identical(fonte, "vars")) as.integer(revisao_execucao()) else 0L,
+        parametros = list(
+          fonte = fonte,
+          linha = ci$var_row,
+          coluna = ci$var_col,
+          tabela = ci$tab,
+          correcao_yates = isTRUE(input$chi_yates),
+          teste_fisher = isTRUE(input$chi_fisher)
+        )
+      )
+    })
+
     # Resultado do teste selecionado
-    test_results <- reactive({
+    calcular_resultado <- function() {
       tt <- fixed_test
 
       if (tt == "quiquadrado") {
@@ -306,7 +343,22 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
         }
         list(type = "kruskal", r = r, arr = arrumar_kruskal(r), relato = relato, letras = letras)
       }
-    })
+    }
+
+    test_results <- if (modo_explicito) {
+      eventReactive(input$executar_analise, calcular_resultado(), ignoreInit = TRUE)
+    } else {
+      reactive(calcular_resultado())
+    }
+
+    exec_ctrl <- if (modo_explicito) {
+      execucao_explicita_server(
+        input, output, session, assinatura_execucao, test_results,
+        nome_analise = "O qui-quadrado"
+      )
+    } else {
+      list(estado = reactive("atualizada"), atualizada = reactive(TRUE))
+    }
 
     # Mostra a tabela cruzada (só no qui-quadrado)
     output$chi_table_ui <- renderUI({
@@ -585,6 +637,7 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       res <- test_results()
       req(res)
       pp <- export_params()
@@ -631,7 +684,9 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
 
     invisible(list(
       resultado = test_results,
-      estado_execucao = estado_execucao
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
     ))
   })
 }

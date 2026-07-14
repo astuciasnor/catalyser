@@ -22,14 +22,15 @@ Regras durante o semestre:
 | `feature/fase-3b-transformacoes-ramos` | `99a4b1a` | tudo da 3A + editor das receitas específicas | commit local; teste no Zorin pendente |
 | `feature/fase-3b2-seletor-base-piloto` | `07c2cb8` | tudo da 3B.1 + seletor piloto na Regressão Logística | commit local; teste no Zorin pendente |
 | `feature/fase-3b3-seletores-prioritarios` | `ced3fdb` | tudo da 3B.2 + seletor reutilizável em sete módulos prioritários | commit local; teste no Zorin pendente |
-| `feature/fase-3c-registro-execucoes` | `HEAD` da branch | tudo da 3B.3 + registro explícito e independente de execuções | implementada; teste no Zorin pendente |
+| `feature/fase-3c-registro-execucoes` | `e84e7b3` | tudo da 3B.3 + registro explícito e independente de execuções | commit local; teste no Zorin pendente |
+| `feature/fase-3c1-execucao-explicita` | `HEAD` da branch | tudo da 3C + botão Executar análise, rascunho pendente e proteção do registro | implementada; teste no Zorin pendente |
 
 Nenhuma dessas branches deve alterar a `main` apenas por receber push. Fazer
 push cria ou atualiza a referência remota da própria branch.
 
 ## Fases ainda previstas
 
-Depois da Fase 3C, restam duas mudanças moderadas:
+Depois da Fase 3C.1, restam duas mudanças moderadas:
 
 | Fase | Entrega principal |
 |---|---|
@@ -50,9 +51,10 @@ main
               └── fase 3B.2
                     └── fase 3B.3
                           └── fase 3C
+                                └── fase 3C.1
 ```
 
-Ao fazer push somente da 3C, o Git também envia os objetos dos commits
+Ao fazer push somente da 3C.1, o Git também envia os objetos dos commits
 ancestrais necessários, mas não cria automaticamente referências remotas com os
 nomes das branches anteriores. Para escolher cada fase diretamente no Zorin,
 faça push também da referência da respectiva branch.
@@ -124,10 +126,16 @@ Para testar a Fase 3C:
 git switch --track origin/feature/fase-3c-registro-execucoes
 ```
 
+Para testar a Fase 3C.1:
+
+```bash
+git switch --track origin/feature/fase-3c1-execucao-explicita
+```
+
 Se a branch local já existir, use somente:
 
 ```bash
-git switch feature/fase-3c-registro-execucoes
+git switch feature/fase-3c1-execucao-explicita
 git pull --ff-only
 ```
 

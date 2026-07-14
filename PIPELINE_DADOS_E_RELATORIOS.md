@@ -27,6 +27,7 @@ produzir uma representação reprodutível em R.
 | Transformações específicas dentro dos ramos | **Implementado (Fase 3B.1)** |
 | Seletor de base nas análises prioritárias | **Implementado (Fases 3B.2 e 3B.3)** |
 | Registro de execuções/resultados | **Implementado (Fase 3C)** |
+| Execução analítica explícita e rascunho pendente | **Implementado (Fase 3C.1)** |
 | Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
 
@@ -249,10 +250,27 @@ resultado**, **Salvar como novo** e **Remover dos resultados**. O registro é
 limpo quando outro conjunto de dados bruto é carregado, evitando misturar
 execuções de projetos diferentes.
 
-## Prévia e resultado registrado
+**Implementado na Fase 3C.1:** escolher base, variáveis ou opções cria apenas um
+rascunho. Os oito módulos prioritários não calculam nem mostram resultados até
+o clique em **Executar análise**. Depois do clique, a configuração e a revisão
+da base ficam assinadas. Qualquer mudança analítica ou de dados oculta a prévia
+anterior, marca o rascunho como pendente e exige **Executar novamente**.
 
-Mudar variável ou parâmetro altera somente a prévia reativa. Para evitar que
-explorações passageiras encham o relatório, o usuário deve clicar em:
+O registrador só habilita **Adicionar aos resultados**, **Atualizar resultado**
+e **Salvar como novo** quando a prévia corresponde à configuração e à base
+atuais. Assim, uma execução desatualizada nunca entra silenciosamente no fluxo
+de comunicação. Os downloads antigos do próprio módulo também ficam bloqueados
+até uma execução atual. Seleções que continuam válidas são preservadas ao sair e
+retornar ao módulo; variáveis removidas exigem nova escolha.
+
+## Rascunho, prévia executada e resultado registrado
+
+Mudar variável ou parâmetro altera somente o rascunho. O fluxo explícito é:
+
+> **Configurar → Executar análise → Examinar a prévia → Adicionar aos resultados**
+
+Para evitar que explorações passageiras encham o relatório, o usuário deve
+clicar em:
 
 > **Adicionar aos resultados**
 
@@ -272,6 +290,8 @@ Trocar o eixo Y não sobrescreve gráfico já registrado. Cada clique em
 **Adicionar aos resultados** cria uma execução independente.
 
 Na Fase 3C, a lista e os controles aparecem dentro do próprio módulo analítico.
+A Fase 3C.1 acrescenta a execução explícita antes desse registro e bloqueia as
+ações de salvar enquanto o rascunho estiver pendente.
 A visão conjunta, a ordenação e a escolha do conteúdo do Word pertencem à Fase
 3D. O exportador consolidado antigo ainda usa seu rastreamento legado por visita
 à aba e só será substituído pelo novo registro na Fase 3E.
@@ -396,9 +416,10 @@ Use depois do primeiro, pedindo continuidade visual:
 > opção padrão. Represente que uma base pode alimentar várias execuções. Inclua o
 > exemplo de uma mesma base e o mesmo eixo X “ano” gerando três resultados
 > independentes: “Gráfico 1 — produção”, “Gráfico 2 — esforço” e “Gráfico 3 —
-> CPUE”. Mostre a diferença entre “Prévia reativa” e o botão “Adicionar aos
-> resultados”: mudar parâmetros altera apenas a prévia; clicar no botão registra
-> uma execução reproduzível. Em seguida, mostre um “Registro de Vínculos” com o
+> CPUE”. Mostre a sequência “Rascunho de configuração → Executar análise →
+> Prévia executada → Adicionar aos resultados”: mudar parâmetros deixa o
+> rascunho pendente; executar gera a prévia; adicionar registra uma execução
+> reproduzível. Em seguida, mostre um “Registro de Vínculos” com o
 > fluxo “Base → Análise/Gráfico → Resultado registrado”. À direita, crie o painel
 > “Comunicação de Resultados”, listando cada execução individualmente e oferecendo
 > caixas de seleção para narrativa, tabela, gráfico, pressupostos e diagnósticos.
@@ -412,6 +433,16 @@ Use depois do primeiro, pedindo continuidade visual:
 > represente cada tipo de análise como se exigisse obrigatoriamente uma base
 > derivada.
 
+## Desdobramento pedagógico futuro — curso de treinamento
+
+Depois que o pipeline estiver estabilizado e testado, a CatalyseR poderá ser
+ensinada como um percurso completo: preparar uma planilha *tidy* no Excel,
+importar, tratar, criar variáveis, escolher bases e variáveis, executar análises,
+selecionar o que comunicar e gerar o relatório. O fechamento do curso deve
+destacar o **Projeto R**: os cliques feitos na CatalyseR produziram código R
+reproduzível, que o pesquisador poderá abrir em outra IDE e reconhecer como a
+linguagem que estava trabalhando por trás da interface.
+
 ## Regras que não podem se perder
 
 1. Dados brutos são preservados.
@@ -419,6 +450,6 @@ Use depois do primeiro, pedindo continuidade visual:
 3. `dados_analise` é a base padrão de todas as análises.
 4. Base derivada só existe para preparo específico e nasce em um salto.
 5. Uma base pode alimentar várias execuções.
-6. Alterar a prévia não sobrescreve resultado registrado.
+6. Alterar o rascunho exige nova execução e não sobrescreve resultado registrado.
 7. O Projeto R preserva as execuções; o Word contém somente o que foi escolhido.
 8. Toda transformação e análise deve gerar código R canônico.

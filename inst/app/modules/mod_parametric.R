@@ -46,23 +46,26 @@ mod_parametric_ui <- function(id) {
                                     "Unilateral Direita (>)" = "greater",
                                     "Unilateral Esquerda (<)" = "less")),
             
-            numericInput(ns("conf_level"), "Nível de Confiança (%):", value = 95, min = 80, max = 99, step = 1)
+            numericInput(ns("conf_level"), "Nível de Confiança (%):", value = 95, min = 80, max = 99, step = 1),
+            execucao_explicita_controles_ui(ns)
           )
         ),
         card(
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+              div(style = "margin-top: 8px;"),
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            ))
           )
         )
       ),
       
       # COLUNA 2: RESULTADOS (TABELA PRINCIPAL / GRÁFICOS)
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados",
         nav_panel(
@@ -100,7 +103,7 @@ mod_parametric_ui <- function(id) {
             plotOutput(ns("qq_plot"), height = "300px")
           )
         )
-      ),
+      )),
       
       # COLUNA 3: PERSONALIZAÇÃO DA ABA ATIVA
       card(
@@ -199,6 +202,7 @@ plot_t_distribution <- function(df_val, t_calc, alternative, alpha, g_theme, tit
 
 mod_parametric_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
+    revisao_execucao <- execucao_revisao_dados(data_rv)
     
     # Auxiliar para colocar crase em nomes de variáveis com espaços
     backtick <- function(s) {
@@ -214,13 +218,35 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       all_cols <- names(df)
       cat_cols <- all_cols[!sapply(df, is.numeric) | sapply(df, function(col) length(unique(col)) < 10)]
       
-      updateSelectInput(session, "one_var_y", choices = num_cols, selected = num_cols[1])
-      
-      updateSelectInput(session, "two_var_y", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "two_var_x", choices = cat_cols, selected = if (length(cat_cols) > 0) cat_cols[1] else NULL)
-      
-      updateSelectInput(session, "pair_var_y1", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "pair_var_y2", choices = num_cols, selected = if (length(num_cols) > 1) num_cols[2] else num_cols[1])
+      manter <- function(atual, escolhas, padrao = NULL) {
+        if (!is.null(atual) && atual %in% escolhas) atual else padrao
+      }
+
+      updateSelectInput(session, "one_var_y", choices = num_cols,
+                        selected = manter(isolate(input$one_var_y), num_cols, num_cols[1]))
+
+      updateSelectInput(session, "two_var_y", choices = num_cols,
+                        selected = manter(isolate(input$two_var_y), num_cols, num_cols[1]))
+      updateSelectInput(session, "two_var_x", choices = cat_cols,
+                        selected = manter(isolate(input$two_var_x), cat_cols,
+                                          if (length(cat_cols) > 0) cat_cols[1] else NULL))
+
+      updateSelectInput(session, "pair_var_y1", choices = num_cols,
+                        selected = manter(isolate(input$pair_var_y1), num_cols, num_cols[1]))
+      updateSelectInput(session, "pair_var_y2", choices = num_cols,
+                        selected = manter(isolate(input$pair_var_y2), num_cols,
+                                          if (length(num_cols) > 1) num_cols[2] else num_cols[1]))
+    })
+
+    assinatura_execucao <- reactive({
+      req(input$test_type)
+      execucao_assinatura(
+        input,
+        c("test_type", "one_var_y", "one_mu", "two_var_y", "two_var_x",
+          "two_var_equal", "pair_var_y1", "pair_var_y2", "alternative",
+          "conf_level"),
+        revisao_execucao()
+      )
     })
     
     # Atualiza títulos e eixos automaticamente dependendo do teste e da aba ativa
@@ -255,8 +281,8 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       }
     }, ignoreInit = FALSE)
     
-    # Cálculo reativo do Teste t de Student
-    test_results <- reactive({
+    # O teste só é calculado após confirmação explícita.
+    test_results <- eventReactive(input$executar_analise, {
       df <- data_rv()
       req(df, input$test_type)
       
@@ -319,7 +345,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         
         list(t_out = t_out, norm_data = norm_data, type = "paired", var_names = c(input$pair_var_y1, input$pair_var_y2))
       }
-    })
+    }, ignoreInit = TRUE)
     
     # Exibe as hipóteses estatísticas na tela
     output$hypothesis_text <- renderPrint({
@@ -944,6 +970,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       res <- test_results()
       req(res)
       t_out <- res$t_out
@@ -985,9 +1012,16 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       )
     })
 
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, test_results,
+      nome_analise = "O teste t"
+    )
+
     invisible(list(
       resultado = test_results,
-      estado_execucao = estado_execucao
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
     ))
   })
 }

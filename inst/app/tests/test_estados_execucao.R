@@ -28,6 +28,7 @@ testServer(mod_descr_stats_server, args = list(data_rv = dados_rv, import_info =
     show_n = TRUE, show_nas = TRUE, show_mean = TRUE, show_median = TRUE,
     show_sd = TRUE, show_var = FALSE, show_minmax = TRUE, show_quartiles = TRUE
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "descr_stats"),
@@ -42,6 +43,7 @@ testServer(mod_regression_server, args = list(data_rv = dados_rv, import_info = 
     model_type = "linear", grp_reg = FALSE, show_eq = TRUE,
     graph_theme = "minimal", custom_title = "", custom_label_x = "", custom_label_y = ""
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "regression"),
@@ -60,6 +62,7 @@ testServer(
       grp_reg = FALSE, show_eq = TRUE, graph_theme = "minimal",
       custom_title = "", custom_label_x = "", custom_label_y = ""
     )
+    session$setInputs(executar_analise = 1)
     estado <- estado_execucao()
     stopifnot(
       identical(estado$analise_id, "logistic_regression"),
@@ -75,6 +78,7 @@ testServer(mod_parametric_server, args = list(data_rv = dados_rv, import_info = 
     two_var_equal = FALSE, alternative = "two.sided", conf_level = 95,
     graph_theme = "minimal", custom_title = "", custom_label_x = "", custom_label_y = ""
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "parametric"),
@@ -90,6 +94,7 @@ testServer(mod_lines_server, args = list(data_rv = dados_rv, import_info = info_
     legend_pos = "right", custom_title = "Captura por ano",
     custom_label_x = "Ano", custom_label_y = "Captura (t)"
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "lines"),
@@ -107,6 +112,7 @@ testServer(
       chi_source = "vars", chi_row = "sexo", chi_col = "maturidade",
       chi_yates = FALSE, chi_fisher = FALSE
     )
+    session$setInputs(executar_analise = 1)
     estado <- estado_execucao()
     stopifnot(
       identical(estado$analise_id, "np_qui_quadrado"),
@@ -121,6 +127,7 @@ testServer(mod_pca_server, args = list(data_rv = dados_rv, import_info = info_rv
     vars_selected = c("captura_t", "esforco_h", "cpue"),
     scale = TRUE, show_labels = FALSE, graph_theme = "minimal"
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "pca"),
@@ -135,6 +142,7 @@ testServer(mod_hca_server, args = list(data_rv = dados_rv, import_info = info_rv
     distance_method = "euclidean", linkage_method = "ward.D2",
     k_groups = 3, scale = TRUE, label_var = "", show_labels = FALSE
   )
+  session$setInputs(executar_analise = 1)
   estado <- estado_execucao()
   stopifnot(
     identical(estado$analise_id, "hca"),

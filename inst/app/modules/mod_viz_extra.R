@@ -236,26 +236,29 @@ mod_lines_ui <- function(id) {
             selectInput(ns("var_x"), "Variável X (eixo):", choices = NULL),
             selectInput(ns("var_y"), "Variável Y (numérica):", choices = NULL),
             selectInput(ns("var_group"), "Série por Cor (opcional):", choices = c("Nenhuma" = "none")),
-            checkboxInput(ns("show_points"), "Marcar os pontos", value = TRUE)
+            checkboxInput(ns("show_points"), "Marcar os pontos", value = TRUE),
+            execucao_explicita_controles_ui(ns)
           )
         ),
         card(
           card_header("Pacote de Estudo R/Quarto"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera um pacote com o código ggplot2 do gráfico.", style = "margin-top: 10px; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera um pacote com o código ggplot2 do gráfico.", style = "margin-top: 10px; font-size: 0.85rem;")
+            ))
           )
         )
       ),
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Gráfico de Linhas",
         nav_panel(
           title = "Visualização", icon = icon("chart-line"),
           card_body(style = "padding: 15px;", plotOutput(ns("plot"), height = "450px"))
         )
-      ),
+      )),
       card(
         card_header("Personalização Visual"),
         card_body(
@@ -274,15 +277,34 @@ mod_lines_ui <- function(id) {
 
 mod_lines_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
+    revisao_execucao <- execucao_revisao_dados(data_rv)
+
     observe({
       df <- data_rv(); req(df)
       num_cols <- names(df)[sapply(df, is.numeric)]
       all_cols <- names(df)
       cat_cols <- names(df)[sapply(df, function(c) is.factor(c) || is.character(c) || is.logical(c) || length(unique(c)) < 15)]
       if (length(num_cols) == 0) num_cols <- all_cols
-      updateSelectInput(session, "var_x", choices = all_cols, selected = all_cols[1])
-      updateSelectInput(session, "var_y", choices = num_cols, selected = num_cols[1])
-      updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", cat_cols), selected = "none")
+      x_atual <- isolate(input$var_x)
+      y_atual <- isolate(input$var_y)
+      grupo_atual <- isolate(input$var_group %||% "none")
+      if (is.null(x_atual) || !x_atual %in% all_cols) x_atual <- all_cols[1]
+      if (is.null(y_atual) || !y_atual %in% num_cols) y_atual <- num_cols[1]
+      if (!grupo_atual %in% c("none", cat_cols)) grupo_atual <- "none"
+      updateSelectInput(session, "var_x", choices = all_cols, selected = x_atual)
+      updateSelectInput(session, "var_y", choices = num_cols, selected = y_atual)
+      updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", cat_cols), selected = grupo_atual)
+    })
+
+    assinatura_execucao <- reactive({
+      req(input$var_x, input$var_y)
+      execucao_assinatura(
+        input,
+        c("var_x", "var_y", "var_group", "show_points", "line_w",
+          "graph_theme", "legend_pos", "custom_title", "custom_label_x",
+          "custom_label_y"),
+        revisao_execucao()
+      )
     })
 
     observeEvent(list(input$var_x, input$var_y), {
@@ -292,7 +314,7 @@ mod_lines_server <- function(id, data_rv, import_info) {
       updateTextInput(session, "custom_label_y", value = input$var_y)
     })
 
-    make_plot <- reactive({
+    make_plot <- eventReactive(input$executar_analise, {
       df <- data_rv(); req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
       grp <- input$var_group
@@ -316,7 +338,12 @@ mod_lines_server <- function(id, data_rv, import_info) {
       }
       p + viz_theme(input$graph_theme, input$legend_pos) +
         labs(title = title_val, x = xlab, y = ylab, color = if (has_grp) grp else NULL)
-    })
+    }, ignoreInit = TRUE)
+
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, make_plot,
+      nome_analise = "O gráfico de linhas"
+    )
 
     output$plot <- renderPlot({ make_plot() })
 
@@ -341,6 +368,7 @@ mod_lines_server <- function(id, data_rv, import_info) {
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       grafico <- make_plot()
       req(grafico, input$var_x, input$var_y)
       grupo <- input$var_group %||% "none"
@@ -366,7 +394,11 @@ mod_lines_server <- function(id, data_rv, import_info) {
       )
     })
 
-    invisible(list(estado_execucao = estado_execucao))
+    invisible(list(
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
+    ))
   })
 }
 

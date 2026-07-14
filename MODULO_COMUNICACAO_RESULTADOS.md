@@ -5,9 +5,12 @@
 > "Projeto R" `.zip` exportado). Arquivo do módulo: `inst/app/modules/mod_comunicacao.R`.
 
 > **Estado em julho de 2026:** a Fase 3C implementou o registro explícito por
-> execução nos oito módulos prioritários. O estúdio conjunto, a ordenação e a
-> seleção do conteúdo do Word entram na Fase 3D; a exportação integrada entra
-> na Fase 3E. O consolidado antigo permanece isolado até essa substituição.
+> execução nos oito módulos prioritários, e a 3C.1 passou a exigir **Executar
+> análise** antes de liberar o registro. Configurações ou bases alteradas ficam
+> pendentes e não podem ser adicionadas/atualizadas silenciosamente. O estúdio
+> conjunto, a ordenação e a seleção do conteúdo do Word entram na Fase 3D;
+> a exportação integrada entra na Fase 3E. O consolidado antigo permanece
+> isolado até essa substituição.
 
 ## 1. Objetivo
 

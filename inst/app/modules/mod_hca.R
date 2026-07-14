@@ -50,23 +50,26 @@ mod_hca_ui <- function(id) {
                         min = 2, max = 8, value = 3, step = 1),
             checkboxInput(ns("scale"), "Padronizar Variáveis (Z-Score)", value = TRUE),
             selectInput(ns("label_var"), "Rótulo das folhas do dendrograma:", choices = NULL),
-            helpText(HTML("A AAH agrupa as <b>linhas</b> (observações). Em matriz espécie × local: marque os <b>locais</b> como variáveis, escolha <b>Jaccard</b> e ponha a coluna de <b>espécies</b> em \"Rótulo das folhas\". Jaccard/binária é para presença-ausência (não padroniza)."))
+            helpText(HTML("A AAH agrupa as <b>linhas</b> (observações). Em matriz espécie × local: marque os <b>locais</b> como variáveis, escolha <b>Jaccard</b> e ponha a coluna de <b>espécies</b> em \"Rótulo das folhas\". Jaccard/binária é para presença-ausência (não padroniza).")),
+            execucao_explicita_controles_ui(ns)
           )
         ),
         card(
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera relatórios de AAH e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+              div(style = "margin-top: 8px;"),
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera relatórios de AAH e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
+            ))
           )
         )
       ),
       
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados da AAH",
         nav_panel(
@@ -90,7 +93,7 @@ mod_hca_ui <- function(id) {
             DTOutput(ns("pert_table"))
           )
         )
-      ),
+      )),
       
       # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
       card(
@@ -114,6 +117,7 @@ mod_hca_ui <- function(id) {
 mod_hca_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    revisao_execucao <- execucao_revisao_dados(data_rv)
     
     # Atualiza as opções de variáveis baseadas no dataset
     observe({
@@ -149,8 +153,18 @@ mod_hca_server <- function(id, data_rv, import_info) {
                         selected = isolate(input$label_var))
     })
     
-    # Executa a AAH de forma reativa
-    result_rv <- reactive({
+    assinatura_execucao <- reactive({
+      req(length(input$vars_selected) >= 2)
+      execucao_assinatura(
+        input,
+        c("vars_selected", "distance_method", "linkage_method", "k_groups",
+          "scale", "label_var"),
+        revisao_execucao()
+      )
+    })
+
+    # Executa a AAH apenas após confirmação explícita.
+    result_rv <- eventReactive(input$executar_analise, {
       df <- data_rv()
       req(df)
       vars <- input$vars_selected
@@ -166,7 +180,12 @@ mod_hca_server <- function(id, data_rv, import_info) {
         scale = input$scale,
         label_var = input$label_var
       )
-    })
+    }, ignoreInit = TRUE)
+
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, result_rv,
+      nome_analise = "A análise de agrupamentos"
+    )
     
     # Renderizar Dendrograma
     output$dendrogram <- renderPlot({
@@ -378,6 +397,7 @@ mod_hca_server <- function(id, data_rv, import_info) {
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       r <- result_rv()
       req(r)
       list(
@@ -405,7 +425,9 @@ mod_hca_server <- function(id, data_rv, import_info) {
 
     invisible(list(
       resultado = result_rv,
-      estado_execucao = estado_execucao
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
     ))
   })
 }

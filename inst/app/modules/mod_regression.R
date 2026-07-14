@@ -41,23 +41,26 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
                   "Potência (W = a·L^b)"   = "potencia",
                   "Von Bertalanffy"        = "von_bertalanffy"
                 ), selected = "linear"))
-            }
+            },
+            execucao_explicita_controles_ui(ns)
           )
         ),
         card(
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+              div(style = "margin-top: 8px;"),
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            ))
           )
         )
       ),
       
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados",
         nav_panel(
@@ -91,7 +94,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
             plotOutput(ns("qq_plot"), height = "450px")
           )
         )
-      ),
+      )),
       
       # COLUNA 3: PERSONALIZAÇÃO DA ABA ATIVA
       card(
@@ -219,6 +222,17 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     })
 
     dados_modulo <- reactive({ base_contexto()$df })
+    revisao_execucao <- execucao_revisao_dados(dados_modulo)
+
+    assinatura_execucao <- reactive({
+      req(input$var_x, input$var_y, input$model_type)
+      execucao_assinatura(
+        input,
+        c("dataset_entrada", "var_y", "var_x", "model_type", "var_group",
+          "grp_reg"),
+        revisao_execucao()
+      )
+    })
 
     output$base_status <- renderUI({
       if (!isTRUE(is_logistic)) return(NULL)
@@ -276,8 +290,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       }
     }, ignoreInit = FALSE)
     
-    # Modelo estatístico reativo (linear, não-linear ou regressão logística)
-    model_fit <- reactive({
+    # O modelo só é ajustado após o clique explícito.
+    model_fit <- eventReactive(input$executar_analise, {
       df <- dados_modulo()
       req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
@@ -333,7 +347,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           )
         }
       }
-    })
+    }, ignoreInit = TRUE)
 
     # Auxiliar para colocar crase em nomes de variáveis com espaços
     backtick <- function(s) {
@@ -1489,6 +1503,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       fit <- model_fit()
       req(fit, input$var_x, input$var_y)
       tipo <- if (inherits(fit, "glm")) "regressao_logistica" else
@@ -1528,11 +1543,18 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       )
     })
 
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, model_fit,
+      nome_analise = if (isTRUE(is_logistic)) "A regressão logística" else "A regressão"
+    )
+
     invisible(list(
       modelo = model_fit,
       base_contexto = base_contexto,
       dados = dados_modulo,
-      estado_execucao = estado_execucao
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
     ))
   })
 }

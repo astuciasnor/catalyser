@@ -134,7 +134,7 @@ testServer(
     stopifnot(
       grepl("0 registradas", output$contador$html, fixed = TRUE),
       grepl("Adicionar aos resultados", output$gerenciamento$html, fixed = TRUE),
-      grepl("Prévia ainda não registrada", output$dependencia$html, fixed = TRUE)
+      grepl("Prévia executada, ainda não registrada", output$dependencia$html, fixed = TRUE)
     )
 
     session$setInputs(titulo = "Captura por ano", adicionar = 1)
@@ -159,3 +159,41 @@ testServer(
 )
 
 cat("OK: módulo Shiny do registro de execuções\n")
+
+# O registro não aceita uma configuração ainda não executada ou já pendente.
+pronta_rv <- reactiveVal(FALSE)
+registro_bloqueado_rv <- reactiveVal(execucoes_vazio())
+contador_bloqueado_rv <- reactiveVal(0L)
+
+testServer(
+  mod_registrar_execucao_server,
+  args = list(
+    estado_execucao_rv = reactive({
+      req(pronta_rv())
+      estado_linhas("captura_t")
+    }),
+    base_contexto_rv = reactive(base_raiz),
+    registro_execucoes_rv = registro_bloqueado_rv,
+    contador_execucoes_rv = contador_bloqueado_rv,
+    revisao_origem_rv = reactiveVal(3L),
+    registro_bases_rv = reactiveVal(list()),
+    cache_bases_rv = reactiveVal(list()),
+    analise_id = "lines",
+    nome_analise = "O Gráfico de Linhas"
+  ),
+  {
+    stopifnot(
+      grepl("disabled=\"disabled\"", output$gerenciamento$html, fixed = TRUE),
+      grepl("Aguardando execução da análise", output$dependencia$html, fixed = TRUE)
+    )
+
+    pronta_rv(TRUE)
+    session$flushReact()
+    stopifnot(
+      !grepl("disabled=\"disabled\"", output$gerenciamento$html, fixed = TRUE),
+      grepl("Prévia executada, ainda não registrada", output$dependencia$html, fixed = TRUE)
+    )
+  }
+)
+
+cat("OK: registro bloqueia rascunho não executado ou pendente\n")

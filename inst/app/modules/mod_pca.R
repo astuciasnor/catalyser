@@ -30,23 +30,26 @@ mod_pca_ui <- function(id) {
           card_body(
             style = "padding: 12px 15px;",
             checkboxGroupInput(ns("vars_selected"), "Selecione as Variáveis Numéricas (mínimo 2):", choices = NULL),
-            checkboxInput(ns("scale"), "Padronizar Variáveis (Escala Unitária)", value = TRUE)
+            checkboxInput(ns("scale"), "Padronizar Variáveis (Escala Unitária)", value = TRUE),
+            execucao_explicita_controles_ui(ns)
           )
         ),
         card(
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera relatórios de PCA e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
+            execucao_explicita_downloads_ui(ns, tagList(
+              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
+              div(style = "margin-top: 8px;"),
+              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
+              helpText("Gera relatórios de PCA e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
+            ))
           )
         )
       ),
       
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
-      navset_card_tab(
+      execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados da PCA",
         nav_panel(
@@ -77,7 +80,7 @@ mod_pca_ui <- function(id) {
             DTOutput(ns("scores_table"))
           )
         )
-      ),
+      )),
       
       # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
       card(
@@ -108,6 +111,7 @@ mod_pca_ui <- function(id) {
 mod_pca_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    revisao_execucao <- execucao_revisao_dados(data_rv)
     
     # Atualiza lista de variáveis numéricas na interface
     observe({
@@ -116,15 +120,32 @@ mod_pca_server <- function(id, data_rv, import_info) {
       num_cols <- names(df)[sapply(df, is.numeric)]
       # Remove a coluna id se existir para não poluir
       num_cols <- setdiff(num_cols, c("id", "ID"))
-      updateCheckboxGroupInput(session, "vars_selected", choices = num_cols, selected = head(num_cols, 3))
+      atuais <- isolate(input$vars_selected)
+      selecionadas <- intersect(atuais %||% character(), num_cols)
+      if (length(selecionadas) < 2) selecionadas <- head(num_cols, 3)
+      updateCheckboxGroupInput(session, "vars_selected", choices = num_cols, selected = selecionadas)
+    })
+
+    assinatura_execucao <- reactive({
+      req(length(input$vars_selected) >= 2)
+      execucao_assinatura(
+        input,
+        c("vars_selected", "scale"),
+        revisao_execucao()
+      )
     })
     
-    # Executa cálculo reativo da PCA
-    result_rv <- reactive({
+    # Executa a PCA apenas após confirmação explícita.
+    result_rv <- eventReactive(input$executar_analise, {
       df <- data_rv()
       req(df, length(input$vars_selected) >= 2)
       calcular_pca(df, input$vars_selected, input$scale)
-    })
+    }, ignoreInit = TRUE)
+
+    exec_ctrl <- execucao_explicita_server(
+      input, output, session, assinatura_execucao, result_rv,
+      nome_analise = "A PCA"
+    )
     
     # Tabela de variância explicada e gráfico de cotovelo
     output$variancia_ui <- renderUI({
@@ -382,6 +403,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
     )
 
     estado_execucao <- reactive({
+      req(exec_ctrl$atualizada())
       r <- result_rv()
       req(r)
       list(
@@ -406,7 +428,9 @@ mod_pca_server <- function(id, data_rv, import_info) {
 
     invisible(list(
       resultado = result_rv,
-      estado_execucao = estado_execucao
+      estado_execucao = estado_execucao,
+      estado_execucao_ui = exec_ctrl$estado,
+      execucao_atualizada = exec_ctrl$atualizada
     ))
   })
 }

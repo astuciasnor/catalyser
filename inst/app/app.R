@@ -35,6 +35,7 @@ source("modules/registro_bases.R", encoding = "UTF-8")
 source("modules/mod_seletor_base_analise.R", encoding = "UTF-8")
 source("modules/registro_execucoes.R", encoding = "UTF-8")
 source("modules/mod_registrar_execucao.R", encoding = "UTF-8")
+source("modules/mod_execucao_explicita.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
 source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
@@ -623,8 +624,8 @@ ui <- page_navbar(
       icon = icon("table-list"),
       tagList(
         mod_seletor_base_analise_ui("base_descr_stats"),
-        mod_registrar_execucao_ui("registrar_descr_stats"),
-        mod_descr_stats_ui("descr_stats")
+        mod_descr_stats_ui("descr_stats"),
+        mod_registrar_execucao_ui("registrar_descr_stats")
       )
     ),
     nav_panel(
@@ -663,8 +664,8 @@ ui <- page_navbar(
       icon = icon("chart-line"),
       tagList(
         mod_seletor_base_analise_ui("base_regression"),
-        mod_registrar_execucao_ui("registrar_regression"),
-        mod_regression_ui("regression")
+        mod_regression_ui("regression"),
+        mod_registrar_execucao_ui("registrar_regression")
       )
     ),
     nav_panel(
@@ -725,8 +726,8 @@ ui <- page_navbar(
       title = "Curva Logística",
       icon = icon("chart-line"),
       tagList(
-        mod_registrar_execucao_ui("registrar_logistic"),
-        mod_regression_ui("logistic_regression", is_logistic = TRUE)
+        mod_regression_ui("logistic_regression", is_logistic = TRUE),
+        mod_registrar_execucao_ui("registrar_logistic")
       )
     )
   ),
@@ -740,8 +741,8 @@ ui <- page_navbar(
       icon = icon("arrows-left-right"),
       tagList(
         mod_seletor_base_analise_ui("base_parametric"),
-        mod_registrar_execucao_ui("registrar_parametric"),
-        mod_parametric_ui("parametric")
+        mod_parametric_ui("parametric"),
+        mod_registrar_execucao_ui("registrar_parametric")
       )
     ),
     nav_panel(
@@ -765,12 +766,12 @@ ui <- page_navbar(
       icon = icon("table-cells"),
       tagList(
         mod_seletor_base_analise_ui("base_np_qui"),
-        mod_registrar_execucao_ui("registrar_np_qui"),
         div(
           class = "alert alert-light border py-2 small",
           "A base escolhida vale para a fonte Duas variáveis. Tabela preparada e Entrada manual usam suas próprias fontes."
         ),
-        mod_nonparametric_ui("np_qui", "quiquadrado")
+        mod_nonparametric_ui("np_qui", "quiquadrado"),
+        mod_registrar_execucao_ui("registrar_np_qui")
       )
     ),
     nav_panel(
@@ -799,8 +800,8 @@ ui <- page_navbar(
       icon = icon("diagram-project"),
       tagList(
         mod_seletor_base_analise_ui("base_pca"),
-        mod_registrar_execucao_ui("registrar_pca"),
-        mod_pca_ui("pca")
+        mod_pca_ui("pca"),
+        mod_registrar_execucao_ui("registrar_pca")
       )
     ),
     nav_panel(
@@ -808,8 +809,8 @@ ui <- page_navbar(
       icon = icon("bezier-curve"),
       tagList(
         mod_seletor_base_analise_ui("base_hca"),
-        mod_registrar_execucao_ui("registrar_hca"),
-        mod_hca_ui("hca")
+        mod_hca_ui("hca"),
+        mod_registrar_execucao_ui("registrar_hca")
       )
     )
   ),
@@ -839,8 +840,8 @@ ui <- page_navbar(
       icon = icon("chart-line"),
       tagList(
         mod_seletor_base_analise_ui("base_lines"),
-        mod_registrar_execucao_ui("registrar_lines"),
-        mod_lines_ui("lines")
+        mod_lines_ui("lines"),
+        mod_registrar_execucao_ui("registrar_lines")
       )
     ),
     nav_panel(

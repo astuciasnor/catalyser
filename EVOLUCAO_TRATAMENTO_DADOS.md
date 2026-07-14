@@ -407,7 +407,13 @@ saídas disponíveis e resumo compacto, sem duplicar dados ou gráficos. Alterar
 prévia não sobrescreve o item; atualizar, salvar como novo e remover são ações
 explícitas. Dependências alteradas ficam marcadas como **Precisa atualizar**.
 
-**A fazer depois da Fase 3C:** fazer as execuções alimentarem a Comunicação de
+**Feito (Fase 3C.1):** os oito módulos prioritários agora começam como
+rascunhos. Resultados só são calculados e mostrados após **Executar análise**.
+Uma mudança de base, variável ou opção analítica oculta a prévia anterior e
+exige **Executar novamente**; o registro fica bloqueado enquanto a configuração
+estiver pendente. Seleções ainda válidas são preservadas quando os dados mudam.
+
+**A fazer depois da Fase 3C.1:** fazer as execuções alimentarem a Comunicação de
 Resultados (3D) e integrar o Projeto R/relatório (3E). A eventual aposentadoria
 de `dataset_ativo_rv` permanece uma migração posterior e gradual, fora dessas
 duas entregas.
