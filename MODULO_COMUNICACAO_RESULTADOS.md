@@ -4,13 +4,11 @@
 > `CLAUDE.md` já usa este termo para o entregável v1; evita colisão com o
 > "Projeto R" `.zip` exportado). Arquivo do módulo: `inst/app/modules/mod_comunicacao.R`.
 
-> **Estado em julho de 2026:** a Fase 3C implementou o registro explícito por
-> execução nos oito módulos prioritários, e a 3C.1 passou a exigir **Executar
-> análise** antes de liberar o registro. Configurações ou bases alteradas ficam
-> pendentes e não podem ser adicionadas/atualizadas silenciosamente. O estúdio
-> conjunto, a ordenação e a seleção do conteúdo do Word entram na Fase 3D;
-> a exportação integrada entra na Fase 3E. O consolidado antigo permanece
-> isolado até essa substituição.
+> **Estado em julho de 2026:** as Fases 3C/3C.1 implementaram o registro e a
+> execução analítica explícita. A Fase 3D conectou esse registro ao estúdio
+> conjunto, com ordenação, seleção do conteúdo do Word, seções globais, esboço e
+> manifesto editorial. A exportação integrada entra na Fase 3E. O consolidado
+> antigo permanece isolado até essa substituição.
 
 ## 1. Objetivo
 
@@ -36,83 +34,70 @@ própria**, com o mesmo motor Quarto→Word que já roda por análise. Gera tamb
 
 ## 3. Decisões travadas
 
-1. **Granularidade = fila por execução.** Botão "Adicionar ao relatório" em cada
-   análise; aceita a MESMA análise várias vezes (ex.: 3 testes-*t*), cada uma sua
-   subseção, na ordem adicionada.
+1. **Granularidade = registro por execução.** O botão **Adicionar aos resultados**
+   aceita a MESMA análise várias vezes (ex.: 3 testes-*t*), cada uma com ID,
+   base, parâmetros e título próprios.
 2. **Estrutura = esqueleto de artigo + Preparação.** Seção 0 (Preparação dos
    dados) → Introdução/Métodos globais → Resultados (uma (sub)seção por item da
    fila) → Discussão/Conclusão globais.
 3. **Geradores = MVP reaproveita, refatora depois.** 1ª versão usa os builders que
    já existem; fase 2 migra cada `gerar_script_*`/`gerar_qmd_*` para o EAPADados.
-4. **Ordem = reordenável** (setas subir/descer), começando na ordem do menu.
+4. **Ordem = reordenável** (setas subir/descer), começando na ordem em que as
+   execuções foram registradas.
+5. **Projeto R ≠ Word.** O Projeto R preserva todas as execuções registradas; o
+   Word mostra somente as execuções e componentes escolhidos no estúdio.
 
 ## 4. Arquitetura
 
-### 4.1 Registry canônico (uma fonte de ordem)
+### 4.1 Registro canônico de execuções (implementado)
 
-Uma lista ordenada — a **ordem do menu da IDE** — em que cada entrada descreve uma
-análise disponível:
+`registro_execucoes_rv` é a fonte da verdade do que foi executado e preservado.
+Ele é preenchido somente pelo clique **Adicionar aos resultados**, aceita
+repetições e guarda um objeto leve por execução. O estúdio não copia esse
+registro: sincroniza sua ordem editorial pelos IDs existentes.
 
-```r
-# registro_analises.R (fonte única de ordem + rótulos + geradores)
-registro_analises <- list(
-  list(id = "descr_stats", titulo = "Estatística descritiva", menu = "Descrevendo Dados",
-       nivel = 1, add_id = "add_descr", gerar_script = ..., gerar_qmd = ...),
-  list(id = "boxplot", titulo = "Boxplot", menu = "Descrevendo Dados", nivel = 1, ...),
-  list(id = "regressao", titulo = "Regressão linear simples", menu = "Regressão", nivel = 1, ...),
-  list(id = "nl_von_bertalanffy", titulo = "Crescimento de peixes (von Bertalanffy)",
-       menu = "Regressão não linear", nivel = 2, ...),
-  ...
-)
-```
-
-Esse registry passa a dirigir **de uma vez**: os botões "Adicionar", a numeração
-dos scripts, a ordem-padrão da fila e o nível de cabeçalho no docx. Elimina as
-três duplicações de hoje.
+O mapeamento dos geradores de `.qmd` por `analise_id`, necessário para eliminar
+as duplicações do consolidado antigo, será fechado na Fase 3E.
 
 ### 4.2 Contrato de cada análise
 
-Cada módulo de análise expõe um **estado de relatório** padronizado (uma função
-que captura a config atual):
+Cada módulo prioritário expõe um **estado de execução** padronizado:
 
 ```r
-estado_relatorio() -> list(
-  id       = "parametric",
-  titulo   = "Teste t (comp_cm ~ sexo)",   # já com as variáveis
-  nivel    = 1,                              # 1 = seção, 2 = subseção
-  params   = list(var_y = "comp_cm", var_x = "sexo", ...),
-  dataset_entrada = "base",                   # HOOK p/ ramos: padrão = base compartilhada;
-                                               # futuro: "base_reg_logistica" etc.
-  script   = "<código R desta análise>",     # string
-  qmd      = "<corpo .qmd SEM o título>"      # string, headings só internos ≥ nível+1
+estado_execucao() -> list(
+  analise_id = "parametric",
+  tipo = "teste_t_independente",
+  titulo = "Teste t: comp_cm por sexo",
+  parametros = list(resposta = "comp_cm", grupo = "sexo", ...),
+  saidas_disponiveis = c("narrativa", "tabela", "grafico", "pressupostos"),
+  resultado_resumo = list(...),
+  codigo_r = "<código R desta análise>"
 )
 ```
 
-Regra de ouro do contrato: **o builder devolve o CORPO sem o título de topo**; o
-módulo integrador injeta o cabeçalho (`#` ou `##`) no nível certo — assim a
-numeração do documento fica coerente (hoje os `##` embutidos brigam entre si).
+O registrador acrescenta ID da execução, base consumida, revisão e versão. Na
+3E, o builder do `.qmd` deve devolver o CORPO sem título de topo; o integrador
+injeta o cabeçalho no nível certo.
 
-### 4.3 A fila do relatório
+### 4.3 Estado editorial do relatório
 
-`fila_rv <- reactiveVal(list())` — cada item é um `estado_relatorio()` congelado no
-momento do clique "Adicionar ao relatório". Suporta:
-- repetição (mesmo `id`, params diferentes);
-- reordenar (subir/descer);
-- remover;
-- editar o título da (sub)seção.
+`estado_editorial_rv` não contém resultados, dados, modelos nem gráficos. Guarda
+somente a ordem dos IDs, `incluir_word` e `saidas_selecionadas`. Novas execuções
+entram no fim; execuções removidas no módulo analítico desaparecem; atualizações
+preservam escolhas ainda válidas.
 
 ## 5. UI do módulo (3 colunas, padrão da IDE)
 
-- **Coluna 1 — Fila**: lista dos itens adicionados, com nível indentado, setas
-  ↑/↓, remover, e campo de título editável. Botão "Limpar fila".
-- **Coluna 2 — Prévia do sumário (outline)**: árvore numerada (1, 1.1, 2, …) do
-  documento que será gerado + prévia do `.qmd`/script integrador em abas.
-- **Coluna 3 — Saída**: formato (docx [padrão], html, typst/pdf), campos de
-  Introdução/Métodos/Discussão globais (textareas), botão **Gerar .docx**,
-  download do `.qmd` e do script integrador, e "Usar dados ativos".
+- **Coluna 1 — Execuções e bases**: lista ordenável com base, dependência,
+  inclusão no Word e componentes disponíveis; abaixo, lista da base
+  compartilhada e de todos os ramos derivados.
+- **Coluna 2 — Esboço e manifesto**: estrutura do futuro documento e registro
+  textual das decisões editoriais.
+- **Coluna 3 — Seções globais e saída planejada**: Introdução, Métodos,
+  Discussão, Conclusão, contadores Word/Projeto R e botão da 3E desabilitado.
 
-O botão "Adicionar ao relatório" vive **em cada análise** (não só aqui), enviando
-`estado_relatorio()` para a `fila_rv` via callback — igual ao `on_usar` do Arrumar.
+O registro é feito dentro de cada análise. A Comunicação apenas organiza e
+seleciona; remover uma execução continua sendo uma ação do módulo analítico.
 
 ## 6. Montagem do `.qmd` integrado
 
@@ -226,13 +211,20 @@ Quando os geradores viverem no EAPADados (Fase 5), o capítulo "Comunicação de
 Resultados" do livro mostra o MESMO `.qmd`/script que a IDE emite — fecha o "do
 mouse ao código" também na etapa de comunicação.
 
-## 13. Menu na IDE (implementado — casca / Fase 0)
+## 13. Menu na IDE (Fase 3D implementada)
 
 Decisão (jul/2026): o menu **"Estatísticas Avançadas"** (que só continha Séries
-Temporais) foi **renomeado para "Comunicação de Resultados"** e recebeu a **casca**
-do estúdio de montagem (`mod_comunicacao.R`): 3 colunas — Fila do relatório (vazia),
-Esboço do documento / Código gerado, e Saída (formato .docx/.zip + botão "Gerar",
-por ora em construção). É a ponte visível **Mouse → Código → Relatório**, saindo como
-projeto. **Séries Temporais** foi movida temporariamente para **Modelos de Regressão**.
-Próximo: preencher a casca com a fila real (contrato `estado_relatorio()` por análise),
-o outline com namespacing de labels e a geração docx (generalizar `render_relatorio_docx`).
+Temporais) foi **renomeado para "Comunicação de Resultados"**. O estúdio
+`mod_comunicacao.R` usa três colunas: execuções registradas, esboço/manifesto e
+seções globais/saída planejada. É a ponte visível **Mouse → Código → Relatório**.
+**Séries Temporais** foi movida temporariamente para **Modelos de Regressão**.
+
+Na Fase 3D, o estúdio passou a consumir o `registro_execucoes_rv` implementado na
+Fase 3C. Esse registro já cumpre o papel do antigo `estado_relatorio()`: preserva
+base, parâmetros, saídas disponíveis, resumo e código R sem duplicar dados ou
+modelos. O estúdio sincroniza novas execuções, remove referências excluídas,
+preserva escolhas existentes, permite ordenar e produz um manifesto editorial.
+
+O Word recebe somente os itens e componentes selecionados. O Projeto R mantém
+todas as execuções registradas. A geração `.docx`/`.zip`, o namespacing de labels
+e a substituição do consolidado antigo pertencem à Fase 3E.

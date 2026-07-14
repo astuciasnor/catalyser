@@ -1,90 +1,434 @@
-# Modulo "Comunicacao de Resultados" — o estudio de montagem do Projeto de
-# Comunicacao. CASCA / placeholder (a montagem chega nas proximas etapas).
-# A ponte Mouse -> Codigo -> Relatorio. Spec: MODULO_COMUNICACAO_RESULTADOS.md
+# Comunicação de Resultados — estúdio editorial da Fase 3D
+# ---------------------------------------------------------------------------
+# Consome as execuções registradas na Fase 3C. A exportação do Word e do
+# Projeto R será conectada a este manifesto na Fase 3E.
+
 library(shiny)
 library(bslib)
+
+comunicacao_classe_estado <- function(estado) {
+  if (identical(estado, "Atualizada")) "text-bg-success" else "text-bg-warning"
+}
 
 mod_comunicacao_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    div(style = "padding: 4px 2px 10px;",
-      h4("Comunicação de Resultados",
-         style = "font-family:'Outfit',sans-serif; font-weight:700; color:#0F3B5F; margin-bottom:2px;"),
-      p(style = "color:#495057; font-size:0.9rem; margin:0;",
-        "O estúdio de montagem do ", strong("Projeto de Comunicação"),
-        ": a ponte entre o ", strong("mouse"), " (as análises que você fez), o ",
-        strong("código"), " que a IDE gera, e o ", strong("relatório"),
-        " final — que sai como projeto (.docx no tema Ocean + Projeto R .zip).")
+    div(
+      style = "padding:4px 2px 10px;",
+      h4(
+        "Comunicação de Resultados",
+        style = "font-family:'Outfit',sans-serif; font-weight:700; color:#0F3B5F; margin-bottom:2px;"
+      ),
+      p(
+        style = "color:#495057; font-size:0.9rem; margin:0;",
+        "Organize o que foi executado e escolha o que aparecerá no Word. ",
+        strong("O Projeto R preservará todas as execuções registradas.")
+      )
     ),
     layout_columns(
       col_widths = c(1, 1, 1),
-      style = "grid-template-columns: 3fr 6fr 3fr !important;",
+      style = "grid-template-columns:4fr 5fr 3fr !important;",
 
       card(
-        card_header("1. Fila do relatório"),
-        card_body(style = "padding:12px 15px;",
+        card_header(
+          div(
+            class = "d-flex justify-content-between align-items-center",
+            span("1. Execuções registradas"),
+            uiOutput(ns("contador"))
+          )
+        ),
+        card_body(
+          style = "padding:12px 15px;",
           uiOutput(ns("fila")),
-          hr(style = "margin:10px 0;"),
-          helpText("Cada análise ganhará um botão \"Adicionar ao relatório\". Aqui você reordena e remove; a Seção 0 (Preparação) vem da Trilha de Preparo.")
+          uiOutput(ns("acoes_fila")),
+          hr(style = "margin:12px 0 8px;"),
+          h6(icon("database"), " Bases do projeto", class = "mb-2"),
+          uiOutput(ns("bases_projeto")),
+          helpText(
+            "As setas mudam somente a ordem do relatório. Desmarcar 'Incluir no Word' não apaga a execução.",
+            style = "font-size:0.78rem; margin-top:10px;"
+          )
         )
       ),
 
       navset_card_tab(
-        nav_panel(title = "Esboço do documento", icon = icon("list-ol"),
+        nav_panel(
+          title = "Esboço do documento", icon = icon("list-ol"),
           card_body(style = "padding:12px 15px;", uiOutput(ns("esboco")))
         ),
-        nav_panel(title = "Código gerado", icon = icon("code"),
-          card_body(style = "padding:12px 15px;",
-            tags$pre(style = "white-space:pre-wrap; font-size:0.82rem; color:#6c757d;",
-                     "# O script R integrado aparecerá aqui\n# (Seção 0: preparação -> análises, na ordem da fila)."))
+        nav_panel(
+          title = "Manifesto editorial", icon = icon("code"),
+          card_body(
+            style = "padding:12px 15px;",
+            tags$pre(
+              style = "white-space:pre-wrap; font-size:0.80rem; color:#334155; max-height:620px;",
+              textOutput(ns("manifesto_texto"), container = span)
+            )
+          )
         )
       ),
 
       div(
         card(
-          card_header("2. Saída"),
-          card_body(style = "padding:12px 15px;",
-            radioButtons(ns("formato"), "Formato:",
-              choices = c("Word (.docx) — tema Ocean" = "docx",
-                          "Projeto R (.zip) — para o aluno" = "zip"),
-              selected = "docx"),
-            actionButton(ns("gerar"), "Gerar projeto de comunicação",
-                         icon = icon("wand-magic-sparkles"), class = "btn-primary w-100"),
-            div(class = "alert alert-info", style = "margin-top:10px; padding:8px 10px; font-size:0.82rem;",
-              icon("hammer"),
-              " Em construção: a montagem (fila, esboço, código e geração) chega nas próximas etapas. Ver ",
-              tags$code("MODULO_COMUNICACAO_RESULTADOS.md"), ".")
+          card_header("2. Seções globais"),
+          card_body(
+            style = "padding:12px 15px;",
+            textAreaInput(ns("introducao"), "Introdução (opcional):", rows = 3),
+            textAreaInput(ns("metodos"), "Métodos gerais (opcional):", rows = 3),
+            textAreaInput(ns("discussao"), "Discussão (opcional):", rows = 3),
+            textAreaInput(ns("conclusao"), "Conclusão (opcional):", rows = 2)
           )
         ),
         card(
-          card_header("A ponte, em 3 estados"),
-          card_body(style = "padding:12px 15px; font-size:0.82rem; line-height:1.5;",
-            tags$ol(style = "padding-left:18px; margin:0;",
-              tags$li(strong("Mouse:"), " você fez as análises clicando."),
-              tags$li(strong("Código:"), " a IDE gera o R equivalente."),
-              tags$li(strong("Relatório:"), " tudo vira um documento/projeto.")))
+          card_header("3. Saída planejada"),
+          card_body(
+            style = "padding:12px 15px;",
+            uiOutput(ns("resumo_saida")),
+            radioButtons(
+              ns("formato"), "Formato principal:",
+              choices = c("Word (.docx) — tema Ocean" = "docx"),
+              selected = "docx"
+            ),
+            tags$button(
+              type = "button", class = "btn btn-primary w-100", disabled = "disabled",
+              icon("file-export"), " Gerar relatório e Projeto R — Fase 3E"
+            )
+          )
         )
       )
     )
   )
 }
 
-mod_comunicacao_server <- function(id, dados_analise, import_info) {
+mod_comunicacao_server <- function(id, dados_analise, import_info,
+                                   registro_execucoes_rv,
+                                   registro_bases_rv, cache_bases_rv,
+                                   revisao_origem_rv, projeto_rv = NULL) {
   moduleServer(id, function(input, output, session) {
+    estado_editorial_rv <- reactiveVal(comunicacao_estado_vazio())
+    observadores_instalados_rv <- reactiveVal(character())
+    geracao_projeto_rv <- reactiveVal(1L)
+
+    id_controle <- function(tipo, execucao_id, geracao = geracao_projeto_rv()) {
+      sprintf("%s_p%d_%s", tipo, as.integer(geracao), execucao_id)
+    }
+
+    # Um novo arquivo bruto inicia outro projeto. Mudanças de preparo dentro do
+    # mesmo projeto não limpam os textos nem as decisões editoriais.
+    if (!is.null(projeto_rv)) {
+      observeEvent(projeto_rv(), {
+        geracao_projeto_rv(geracao_projeto_rv() + 1L)
+        estado_editorial_rv(comunicacao_estado_vazio())
+        for (campo in c("introducao", "metodos", "discussao", "conclusao"))
+          updateTextAreaInput(session, campo, value = "")
+      }, ignoreInit = TRUE)
+    }
+
+    # Novas execuções entram no fim; removidas desaparecem; escolhas existentes
+    # sobrevivem às atualizações analíticas enquanto continuarem válidas.
+    observe({
+      sincronizado <- comunicacao_sincronizar(
+        estado_editorial_rv(), registro_execucoes_rv()
+      )
+      if (!identical(sincronizado, estado_editorial_rv()))
+        estado_editorial_rv(sincronizado)
+    })
+
+    estados_dependencia <- reactive({
+      execucoes <- registro_execucoes_rv()
+      estados <- lapply(execucoes, function(execucao) {
+        execucoes_estado_dependencia(
+          execucao, registro_bases_rv(), cache_bases_rv(), revisao_origem_rv()
+        )
+      })
+      estados
+    })
+
+    # Captura checkboxes criados dinamicamente na fila.
+    observe({
+      estado <- estado_editorial_rv()
+      registro <- registro_execucoes_rv()
+      geracao <- geracao_projeto_rv()
+      novo <- estado
+      for (execucao_id in estado$ordem) {
+        execucao <- registro[[execucao_id]]
+        if (is.null(execucao)) next
+        incluir <- input[[id_controle("incluir", execucao_id, geracao)]]
+        saidas <- input[[id_controle("saidas", execucao_id, geracao)]]
+        if (!is.null(incluir)) {
+          novo <- comunicacao_definir_item(
+            novo, execucao_id, incluir_word = incluir,
+            saidas_disponiveis = execucao$saidas_disponiveis
+          )
+        }
+        if (!is.null(saidas)) {
+          novo <- comunicacao_definir_item(
+            novo, execucao_id, saidas_selecionadas = saidas,
+            saidas_disponiveis = execucao$saidas_disponiveis
+          )
+        }
+      }
+      if (!identical(novo, estado)) estado_editorial_rv(novo)
+    })
+
+    # Instala uma vez os controles de ordenação de cada ID monotônico.
+    observe({
+      ids <- names(registro_execucoes_rv())
+      geracao <- geracao_projeto_rv()
+      chaves <- sprintf("p%d::%s", geracao, ids)
+      novos <- setdiff(chaves, observadores_instalados_rv())
+      for (chave in novos) {
+        local({
+          partes <- strsplit(chave, "::", fixed = TRUE)[[1]]
+          geracao_local <- as.integer(sub("^p", "", partes[[1]]))
+          id_local <- partes[[2]]
+          observeEvent(input[[id_controle("subir", id_local, geracao_local)]], {
+            estado_editorial_rv(comunicacao_mover(estado_editorial_rv(), id_local, -1L))
+          }, ignoreInit = TRUE)
+          observeEvent(input[[id_controle("descer", id_local, geracao_local)]], {
+            estado_editorial_rv(comunicacao_mover(estado_editorial_rv(), id_local, 1L))
+          }, ignoreInit = TRUE)
+        })
+      }
+      if (length(novos))
+        observadores_instalados_rv(union(observadores_instalados_rv(), novos))
+    })
+
+    observeEvent(input$incluir_todas, {
+      for (id_execucao in estado_editorial_rv()$ordem)
+        updateCheckboxInput(session, id_controle("incluir", id_execucao), value = TRUE)
+    })
+
+    observeEvent(input$excluir_todas, {
+      for (id_execucao in estado_editorial_rv()$ordem)
+        updateCheckboxInput(session, id_controle("incluir", id_execucao), value = FALSE)
+    })
+
+    output$contador <- renderUI({
+      estado <- estado_editorial_rv()
+      selecionadas <- sum(vapply(
+        estado$itens, function(item) isTRUE(item$incluir_word), logical(1)
+      ))
+      span(
+        class = "badge text-bg-info",
+        sprintf("%d no Word / %d no Projeto R", selecionadas, length(estado$ordem))
+      )
+    })
+
     output$fila <- renderUI({
-      div(style = "color:#888; font-size:0.85rem; padding:8px 0;",
-          "Nenhuma análise na fila ainda.")
+      registro <- registro_execucoes_rv()
+      estado <- estado_editorial_rv()
+      dependencias <- estados_dependencia()
+      if (!length(estado$ordem)) {
+        return(div(
+          class = "alert alert-light border text-center",
+          icon("bookmark"), br(),
+          strong("Nenhuma execução registrada."), br(),
+          "Execute uma análise e clique em Adicionar aos resultados."
+        ))
+      }
+
+      tagList(lapply(seq_along(estado$ordem), function(indice) {
+        execucao_id <- estado$ordem[[indice]]
+        execucao <- registro[[execucao_id]]
+        item <- estado$itens[[execucao_id]]
+        dependencia <- dependencias[[execucao_id]] %||% "Não verificada"
+        rotulos <- comunicacao_rotulos_saidas[execucao$saidas_disponiveis]
+        rotulos <- rotulos[!is.na(rotulos)]
+        choices <- stats::setNames(names(rotulos), unname(rotulos))
+        card(
+          class = "mb-2",
+          style = if (isTRUE(item$incluir_word))
+            "border-left:4px solid #2E7D8F;" else "border-left:4px solid #adb5bd; opacity:0.82;",
+          card_body(
+            style = "padding:10px 12px;",
+            div(
+              class = "d-flex justify-content-between align-items-start gap-2",
+              div(
+                span(class = "badge text-bg-secondary", indice), " ",
+                strong(execucao$titulo), br(),
+                tags$small(
+                  class = "text-muted",
+                  tags$code(execucao_id), " · base ", tags$code(execucao$base_objeto)
+                )
+              ),
+              span(class = paste("badge", comunicacao_classe_estado(dependencia)), dependencia)
+            ),
+            checkboxInput(
+              session$ns(id_controle("incluir", execucao_id)),
+              "Incluir esta execução no Word", value = isTRUE(item$incluir_word)
+            ),
+            checkboxGroupInput(
+              session$ns(id_controle("saidas", execucao_id)),
+              "Conteúdo do Word:", choices = choices,
+              selected = item$saidas_selecionadas, inline = TRUE
+            ),
+            if (isTRUE(item$incluir_word) && !length(item$saidas_selecionadas))
+              div(class = "small text-warning mb-2", icon("triangle-exclamation"),
+                  " Escolha ao menos um conteúdo ou retire esta execução do Word."),
+            div(
+              class = "d-flex gap-2",
+              actionButton(
+                session$ns(id_controle("subir", execucao_id)), "Subir",
+                icon = icon("arrow-up"), class = "btn-sm btn-outline-secondary",
+                disabled = if (indice == 1L) "disabled" else NULL
+              ),
+              actionButton(
+                session$ns(id_controle("descer", execucao_id)), "Descer",
+                icon = icon("arrow-down"), class = "btn-sm btn-outline-secondary",
+                disabled = if (indice == length(estado$ordem)) "disabled" else NULL
+              )
+            )
+          )
+        )
+      }))
     })
+
+    output$acoes_fila <- renderUI({
+      if (!length(estado_editorial_rv()$ordem)) return(NULL)
+      div(
+        class = "d-flex gap-2 flex-wrap mt-2",
+        actionButton(session$ns("incluir_todas"), "Incluir todas", icon = icon("check-double"),
+                     class = "btn-sm btn-outline-success"),
+        actionButton(session$ns("excluir_todas"), "Nenhuma no Word", icon = icon("eye-slash"),
+                     class = "btn-sm btn-outline-secondary")
+      )
+    })
+
+    output$bases_projeto <- renderUI({
+      execucoes <- registro_execucoes_rv()
+      bases <- registro_bases_rv()
+      cache <- cache_bases_rv()
+      revisao <- revisao_origem_rv()
+      usos <- function(base_id) sum(vapply(
+        execucoes,
+        function(execucao) identical(execucao$base_id, base_id), logical(1)
+      ))
+      item_base <- function(nome, objeto, estado, n_usos) {
+        classe <- if (estado %in% c("Compartilhada", "Atualizada"))
+          "text-bg-success" else "text-bg-warning"
+        div(
+          class = "border rounded px-2 py-1 mb-1 small",
+          div(class = "d-flex justify-content-between gap-2",
+              span(strong(nome), br(), tags$code(objeto)),
+              span(class = paste("badge align-self-start", classe), estado)),
+          tags$small(class = "text-muted", sprintf("%d execução(ões) vinculada(s)", n_usos))
+        )
+      }
+      derivados <- lapply(bases, function(base) {
+        estado_cache <- bases_estado_cache(
+          base, bases_cache_obter(cache, base$id), revisao
+        )
+        estado <- if (identical(base$estado, "pronta")) estado_cache else "Em preparo"
+        item_base(base$nome_amigavel, base$nome_r, estado, usos(base$id))
+      })
+      tagList(
+        item_base("Base compartilhada", "dados_analise", "Compartilhada", usos("dados_analise")),
+        derivados
+      )
+    })
+
+    secoes_globais <- reactive({
+      list(
+        introducao = input$introducao %||% "",
+        metodos = input$metodos %||% "",
+        discussao = input$discussao %||% "",
+        conclusao = input$conclusao %||% ""
+      )
+    })
+
+    manifesto <- reactive({
+      comunicacao_manifesto(
+        estado_editorial_rv(), registro_execucoes_rv(),
+        estados_dependencia(), secoes_globais()
+      )
+    })
+
     output$esboco <- renderUI({
-      tags$ol(style = "padding-left:18px; color:#6c757d; font-size:0.88rem;",
-        tags$li("Seção 0 — Preparação dos dados (da Trilha)"),
-        tags$li("Introdução / Métodos"),
-        tags$li("Resultados — uma seção por análise da fila"),
-        tags$li("Discussão / Conclusão"))
+      plano <- manifesto()
+      incluidas <- Filter(function(x) isTRUE(x$incluir_word), plano$execucoes)
+      tagList(
+        tags$ol(
+          style = "padding-left:20px; font-size:0.88rem; line-height:1.55;",
+          tags$li(strong("Preparação dos dados"), " — trilha e bases usadas"),
+          tags$li(strong("Introdução")),
+          tags$li(strong("Métodos")),
+          tags$li(
+            strong("Resultados"),
+            if (!length(incluidas))
+              tags$div(class = "text-warning", "Nenhuma execução selecionada para o Word.")
+            else tags$ol(lapply(incluidas, function(item) {
+              tags$li(
+                item$titulo, " ", tags$code(item$base_objeto), br(),
+                tags$small(
+                  class = "text-muted",
+                  paste(unname(comunicacao_rotulos_saidas[item$saidas_word]), collapse = " · ")
+                )
+              )
+            }))
+          ),
+          tags$li(strong("Discussão")),
+          tags$li(strong("Conclusão"))
+        )
+      )
     })
-    observeEvent(input$gerar, {
-      showNotification("Comunicação de Resultados: montagem em construção (casca da Fase 0).",
-                       type = "message", duration = 5)
+
+    output$manifesto_texto <- renderText({
+      plano <- manifesto()
+      linhas <- c(
+        "# Manifesto editorial — Comunicação de Resultados",
+        sprintf("# Projeto R preserva: %d execução(ões)", plano$total_execucoes),
+        sprintf("# Relatório Word inclui: %d execução(ões)", plano$total_word),
+        ""
+      )
+      for (i in seq_along(plano$execucoes)) {
+        item <- plano$execucoes[[i]]
+        linhas <- c(
+          linhas,
+          sprintf("%d. %s [%s]", i, item$titulo, item$base_objeto),
+          sprintf("   Word: %s", if (item$incluir_word) "sim" else "não"),
+          sprintf(
+            "   Conteúdo: %s",
+            if (length(item$saidas_word)) paste(item$saidas_word, collapse = ", ") else "nenhum"
+          ),
+          sprintf("   Dependência: %s", item$estado_dependencia),
+          ""
+        )
+      }
+      paste(linhas, collapse = "\n")
     })
+
+    output$resumo_saida <- renderUI({
+      plano <- manifesto()
+      pendentes <- sum(vapply(
+        plano$execucoes,
+        function(x) !identical(x$estado_dependencia, "Atualizada"), logical(1)
+      ))
+      sem_conteudo <- sum(vapply(
+        plano$execucoes,
+        function(x) isTRUE(x$incluir_word) && !length(x$saidas_word), logical(1)
+      ))
+      tagList(
+        div(class = "alert alert-info py-2 small",
+            strong(plano$total_word), " execução(ões) no Word; ",
+            strong(plano$total_execucoes), " preservada(s) no Projeto R."),
+        if (pendentes > 0L)
+          div(class = "alert alert-warning py-2 small", icon("triangle-exclamation"),
+              " ", pendentes, " execução(ões) precisam ser atualizadas antes da exportação.")
+        else if (plano$total_execucoes > 0L)
+          div(class = "alert alert-success py-2 small", icon("check"),
+              " Todas as dependências estão atualizadas."),
+        if (sem_conteudo > 0L)
+          div(class = "alert alert-warning py-2 small", icon("triangle-exclamation"),
+              " ", sem_conteudo, " seção(ões) do Word ainda não têm conteúdo selecionado."),
+        div(class = "small text-muted mb-2",
+            "A Fase 3D prepara o manifesto. A geração dos arquivos será ativada na Fase 3E.")
+      )
+    })
+
+    invisible(list(
+      estado_editorial = estado_editorial_rv,
+      manifesto = manifesto
+    ))
   })
 }

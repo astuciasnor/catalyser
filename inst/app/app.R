@@ -34,6 +34,7 @@ source("modules/registro_tratamentos.R", encoding = "UTF-8")
 source("modules/registro_bases.R", encoding = "UTF-8")
 source("modules/mod_seletor_base_analise.R", encoding = "UTF-8")
 source("modules/registro_execucoes.R", encoding = "UTF-8")
+source("modules/registro_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_registrar_execucao.R", encoding = "UTF-8")
 source("modules/mod_execucao_explicita.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
@@ -2473,7 +2474,11 @@ RCatalyst::run_ide()</pre>
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
   mod_mapa_pontos_server("mapa_bolhas", dados_analise, import_info, "bolhas")
   mod_series_temporais_server("series", dados_analise, import_info)
-  mod_comunicacao_server("comunicacao", dados_analise, import_info)
+  comunicacao_resultados <- mod_comunicacao_server(
+    "comunicacao", dados_analise, import_info,
+    registro_execucoes_rv, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, projeto_rv = raw_data
+  )
   mod_correlacao_server("correlacao", dados_analise, import_info)
   mod_laboratorio_server("laboratorio")
 

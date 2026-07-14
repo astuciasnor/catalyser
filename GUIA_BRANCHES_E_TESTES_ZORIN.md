@@ -23,18 +23,18 @@ Regras durante o semestre:
 | `feature/fase-3b2-seletor-base-piloto` | `07c2cb8` | tudo da 3B.1 + seletor piloto na Regressão Logística | commit local; teste no Zorin pendente |
 | `feature/fase-3b3-seletores-prioritarios` | `ced3fdb` | tudo da 3B.2 + seletor reutilizável em sete módulos prioritários | commit local; teste no Zorin pendente |
 | `feature/fase-3c-registro-execucoes` | `e84e7b3` | tudo da 3B.3 + registro explícito e independente de execuções | commit local; teste no Zorin pendente |
-| `feature/fase-3c1-execucao-explicita` | `HEAD` da branch | tudo da 3C + botão Executar análise, rascunho pendente e proteção do registro | implementada; teste no Zorin pendente |
+| `feature/fase-3c1-execucao-explicita` | `6115420` | tudo da 3C + botão Executar análise, rascunho pendente e proteção do registro | commit local; teste no Zorin pendente |
+| `feature/fase-3d-comunicacao-resultados` | `HEAD` da branch | tudo da 3C.1 + estúdio conjunto, ordem e seleção editorial do Word | implementada; teste no Zorin pendente |
 
 Nenhuma dessas branches deve alterar a `main` apenas por receber push. Fazer
 push cria ou atualiza a referência remota da própria branch.
 
 ## Fases ainda previstas
 
-Depois da Fase 3C.1, restam duas mudanças moderadas:
+Depois da Fase 3D, resta uma mudança moderada:
 
 | Fase | Entrega principal |
 |---|---|
-| 3D | fazer a Comunicação de Resultados consumir as execuções e escolher o que entra no Word |
 | 3E | integrar bases, receitas, análises e resultados no Projeto R e na exportação final |
 
 Essa divisão pode receber pequenos ajustes depois dos testes, mas não deve ser
@@ -52,9 +52,10 @@ main
                     └── fase 3B.3
                           └── fase 3C
                                 └── fase 3C.1
+                                      └── fase 3D
 ```
 
-Ao fazer push somente da 3C.1, o Git também envia os objetos dos commits
+Ao fazer push somente da 3D, o Git também envia os objetos dos commits
 ancestrais necessários, mas não cria automaticamente referências remotas com os
 nomes das branches anteriores. Para escolher cada fase diretamente no Zorin,
 faça push também da referência da respectiva branch.
@@ -132,10 +133,16 @@ Para testar a Fase 3C.1:
 git switch --track origin/feature/fase-3c1-execucao-explicita
 ```
 
+Para testar a Fase 3D:
+
+```bash
+git switch --track origin/feature/fase-3d-comunicacao-resultados
+```
+
 Se a branch local já existir, use somente:
 
 ```bash
-git switch feature/fase-3c1-execucao-explicita
+git switch feature/fase-3d-comunicacao-resultados
 git pull --ff-only
 ```
 

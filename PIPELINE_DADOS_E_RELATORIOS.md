@@ -28,7 +28,7 @@ produzir uma representação reprodutível em R.
 | Seletor de base nas análises prioritárias | **Implementado (Fases 3B.2 e 3B.3)** |
 | Registro de execuções/resultados | **Implementado (Fase 3C)** |
 | Execução analítica explícita e rascunho pendente | **Implementado (Fase 3C.1)** |
-| Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
+| Seleção fina do conteúdo do relatório | **Implementada (Fase 3D)** |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
 
 ## Arquitetura conceitual
@@ -315,6 +315,24 @@ qual base alimentou cada uma. Para cada execução, o usuário escolhe:
 
 Uma verificação de normalidade pode ser executada e registrada, mas comunicada
 apenas por texto, sem incluir o QQ-plot.
+
+**Implementado na Fase 3D:** o menu Comunicação consome diretamente o registro
+da Fase 3C — não cria uma segunda fila de análises. Cada execução aparece com
+seu ID, título, base e estado de dependência. A mesma coluna lista a base
+compartilhada e todos os ramos derivados, inclusive os ainda não usados. O
+usuário pode:
+
+- ordenar as execuções com **Subir/Descer**;
+- marcar se cada execução entra ou não no Word;
+- escolher somente entre as saídas que aquela execução realmente oferece;
+- escrever Introdução, Métodos gerais, Discussão e Conclusão;
+- conferir o esboço e um manifesto editorial reproduzível.
+
+As escolhas iniciais privilegiam narrativa, tabela e gráfico principal. Itens
+pedagógicos ou técnicos — pressupostos, diagnósticos e console — ficam sob
+decisão explícita. Desmarcar uma execução do Word **não a remove do registro**:
+o contador informa separadamente quantas entrarão no Word e quantas serão
+preservadas no Projeto R. A geração dos arquivos continua desativada até a 3E.
 
 ## Projeto R exportado
 
