@@ -392,10 +392,18 @@ logística, resolve o `data.frame` pelo ID estável e volta com aviso para
 `dados_analise` quando o ramo deixa de estar disponível. O módulo expõe o
 contexto da base para o futuro registro de execuções.
 
-**A fazer (Fase 3B.3+):** após testar o piloto, expandir o contrato de seleção
-para outros módulos e aposentar `dataset_ativo_rv` gradualmente
-(Arrumar/Calcular viram etapas do registro). O divisor "── base ──" e as
-sugestões contextuais entram nessa migração.
+**Feito (Fase 3B.3):** o contrato de seleção foi extraído para um componente
+reutilizável e conectado aos módulos prioritários: Estatística Descritiva,
+Regressão Linear Simples, Teste t, Gráfico de Linhas, Qui-quadrado, PCA e
+Análise de Agrupamentos. Cada seletor oferece `dados_analise` e somente ramos
+prontos/atualizados, sugere a finalidade compatível, resolve pelo ID estável e
+consome o cache sem replay. No Qui-quadrado, a base escolhida vale para a fonte
+**Duas variáveis**; tabela preparada e entrada manual mantêm suas fontes.
+
+**A fazer depois da Fase 3B.3:** registrar execuções (3C), fazê-las alimentar a
+Comunicação de Resultados (3D) e integrar o Projeto R/relatório (3E). A eventual
+aposentadoria de `dataset_ativo_rv` permanece uma migração posterior e gradual,
+fora dessas três entregas.
 
 **Dataset de treino:** `inst/app/dados/Treino-Transformacoes.xlsx` — abas
 `biometria` (bagunçada de propósito: NA, 3 duplicatas, texto inconsistente, escalas

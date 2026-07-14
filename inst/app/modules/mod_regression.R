@@ -159,7 +159,8 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
 
 mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                                   registro_bases_rv = NULL, cache_bases_rv = NULL,
-                                  revisao_origem_rv = NULL) {
+                                  revisao_origem_rv = NULL,
+                                  base_contexto_externo = NULL) {
   moduleServer(id, function(input, output, session) {
 
     registros_bases <- reactive({
@@ -199,6 +200,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     base_contexto <- reactive({
       raiz <- data_rv()
       req(raiz)
+      if (!isTRUE(is_logistic) && is.function(base_contexto_externo))
+        return(base_contexto_externo())
       if (!isTRUE(is_logistic))
         return(list(df = as.data.frame(raiz), base_id = "dados_analise",
                     base_objeto = "dados_analise", nome_amigavel = "Base compartilhada",

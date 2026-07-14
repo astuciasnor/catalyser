@@ -32,6 +32,7 @@ source("modules/mod_calcular.R", encoding = "UTF-8")
 source("modules/mod_agrupar_sumarizar.R", encoding = "UTF-8")
 source("modules/registro_tratamentos.R", encoding = "UTF-8")
 source("modules/registro_bases.R", encoding = "UTF-8")
+source("modules/mod_seletor_base_analise.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
 source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
@@ -618,7 +619,10 @@ ui <- page_navbar(
     nav_panel(
       title = "Estatística Descritiva",
       icon = icon("table-list"),
-      mod_descr_stats_ui("descr_stats")
+      tagList(
+        mod_seletor_base_analise_ui("base_descr_stats"),
+        mod_descr_stats_ui("descr_stats")
+      )
     ),
     nav_panel(
       title = "Tabela de Frequência",
@@ -654,7 +658,10 @@ ui <- page_navbar(
     nav_panel(
       title = "Regressão Linear Simples",
       icon = icon("chart-line"),
-      mod_regression_ui("regression")
+      tagList(
+        mod_seletor_base_analise_ui("base_regression"),
+        mod_regression_ui("regression")
+      )
     ),
     nav_panel(
       title = "Regressão Linear Múltipla",
@@ -724,7 +731,10 @@ ui <- page_navbar(
     nav_panel(
       title = "Teste t de Student",
       icon = icon("arrows-left-right"),
-      mod_parametric_ui("parametric")
+      tagList(
+        mod_seletor_base_analise_ui("base_parametric"),
+        mod_parametric_ui("parametric")
+      )
     ),
     nav_panel(
       title = "ANOVA (Análise de Variância)",
@@ -745,7 +755,14 @@ ui <- page_navbar(
     nav_panel(
       title = "Qui-quadrado (independência)",
       icon = icon("table-cells"),
-      mod_nonparametric_ui("np_qui", "quiquadrado")
+      tagList(
+        mod_seletor_base_analise_ui("base_np_qui"),
+        div(
+          class = "alert alert-light border py-2 small",
+          "A base escolhida vale para a fonte Duas variáveis. Tabela preparada e Entrada manual usam suas próprias fontes."
+        ),
+        mod_nonparametric_ui("np_qui", "quiquadrado")
+      )
     ),
     nav_panel(
       title = "Mann-Whitney (2 grupos)",
@@ -771,12 +788,18 @@ ui <- page_navbar(
     nav_panel(
       title = "PCA (Componentes Principais)",
       icon = icon("diagram-project"),
-      mod_pca_ui("pca")
+      tagList(
+        mod_seletor_base_analise_ui("base_pca"),
+        mod_pca_ui("pca")
+      )
     ),
     nav_panel(
       title = "Análise de Agrupamentos (Clustering)",
       icon = icon("bezier-curve"),
-      mod_hca_ui("hca")
+      tagList(
+        mod_seletor_base_analise_ui("base_hca"),
+        mod_hca_ui("hca")
+      )
     )
   ),
   
@@ -803,7 +826,10 @@ ui <- page_navbar(
     nav_panel(
       title = "Gráfico de Linhas",
       icon = icon("chart-line"),
-      mod_lines_ui("lines")
+      tagList(
+        mod_seletor_base_analise_ui("base_lines"),
+        mod_lines_ui("lines")
+      )
     ),
     nav_panel(
       title = "Gráfico de Barras",
@@ -2359,7 +2385,49 @@ RCatalyst::run_ide()</pre>
   }, ignoreInit = TRUE)
 
   # --- CHAMADA DO MÓDULO DE REGRESSÃO ---
-  mod_regression_server("regression", dados_analise, import_info)
+  # Fase 3B.3: um resolvedor leve por análise. Ele só oferece a base
+  # compartilhada e ramos cujo preparo já foi finalizado e recalculado. Não há
+  # replay aqui: o módulo recebe o data.frame pronto do cache da Fase 3A.1.
+  seletor_descr_stats <- mod_seletor_base_analise_server(
+    "base_descr_stats", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "geral",
+    nome_analise = "A Estatística Descritiva"
+  )
+  seletor_regression <- mod_seletor_base_analise_server(
+    "base_regression", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "geral",
+    nome_analise = "A Regressão Linear"
+  )
+  seletor_parametric <- mod_seletor_base_analise_server(
+    "base_parametric", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "geral",
+    nome_analise = "O Teste t"
+  )
+  seletor_lines <- mod_seletor_base_analise_server(
+    "base_lines", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "graficos",
+    nome_analise = "O Gráfico de Linhas"
+  )
+  seletor_np_qui <- mod_seletor_base_analise_server(
+    "base_np_qui", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "qui_quadrado",
+    nome_analise = "O Qui-quadrado"
+  )
+  seletor_pca <- mod_seletor_base_analise_server(
+    "base_pca", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "multivariada",
+    nome_analise = "A PCA"
+  )
+  seletor_hca <- mod_seletor_base_analise_server(
+    "base_hca", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "multivariada",
+    nome_analise = "A Análise de Agrupamentos"
+  )
+
+  regressao_linear <- mod_regression_server(
+    "regression", seletor_regression$dados, import_info,
+    base_contexto_externo = seletor_regression$contexto
+  )
   
   # --- CHAMADA DOS MÓDULOS DE REGRESSÃO NÃO LINEAR ---
   mod_nonlinear_server("exponencial", dados_analise, import_info, "exponencial")
@@ -2376,13 +2444,13 @@ RCatalyst::run_ide()</pre>
   mod_model_discovery_server("discovery", dados_analise, import_info)
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
-  mod_descr_stats_server("descr_stats", dados_analise, import_info)
+  mod_descr_stats_server("descr_stats", seletor_descr_stats$dados, import_info)
   mod_frequencia_server("frequencia", dados_analise, import_info)
   mod_histogram_server("histogram", dados_analise, import_info)
   mod_boxplot_server("boxplot", dados_analise, import_info)
   mod_pizza_server("pizza", dados_analise, import_info)
   mod_scatter_server("scatter", dados_analise, import_info)
-  mod_lines_server("lines", dados_analise, import_info)
+  mod_lines_server("lines", seletor_lines$dados, import_info)
   mod_bar_server("bar", dados_analise, import_info)
   mod_mapa_server("mapa", dados_analise, import_info)
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
@@ -2393,7 +2461,7 @@ RCatalyst::run_ide()</pre>
   mod_laboratorio_server("laboratorio")
 
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
-  mod_parametric_server("parametric", dados_analise, import_info)
+  mod_parametric_server("parametric", seletor_parametric$dados, import_info)
 
   # --- CHAMADAS DOS NOVOS MÓDULOS ---
   mod_aas_server("aas", dados_analise, import_info)
@@ -2414,8 +2482,8 @@ RCatalyst::run_ide()</pre>
   # Trilha de Preparo (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
   # do dados_analise, automática (sem "Usar nas análises").
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
-  # Fases 3A/3B: cadastro, receita e replay lazy de ramos em estrela. A escolha
-  # da base pelos módulos analíticos entra na próxima integração incremental.
+  # Fases 3A/3B: cadastro, receita e replay lazy de ramos em estrela. Na 3B.3,
+  # os módulos prioritários consomem os caches por meio dos seletores acima.
   bases_derivadas <- mod_bases_derivadas_server(
     "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv
@@ -2424,12 +2492,12 @@ RCatalyst::run_ide()</pre>
   mod_ancova_server("ancova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
-  mod_nonparametric_server("np_qui", dados_analise, import_info, contingency_shared, "quiquadrado")
+  mod_nonparametric_server("np_qui", seletor_np_qui$dados, import_info, contingency_shared, "quiquadrado")
   mod_nonparametric_server("np_mw",  dados_analise, import_info, contingency_shared, "mannwhitney")
   mod_nonparametric_server("np_wil", dados_analise, import_info, contingency_shared, "wilcoxon")
   mod_nonparametric_server("np_kw",  dados_analise, import_info, contingency_shared, "kruskal")
-  mod_pca_server("pca", dados_analise, import_info)
-  mod_hca_server("hca", dados_analise, import_info)
+  mod_pca_server("pca", seletor_pca$dados, import_info)
+  mod_hca_server("hca", seletor_hca$dados, import_info)
   mod_experimental_design_server("experimental_design")
   
   # --- CONTROLE E RASTREAMENTO PARA EXPORTAÇÃO CONSOLIDADA ---

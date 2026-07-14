@@ -25,7 +25,7 @@ produzir uma representação reprodutível em R.
 | Registro e gerenciamento de bases derivadas | **Implementado (Fase 3A)** |
 | Cache lazy, estados e recálculo manual | **Implementado (Fase 3A.1)** |
 | Transformações específicas dentro dos ramos | **Implementado (Fase 3B.1)** |
-| Seletor de base em cada análise | **Piloto na Regressão Logística (Fase 3B.2)** |
+| Seletor de base nas análises prioritárias | **Implementado (Fases 3B.2 e 3B.3)** |
 | Registro de execuções/resultados | Planejado para a Comunicação |
 | Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
@@ -127,8 +127,8 @@ pode ser adicionada depois de recalcular a anterior. Ordenar, ativar/desativar
 ou remover permanece livre e apenas invalida o cache. A materialização continua
 exclusiva do botão **Recalcular esta base**.
 
-Disponibilizar bases prontas nos seletores dos módulos analíticos pertence à
-Fase 3B.2.
+As Fases 3B.2 e 3B.3 disponibilizam bases prontas nos módulos analíticos sem
+recalcular receitas durante a escolha.
 
 Cada base deve possuir:
 
@@ -195,8 +195,20 @@ reaberto, excluído ou ficar desatualizado, a IDE avisa e retorna explicitamente
 para `dados_analise`; uma prévia antiga nunca alimenta o modelo.
 
 O módulo também expõe internamente `base_contexto` — ID estável, nome do objeto
-R e dados resolvidos — para o futuro registro de execuções. A expansão do mesmo
-contrato para outros módulos será feita depois do teste deste piloto.
+R e dados resolvidos — para o futuro registro de execuções.
+
+**Expansão implementada na Fase 3B.3:** o mesmo contrato foi extraído para um
+seletor reutilizável e conectado a Estatística Descritiva, Regressão Linear
+Simples, Teste t, Gráfico de Linhas, Qui-quadrado, PCA e Análise de
+Agrupamentos. A finalidade do ramo apenas muda a ordem das sugestões; não
+restringe a escolha. Cada módulo mantém sua própria seleção e todos recebem o
+`data.frame` já materializado no cache — alternar a base nunca executa replay.
+
+No Qui-quadrado, a seleção vale quando a fonte é **Duas variáveis**. As fontes
+**Tabela preparada** e **Entrada manual** continuam usando seus próprios dados,
+o que fica explícito na interface. Os demais módulos continuam em
+`dados_analise` até uma integração incremental posterior; isso evita uma
+alteração ampla antes dos testes no Zorin.
 
 Ao executar uma análise, a IDE deve registrar, no mínimo:
 
