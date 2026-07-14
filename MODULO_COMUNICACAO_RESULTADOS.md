@@ -4,6 +4,11 @@
 > `CLAUDE.md` já usa este termo para o entregável v1; evita colisão com o
 > "Projeto R" `.zip` exportado). Arquivo do módulo: `inst/app/modules/mod_comunicacao.R`.
 
+> **Estado em julho de 2026:** a Fase 3C implementou o registro explícito por
+> execução nos oito módulos prioritários. O estúdio conjunto, a ordenação e a
+> seleção do conteúdo do Word entram na Fase 3D; a exportação integrada entra
+> na Fase 3E. O consolidado antigo permanece isolado até essa substituição.
+
 ## 1. Objetivo
 
 Reunir, num **único documento `.docx`** (tema Ocean), várias análises feitas na

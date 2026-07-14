@@ -347,6 +347,36 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
         setwd(old_wd)
       }
     )
+
+    estado_execucao <- reactive({
+      req(length(input$vars_selected) > 0)
+      resumo <- descr_data()
+      req(resumo)
+      grupo <- input$var_group %||% "none"
+      titulo <- paste0(
+        "Estatística descritiva: ", paste(input$vars_selected, collapse = ", "),
+        if (!identical(grupo, "none")) paste0(" por ", grupo) else ""
+      )
+      list(
+        analise_id = "descr_stats",
+        tipo = "estatistica_descritiva",
+        titulo = titulo,
+        parametros = list(
+          variaveis = input$vars_selected,
+          grupo = grupo,
+          metricas = list(
+            n = isTRUE(input$show_n), nas = isTRUE(input$show_nas),
+            media = isTRUE(input$show_mean), mediana = isTRUE(input$show_median),
+            desvio_padrao = isTRUE(input$show_sd), variancia = isTRUE(input$show_var),
+            minimo_maximo = isTRUE(input$show_minmax), quartis = isTRUE(input$show_quartiles)
+          )
+        ),
+        saidas_disponiveis = c("tabela"),
+        resultado_resumo = list(linhas_tabela = nrow(resumo), colunas_tabela = ncol(resumo))
+      )
+    })
+
+    invisible(list(estado_execucao = estado_execucao))
   })
 }
 

@@ -33,6 +33,8 @@ source("modules/mod_agrupar_sumarizar.R", encoding = "UTF-8")
 source("modules/registro_tratamentos.R", encoding = "UTF-8")
 source("modules/registro_bases.R", encoding = "UTF-8")
 source("modules/mod_seletor_base_analise.R", encoding = "UTF-8")
+source("modules/registro_execucoes.R", encoding = "UTF-8")
+source("modules/mod_registrar_execucao.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
 source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
@@ -621,6 +623,7 @@ ui <- page_navbar(
       icon = icon("table-list"),
       tagList(
         mod_seletor_base_analise_ui("base_descr_stats"),
+        mod_registrar_execucao_ui("registrar_descr_stats"),
         mod_descr_stats_ui("descr_stats")
       )
     ),
@@ -660,6 +663,7 @@ ui <- page_navbar(
       icon = icon("chart-line"),
       tagList(
         mod_seletor_base_analise_ui("base_regression"),
+        mod_registrar_execucao_ui("registrar_regression"),
         mod_regression_ui("regression")
       )
     ),
@@ -720,7 +724,10 @@ ui <- page_navbar(
     nav_panel(
       title = "Curva Logística",
       icon = icon("chart-line"),
-      mod_regression_ui("logistic_regression", is_logistic = TRUE)
+      tagList(
+        mod_registrar_execucao_ui("registrar_logistic"),
+        mod_regression_ui("logistic_regression", is_logistic = TRUE)
+      )
     )
   ),
   
@@ -733,6 +740,7 @@ ui <- page_navbar(
       icon = icon("arrows-left-right"),
       tagList(
         mod_seletor_base_analise_ui("base_parametric"),
+        mod_registrar_execucao_ui("registrar_parametric"),
         mod_parametric_ui("parametric")
       )
     ),
@@ -757,6 +765,7 @@ ui <- page_navbar(
       icon = icon("table-cells"),
       tagList(
         mod_seletor_base_analise_ui("base_np_qui"),
+        mod_registrar_execucao_ui("registrar_np_qui"),
         div(
           class = "alert alert-light border py-2 small",
           "A base escolhida vale para a fonte Duas variáveis. Tabela preparada e Entrada manual usam suas próprias fontes."
@@ -790,6 +799,7 @@ ui <- page_navbar(
       icon = icon("diagram-project"),
       tagList(
         mod_seletor_base_analise_ui("base_pca"),
+        mod_registrar_execucao_ui("registrar_pca"),
         mod_pca_ui("pca")
       )
     ),
@@ -798,6 +808,7 @@ ui <- page_navbar(
       icon = icon("bezier-curve"),
       tagList(
         mod_seletor_base_analise_ui("base_hca"),
+        mod_registrar_execucao_ui("registrar_hca"),
         mod_hca_ui("hca")
       )
     )
@@ -828,6 +839,7 @@ ui <- page_navbar(
       icon = icon("chart-line"),
       tagList(
         mod_seletor_base_analise_ui("base_lines"),
+        mod_registrar_execucao_ui("registrar_lines"),
         mod_lines_ui("lines")
       )
     ),
@@ -2340,6 +2352,8 @@ RCatalyst::run_ide()</pre>
   registro_bases_rv <- reactiveVal(bases_vazio()) # Fase 3A: ramos diretos de dados_analise
   cache_bases_rv <- reactiveVal(bases_cache_vazio()) # Fase 3A.1: resultados somente em memória
   revisao_dados_analise_rv <- reactiveVal(1L)
+  registro_execucoes_rv <- reactiveVal(execucoes_vazio()) # Fase 3C: cliques explícitos
+  contador_execucoes_rv <- reactiveVal(0L) # IDs monotônicos durante a sessão/dataset
 
   # Base sobre a qual a trilha atua (importados ou resultado promovido).
   base_resolvida <- reactive({
@@ -2381,6 +2395,8 @@ RCatalyst::run_ide()</pre>
     base_externa_rv(NULL)
     registro_bases_rv(bases_vazio())
     cache_bases_rv(bases_cache_vazio())
+    registro_execucoes_rv(execucoes_vazio())
+    contador_execucoes_rv(0L)
     revisao_dados_analise_rv(1L)
   }, ignoreInit = TRUE)
 
@@ -2444,13 +2460,13 @@ RCatalyst::run_ide()</pre>
   mod_model_discovery_server("discovery", dados_analise, import_info)
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
-  mod_descr_stats_server("descr_stats", seletor_descr_stats$dados, import_info)
+  descritiva <- mod_descr_stats_server("descr_stats", seletor_descr_stats$dados, import_info)
   mod_frequencia_server("frequencia", dados_analise, import_info)
   mod_histogram_server("histogram", dados_analise, import_info)
   mod_boxplot_server("boxplot", dados_analise, import_info)
   mod_pizza_server("pizza", dados_analise, import_info)
   mod_scatter_server("scatter", dados_analise, import_info)
-  mod_lines_server("lines", seletor_lines$dados, import_info)
+  grafico_linhas <- mod_lines_server("lines", seletor_lines$dados, import_info)
   mod_bar_server("bar", dados_analise, import_info)
   mod_mapa_server("mapa", dados_analise, import_info)
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
@@ -2461,7 +2477,7 @@ RCatalyst::run_ide()</pre>
   mod_laboratorio_server("laboratorio")
 
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
-  mod_parametric_server("parametric", seletor_parametric$dados, import_info)
+  teste_t <- mod_parametric_server("parametric", seletor_parametric$dados, import_info)
 
   # --- CHAMADAS DOS NOVOS MÓDULOS ---
   mod_aas_server("aas", dados_analise, import_info)
@@ -2492,12 +2508,55 @@ RCatalyst::run_ide()</pre>
   mod_ancova_server("ancova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
-  mod_nonparametric_server("np_qui", seletor_np_qui$dados, import_info, contingency_shared, "quiquadrado")
+  qui_quadrado <- mod_nonparametric_server("np_qui", seletor_np_qui$dados, import_info, contingency_shared, "quiquadrado")
   mod_nonparametric_server("np_mw",  dados_analise, import_info, contingency_shared, "mannwhitney")
   mod_nonparametric_server("np_wil", dados_analise, import_info, contingency_shared, "wilcoxon")
   mod_nonparametric_server("np_kw",  dados_analise, import_info, contingency_shared, "kruskal")
-  mod_pca_server("pca", seletor_pca$dados, import_info)
-  mod_hca_server("hca", seletor_hca$dados, import_info)
+  pca_resultado <- mod_pca_server("pca", seletor_pca$dados, import_info)
+  hca_resultado <- mod_hca_server("hca", seletor_hca$dados, import_info)
+
+  # Fase 3C: o registro só acontece por clique. Cada módulo fornece um estado
+  # leve; o registrador acrescenta o vínculo com a base e congela os parâmetros.
+  registro_descr_stats <- mod_registrar_execucao_server(
+    "registrar_descr_stats", descritiva$estado_execucao, seletor_descr_stats$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "descr_stats", "A Estatística Descritiva"
+  )
+  registro_regression <- mod_registrar_execucao_server(
+    "registrar_regression", regressao_linear$estado_execucao, seletor_regression$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "regression", "A Regressão Linear"
+  )
+  registro_logistic <- mod_registrar_execucao_server(
+    "registrar_logistic", regressao_logistica$estado_execucao, regressao_logistica$base_contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "logistic_regression", "A Regressão Logística"
+  )
+  registro_parametric <- mod_registrar_execucao_server(
+    "registrar_parametric", teste_t$estado_execucao, seletor_parametric$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "parametric", "O Teste t"
+  )
+  registro_lines <- mod_registrar_execucao_server(
+    "registrar_lines", grafico_linhas$estado_execucao, seletor_lines$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "lines", "O Gráfico de Linhas"
+  )
+  registro_np_qui <- mod_registrar_execucao_server(
+    "registrar_np_qui", qui_quadrado$estado_execucao, seletor_np_qui$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "np_qui_quadrado", "O Qui-quadrado"
+  )
+  registro_pca <- mod_registrar_execucao_server(
+    "registrar_pca", pca_resultado$estado_execucao, seletor_pca$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "pca", "A PCA"
+  )
+  registro_hca <- mod_registrar_execucao_server(
+    "registrar_hca", hca_resultado$estado_execucao, seletor_hca$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "hca", "A Análise de Agrupamentos"
+  )
   mod_experimental_design_server("experimental_design")
   
   # --- CONTROLE E RASTREAMENTO PARA EXPORTAÇÃO CONSOLIDADA ---

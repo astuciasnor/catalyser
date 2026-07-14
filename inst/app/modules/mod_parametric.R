@@ -942,5 +942,52 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         setwd(old_wd)
       }
     )
+
+    estado_execucao <- reactive({
+      res <- test_results()
+      req(res)
+      t_out <- res$t_out
+      parametros_teste <- switch(
+        res$type,
+        one_val = list(variavel = input$one_var_y, media_hipotetica = input$one_mu),
+        two_ind = list(resposta = input$two_var_y, grupo = input$two_var_x,
+                       variancias_iguais = isTRUE(input$two_var_equal)),
+        paired = list(variavel_1 = input$pair_var_y1, variavel_2 = input$pair_var_y2)
+      )
+      titulo <- switch(
+        res$type,
+        one_val = paste("Teste t de uma amostra:", input$one_var_y),
+        two_ind = paste("Teste t independente:", input$two_var_y, "por", input$two_var_x),
+        paired = paste("Teste t pareado:", input$pair_var_y1, "e", input$pair_var_y2)
+      )
+      list(
+        analise_id = "parametric",
+        tipo = paste0("teste_t_", res$type),
+        titulo = titulo,
+        parametros = c(
+          list(
+            tipo_teste = res$type,
+            alternativa = input$alternative,
+            nivel_confianca = input$conf_level / 100
+          ),
+          parametros_teste
+        ),
+        saidas_disponiveis = c(
+          "narrativa", "tabela", "grafico", "pressupostos", "diagnosticos", "console"
+        ),
+        resultado_resumo = list(
+          estatistica = unname(as.numeric(t_out$statistic)),
+          graus_liberdade = unname(as.numeric(t_out$parameter)),
+          p_valor = t_out$p.value,
+          intervalo_confianca = unname(t_out$conf.int)
+        ),
+        codigo_r = paste(r_code_text(), collapse = "\n")
+      )
+    })
+
+    invisible(list(
+      resultado = test_results,
+      estado_execucao = estado_execucao
+    ))
   })
 }

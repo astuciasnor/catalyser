@@ -803,7 +803,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         code <- c(code,
           "# Ajustar modelo de Regressão Logística Binária (GLM Binomial)",
           "dados_mat <- dados",
-          sprintf("if (!is.numeric(dados_mat$`%s`) || !all(na.omit(dados_mat$`%s`) %in% c(0, 1))) {", input$var_y, input$var_y),
+          sprintf("if (!is.numeric(dados_mat$`%s`) || !all(na.omit(dados_mat$`%s`) %%in%% c(0, 1))) {",
+                  input$var_y, input$var_y),
           sprintf("  dados_mat$y_bin <- as.integer(as.factor(dados_mat$`%s`)) - 1L", input$var_y),
           "} else {",
           sprintf("  dados_mat$y_bin <- dados_mat$`%s`", input$var_y),
@@ -1487,10 +1488,51 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       }
     )
 
+    estado_execucao <- reactive({
+      fit <- model_fit()
+      req(fit, input$var_x, input$var_y)
+      tipo <- if (inherits(fit, "glm")) "regressao_logistica" else
+        if (is_curve(fit)) paste0("regressao_", fit$tipo) else "regressao_linear"
+      analise_id <- if (isTRUE(is_logistic)) "logistic_regression" else "regression"
+      titulo <- if (inherits(fit, "glm"))
+        paste("Regressão logística:", input$var_y, "por", input$var_x) else
+        paste("Regressão linear:", input$var_y, "por", input$var_x)
+      resumo <- if (is_curve(fit)) {
+        list(n = fit$n, pseudo_r2 = fit$pseudo_r2, aic = fit$aic)
+      } else if (inherits(fit, "glm")) {
+        list(n = stats::nobs(fit), aic = stats::AIC(fit),
+             desvio_residual = stats::deviance(fit))
+      } else {
+        sm <- summary(fit)
+        list(n = stats::nobs(fit), r2 = sm$r.squared,
+             r2_ajustado = sm$adj.r.squared, aic = stats::AIC(fit))
+      }
+      list(
+        analise_id = analise_id,
+        tipo = tipo,
+        titulo = titulo,
+        parametros = list(
+          resposta = input$var_y,
+          preditor = input$var_x,
+          grupo = input$var_group %||% "none",
+          tipo_modelo = input$model_type %||% if (isTRUE(is_logistic)) "logistico" else "linear",
+          regressao_por_grupo = isTRUE(input$grp_reg),
+          mostrar_equacao = isTRUE(input$show_eq),
+          tema = input$graph_theme
+        ),
+        saidas_disponiveis = c(
+          "narrativa", "tabela", "grafico", "pressupostos", "diagnosticos", "console"
+        ),
+        resultado_resumo = resumo,
+        codigo_r = paste(r_code_text(), collapse = "\n")
+      )
+    })
+
     invisible(list(
       modelo = model_fit,
       base_contexto = base_contexto,
-      dados = dados_modulo
+      dados = dados_modulo,
+      estado_execucao = estado_execucao
     ))
   })
 }

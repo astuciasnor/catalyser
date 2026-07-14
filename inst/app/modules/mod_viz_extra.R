@@ -339,6 +339,34 @@ mod_lines_server <- function(id, data_rv, import_info) {
         viz_write_project(file, "linhas", data_rv, import_info, code)
       }
     )
+
+    estado_execucao <- reactive({
+      grafico <- make_plot()
+      req(grafico, input$var_x, input$var_y)
+      grupo <- input$var_group %||% "none"
+      titulo <- if (nzchar(input$custom_title %||% "")) input$custom_title else
+        paste(input$var_y, "ao longo de", input$var_x)
+      list(
+        analise_id = "lines",
+        tipo = "grafico_linhas",
+        titulo = titulo,
+        parametros = list(
+          x = input$var_x,
+          y = input$var_y,
+          grupo = grupo,
+          mostrar_pontos = isTRUE(input$show_points),
+          espessura_linha = input$line_w,
+          tema = input$graph_theme,
+          posicao_legenda = input$legend_pos,
+          rotulo_x = input$custom_label_x,
+          rotulo_y = input$custom_label_y
+        ),
+        saidas_disponiveis = c("grafico"),
+        resultado_resumo = list(x = input$var_x, y = input$var_y, grupo = grupo)
+      )
+    })
+
+    invisible(list(estado_execucao = estado_execucao))
   })
 }
 

@@ -583,5 +583,55 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
         setwd(old_wd)
       }
     )
+
+    estado_execucao <- reactive({
+      res <- test_results()
+      req(res)
+      pp <- export_params()
+      fonte <- if (identical(fixed_test, "quiquadrado")) input$chi_source %||% "vars" else "base"
+      titulo <- switch(
+        fixed_test,
+        quiquadrado = paste("Qui-quadrado:", pp$var_row, "por", pp$var_col),
+        mannwhitney = paste("Mann-Whitney:", pp$var_y, "por", pp$var_x),
+        wilcoxon = paste("Wilcoxon pareado:", pp$var1, "e", pp$var2),
+        kruskal = paste("Kruskal-Wallis:", pp$var_y, "por", pp$var_x)
+      )
+      parametros <- c(pp, list(fonte = fonte))
+      if (identical(fixed_test, "quiquadrado")) parametros$tabela <- res$tab
+      override <- NULL
+      if (identical(fonte, "prepared")) {
+        override <- list(
+          base_id = "tabela_preparada", base_objeto = "tabela_contingencia",
+          nome_amigavel = "Tabela de contingência preparada",
+          base_tipo = "tabela_preparada", derivada = FALSE
+        )
+      } else if (identical(fonte, "manual")) {
+        override <- list(
+          base_id = "entrada_manual", base_objeto = "tabela_manual",
+          nome_amigavel = "Entrada manual",
+          base_tipo = "entrada_manual", derivada = FALSE
+        )
+      }
+      list(
+        analise_id = paste0("np_", nome_teste()),
+        tipo = nome_teste(),
+        titulo = titulo,
+        parametros = parametros,
+        saidas_disponiveis = c("narrativa", "tabela", "grafico", "diagnosticos", "console"),
+        resultado_resumo = list(
+          estatistica = unname(as.numeric(res$r$statistic)),
+          graus_liberdade = unname(as.numeric(res$r$df)),
+          p_valor = res$r$p,
+          dimensoes_tabela = if (!is.null(res$tab)) dim(res$tab) else NULL
+        ),
+        codigo_r = paste(r_code_np(), collapse = "\n"),
+        base_contexto_override = override
+      )
+    })
+
+    invisible(list(
+      resultado = test_results,
+      estado_execucao = estado_execucao
+    ))
   })
 }

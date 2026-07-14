@@ -21,18 +21,18 @@ Regras durante o semestre:
 | `feature/fase-3a-registro-bases` | `d9aa689` | cadastro de ramos em estrela, cache lazy, estados e recálculo manual | commit local; teste no Zorin pendente |
 | `feature/fase-3b-transformacoes-ramos` | `99a4b1a` | tudo da 3A + editor das receitas específicas | commit local; teste no Zorin pendente |
 | `feature/fase-3b2-seletor-base-piloto` | `07c2cb8` | tudo da 3B.1 + seletor piloto na Regressão Logística | commit local; teste no Zorin pendente |
-| `feature/fase-3b3-seletores-prioritarios` | `HEAD` da branch | tudo da 3B.2 + seletor reutilizável em sete módulos prioritários | implementada; teste no Zorin pendente |
+| `feature/fase-3b3-seletores-prioritarios` | `ced3fdb` | tudo da 3B.2 + seletor reutilizável em sete módulos prioritários | commit local; teste no Zorin pendente |
+| `feature/fase-3c-registro-execucoes` | `HEAD` da branch | tudo da 3B.3 + registro explícito e independente de execuções | implementada; teste no Zorin pendente |
 
 Nenhuma dessas branches deve alterar a `main` apenas por receber push. Fazer
 push cria ou atualiza a referência remota da própria branch.
 
 ## Fases ainda previstas
 
-Depois da Fase 3B.3, restam três mudanças moderadas:
+Depois da Fase 3C, restam duas mudanças moderadas:
 
 | Fase | Entrega principal |
 |---|---|
-| 3C | registrar execuções independentes com base, parâmetros e saídas disponíveis |
 | 3D | fazer a Comunicação de Resultados consumir as execuções e escolher o que entra no Word |
 | 3E | integrar bases, receitas, análises e resultados no Projeto R e na exportação final |
 
@@ -49,9 +49,10 @@ main
         └── fase 3B.1
               └── fase 3B.2
                     └── fase 3B.3
+                          └── fase 3C
 ```
 
-Ao fazer push somente da 3B.3, o Git também envia os objetos dos commits
+Ao fazer push somente da 3C, o Git também envia os objetos dos commits
 ancestrais necessários, mas não cria automaticamente referências remotas com os
 nomes das branches anteriores. Para escolher cada fase diretamente no Zorin,
 faça push também da referência da respectiva branch.
@@ -117,10 +118,16 @@ Para testar a Fase 3B.3:
 git switch --track origin/feature/fase-3b3-seletores-prioritarios
 ```
 
+Para testar a Fase 3C:
+
+```bash
+git switch --track origin/feature/fase-3c-registro-execucoes
+```
+
 Se a branch local já existir, use somente:
 
 ```bash
-git switch feature/fase-3b3-seletores-prioritarios
+git switch feature/fase-3c-registro-execucoes
 git pull --ff-only
 ```
 

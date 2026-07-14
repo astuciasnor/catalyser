@@ -376,5 +376,36 @@ mod_hca_server <- function(id, data_rv, import_info) {
         setwd(old_wd)
       }
     )
+
+    estado_execucao <- reactive({
+      r <- result_rv()
+      req(r)
+      list(
+        analise_id = "hca",
+        tipo = "hca",
+        titulo = paste("Análise de agrupamentos:", paste(input$vars_selected, collapse = ", ")),
+        parametros = list(
+          variaveis = input$vars_selected,
+          distancia = input$distance_method,
+          ligacao = input$linkage_method,
+          numero_grupos = input$k_groups,
+          padronizar = isTRUE(input$scale),
+          variavel_rotulo = input$label_var,
+          mostrar_rotulos = isTRUE(input$show_labels)
+        ),
+        saidas_disponiveis = c("narrativa", "tabela", "grafico", "diagnosticos"),
+        resultado_resumo = list(
+          n = r$N,
+          n_total = r$N_total,
+          numero_grupos = r$k_groups,
+          tamanhos_grupos = as.list(table(r$clusters))
+        )
+      )
+    })
+
+    invisible(list(
+      resultado = result_rv,
+      estado_execucao = estado_execucao
+    ))
   })
 }

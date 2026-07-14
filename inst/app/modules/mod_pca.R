@@ -380,5 +380,33 @@ mod_pca_server <- function(id, data_rv, import_info) {
         setwd(old_wd)
       }
     )
+
+    estado_execucao <- reactive({
+      r <- result_rv()
+      req(r)
+      list(
+        analise_id = "pca",
+        tipo = "pca",
+        titulo = paste("PCA:", paste(input$vars_selected, collapse = ", ")),
+        parametros = list(
+          variaveis = input$vars_selected,
+          padronizar = isTRUE(input$scale),
+          mostrar_rotulos = isTRUE(input$show_labels),
+          tema = input$graph_theme
+        ),
+        saidas_disponiveis = c("narrativa", "tabela", "grafico", "diagnosticos"),
+        resultado_resumo = list(
+          n = r$N,
+          variancia_pc1 = r$var_df$Variancia_Pct[1],
+          variancia_pc2 = if (nrow(r$var_df) >= 2L) r$var_df$Variancia_Pct[2] else NA_real_,
+          variancia_acumulada_pc2 = if (nrow(r$var_df) >= 2L) r$var_df$Acumulada_Pct[2] else NA_real_
+        )
+      )
+    })
+
+    invisible(list(
+      resultado = result_rv,
+      estado_execucao = estado_execucao
+    ))
   })
 }

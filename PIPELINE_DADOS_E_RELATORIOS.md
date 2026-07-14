@@ -26,7 +26,7 @@ produzir uma representação reprodutível em R.
 | Cache lazy, estados e recálculo manual | **Implementado (Fase 3A.1)** |
 | Transformações específicas dentro dos ramos | **Implementado (Fase 3B.1)** |
 | Seletor de base nas análises prioritárias | **Implementado (Fases 3B.2 e 3B.3)** |
-| Registro de execuções/resultados | Planejado para a Comunicação |
+| Registro de execuções/resultados | **Implementado (Fase 3C)** |
 | Seleção fina do conteúdo do relatório | Casca existente; integração planejada |
 | Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
 
@@ -229,6 +229,26 @@ list(
 
 Uma base pode alimentar várias análises. Cada execução deve ter um ID próprio.
 
+**Implementado na Fase 3C:** o contrato acima virou um registro central em
+memória e um componente reutilizável de confirmação. Ele cobre Estatística
+Descritiva, Regressão Linear, Regressão Logística, Teste t, Gráfico de Linhas,
+Qui-quadrado, PCA e Análise de Agrupamentos. Cada módulo expõe um estado leve
+com parâmetros, saídas disponíveis, resumo pequeno do resultado e, quando já
+existia no módulo, código R. O registrador acrescenta o ID da base, nome do
+objeto R, revisão da origem e versão da receita.
+
+O clique não duplica o `data.frame`, o modelo nem o gráfico no registro. Essa
+decisão mantém a sessão leve: a execução será reconstruída a partir da base e
+dos parâmetros durante a comunicação/exportação. Se a Trilha ou a receita do
+ramo mudar, o item permanece preservado, mas recebe o estado **Precisa
+atualizar**. Uma entrada manual do Qui-quadrado não depende da revisão de
+`dados_analise`.
+
+As ações implementadas são **Adicionar aos resultados**, **Atualizar
+resultado**, **Salvar como novo** e **Remover dos resultados**. O registro é
+limpo quando outro conjunto de dados bruto é carregado, evitando misturar
+execuções de projetos diferentes.
+
 ## Prévia e resultado registrado
 
 Mudar variável ou parâmetro altera somente a prévia reativa. Para evitar que
@@ -250,6 +270,11 @@ resultados**.
 
 Trocar o eixo Y não sobrescreve gráfico já registrado. Cada clique em
 **Adicionar aos resultados** cria uma execução independente.
+
+Na Fase 3C, a lista e os controles aparecem dentro do próprio módulo analítico.
+A visão conjunta, a ordenação e a escolha do conteúdo do Word pertencem à Fase
+3D. O exportador consolidado antigo ainda usa seu rastreamento legado por visita
+à aba e só será substituído pelo novo registro na Fase 3E.
 
 ## Comunicação de Resultados
 
