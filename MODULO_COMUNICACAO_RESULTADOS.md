@@ -5,10 +5,10 @@
 > "Projeto R" `.zip` exportado). Arquivo do módulo: `inst/app/modules/mod_comunicacao.R`.
 
 > **Estado em julho de 2026:** as Fases 3C/3C.1 implementaram o registro e a
-> execução analítica explícita. A Fase 3D conectou esse registro ao estúdio
-> conjunto, com ordenação, seleção do conteúdo do Word, seções globais, esboço e
-> manifesto editorial. A exportação integrada entra na Fase 3E. O consolidado
-> antigo permanece isolado até essa substituição.
+> execução analítica explícita; a Fase 3D conectou o registro ao estúdio; e a
+> **Fase 3E implementou a exportação integrada do Word e do Projeto R**. O
+> consolidado antigo permanece internamente durante a migração, mas deixou de
+> ser oferecido na interface.
 
 ## 1. Objetivo
 
@@ -56,8 +56,10 @@ Ele é preenchido somente pelo clique **Adicionar aos resultados**, aceita
 repetições e guarda um objeto leve por execução. O estúdio não copia esse
 registro: sincroniza sua ordem editorial pelos IDs existentes.
 
-O mapeamento dos geradores de `.qmd` por `analise_id`, necessário para eliminar
-as duplicações do consolidado antigo, será fechado na Fase 3E.
+O replay da Fase 3E é centralizado em
+`templates/funcoes_projeto_integrado.R` e despachado pelo campo `tipo`. Ele cobre
+os oito módulos prioritários e mantém uma camada de cálculo separada da camada
+de apresentação do Word.
 
 ### 4.2 Contrato de cada análise
 
@@ -93,8 +95,8 @@ preservam escolhas ainda válidas.
   compartilhada e de todos os ramos derivados.
 - **Coluna 2 — Esboço e manifesto**: estrutura do futuro documento e registro
   textual das decisões editoriais.
-- **Coluna 3 — Seções globais e saída planejada**: Introdução, Métodos,
-  Discussão, Conclusão, contadores Word/Projeto R e botão da 3E desabilitado.
+- **Coluna 3 — Seções globais e saída**: Introdução, Métodos, Discussão,
+  Conclusão, contadores Word/Projeto R e downloads independentes `.docx`/`.zip`.
 
 O registro é feito dentro de cada análise. A Comunicação apenas organiza e
 seleciona; remover uma execução continua sendo uma ação do módulo analítico.
@@ -162,16 +164,14 @@ as seções encadeadas. Sub-análises = subcomentário `#   N.M —`.
 
 ## 8. Render docx (generalizar `render_relatorio_docx`)
 
-Novo `render_relatorio_integrado(file, qmd_lines, df_clean, extras)`:
-1. Detectar Quarto: `quarto --version` via `system2(..., stdout=TRUE)`; se ausente,
-   **degradar** — entregar o `.qmd` + `custom-reference.docx` num `.zip` com
-   instruções, em vez de falhar.
-2. Montar tempdir: `dados_limpos.rda` (snapshot do **dataset ativo**, `dados_analise`),
-   `custom-reference.docx`, funções necessárias (união das análises da fila),
-   figuras estáticas se houver.
-3. `withProgress()` durante o render (pode demorar com muitas seções).
-4. `setwd(tempdir)` + `system2("quarto", c("render", "relatorio.qmd", "--to", "docx"))`;
-   copiar o `.docx` gerado para `file`. Tratar caminho do Quarto no Windows.
+Implementado em `modules/exportacao_comunicacao.R`:
+
+1. valida o manifesto e bloqueia execuções desatualizadas;
+2. monta um diretório temporário autocontido com dados, scripts, metadados,
+   `relatorio.qmd` e `custom-reference.docx`;
+3. disponibiliza o `.zip` mesmo sem Quarto;
+4. quando o Quarto está presente, renderiza o `.docx` e só entrega o arquivo se
+   o processo terminar com sucesso.
 
 ## 9. Relação com o que já existe
 
@@ -226,5 +226,5 @@ modelos. O estúdio sincroniza novas execuções, remove referências excluídas
 preserva escolhas existentes, permite ordenar e produz um manifesto editorial.
 
 O Word recebe somente os itens e componentes selecionados. O Projeto R mantém
-todas as execuções registradas. A geração `.docx`/`.zip`, o namespacing de labels
-e a substituição do consolidado antigo pertencem à Fase 3E.
+todas as execuções registradas. A Fase 3E gera labels a partir do ID de cada
+execução, evitando colisões, e oculta o exportador antigo por visita à aba.

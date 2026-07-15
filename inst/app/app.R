@@ -35,6 +35,7 @@ source("modules/registro_bases.R", encoding = "UTF-8")
 source("modules/mod_seletor_base_analise.R", encoding = "UTF-8")
 source("modules/registro_execucoes.R", encoding = "UTF-8")
 source("modules/registro_comunicacao.R", encoding = "UTF-8")
+source("modules/exportacao_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_registrar_execucao.R", encoding = "UTF-8")
 source("modules/mod_execucao_explicita.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
@@ -2477,7 +2478,11 @@ RCatalyst::run_ide()</pre>
   comunicacao_resultados <- mod_comunicacao_server(
     "comunicacao", dados_analise, import_info,
     registro_execucoes_rv, registro_bases_rv, cache_bases_rv,
-    revisao_dados_analise_rv, projeto_rv = raw_data
+    revisao_dados_analise_rv, projeto_rv = raw_data,
+    dados_brutos_rv = raw_data,
+    base_resolvida_rv = base_resolvida,
+    pipeline_rv = pipeline_rv,
+    base_externa_rv = base_externa_rv
   )
   mod_correlacao_server("correlacao", dados_analise, import_info)
   mod_laboratorio_server("laboratorio")
@@ -4300,6 +4305,32 @@ RCatalyst::run_ide()</pre>
       setwd(old_wd)
     }
   )
+
+  # Fase 3E: o exportador consolidado antigo inferia uso apenas pela visita a
+  # uma aba. Ele permanece no código durante a migração incremental, mas deixa
+  # de ser oferecido. A fonte de verdade agora é o registro explícito exibido
+  # em Comunicação de Resultados.
+  output$export_project_options_ui <- renderUI({
+    tagList(
+      div(
+        class = "alert alert-info py-2 small",
+        icon("route"),
+        " A exportação integrada agora é organizada em Comunicação de Resultados."
+      ),
+      actionButton(
+        "ir_comunicacao_resultados", "Abrir Comunicação de Resultados",
+        icon = icon("file-export"), class = "btn-primary w-100"
+      ),
+      helpText(
+        "Somente execuções adicionadas explicitamente aos resultados entram no novo projeto.",
+        style = "font-size:0.78rem; margin-top:8px;"
+      )
+    )
+  })
+
+  observeEvent(input$ir_comunicacao_resultados, {
+    bslib::nav_select("main_navbar", selected = "Projeto de Comunicação", session = session)
+  })
 }
 
 # Inicializa o app

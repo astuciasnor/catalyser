@@ -1,7 +1,7 @@
-# Comunicação de Resultados — estúdio editorial da Fase 3D
+# Comunicação de Resultados — estúdio editorial e exportador integrado
 # ---------------------------------------------------------------------------
-# Consome as execuções registradas na Fase 3C. A exportação do Word e do
-# Projeto R será conectada a este manifesto na Fase 3E.
+# Consome as execuções registradas na Fase 3C. Na Fase 3E, o Word obedece ao
+# manifesto editorial e o Projeto R preserva todas as execuções registradas.
 
 library(shiny)
 library(bslib)
@@ -89,10 +89,7 @@ mod_comunicacao_ui <- function(id) {
               choices = c("Word (.docx) — tema Ocean" = "docx"),
               selected = "docx"
             ),
-            tags$button(
-              type = "button", class = "btn btn-primary w-100", disabled = "disabled",
-              icon("file-export"), " Gerar relatório e Projeto R — Fase 3E"
-            )
+            uiOutput(ns("acoes_exportacao"))
           )
         )
       )
@@ -103,7 +100,11 @@ mod_comunicacao_ui <- function(id) {
 mod_comunicacao_server <- function(id, dados_analise, import_info,
                                    registro_execucoes_rv,
                                    registro_bases_rv, cache_bases_rv,
-                                   revisao_origem_rv, projeto_rv = NULL) {
+                                   revisao_origem_rv, projeto_rv = NULL,
+                                   dados_brutos_rv = NULL,
+                                   base_resolvida_rv = NULL,
+                                   pipeline_rv = NULL,
+                                   base_externa_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     estado_editorial_rv <- reactiveVal(comunicacao_estado_vazio())
     observadores_instalados_rv <- reactiveVal(character())
@@ -344,6 +345,39 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       )
     })
 
+    valor_reativo <- function(x, padrao = NULL) {
+      if (is.function(x)) x() else if (is.null(x)) padrao else x
+    }
+
+    nome_projeto <- reactive({
+      info <- import_info() %||% list()
+      nome <- if (identical(info$source, "package")) {
+        info$package_dataset
+      } else {
+        tools::file_path_sans_ext(basename(info$file_name %||% "analise"))
+      }
+      exportacao_nome_seguro(nome, "analise")
+    })
+
+    argumentos_exportacao <- reactive({
+      compartilhada <- as.data.frame(dados_analise())
+      list(
+        nome_projeto = nome_projeto(),
+        dados_brutos = as.data.frame(valor_reativo(dados_brutos_rv, compartilhada)),
+        base_resolvida = as.data.frame(valor_reativo(base_resolvida_rv, compartilhada)),
+        dados_analise = compartilhada,
+        pipeline = valor_reativo(pipeline_rv, list()) %||% list(),
+        base_externa = valor_reativo(base_externa_rv, NULL),
+        registro_bases = registro_bases_rv() %||% list(),
+        cache_bases = cache_bases_rv() %||% list(),
+        registro_execucoes = registro_execucoes_rv() %||% list(),
+        manifesto = manifesto(),
+        revisao_origem = revisao_origem_rv(),
+        import_info = import_info() %||% list(),
+        templates_dir = "templates"
+      )
+    })
+
     output$esboco <- renderUI({
       plano <- manifesto()
       incluidas <- Filter(function(x) isTRUE(x$incluir_word), plano$execucoes)
@@ -422,9 +456,65 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
           div(class = "alert alert-warning py-2 small", icon("triangle-exclamation"),
               " ", sem_conteudo, " seção(ões) do Word ainda não têm conteúdo selecionado."),
         div(class = "small text-muted mb-2",
-            "A Fase 3D prepara o manifesto. A geração dos arquivos será ativada na Fase 3E.")
+            "O Word segue a seleção editorial; o Projeto R preserva todas as execuções registradas.")
       )
     })
+
+    output$acoes_exportacao <- renderUI({
+      plano <- manifesto()
+      valida_projeto <- exportacao_validar_manifesto(plano, exigir_word = FALSE)
+      valida_word <- exportacao_validar_manifesto(plano, exigir_word = TRUE)
+      quarto_ok <- nzchar(unname(Sys.which("quarto")))
+
+      if (!valida_projeto$ok) {
+        return(div(
+          class = "alert alert-light border small mb-0",
+          icon("circle-info"), " ", paste(valida_projeto$mensagens, collapse = " ")
+        ))
+      }
+
+      tagList(
+        if (valida_word$ok && quarto_ok) {
+          downloadButton(
+            session$ns("baixar_word"), "Baixar Relatório Word (.docx)",
+            class = "btn-success w-100 mb-2"
+          )
+        } else {
+          tags$button(
+            type = "button", class = "btn btn-outline-secondary w-100 mb-2",
+            disabled = "disabled", icon("file-word"),
+            " Word indisponível"
+          )
+        },
+        downloadButton(
+          session$ns("baixar_projeto"), "Baixar Projeto R (.zip)",
+          class = "btn-primary w-100"
+        ),
+        if (!valida_word$ok)
+          div(class = "small text-warning mt-2", paste(valida_word$mensagens, collapse = " ")),
+        if (valida_word$ok && !quarto_ok)
+          div(class = "small text-warning mt-2",
+              "O Projeto R pode ser baixado, mas o Quarto CLI é necessário para gerar o Word.")
+      )
+    })
+
+    output$baixar_projeto <- downloadHandler(
+      filename = function() {
+        paste0("projeto_", nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
+      },
+      content = function(file) {
+        do.call(exportacao_empacotar_projeto, c(list(file = file), argumentos_exportacao()))
+      }
+    )
+
+    output$baixar_word <- downloadHandler(
+      filename = function() {
+        paste0("relatorio_", nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
+      },
+      content = function(file) {
+        do.call(exportacao_renderizar_word, c(list(file = file), argumentos_exportacao()))
+      }
+    )
 
     invisible(list(
       estado_editorial = estado_editorial_rv,

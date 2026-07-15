@@ -72,6 +72,7 @@ stopifnot(
 # O módulo acompanha novas execuções, preserva decisões e produz o manifesto.
 registro_rv <- reactiveVal(registro_inicial)
 projeto_rv <- reactiveVal("projeto_1")
+revisao_rv <- reactiveVal(5L)
 ramo_teste <- bases_novo_registro(
   "base_0001", "Base para regressão logística", "base_reg_logistica",
   finalidade = "reg_logistica", revisao_origem = 5L
@@ -91,7 +92,7 @@ testServer(
     registro_execucoes_rv = registro_rv,
     registro_bases_rv = reactiveVal(list(ramo_teste)),
     cache_bases_rv = reactiveVal(cache_teste),
-    revisao_origem_rv = reactiveVal(5L),
+    revisao_origem_rv = revisao_rv,
     projeto_rv = projeto_rv
   ),
   {
@@ -102,8 +103,18 @@ testServer(
       identical(inicial$total_word, 2L),
       all(vapply(inicial$execucoes, function(x) x$estado_dependencia == "Atualizada", logical(1))),
       grepl("dados_analise", output$bases_projeto$html, fixed = TRUE),
-      grepl("base_reg_logistica", output$bases_projeto$html, fixed = TRUE)
+      grepl("base_reg_logistica", output$bases_projeto$html, fixed = TRUE),
+      grepl("baixar_projeto", output$acoes_exportacao$html, fixed = TRUE)
     )
+
+    revisao_rv(6L)
+    session$flushReact()
+    stopifnot(
+      !grepl("baixar_projeto", output$acoes_exportacao$html, fixed = TRUE),
+      grepl("Atualize as execuções", output$acoes_exportacao$html, fixed = TRUE)
+    )
+    revisao_rv(5L)
+    session$flushReact()
 
     session$setInputs(
       incluir_p1_execucao_0002 = FALSE,

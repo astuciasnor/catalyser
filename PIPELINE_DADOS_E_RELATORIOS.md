@@ -29,7 +29,7 @@ produzir uma representação reprodutível em R.
 | Registro de execuções/resultados | **Implementado (Fase 3C)** |
 | Execução analítica explícita e rascunho pendente | **Implementado (Fase 3C.1)** |
 | Seleção fina do conteúdo do relatório | **Implementada (Fase 3D)** |
-| Exportação `.docx` e Projeto R | Motor prototipado; integração incremental |
+| Exportação `.docx` e Projeto R | **Implementada (Fase 3E)** |
 
 ## Arquitetura conceitual
 
@@ -293,8 +293,8 @@ Na Fase 3C, a lista e os controles aparecem dentro do próprio módulo analític
 A Fase 3C.1 acrescenta a execução explícita antes desse registro e bloqueia as
 ações de salvar enquanto o rascunho estiver pendente.
 A visão conjunta, a ordenação e a escolha do conteúdo do Word pertencem à Fase
-3D. O exportador consolidado antigo ainda usa seu rastreamento legado por visita
-à aba e só será substituído pelo novo registro na Fase 3E.
+3D. Na Fase 3E, o exportador por visita à aba deixou de ser oferecido na
+interface: o registro explícito passou a ser a única fonte do projeto integrado.
 
 ## Comunicação de Resultados
 
@@ -332,7 +332,25 @@ As escolhas iniciais privilegiam narrativa, tabela e gráfico principal. Itens
 pedagógicos ou técnicos — pressupostos, diagnósticos e console — ficam sob
 decisão explícita. Desmarcar uma execução do Word **não a remove do registro**:
 o contador informa separadamente quantas entrarão no Word e quantas serão
-preservadas no Projeto R. A geração dos arquivos continua desativada até a 3E.
+preservadas no Projeto R.
+
+**Implementado na Fase 3E:** o estúdio oferece downloads independentes do Word
+e do Projeto R. Antes de exportar, valida se todas as execuções ainda coincidem
+com a revisão da base e da receita usada; itens desatualizados bloqueiam a
+geração. O Word contém somente as execuções e componentes escolhidos. O `.zip`
+preserva todas as execuções registradas, inclusive as retiradas do Word.
+
+O replay integrado cobre os oito módulos prioritários das Fases 3B–3C:
+Estatística Descritiva, Regressão Linear, Regressão Logística, Teste t, Gráfico
+de Linhas, Qui-quadrado, PCA e Análise de Agrupamentos. Cada execução recebe um
+script `04_*` próprio. Os scripts `00_*` a `03_*` preservam dados brutos,
+operações estruturais, Trilha compartilhada e ramos derivados em ordem de
+dependência.
+
+Sem Quarto, o Word fica indisponível com aviso, mas o Projeto R continua
+baixável e pode ser renderizado posteriormente no RStudio. O consolidado antigo
+permanece internamente apenas durante a migração incremental; seu painel agora
+direciona o usuário à Comunicação de Resultados.
 
 ## Projeto R exportado
 
@@ -343,17 +361,25 @@ projeto_analise/
 ├── relatorio.qmd
 ├── README.md
 ├── custom-reference.docx
+├── projeto_analise.Rproj
 ├── dados/
-│   └── dados_brutos.xlsx
+│   ├── dados_brutos.rds
+│   ├── base_resolvida.rds
+│   ├── dados_analise.rds
+│   └── base_<analise>.rds
 ├── R/
+│   ├── 00_funcoes_projeto.R
 │   ├── 00_importar.R
 │   ├── 01_operacoes_estruturais.R
 │   ├── 02_preparo_compartilhado.R
-│   ├── 03_base_reg_logistica.R
-│   ├── 03_base_qui_quadrado.R
-│   ├── 04_analise_reg_logistica_01.R
-│   ├── 04_grafico_producao_01.R
-│   └── funcoes_relatorio.R
+│   ├── 03_<base_derivada>.R
+│   └── 04_<execucao>.R
+├── metadados/
+│   ├── MANIFESTO.md
+│   ├── manifesto_editorial.rds
+│   ├── registro_execucoes.rds
+│   ├── registro_bases.rds
+│   └── bases.csv
 └── resultados/
 ```
 
