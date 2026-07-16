@@ -33,7 +33,7 @@ exercitar também a Trilha e bases derivadas.
 ### Regressão
 
 1. Abra **Modelos de Regressão → Regressão Linear**.
-2. Use `peso_g` como resposta e `comp_cm` como preditora.
+2. Use `peso_g` como resposta e `comprimento_cm` como preditora.
 3. Clique **Executar análise**.
 4. Dê o título `Peso em função do comprimento`.
 5. Clique **Adicionar aos resultados**.
@@ -41,7 +41,7 @@ exercitar também a Trilha e bases derivadas.
 ### Dois gráficos da mesma base
 
 1. Abra **Descrevendo Dados → Gráfico de Linhas**.
-2. Faça `id` no eixo X e `comp_cm` no eixo Y.
+2. Faça `id` no eixo X e `comprimento_cm` no eixo Y.
 3. Clique **Executar análise** e registre como `Comprimento por observação`.
 4. Troque somente o eixo Y para `peso_g`.
 5. Clique **Executar novamente**.
