@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3C.1: execução explícita e rascunho
 
+> Roteiro histórico da branch `feature/fase-3c1-execucao-explicita`. Consulte
+> também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Confirmar que a CatalyseR não interpreta as primeiras variáveis compatíveis

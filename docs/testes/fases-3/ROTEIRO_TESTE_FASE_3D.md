@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3D
 
+> Roteiro histórico da branch `feature/fase-3d-comunicacao-resultados`. Consulte
+> também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Confirmar que a Comunicação de Resultados usa somente execuções registradas,

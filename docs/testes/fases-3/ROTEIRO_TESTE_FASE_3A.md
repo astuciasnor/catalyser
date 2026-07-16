@@ -1,5 +1,8 @@
 # Roteiro de teste — Fases 3A e 3A.1: Registro e cache de Bases Derivadas
 
+> Roteiro histórico da branch `feature/fase-3a-registro-bases`. Consulte também
+> a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Validar no Zorin OS a infraestrutura de bases derivadas antes de conectar os

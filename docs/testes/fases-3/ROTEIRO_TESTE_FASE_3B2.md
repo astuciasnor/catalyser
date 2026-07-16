@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3B.2: Seletor piloto de base
 
+> Roteiro histórico da branch `feature/fase-3b2-seletor-base-piloto`. Consulte
+> também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Validar no Zorin o primeiro vínculo entre uma base derivada e um módulo
@@ -129,4 +132,3 @@ Ainda não estão incluídos:
 - registro persistente da execução logística;
 - Comunicação de Resultados orientada pelas execuções;
 - exportação integrada da Trilha compartilhada, de todos os ramos e das análises.
-

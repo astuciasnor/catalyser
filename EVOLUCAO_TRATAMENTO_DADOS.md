@@ -417,9 +417,11 @@ estiver pendente. Seleções ainda válidas são preservadas quando os dados mud
 Resultados, que separa o acervo completo do Projeto R da seleção editorial do
 Word, permite reordenar, escolher componentes e escrever seções globais.
 
-**A fazer depois da Fase 3D:** integrar o Projeto R/relatório (3E). A eventual
-aposentadoria de `dataset_ativo_rv` permanece uma migração posterior e gradual,
-fora desta entrega final.
+**Feito (Fase 3E):** o estúdio exporta separadamente o Word editorial e o
+Projeto R reprodutível. O Word contém somente execuções/componentes escolhidos;
+o Projeto R preserva todas as execuções registradas, bases, receitas e scripts.
+Dependências desatualizadas bloqueiam a exportação. A eventual aposentadoria de
+`dataset_ativo_rv` permanece uma migração posterior e gradual, fora deste ciclo.
 
 **Dataset de treino:** `inst/app/dados/Treino-Transformacoes.xlsx` — abas
 `biometria` (bagunçada de propósito: NA, 3 duplicatas, texto inconsistente, escalas

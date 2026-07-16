@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3C: registro explícito de execuções
 
+> Roteiro histórico da branch `feature/fase-3c-registro-execucoes`. Consulte
+> também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Confirmar que uma prévia só entra no novo registro quando o usuário clica em

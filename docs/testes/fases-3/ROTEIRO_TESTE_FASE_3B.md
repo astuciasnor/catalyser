@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3B.1: Receitas das Bases Derivadas
 
+> Roteiro histórico da branch `feature/fase-3b-transformacoes-ramos`. Consulte
+> também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Validar no Zorin OS a edição das transformações específicas de cada ramo, sem

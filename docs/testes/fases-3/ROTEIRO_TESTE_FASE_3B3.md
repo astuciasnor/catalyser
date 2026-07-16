@@ -1,5 +1,8 @@
 # Roteiro de teste — Fase 3B.3: seletores nas análises prioritárias
 
+> Roteiro histórico da branch `feature/fase-3b3-seletores-prioritarios`.
+> Consulte também a [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Validar no Zorin a expansão moderada do contrato da Fase 3B.2. A escolha de

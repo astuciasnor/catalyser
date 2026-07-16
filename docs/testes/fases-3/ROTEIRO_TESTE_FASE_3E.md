@@ -1,5 +1,8 @@
 # Roteiro manual — Fase 3E (exportação integrada)
 
+> Roteiro da branch `feature/fase-3e-exportacao-integrada`. Consulte também a
+> [matriz e a ordem completa de homologação](README.md).
+
 ## Objetivo
 
 Confirmar que o **Relatório Word** obedece à seleção editorial e que o

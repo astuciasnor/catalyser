@@ -16,7 +16,6 @@ verify_ide.R
 *.zip
 src/*.o
 src/*.so
-.Rbuildignore
 
 
 # Artefatos de checagem
