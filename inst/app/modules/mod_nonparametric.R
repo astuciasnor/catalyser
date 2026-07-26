@@ -9,6 +9,43 @@ if (file.exists("templates/funcoes_nonparametric.R")) {
 # Coalescência de nulos (uso interno)
 `%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
 
+np_contingencia_tidy_matriz <- function(df, linha, coluna, frequencia = "n") {
+  faltantes <- setdiff(c(linha, coluna, frequencia), names(df))
+  if (length(faltantes))
+    stop(sprintf("Colunas ausentes na base tidy: %s.", paste(faltantes, collapse = ", ")),
+         call. = FALSE)
+  if (identical(linha, coluna))
+    stop("As variáveis de linha e coluna precisam ser diferentes.", call. = FALSE)
+
+  freq <- suppressWarnings(as.numeric(df[[frequencia]]))
+  if (anyNA(freq) || any(!is.finite(freq)) || any(freq < 0))
+    stop("A coluna de frequência deve conter contagens não negativas.", call. = FALSE)
+
+  linha_val <- as.character(df[[linha]])
+  coluna_val <- as.character(df[[coluna]])
+  manter <- !is.na(linha_val) & !is.na(coluna_val)
+  linha_val <- linha_val[manter]
+  coluna_val <- coluna_val[manter]
+  freq <- freq[manter]
+  niveis_linha <- unique(linha_val)
+  niveis_coluna <- unique(coluna_val)
+  if (length(niveis_linha) < 2L || length(niveis_coluna) < 2L)
+    stop("A base tidy precisa representar ao menos duas linhas e duas colunas.",
+         call. = FALSE)
+
+  tab <- matrix(
+    0,
+    nrow = length(niveis_linha),
+    ncol = length(niveis_coluna),
+    dimnames = list(niveis_linha, niveis_coluna)
+  )
+  for (i in seq_along(freq)) {
+    tab[linha_val[[i]], coluna_val[[i]]] <-
+      tab[linha_val[[i]], coluna_val[[i]]] + freq[[i]]
+  }
+  tab
+}
+
 # Ajusta os parâmetros do relatório Quarto dos testes não paramétricos
 customize_np_qmd_params <- function(qmd_path, test_type, var_y, var_x,
                                     var1, var2, var_row, var_col, alternative, yates) {
@@ -40,13 +77,17 @@ np_config_ui <- function(ns, fixed_test) {
   if (fixed_test == "quiquadrado") {
     tagList(
       radioButtons(ns("chi_source"), "Fonte dos dados:",
-                   choices = c("Tabela preparada (menu Contingência)" = "prepared",
+                   choices = c("Base tidy de contingência" = "tidy",
                                "Duas variáveis dos dados" = "vars",
                                "Entrada manual (digitar a tabela)" = "manual"),
                    selected = "vars"),
       conditionalPanel(
-        condition = sprintf("input['%s'] == 'prepared'", ns("chi_source")),
-        helpText("Usa a tabela de contingência construída em \"Preparando Dados > Criando Tabela de Contingência\". Monte-a lá primeiro.")
+        condition = sprintf("input['%s'] == 'tidy'", ns("chi_source")),
+        selectInput(ns("chi_tidy_row"), "Variável de linha:", choices = NULL),
+        selectInput(ns("chi_tidy_col"), "Variável de coluna:", choices = NULL),
+        selectInput(ns("chi_tidy_n"), "Coluna de contagens:", choices = NULL),
+        uiOutput(ns("chi_tidy_status")),
+        helpText("Selecione, acima, uma Base Derivada criada pela etapa Tabela de Contingência.")
       ),
       conditionalPanel(
         condition = sprintf("input['%s'] == 'vars'", ns("chi_source")),
@@ -102,11 +143,17 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
   tagList(
     layout_columns(
       col_widths = c(1, 1, 1),
-      style = "grid-template-columns: 3fr 6fr 2.5fr !important;",
+      fill = FALSE,
+      fillable = FALSE,
+      style = paste(
+        "grid-template-columns: 3fr 6fr 2.5fr !important;",
+        "align-items:start !important;"
+      ),
 
       # COLUNA 1: CONFIGURAÇÃO DO TESTE
       div(
         card(
+          fill = FALSE,
           card_header(paste0("Configuração — ", np_titulo(fixed_test))),
           card_body(
             style = "padding: 12px 15px;",
@@ -117,6 +164,7 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
           )
         ),
         card(
+          fill = FALSE,
           card_header("Relatório e Pacote de Estudo"),
           card_body(
             style = "padding: 12px 15px;",
@@ -156,6 +204,7 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
 
       # COLUNA 3: AJUDA
       card(
+        fill = FALSE,
         card_header("Como interpretar"),
         card_body(
           helpText(HTML(
@@ -195,6 +244,31 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
       updateSelectInput(session, "chi_col", choices = cat_cols,
                         selected = manter(isolate(input$chi_col), cat_cols,
                                           if (length(cat_cols) > 1) cat_cols[2] else cat_cols[1]))
+      meta_contingencia <- attr(df, "catalyser_contingencia", exact = TRUE)
+      tem_meta_contingencia <- !is.null(meta_contingencia)
+      linha_tidy <- meta_contingencia$var_row %||% cat_cols[1]
+      coluna_tidy <- meta_contingencia$var_col %||%
+        if (length(cat_cols) > 1) cat_cols[2] else cat_cols[1]
+      frequencia_tidy <- meta_contingencia$freq %||%
+        if ("n" %in% num_cols) "n" else num_cols[1]
+      if (tem_meta_contingencia) {
+        updateSelectInput(
+          session, "chi_tidy_row", choices = cat_cols,
+          selected = linha_tidy
+        )
+        updateSelectInput(
+          session, "chi_tidy_col", choices = cat_cols,
+          selected = coluna_tidy
+        )
+        updateSelectInput(
+          session, "chi_tidy_n", choices = num_cols,
+          selected = frequencia_tidy
+        )
+      } else {
+        updateSelectInput(session, "chi_tidy_row", choices = character(0))
+        updateSelectInput(session, "chi_tidy_col", choices = character(0))
+        updateSelectInput(session, "chi_tidy_n", choices = character(0))
+      }
       updateSelectInput(session, "mw_y", choices = num_cols,
                         selected = manter(isolate(input$mw_y), num_cols, num_cols[1]))
       updateSelectInput(session, "mw_x", choices = cat_cols,
@@ -208,6 +282,37 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
                         selected = manter(isolate(input$kw_y), num_cols, num_cols[1]))
       updateSelectInput(session, "kw_x", choices = cat_cols,
                         selected = manter(isolate(input$kw_x), cat_cols, cat_cols[1]))
+    })
+
+    observeEvent(data_rv(), {
+      df <- data_rv()
+      req(df)
+      if (!is.null(attr(df, "catalyser_contingencia", exact = TRUE)))
+        updateRadioButtons(session, "chi_source", selected = "tidy")
+    }, ignoreInit = FALSE)
+
+    output$chi_tidy_status <- renderUI({
+      df <- data_rv()
+      req(df)
+      meta <- attr(df, "catalyser_contingencia", exact = TRUE)
+      if (is.null(meta)) {
+        div(
+          class = "alert alert-warning py-2 mb-2",
+          style = "font-size:0.8rem;",
+          icon("triangle-exclamation"),
+          " A Base utilizada não é uma contingência tidy. Escolha, no topo, uma ",
+          "Base Derivada recalculada e finalizada; não use a coluna id como contagem."
+        )
+      } else {
+        div(
+          class = "alert alert-success py-2 mb-2",
+          style = "font-size:0.8rem;",
+          icon("circle-check"),
+          " Contingência tidy reconhecida: ",
+          tags$code(meta$var_row), " × ", tags$code(meta$var_col),
+          "; frequência em ", tags$code(meta$freq), "."
+        )
+      }
     })
 
     # Grade de entrada manual da tabela de contingência
@@ -263,7 +368,32 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
     # Constrói a tabela de contagens do qui-quadrado conforme a fonte
     chi_input <- reactive({
       src <- input$chi_source %||% "vars"
-      if (src == "prepared") {
+      if (src == "tidy") {
+        df <- data_rv()
+        req(df)
+        meta <- attr(df, "catalyser_contingencia", exact = TRUE)
+        validate(need(
+          !is.null(meta),
+          paste(
+            "A Base utilizada não é uma contingência tidy.",
+            "Recalcule e finalize a Base Derivada e selecione-a no topo."
+          )
+        ))
+        req(input$chi_tidy_row, input$chi_tidy_col, input$chi_tidy_n)
+        tab <- tryCatch(
+          np_contingencia_tidy_matriz(
+            df, input$chi_tidy_row, input$chi_tidy_col, input$chi_tidy_n
+          ),
+          error = function(e) e
+        )
+        validate(need(!inherits(tab, "error"),
+                      if (inherits(tab, "error")) conditionMessage(tab) else ""))
+        list(
+          tab = tab,
+          var_row = input$chi_tidy_row,
+          var_col = input$chi_tidy_col
+        )
+      } else if (src == "prepared") {
         validate(need(!is.null(contingency_shared), "Fonte 'tabela preparada' indisponível."))
         r <- contingency_shared()
         validate(need(!is.null(r) && !is.null(r$tab), "Nenhuma tabela de contingência foi construída ainda no menu de preparação."))
@@ -288,7 +418,8 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
       ci <- chi_input()
       fonte <- input$chi_source %||% "vars"
       list(
-        revisao_dados = if (identical(fonte, "vars")) as.integer(revisao_execucao()) else 0L,
+        revisao_dados = if (fonte %in% c("vars", "tidy"))
+          as.integer(revisao_execucao()) else 0L,
         parametros = list(
           fonte = fonte,
           linha = ci$var_row,

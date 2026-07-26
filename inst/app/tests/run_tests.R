@@ -29,9 +29,11 @@ cat(sprintf("[OK] Sintaxe de %d arquivos R.\n", length(arquivos_r)))
 
 testes <- c(
   "test_bases_derivadas.R",
+  "test_menu_preparando_dados.R",
   "test_registro_execucoes.R",
   "test_execucao_explicita.R",
   "test_estados_execucao.R",
+  "test_logisticas_separadas.R",
   "test_comunicacao_resultados.R",
   "test_funcoes_projeto_integrado.R",
   "test_exportacao_comunicacao.R"

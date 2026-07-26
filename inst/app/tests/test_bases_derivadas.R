@@ -1,5 +1,41 @@
 source("app.R", local = TRUE)
 
+html_bases <- htmltools::renderTags(mod_bases_derivadas_ui("teste_bases"))$html
+codigo_bases <- paste(
+  readLines("modules/mod_bases_derivadas.R", encoding = "UTF-8"),
+  collapse = "\n"
+)
+ids_preservados <- c(
+  "nome_amigavel", "finalidade", "nome_r", "descricao", "criar",
+  "tabela", "preview", "codigo", "detalhes", "renomear", "recalcular",
+  "finalizar", "reabrir", "excluir", "editor_base", "ramo_tipo",
+  "parametros_etapa", "adicionar_etapa", "receita_ramo",
+  "etapa_selecionada", "etapa_subir", "etapa_descer", "etapa_alternar",
+  "etapa_remover", "etapas_limpar"
+)
+
+stopifnot(
+  grepl('id="teste_bases-bases_derivadas_subabas"', html_bases, fixed = TRUE),
+  grepl("Criação e gestão da base", html_bases, fixed = TRUE),
+  grepl("Receita da base", html_bases, fixed = TRUE),
+  grepl("Base ativa:", codigo_bases, fixed = TRUE),
+  grepl("col_widths = c(3, 7, 2)", codigo_bases, fixed = TRUE),
+  grepl('min_height = "5rem"', codigo_bases, fixed = TRUE),
+  grepl("tipo.selectize.enable()", codigo_bases, fixed = TRUE),
+  grepl('id="teste_bases-controles_receita" disabled="disabled"',
+        html_bases, fixed = TRUE),
+  grepl('class="d-grid mt-3 pt-3 border-top"', html_bases, fixed = TRUE),
+  grepl("Atualizar a contingência existente", codigo_bases, fixed = TRUE),
+  grepl("segunda contingência.", codigo_bases, fixed = TRUE),
+  grepl('formatRound(tabela, columns = "percentual", digits = 2)',
+        codigo_bases, fixed = TRUE),
+  all(vapply(
+    ids_preservados,
+    function(id) grepl(sprintf('id="teste_bases-%s"', id), html_bases, fixed = TRUE),
+    logical(1)
+  ))
+)
+
 dados <- data.frame(
   id = 1:4,
   captura = c(10, 12, 15, 18),
@@ -102,5 +138,141 @@ stopifnot(!base$id %in% unname(bases_opcoes_analise(registros, cache_erro, 1L)))
 # Alterar a revisão da base compartilhada também invalida o ramo sem cascata.
 stopifnot(identical(bases_estado_cache(base, entrada_atual, 2L), "Desatualizada"))
 stopifnot(grepl("dados <- dados_analise", bases_codigo(base, registro_teste), fixed = TRUE))
+
+# Agrupar/Sumarizar e Contingência são etapas reais: alteram dimensões, cache
+# e código do ramo, em vez de manter uma cópia vazia de dados_analise.
+dados_resumo <- data.frame(
+  especie = c("bagre", "bagre", "corvina", "corvina", "corvina", "corvina"),
+  local = c("norte", "sul", "norte", "norte", "sul", "sul"),
+  peso_g = c(100, 120, 200, 220, 240, 260),
+  stringsAsFactors = FALSE
+)
+
+registro_resumo <- bases_adicionar(
+  bases_vazio(),
+  bases_novo_registro(
+    "base_0100", "Resumo por espécie", "base_resumo_especie",
+    finalidade = "geral", revisao_origem = 1L
+  )
+)
+registro_resumo <- bases_adicionar_etapa(
+  registro_resumo, "base_0100", "agrupar_sumarizar",
+  list(
+    grupos = "especie",
+    variaveis = "peso_g",
+    funcoes = c("n", "media"),
+    ordenar = TRUE
+  ),
+  dados_validacao = dados_resumo
+)
+base_resumo <- bases_obter(registro_resumo, "base_0100")
+cache_resumo <- bases_recalcular_cache(dados_resumo, base_resumo, 1L)
+stopifnot(
+  cache_resumo$linhas == 2L,
+  cache_resumo$colunas == 3L,
+  identical(names(cache_resumo$df), c("especie", "n", "peso_g_media")),
+  identical(cache_resumo$df$n, c(2L, 4L)),
+  grepl("dplyr::group_by(especie)", bases_codigo(base_resumo), fixed = TRUE)
+)
+
+registro_cont <- bases_adicionar(
+  bases_vazio(),
+  bases_novo_registro(
+    "base_0101", "Contingência espécie por local", "base_cont_especie_local",
+    finalidade = "qui_quadrado", revisao_origem = 1L
+  )
+)
+registro_cont <- bases_adicionar_etapa(
+  registro_cont, "base_0101", "contingencia",
+  list(linha = "especie", coluna = "local", percentual = "row"),
+  dados_validacao = dados_resumo
+)
+base_cont <- bases_obter(registro_cont, "base_0101")
+cache_cont <- bases_recalcular_cache(dados_resumo, base_cont, 1L)
+meta_cont <- attr(cache_cont$df, "catalyser_contingencia", exact = TRUE)
+stopifnot(
+  cache_cont$linhas == 4L,
+  cache_cont$colunas == 4L,
+  identical(names(cache_cont$df), c("especie", "local", "n", "percentual")),
+  sum(cache_cont$df$n) == nrow(dados_resumo),
+  identical(meta_cont$var_row, "especie"),
+  identical(meta_cont$var_col, "local"),
+  identical(meta_cont$freq, "n"),
+  grepl("dplyr::count(especie, local", bases_codigo(base_cont), fixed = TRUE),
+  grepl("tidyr::complete(especie, local", bases_codigo(base_cont), fixed = TRUE)
+)
+
+# Uma segunda contingência não pode contar novamente as linhas já resumidas.
+# Alterar de contagens para percentuais substitui a etapa final existente.
+erro_cont_duplicada <- tryCatch(
+  {
+    bases_adicionar_etapa(
+      registro_cont, "base_0101", "contingencia",
+      list(linha = "especie", coluna = "local", percentual = "total"),
+      cache_cont$df
+    )
+    NULL
+  },
+  error = function(e) e
+)
+stopifnot(
+  inherits(erro_cont_duplicada, "error"),
+  grepl("já possui uma etapa final", conditionMessage(erro_cont_duplicada),
+        fixed = TRUE)
+)
+
+registro_cont_pct <- bases_substituir_redutor(
+  registro_cont, "base_0101", 1L, "contingencia",
+  list(linha = "especie", coluna = "local", percentual = "row"),
+  dados_resumo
+)
+base_cont_pct <- bases_obter(registro_cont_pct, "base_0101")
+cache_cont_pct <- bases_recalcular_cache(dados_resumo, base_cont_pct, 1L)
+stopifnot(
+  length(base_cont_pct$etapas) == 1L,
+  identical(base_cont_pct$etapas[[1]]$params$percentual, "row"),
+  sum(cache_cont_pct$df$n) == nrow(dados_resumo),
+  max(cache_cont_pct$df$n) == 2L,
+  all(abs(
+    tapply(cache_cont_pct$df$percentual, cache_cont_pct$df$especie, sum) - 100
+  ) < 1e-10)
+)
+
+# Duas contingências prontas e atualizadas permanecem simultaneamente
+# selecionáveis no Qui-quadrado; a finalidade apenas ordena, não filtra.
+cache_duas_cont <- bases_cache_gravar(
+  bases_cache_vazio(), "base_0101", cache_cont_pct
+)
+registro_duas_cont <- bases_finalizar(
+  registro_cont_pct, "base_0101", cache_duas_cont, 1L
+)
+registro_duas_cont <- bases_adicionar(
+  registro_duas_cont,
+  bases_novo_registro(
+    "base_0102", "Contingência local por espécie", "base_cont_local_especie",
+    finalidade = "qui_quadrado", revisao_origem = 1L
+  )
+)
+registro_duas_cont <- bases_adicionar_etapa(
+  registro_duas_cont, "base_0102", "contingencia",
+  list(linha = "local", coluna = "especie", percentual = "total"),
+  dados_validacao = dados_resumo
+)
+base_cont_2 <- bases_obter(registro_duas_cont, "base_0102")
+cache_cont_2 <- bases_recalcular_cache(dados_resumo, base_cont_2, 1L)
+cache_duas_cont <- bases_cache_gravar(
+  cache_duas_cont, "base_0102", cache_cont_2
+)
+registro_duas_cont <- bases_finalizar(
+  registro_duas_cont, "base_0102", cache_duas_cont, 1L
+)
+opcoes_duas_cont <- bases_opcoes_analise(
+  registro_duas_cont, cache_duas_cont, 1L,
+  finalidade_preferida = "qui_quadrado"
+)
+stopifnot(
+  all(c("base_0101", "base_0102") %in% unname(opcoes_duas_cont)),
+  sum(unname(opcoes_duas_cont) != "dados_analise") == 2L
+)
 
 cat("OK: bases derivadas preservam estrela, cache lazy e falha isolada\n")

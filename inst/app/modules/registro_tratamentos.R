@@ -52,6 +52,62 @@ trat_filtro_op <- function(x, op, v) {
             "<" = x < v, "==" = x == v, "!=" = x != v, x == v)
 }
 
+trat_contingencia_tidy <- function(df, linha, coluna, percentual = "none") {
+  dados <- df[!is.na(df[[linha]]) & !is.na(df[[coluna]]), c(linha, coluna), drop = FALSE]
+  tab <- table(
+    factor(dados[[linha]], levels = unique(dados[[linha]])),
+    factor(dados[[coluna]], levels = unique(dados[[coluna]]))
+  )
+  tidy <- as.data.frame(tab, responseName = "n", stringsAsFactors = FALSE)
+  names(tidy)[1:2] <- c(linha, coluna)
+  tidy$n <- as.integer(tidy$n)
+
+  if (!identical(percentual, "none")) {
+    denominador <- switch(
+      percentual,
+      row = ave(tidy$n, tidy[[linha]], FUN = sum),
+      col = ave(tidy$n, tidy[[coluna]], FUN = sum),
+      total = rep(sum(tidy$n), nrow(tidy))
+    )
+    tidy$percentual <- ifelse(denominador > 0, 100 * tidy$n / denominador, 0)
+  }
+
+  attr(tidy, "catalyser_contingencia") <- list(
+    var_row = linha,
+    var_col = coluna,
+    freq = "n",
+    percentual = percentual
+  )
+  tidy
+}
+
+trat_contingencia_codigo <- function(p) {
+  linha <- trat_bt(p$linha)
+  coluna <- trat_bt(p$coluna)
+  linhas <- c(
+    sprintf("dados <- dados |> dplyr::filter(!is.na(%s), !is.na(%s))", linha, coluna),
+    sprintf(
+      "dados <- dados |> dplyr::count(%s, %s, name = \"n\") |> tidyr::complete(%s, %s, fill = list(n = 0))",
+      linha, coluna, linha, coluna
+    )
+  )
+  if (!identical(p$percentual, "none")) {
+    escopo <- switch(
+      p$percentual,
+      row = sprintf("dplyr::group_by(%s)", linha),
+      col = sprintf("dplyr::group_by(%s)", coluna),
+      total = NULL
+    )
+    if (!is.null(escopo)) linhas <- c(linhas, sprintf("dados <- dados |> %s", escopo))
+    linhas <- c(
+      linhas,
+      "dados <- dados |> dplyr::mutate(percentual = 100 * n / sum(n))",
+      if (!is.null(escopo)) "dados <- dados |> dplyr::ungroup()" else NULL
+    )
+  }
+  paste(linhas, collapse = "\n")
+}
+
 # =============================================================================
 # REGISTRO DE TRATAMENTOS
 # =============================================================================
@@ -314,6 +370,81 @@ tratamentos <- list(
     },
     codigo = function(p) sprintf("dados <- dados |> dplyr::mutate(%s = %s / %s)",
                                  trat_bt(p$nome), trat_bt(p$coluna), trat_num_txt(trat_fator_si(p$simbolo)))
+  ),
+
+  # ---- Agrupar / sumarizar (base derivada reduzida) --------------------------
+  agrupar_sumarizar = list(
+    rotulo = function(p) {
+      sprintf(
+        "Agrupar por %s; resumir %s (%s)",
+        paste(p$grupos, collapse = ", "),
+        if (length(p$variaveis)) paste(p$variaveis, collapse = ", ") else "contagens",
+        paste(p$funcoes, collapse = ", ")
+      )
+    },
+    validar = function(df, p) {
+      agrupar_validar(
+        df,
+        p$grupos %||% character(0),
+        p$variaveis %||% character(0),
+        p$funcoes %||% character(0)
+      )
+    },
+    aplicar = function(df, p) {
+      resultado <- agrupar_aplicar(df, p$grupos, p$variaveis, p$funcoes)
+      if (isTRUE(p$ordenar) && nrow(resultado))
+        resultado <- resultado[do.call(order, resultado[p$grupos]), , drop = FALSE]
+      rownames(resultado) <- NULL
+      resultado
+    },
+    codigo = function(p) {
+      grupos <- paste(vapply(p$grupos, trat_bt, character(1)), collapse = ", ")
+      exprs <- agrupar_exprs_codigo(p$variaveis, p$funcoes)
+      linhas <- c(
+        sprintf("dados <- dados |> dplyr::group_by(%s) |> dplyr::summarise(", grupos),
+        paste0("  ", exprs, ","),
+        "  .groups = \"drop\"",
+        ")"
+      )
+      if (isTRUE(p$ordenar))
+        linhas <- c(linhas, sprintf(
+          "dados <- dados |> dplyr::arrange(%s)",
+          paste(vapply(p$grupos, trat_bt, character(1)), collapse = ", ")
+        ))
+      paste(linhas, collapse = "\n")
+    }
+  ),
+
+  # ---- Tabela de contingência em formato tidy -------------------------------
+  contingencia = list(
+    rotulo = function(p) {
+      pct <- c(
+        none = "somente contagens",
+        row = "percentual por linha",
+        col = "percentual por coluna",
+        total = "percentual do total"
+      )[[p$percentual %||% "none"]]
+      sprintf("Contingência tidy: %s × %s (%s)", p$linha, p$coluna, pct)
+    },
+    validar = function(df, p) {
+      if (is.null(p$linha) || !p$linha %in% names(df))
+        return("Escolha uma variável válida para as linhas.")
+      if (is.null(p$coluna) || !p$coluna %in% names(df))
+        return("Escolha uma variável válida para as colunas.")
+      if (identical(p$linha, p$coluna))
+        return("As variáveis de linha e coluna precisam ser diferentes.")
+      validos <- df[!is.na(df[[p$linha]]) & !is.na(df[[p$coluna]]), , drop = FALSE]
+      if (length(unique(validos[[p$linha]])) < 2L ||
+          length(unique(validos[[p$coluna]])) < 2L)
+        return("A contingência exige pelo menos dois níveis válidos em cada variável.")
+      if (!p$percentual %in% c("none", "row", "col", "total"))
+        return("Tipo de percentual inválido.")
+      NULL
+    },
+    aplicar = function(df, p) {
+      trat_contingencia_tidy(df, p$linha, p$coluna, p$percentual)
+    },
+    codigo = trat_contingencia_codigo
   ),
 
   # ---- Filtrar linhas (por condicao numerica ou por niveis categoricos) ------

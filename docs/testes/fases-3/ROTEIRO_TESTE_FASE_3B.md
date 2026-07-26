@@ -52,7 +52,7 @@ Adicione à receita:
 - coluna: `cpue`;
 - definição: `Por limiar`;
 - operador: `>=`;
-- limiar: `5`;
+- limiar: `3`;
 - nova variável: `cpue_alta`.
 
 Antes de recalcular, confirme que:
@@ -67,6 +67,7 @@ Clique em **Recalcular esta base** e confirme que:
 
 - o cache muda para `Atualizada`;
 - a prévia contém `cpue_alta` somente com 0 e 1;
+- a dicotomização produz 7 casos com valor 1 e 64 casos com valor 0;
 - `dados_analise` não ganha essa coluna;
 - outros ramos não ganham essa coluna.
 

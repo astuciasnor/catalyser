@@ -171,7 +171,7 @@ mod_agrupar_sumarizar_ui <- function(id) {
                          class = "btn-outline-primary btn-sm w-100 mb-2"),
           actionButton(ns("usar_analises"), "Usar este resultado nas análises",
                        icon = icon("share-from-square"), class = "btn-primary w-100"),
-          helpText("O resultado passa a ser a base sobre a qual a Trilha de Preparo é aplicada.")
+          helpText("O resultado passa a ser a base usada em Adicionar Tratamentos à Base.")
         )
       )
     )

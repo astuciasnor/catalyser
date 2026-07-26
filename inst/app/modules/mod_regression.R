@@ -11,6 +11,9 @@ if (requireNamespace("EAPADados", quietly = TRUE)) {
 
 mod_regression_ui <- function(id, is_logistic = FALSE) {
   ns <- NS(id)
+  aba_ajuste <- if (is_logistic) "Curva de Probabilidade" else "Reta Ajustada"
+  aba_residuos <- if (is_logistic) "Resíduos de Deviance" else "Resíduos vs Ajustados"
+  aba_diagnostico <- if (is_logistic) "Influência (Cook)" else "Normalidade (Q-Q Plot)"
   tagList(
     layout_columns(
       col_widths = c(1, 1, 1),
@@ -19,7 +22,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
       # COLUNA 1: CONFIGURAÇÃO DO MODELO E RELATÓRIOS
       div(
         card(
-          card_header(if (is_logistic) "Configuração da Regressão Logística" else "Configuração do Modelo"),
+          card_header(if (is_logistic) "Configuração da Regressão Logística Binária" else "Configuração do Modelo"),
           card_body(
             style = "padding: 12px 15px;",
             if (is_logistic) tagList(
@@ -50,6 +53,9 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           card_body(
             style = "padding: 12px 15px;",
             execucao_explicita_downloads_ui(ns, tagList(
+              actionButton(ns("export_code"), "Ver Código R", icon = icon("code"),
+                           class = "btn-info w-100"),
+              div(style = "margin-top: 8px;"),
               downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
               div(style = "margin-top: 8px;"),
               downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
@@ -74,21 +80,21 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           )
         ),
         nav_panel(
-          title = "Reta Ajustada",
+          title = aba_ajuste,
           icon = icon("chart-line"),
           card_body(
             plotOutput(ns("fit_plot"), height = "450px")
           )
         ),
         nav_panel(
-          title = "Resíduos vs Ajustados",
+          title = aba_residuos,
           icon = icon("chart-bar"),
           card_body(
             plotOutput(ns("resid_fit_plot"), height = "450px")
           )
         ),
         nav_panel(
-          title = "Normalidade (Q-Q Plot)",
+          title = aba_diagnostico,
           icon = icon("chart-area"),
           card_body(
             plotOutput(ns("qq_plot"), height = "450px")
@@ -106,14 +112,16 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
             textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
             textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
             textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = ""),
-            selectInput(ns("var_group"), "Variável de Agrupamento (Cor):", choices = c("Nenhuma" = "none")),
-            conditionalPanel(
-              condition = sprintf("input['%s'] != 'none'", ns("var_group")),
-              div(style = "display: flex; flex-direction: column; gap: 2px; margin-top: -5px; margin-bottom: 10px;",
-                checkboxInput(ns("grp_reg"), "Ajustar reta por grupo (Retas independentes)", value = TRUE),
-                div(style = "display: flex; gap: 15px;",
-                  checkboxInput(ns("grp_color"), "Mapear Cor", value = TRUE),
-                  checkboxInput(ns("grp_fill"), "Mapear Preenchimento", value = TRUE)
+            if (!is_logistic) tagList(
+              selectInput(ns("var_group"), "Variável de Agrupamento (Cor):", choices = c("Nenhuma" = "none")),
+              conditionalPanel(
+                condition = sprintf("input['%s'] != 'none'", ns("var_group")),
+                div(style = "display: flex; flex-direction: column; gap: 2px; margin-top: -5px; margin-bottom: 10px;",
+                  checkboxInput(ns("grp_reg"), "Ajustar reta por grupo (Retas independentes)", value = TRUE),
+                  div(style = "display: flex; gap: 15px;",
+                    checkboxInput(ns("grp_color"), "Mapear Cor", value = TRUE),
+                    checkboxInput(ns("grp_fill"), "Mapear Preenchimento", value = TRUE)
+                  )
                 )
               )
             ),
@@ -124,10 +132,14 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
                                     "Cinza" = "gray", 
                                     "Light" = "light"), 
                         selected = "minimal"),
-            # Mostrar a equação somente na aba de "Reta Ajustada"
+            # Mostrar a equação somente na aba principal do ajuste.
             conditionalPanel(
-              condition = sprintf("input['%s'] == 'Reta Ajustada'", ns("active_tab")),
-              checkboxInput(ns("show_eq"), "Exibir Equação da Reta", value = TRUE)
+              condition = sprintf("input['%s'] == '%s'", ns("active_tab"), aba_ajuste),
+              checkboxInput(
+                ns("show_eq"),
+                if (is_logistic) "Exibir equação logística" else "Exibir Equação da Reta",
+                value = TRUE
+              )
             )
           ),
           
@@ -136,7 +148,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
             condition = sprintf("input['%s'] == 'Tabela de Resultados'", ns("active_tab")),
             helpText(HTML(
               if (is_logistic) {
-                "<h5>Resultados da Regressão Logística</h5>
+                "<h5>Resultados da Regressão Logística Binária</h5>
                 <p>Esta aba exibe a fórmula de probabilidade ajustada, a tabela de coeficientes com estatística z e p-valores, e as métricas globais de ajuste:</p>
                 <ul>
                   <li><b>McFadden Pseudo-R²:</b> Medida de qualidade do ajuste (0 a 1).</li>
@@ -165,6 +177,9 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                                   revisao_origem_rv = NULL,
                                   base_contexto_externo = NULL) {
   moduleServer(id, function(input, output, session) {
+    aba_ajuste <- if (isTRUE(is_logistic)) "Curva de Probabilidade" else "Reta Ajustada"
+    aba_residuos <- if (isTRUE(is_logistic)) "Resíduos de Deviance" else "Resíduos vs Ajustados"
+    aba_diagnostico <- if (isTRUE(is_logistic)) "Influência (Cook)" else "Normalidade (Q-Q Plot)"
 
     registros_bases <- reactive({
       if (is.function(registro_bases_rv)) registro_bases_rv() %||% list() else list()
@@ -275,18 +290,47 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     observeEvent(list(input$active_tab, input$var_x, input$var_y), {
       req(input$active_tab, input$var_x, input$var_y)
       
-      if (input$active_tab == "Reta Ajustada") {
-        updateTextInput(session, "custom_title", value = paste("Ajuste Linear:", input$var_y, "vs", input$var_x))
+      if (input$active_tab == aba_ajuste) {
+        updateTextInput(
+          session, "custom_title",
+          value = paste(
+            if (isTRUE(is_logistic)) "Regressão Logística Binária:" else "Ajuste Linear:",
+            input$var_y, "vs", input$var_x
+          )
+        )
         updateTextInput(session, "custom_label_x", value = input$var_x)
-        updateTextInput(session, "custom_label_y", value = input$var_y)
-      } else if (input$active_tab == "Resíduos vs Ajustados") {
-        updateTextInput(session, "custom_title", value = "Resíduos vs Valores Ajustados")
-        updateTextInput(session, "custom_label_x", value = "Valores Ajustados (Fitted)")
-        updateTextInput(session, "custom_label_y", value = "Resíduos (Residuals)")
-      } else if (input$active_tab == "Normalidade (Q-Q Plot)") {
-        updateTextInput(session, "custom_title", value = "Normal Q-Q Plot")
-        updateTextInput(session, "custom_label_x", value = "Quantis Teóricos")
-        updateTextInput(session, "custom_label_y", value = "Resíduos Padronizados")
+        updateTextInput(
+          session, "custom_label_y",
+          value = if (isTRUE(is_logistic)) "Probabilidade estimada" else input$var_y
+        )
+      } else if (input$active_tab == aba_residuos) {
+        updateTextInput(
+          session, "custom_title",
+          value = if (isTRUE(is_logistic))
+            "Resíduos de Deviance vs Probabilidades Ajustadas"
+          else "Resíduos vs Valores Ajustados"
+        )
+        updateTextInput(
+          session, "custom_label_x",
+          value = if (isTRUE(is_logistic)) "Probabilidades ajustadas" else "Valores Ajustados (Fitted)"
+        )
+        updateTextInput(
+          session, "custom_label_y",
+          value = if (isTRUE(is_logistic)) "Resíduos de deviance" else "Resíduos (Residuals)"
+        )
+      } else if (input$active_tab == aba_diagnostico) {
+        updateTextInput(
+          session, "custom_title",
+          value = if (isTRUE(is_logistic)) "Influência das observações (Distância de Cook)" else "Normal Q-Q Plot"
+        )
+        updateTextInput(
+          session, "custom_label_x",
+          value = if (isTRUE(is_logistic)) "Observação" else "Quantis Teóricos"
+        )
+        updateTextInput(
+          session, "custom_label_y",
+          value = if (isTRUE(is_logistic)) "Distância de Cook" else "Resíduos Padronizados"
+        )
       }
     }, ignoreInit = FALSE)
     
@@ -422,7 +466,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       if (inherits(fit, "glm")) {
         # Métricas para Regressão Logística (GLM Binomial)
         dev_res <- deviance(fit)
-        dev_null <- null.deviance(fit)
+        dev_null <- fit$null.deviance
         mcfadden_r2 <- 1 - dev_res / dev_null
         aic_val <- AIC(fit)
         n_obs <- length(fit$y)
@@ -518,9 +562,10 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                               "gray"    = theme_gray(base_size = 14),
                               "light"   = theme_light(base_size = 14),
                               theme_minimal(base_size = 14))
-        title_glm <- if (nzchar(input$custom_title)) input$custom_title else paste("Regressão Logística:", input$var_y, "vs", input$var_x)
+        title_glm <- if (nzchar(input$custom_title)) input$custom_title else
+          paste("Regressão Logística Binária:", input$var_y, "vs", input$var_x)
         x_label_glm <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-        y_label_glm <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
+        y_label_glm <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Probabilidade estimada"
         
         coefs <- coef(fit)
         x50 <- -coefs[1] / coefs[2]
@@ -533,6 +578,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         
         # Grid para a curva
         x_range <- range(df[[input$var_x]], na.rm = TRUE)
+        x50_na_faixa <- is.finite(x50) && x50 >= x_range[1] && x50 <= x_range[2]
         grade <- data.frame(x = seq(x_range[1], x_range[2], length.out = 200))
         names(grade) <- input$var_x
         grade$prob <- predict(fit, newdata = grade, type = "response")
@@ -548,21 +594,42 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           df_plot$y_plot <- as.numeric(y_vec)
         }
         
-        return(
+        grafico_glm <-
           ggplot(df_plot, aes(x = .data[[input$var_x]], y = y_plot)) +
             geom_point(color = "#495057", alpha = 0.5, size = 2.5, position = position_jitter(height = 0.02, width = 0)) +
             geom_line(data = grade, aes(x = .data[[input$var_x]], y = prob),
                       color = "#dc3545", linewidth = 1.3) +
-            geom_vline(xintercept = x50, linetype = "dashed", color = "#ffc107", linewidth = 1) +
-            annotate("text", x = x50, y = 0.5, hjust = -0.1, 
-                     label = sprintf("L50 = %.2f", x50), color = "#212529", fontface = "bold") +
             g_theme_glm +
-            labs(title = title_glm, subtitle = subtitle_glm, x = x_label_glm, y = y_label_glm) +
+            labs(
+              title = title_glm,
+              subtitle = subtitle_glm,
+              x = x_label_glm,
+              y = y_label_glm,
+              caption = if (!x50_na_faixa)
+                sprintf(
+                  "L50/X50 = %.2f está fora da faixa observada de X (%.2f a %.2f); interprete como extrapolação.",
+                  x50, x_range[1], x_range[2]
+                )
+              else NULL
+            ) +
+            coord_cartesian(xlim = x_range, ylim = c(-0.03, 1.03)) +
             theme(
               plot.title = element_text(face = "bold", size = 16, color = "#212529"),
-              plot.subtitle = element_text(color = "#dc3545", face = "italic", size = 12)
+              plot.subtitle = element_text(color = "#dc3545", face = "italic", size = 12),
+              plot.caption = element_text(color = "#6c757d", hjust = 0)
             )
-        )
+
+        if (x50_na_faixa) {
+          grafico_glm <- grafico_glm +
+            geom_vline(xintercept = x50, linetype = "dashed", color = "#E89B3C", linewidth = 1) +
+            annotate(
+              "label", x = x50, y = 0.5, hjust = if (x50 > mean(x_range)) 1.05 else -0.05,
+              label = sprintf("L50/X50 = %.2f", x50), color = "#0F3B5F",
+              fill = "#FFF7E8", linewidth = 0.2, fontface = "bold"
+            )
+        }
+
+        return(grafico_glm)
       }
 
       # Determina títulos, rótulos e legenda da equação
@@ -663,16 +730,20 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       fit <- model_fit()
       req(fit)
       mdl <- if (is_curve(fit)) fit$modelo else fit
+      eh_glm <- inherits(fit, "glm")
 
       diag_data <- data.frame(
         Ajustados = fitted(mdl),
-        Residuos = residuals(mdl)
+        Residuos = if (eh_glm) residuals(mdl, type = "deviance") else residuals(mdl)
       )
-      
+
       # Títulos e rótulos customizados
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else "Resíduos vs Valores Ajustados"
-      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else "Valores Ajustados (Fitted)"
-      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Resíduos (Residuals)"
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else
+        if (eh_glm) "Resíduos de Deviance vs Probabilidades Ajustadas" else "Resíduos vs Valores Ajustados"
+      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else
+        if (eh_glm) "Probabilidades ajustadas" else "Valores Ajustados (Fitted)"
+      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else
+        if (eh_glm) "Resíduos de deviance" else "Resíduos (Residuals)"
       
       g_theme <- switch(input$graph_theme,
                         "minimal" = theme_minimal(base_size = 14),
@@ -697,10 +768,44 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         )
     })
     
-    # Gráfico 3: Normal Q-Q Plot
+    # Gráfico 3: influência para GLM; Normal Q-Q para os demais modelos.
     output$qq_plot <- renderPlot({
       fit <- model_fit()
       req(fit)
+
+      if (inherits(fit, "glm")) {
+        cook <- stats::cooks.distance(fit)
+        diag_cook <- data.frame(
+          Observacao = seq_along(cook),
+          DistanciaCook = as.numeric(cook)
+        )
+        limite <- 4 / max(1, nrow(diag_cook))
+        title_val <- if (nzchar(input$custom_title)) input$custom_title else
+          "Influência das observações (Distância de Cook)"
+        x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else "Observação"
+        y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Distância de Cook"
+        g_theme <- switch(input$graph_theme,
+                          "minimal" = theme_minimal(base_size = 14),
+                          "classic" = theme_classic(base_size = 14),
+                          "bw"      = theme_bw(base_size = 14),
+                          "gray"    = theme_gray(base_size = 14),
+                          "light"   = theme_light(base_size = 14),
+                          theme_minimal(base_size = 14))
+
+        return(
+          ggplot(diag_cook, aes(x = Observacao, y = DistanciaCook)) +
+            geom_col(fill = "#2E7D8F", width = 0.75) +
+            geom_hline(yintercept = limite, linetype = "dashed", color = "#E76F51", linewidth = 0.9) +
+            g_theme +
+            labs(
+              title = title_val,
+              subtitle = sprintf("Linha tracejada: referência 4/n = %.4f", limite),
+              x = x_label,
+              y = y_label
+            ) +
+            theme(plot.title = element_text(face = "bold", size = 16, color = "#212529"))
+        )
+      }
 
       # Resíduos padronizados (rstandard não existe para nls: usa z-score dos resíduos)
       std_resid <- if (is_curve(fit)) {
@@ -799,7 +904,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         code <- c(
           code,
           "# Base derivada escolhida na CatalyseR",
-          "# O Projeto R integrado incluirá antes a Trilha de Preparo compartilhada.",
+          "# O Projeto R integrado incluirá antes os tratamentos da Base Compartilhada.",
           "dados_analise <- dados",
           receita,
           sprintf("dados <- %s", base_execucao$base_objeto),
@@ -855,18 +960,31 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                            "light"   = "theme_light(base_size = 14)",
                            "theme_minimal(base_size = 14)")
       
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else {
-        if (mt == "logistico") paste("Regressão Logística:", input$var_y, "vs", input$var_x)
+      personalizar_ajuste <- identical(input$active_tab, aba_ajuste)
+      title_val <- if (personalizar_ajuste && nzchar(input$custom_title)) input$custom_title else {
+        if (mt == "logistico") paste("Regressão Logística Binária:", input$var_y, "vs", input$var_x)
         else if (mt == "linear") paste("Ajuste Linear:", input$var_y, "vs", input$var_x)
         else paste("Modelo Ajustado:", input$var_y, "vs", input$var_x)
       }
-      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
+      x_label <- if (personalizar_ajuste && nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
+      y_label <- if (personalizar_ajuste && nzchar(input$custom_label_y)) {
+        input$custom_label_y
+      } else if (mt == "logistico") {
+        "Probabilidade estimada"
+      } else {
+        input$var_y
+      }
       
       if (mt == "logistico") {
         plot_lines <- c(
           "# Gerar gráfico de regressão logística com a curva em S ajustada",
           sprintf("x_range <- range(dados_mat$`%s`, na.rm = TRUE)", input$var_x),
+          "x50 <- -coefs[1] / coefs[2]",
+          "l50_na_faixa <- is.finite(x50) && x50 >= x_range[1] && x50 <= x_range[2]",
+          "aviso_l50 <- if (l50_na_faixa) NULL else sprintf(",
+          "  'L50/X50 = %.2f está fora da faixa observada de X (%.2f a %.2f); interprete como extrapolação.',",
+          "  x50, x_range[1], x_range[2]",
+          ")",
           "grade <- data.frame(x = seq(x_range[1], x_range[2], length.out = 200))",
           sprintf("names(grade) <- '%s'", input$var_x),
           "grade$prob <- predict(modelo, newdata = grade, type = 'response')",
@@ -874,7 +992,11 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           sprintf("ggplot(dados_mat, aes(x = `%s`, y = y_bin)) +", input$var_x),
           "  geom_point(color = '#495057', alpha = 0.5, size = 2.5, position = position_jitter(height = 0.02, width = 0)) +",
           sprintf("  geom_line(data = grade, aes(x = `%s`, y = prob), color = '#dc3545', linewidth = 1.3) +", input$var_x),
-          "  geom_vline(xintercept = -coefs[1]/coefs[2], linetype = 'dashed', color = '#ffc107', linewidth = 1) +",
+          "  geom_vline(",
+          "    data = data.frame(x50 = if (l50_na_faixa) x50 else numeric(0)),",
+          "    aes(xintercept = x50), inherit.aes = FALSE,",
+          "    linetype = 'dashed', color = '#ffc107', linewidth = 1",
+          "  ) +",
           sprintf("  %s +", theme_code),
           "  labs("
         )
@@ -919,7 +1041,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       
       plot_lines <- c(plot_lines,
         sprintf("    x = '%s',", x_label),
-        sprintf("    y = '%s'", y_label),
+        sprintf("    y = '%s'%s", y_label, if (mt == "logistico") "," else ""),
+        if (mt == "logistico") "    caption = aviso_l50" else NULL,
         "  ) +",
         "  theme(",
         "    plot.title = element_text(face = 'bold', size = 16, color = '#212529'),",

@@ -3,6 +3,35 @@
 library(shiny)
 library(bslib)
 
+mod_analise_registravel_ui <- function(id, analise_ui, registro_ui) {
+  ns <- NS(id)
+  navset_card_tab(
+    id = ns("fluxo_registro_subabas"),
+    nav_panel(
+      title = "1. Configurar e executar",
+      icon = icon("sliders"),
+      div(
+        class = "pt-2",
+        analise_ui,
+        div(
+          class = "alert alert-light border small mt-3 mb-1",
+          icon("arrow-right"), " ",
+          "Depois de executar a análise, abra a sub-aba ",
+          strong("2. Adicionar aos resultados"), "."
+        )
+      )
+    ),
+    nav_panel(
+      title = "2. Adicionar aos resultados",
+      icon = icon("bookmark"),
+      div(
+        class = "pt-2",
+        registro_ui
+      )
+    )
+  )
+}
+
 mod_registrar_execucao_ui <- function(id) {
   ns <- NS(id)
   card(

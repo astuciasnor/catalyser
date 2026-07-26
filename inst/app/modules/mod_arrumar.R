@@ -657,9 +657,9 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
                            class = "btn-outline-primary btn-sm w-100 mb-2"),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("usar_analises"), "Usar este resultado nas análises",
+            actionButton(ns("usar_analises"), "Aplicar à Base Compartilhada",
                          icon = icon("share-from-square"), class = "btn-primary w-100"),
-            helpText("As análises passam a trabalhar sobre esta tabela arrumada (você pode voltar aos dados importados no painel de importação).")
+            helpText("Esta tabela passa a compor a Base Compartilhada (dados_analise). Você pode voltar aos dados importados no painel de importação.")
           )
         ),
         card(

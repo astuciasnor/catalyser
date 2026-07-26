@@ -122,6 +122,41 @@ testServer(
   }
 )
 
+dados_cont_tidy <- data.frame(
+  especie = c("a", "a", "b", "b"),
+  local = c("norte", "sul", "norte", "sul"),
+  n = c(10L, 5L, 3L, 12L),
+  stringsAsFactors = FALSE
+)
+attr(dados_cont_tidy, "catalyser_contingencia") <- list(
+  var_row = "especie", var_col = "local", freq = "n", percentual = "none"
+)
+dados_cont_tidy_rv <- reactiveVal(dados_cont_tidy)
+
+testServer(
+  mod_nonparametric_server,
+  args = list(data_rv = dados_cont_tidy_rv, import_info = info_rv,
+              contingency_shared = NULL, fixed_test = "quiquadrado"),
+  {
+    session$setInputs(
+      chi_source = "tidy",
+      chi_tidy_row = "especie",
+      chi_tidy_col = "local",
+      chi_tidy_n = "n",
+      chi_yates = FALSE,
+      chi_fisher = FALSE
+    )
+    session$setInputs(executar_analise = 1)
+    estado <- estado_execucao()
+    stopifnot(
+      identical(estado$analise_id, "np_qui_quadrado"),
+      identical(estado$parametros$fonte, "tidy"),
+      sum(estado$parametros$tabela) == 30,
+      is.finite(estado$resultado_resumo$p_valor)
+    )
+  }
+)
+
 testServer(mod_pca_server, args = list(data_rv = dados_rv, import_info = info_rv), {
   session$setInputs(
     vars_selected = c("captura_t", "esforco_h", "cpue"),

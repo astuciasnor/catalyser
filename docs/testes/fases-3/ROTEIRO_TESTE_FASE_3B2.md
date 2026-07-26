@@ -19,10 +19,10 @@ Em **Preparando Dados → Bases Derivadas**:
 
 1. crie `Logística da CPUE`, finalidade `Regressão logística`, nome R
    `base_reg_logistica`;
-2. adicione uma dicotomização de `cpue` com operador `>=`, limiar `5` e nova
+2. adicione uma dicotomização de `cpue` com operador `>=`, limiar `3` e nova
    variável `cpue_alta`;
 3. clique em **Recalcular esta base**;
-4. confira `cpue_alta` com valores 0/1;
+4. confira `cpue_alta` com valores 0/1, sendo 7 casos iguais a 1 e 64 iguais a 0;
 5. clique em **Finalizar preparo**.
 
 Crie também um ramo de controle, com finalidade `Gráficos`, recalcule e finalize.
@@ -30,7 +30,18 @@ Ele permite conferir a ordem das sugestões.
 
 ## Teste 1 — opções elegíveis
 
-Abra **Modelos de Regressão → Regressão Logística**.
+Na branch histórica `07c2cb8`, abra **Regressão Não Linear → Curva Logística**.
+Apesar desse rótulo, o módulo testado implementa regressão logística binária
+com `glm(..., family = binomial)`. A localização e o nome são uma discrepância
+conceitual encontrada na homologação: o destino correto é **Modelos de
+Regressão → Regressão Logística Binária**, sem confundi-la com a curva logística
+não linear.
+
+No artefato focal
+`catalyser-fase-3b2-logisticas-separadas-codigo-corrigido.zip`, a correção já
+está aplicada. Use **Modelos de Regressão → Regressão Logística Binária**. A
+entrada **Regressão Não Linear → Curva Logística** agora contém o ajuste
+sigmoidal não linear próprio e não faz parte da repetição manual da 3B.2.
 
 O seletor **Base utilizada** deve mostrar:
 

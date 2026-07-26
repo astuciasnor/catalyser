@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # Contrato puro para o modelo base/ramos em estrela. Toda base derivada nasce
 # DIRETAMENTE de `dados_analise`; não existe ramo de ramo. As etapas usam o
-# mesmo contrato e o mesmo replay da Trilha de Preparo.
+# mesmo contrato e o mesmo replay do pipeline de tratamentos.
 
 bases_finalidades <- c(
   "Uso geral" = "geral",
@@ -212,12 +212,56 @@ bases_validar_edicao <- function(base) {
   invisible(TRUE)
 }
 
+bases_tipos_redutores <- c("agrupar_sumarizar", "contingencia")
+
+bases_indices_redutores <- function(base) {
+  etapas <- base$etapas %||% list()
+  which(vapply(
+    etapas,
+    function(etapa) etapa$tipo %in% bases_tipos_redutores,
+    logical(1)
+  ))
+}
+
+bases_validar_redutor_final <- function(etapas) {
+  indices <- which(vapply(
+    etapas %||% list(),
+    function(etapa) etapa$tipo %in% bases_tipos_redutores,
+    logical(1)
+  ))
+  if (length(indices) > 1L)
+    stop(
+      paste(
+        "Use apenas uma etapa redutora por Base Derivada:",
+        "Agrupar/Sumarizar ou Tabela de Contingência."
+      ),
+      call. = FALSE
+    )
+  if (length(indices) == 1L && indices[[1]] != length(etapas))
+    stop(
+      paste(
+        "Agrupar/Sumarizar e Tabela de Contingência precisam ser a última",
+        "etapa da receita."
+      ),
+      call. = FALSE
+    )
+  invisible(TRUE)
+}
+
 # Adicionar uma etapa valida parâmetros contra dados já disponíveis (a raiz para
 # uma receita vazia ou o cache atual). Esta função nunca executa replay.
 bases_adicionar_etapa <- function(registros, id, tipo, params, dados_validacao,
                                   reg_tratamentos = tratamentos) {
   base <- bases_obter(registros, id)
   bases_validar_edicao(base)
+  if (length(bases_indices_redutores(base)))
+    stop(
+      paste(
+        "Esta receita já possui uma etapa final de Agrupar/Sumarizar ou",
+        "Tabela de Contingência. Atualize ou remova essa etapa antes de continuar."
+      ),
+      call. = FALSE
+    )
   tt <- reg_tratamentos[[tipo]]
   if (is.null(tt)) stop("Tipo de tratamento não registrado.", call. = FALSE)
   if (!is.data.frame(dados_validacao))
@@ -226,7 +270,53 @@ bases_adicionar_etapa <- function(registros, id, tipo, params, dados_validacao,
   if (!is.null(msg)) stop(msg, call. = FALSE)
 
   nova <- list(tipo = tipo, params = params, ativa = TRUE)
-  bases_atualizar_etapas(registros, id, c(base$etapas %||% list(), list(nova)))
+  etapas <- c(base$etapas %||% list(), list(nova))
+  bases_validar_redutor_final(etapas)
+  bases_atualizar_etapas(registros, id, etapas)
+}
+
+bases_substituir_redutor <- function(registros, id, indice, tipo, params,
+                                     dados_analise,
+                                     reg_tratamentos = tratamentos) {
+  base <- bases_obter(registros, id)
+  bases_validar_edicao(base)
+  etapas <- base$etapas %||% list()
+  indice <- as.integer(indice)
+  if (is.na(indice) || indice < 1L || indice > length(etapas))
+    stop("Etapa redutora não encontrada.", call. = FALSE)
+  if (!etapas[[indice]]$tipo %in% bases_tipos_redutores ||
+      !tipo %in% bases_tipos_redutores)
+    stop("A substituição é exclusiva para Agrupar/Sumarizar e Contingência.",
+         call. = FALSE)
+  if (!identical(etapas[[indice]]$tipo, tipo))
+    stop(
+      paste(
+        "A receita já termina com outro tipo de resumo.",
+        "Remova-o antes de escolher uma transformação diferente."
+      ),
+      call. = FALSE
+    )
+  if (!is.data.frame(dados_analise))
+    stop("A Base Compartilhada não está disponível para validar a etapa.",
+         call. = FALSE)
+
+  anteriores <- if (indice > 1L) etapas[seq_len(indice - 1L)] else list()
+  entrada <- replay_pipeline(dados_analise, anteriores, reg = reg_tratamentos)
+  if (length(entrada$erros %||% list()))
+    stop(
+      sprintf(
+        "Corrija as etapas anteriores antes de atualizar o resumo: %s",
+        paste(unlist(entrada$erros), collapse = "; ")
+      ),
+      call. = FALSE
+    )
+  tt <- reg_tratamentos[[tipo]]
+  msg <- tt$validar(entrada$df, params)
+  if (!is.null(msg)) stop(msg, call. = FALSE)
+
+  etapas[[indice]] <- list(tipo = tipo, params = params, ativa = TRUE)
+  bases_validar_redutor_final(etapas)
+  bases_atualizar_etapas(registros, id, etapas)
 }
 
 bases_mover_etapa <- function(registros, id, indice, direcao = c("subir", "descer")) {
@@ -239,6 +329,7 @@ bases_mover_etapa <- function(registros, id, indice, direcao = c("subir", "desce
   if (is.na(indice) || indice < 1L || indice > length(etapas) ||
       destino < 1L || destino > length(etapas)) return(registros)
   etapas[c(indice, destino)] <- etapas[c(destino, indice)]
+  bases_validar_redutor_final(etapas)
   bases_atualizar_etapas(registros, id, etapas)
 }
 
@@ -249,6 +340,7 @@ bases_alternar_etapa <- function(registros, id, indice) {
   indice <- as.integer(indice)
   if (is.na(indice) || indice < 1L || indice > length(etapas)) return(registros)
   etapas[[indice]]$ativa <- !isTRUE(etapas[[indice]]$ativa)
+  bases_validar_redutor_final(etapas)
   bases_atualizar_etapas(registros, id, etapas)
 }
 

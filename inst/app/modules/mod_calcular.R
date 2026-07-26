@@ -315,9 +315,9 @@ mod_calcular_ui <- function(id) {
             downloadButton(ns("baixar_dados"), "Baixar dados (.xlsx)",
                            class = "btn-outline-primary btn-sm w-100 mb-2"),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("usar_analises"), "Usar este resultado nas análises",
+            actionButton(ns("usar_analises"), "Aplicar à Base Compartilhada",
                          icon = icon("share-from-square"), class = "btn-primary w-100"),
-            helpText("As análises passam a trabalhar sobre esta tabela (volte aos dados importados no painel de importação).")
+            helpText("Esta tabela passa a compor a Base Compartilhada (dados_analise). Volte aos dados importados pelo painel de importação quando necessário.")
           )
         ),
         card(

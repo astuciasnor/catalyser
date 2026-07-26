@@ -11,13 +11,23 @@ mod_seletor_base_analise_ui <- function(id) {
   ns <- NS(id)
   card(
     class = "mb-2",
+    fill = FALSE,
     card_body(
       style = "padding:8px 12px;",
-      layout_columns(
-        col_widths = c(5, 7),
-        selectInput(ns("base_id"), "Base utilizada:",
-                    choices = c("Base compartilhada — dados_analise" = "dados_analise")),
-        uiOutput(ns("status"))
+      div(
+        class = "row g-2 align-items-start",
+        div(
+          class = "col-12 col-lg-5",
+          selectInput(
+            ns("base_id"), "Base utilizada:",
+            choices = c("Base compartilhada — dados_analise" = "dados_analise"),
+            width = "100%"
+          )
+        ),
+        div(
+          class = "col-12 col-lg-7",
+          uiOutput(ns("status"))
+        )
       )
     )
   )
@@ -73,7 +83,7 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
     output$status <- renderUI({
       base <- contexto()
       estilo <- "font-size:0.78rem; padding:7px 9px; margin:20px 0 0;"
-      if (isTRUE(base$derivada)) {
+      status_atual <- if (isTRUE(base$derivada)) {
         div(class = "alert alert-info", style = estilo,
             icon("diagram-project"), " ", tags$code(base$base_objeto),
             sprintf(" — %d linhas × %d colunas", nrow(base$df), ncol(base$df)))
@@ -81,6 +91,35 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
         div(class = "alert alert-light border", style = estilo,
             icon("database"), " ", tags$code("dados_analise"), " — base compartilhada")
       }
+
+      ids_disponiveis <- unname(opcoes())
+      pendentes <- Filter(
+        function(item) !item$id %in% ids_disponiveis,
+        registros()
+      )
+      aviso_pendentes <- if (length(pendentes)) {
+        motivos <- vapply(pendentes, function(item) {
+          estado_cache <- bases_estado_cache(
+            item, bases_cache_obter(caches(), item$id), revisao()
+          )
+          acao <- if (!identical(estado_cache, "Atualizada")) {
+            "falta Recalcular e Finalizar"
+          } else if (!identical(item$estado, "pronta")) {
+            "falta Finalizar preparo"
+          } else {
+            sprintf("cache %s", tolower(estado_cache))
+          }
+          sprintf("%s: %s", item$nome_amigavel, acao)
+        }, character(1))
+        div(
+          class = "alert alert-warning",
+          style = "font-size:0.76rem; padding:7px 9px; margin:6px 0 0;",
+          icon("triangle-exclamation"), " ",
+          strong("Base(s) ainda fora da lista: "),
+          paste0(paste(motivos, collapse = "; "), ".")
+        )
+      }
+      tagList(status_atual, aviso_pendentes)
     })
 
     invisible(list(dados = dados, contexto = contexto, opcoes = opcoes))

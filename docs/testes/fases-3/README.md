@@ -27,6 +27,10 @@ semestre.
   usada pelos alunos.
 - [Revisão recursiva de 15/07/2026](REVISAO_RECURSIVA_2026-07-15.md): evidências
   automáticas, achados e limites da revisão.
+- [Homologação da Fase 3B.2 no Windows 10](HOMOLOGACAO_WINDOWS_2026-07-25_FASE_3B2.md):
+  aprovação do contrato do seletor, correção do `glm` e pendências de interface.
+- [Homologação ponta a ponta no Windows](HOMOLOGACAO_END_TO_END_WINDOWS_2026-07-26.md):
+  percurso aprovado da Base Compartilhada ao Projeto R e ao relatório Word.
 
 ## Roteiros manuais por fase
 

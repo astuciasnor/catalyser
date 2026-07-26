@@ -51,7 +51,7 @@ exportacao_validar_manifesto <- function(manifesto, exigir_word = FALSE) {
 
 exportacao_codigo_preparo_compartilhado <- function(pipeline, reg = tratamentos) {
   linhas <- c(
-    "# Trilha de Preparo compartilhada — gerada pela CatalyseR",
+    "# Tratamentos adicionados à Base Compartilhada — gerados pela CatalyseR",
     "source('R/01_operacoes_estruturais.R', local = TRUE)",
     "dados <- base_resolvida",
     "trat_moda <- function(x) {",

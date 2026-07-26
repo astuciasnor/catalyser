@@ -559,29 +559,17 @@ ui <- page_navbar(
       mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
     ),
     nav_panel(
-      title = "Calcular / Reescalar Variável",
-      icon = icon("calculator"),
-      mod_calcular_ui("calcular")
-    ),
-    nav_panel(
-      title = "Agrupar / Sumarizar",
-      icon = icon("layer-group"),
-      mod_agrupar_sumarizar_ui("agrupar_sumarizar")
-    ),
-    nav_panel(
-      title = "Trilha de Preparo",
+      title = "Adicionar Tratamentos à Base",
       icon = icon("timeline"),
-      mod_tratar_ui("tratar")
+      mod_tratar_ui(
+        "tratar",
+        calcular_ui = mod_calcular_ui("calcular")
+      )
     ),
     nav_panel(
       title = "Bases Derivadas",
       icon = icon("diagram-project"),
       mod_bases_derivadas_ui("bases_derivadas")
-    ),
-    nav_panel(
-      title = "Criando Tabela de Contingência",
-      icon = icon("border-all"),
-      mod_contingency_ui("contingency")
     )
   ),
   
@@ -624,9 +612,12 @@ ui <- page_navbar(
     nav_panel(
       title = "Estatística Descritiva",
       icon = icon("table-list"),
-      tagList(
-        mod_seletor_base_analise_ui("base_descr_stats"),
-        mod_descr_stats_ui("descr_stats"),
+      mod_analise_registravel_ui(
+        "fluxo_descr_stats",
+        tagList(
+          mod_seletor_base_analise_ui("base_descr_stats"),
+          mod_descr_stats_ui("descr_stats")
+        ),
         mod_registrar_execucao_ui("registrar_descr_stats")
       )
     ),
@@ -664,10 +655,22 @@ ui <- page_navbar(
     nav_panel(
       title = "Regressão Linear Simples",
       icon = icon("chart-line"),
-      tagList(
-        mod_seletor_base_analise_ui("base_regression"),
-        mod_regression_ui("regression"),
+      mod_analise_registravel_ui(
+        "fluxo_regression",
+        tagList(
+          mod_seletor_base_analise_ui("base_regression"),
+          mod_regression_ui("regression")
+        ),
         mod_registrar_execucao_ui("registrar_regression")
+      )
+    ),
+    nav_panel(
+      title = "Regressão Logística Binária",
+      icon = icon("chart-line"),
+      mod_analise_registravel_ui(
+        "fluxo_logistic_regression",
+        mod_regression_ui("logistic_regression", is_logistic = TRUE),
+        mod_registrar_execucao_ui("registrar_logistic")
       )
     ),
     nav_panel(
@@ -727,10 +730,7 @@ ui <- page_navbar(
     nav_panel(
       title = "Curva Logística",
       icon = icon("chart-line"),
-      tagList(
-        mod_regression_ui("logistic_regression", is_logistic = TRUE),
-        mod_registrar_execucao_ui("registrar_logistic")
-      )
+      mod_nonlinear_ui("logistico", "logistico")
     )
   ),
   
@@ -741,9 +741,12 @@ ui <- page_navbar(
     nav_panel(
       title = "Teste t de Student",
       icon = icon("arrows-left-right"),
-      tagList(
-        mod_seletor_base_analise_ui("base_parametric"),
-        mod_parametric_ui("parametric"),
+      mod_analise_registravel_ui(
+        "fluxo_parametric",
+        tagList(
+          mod_seletor_base_analise_ui("base_parametric"),
+          mod_parametric_ui("parametric")
+        ),
         mod_registrar_execucao_ui("registrar_parametric")
       )
     ),
@@ -766,13 +769,19 @@ ui <- page_navbar(
     nav_panel(
       title = "Qui-quadrado (independência)",
       icon = icon("table-cells"),
-      tagList(
-        mod_seletor_base_analise_ui("base_np_qui"),
-        div(
-          class = "alert alert-light border py-2 small",
-          "A base escolhida vale para a fonte Duas variáveis. Tabela preparada e Entrada manual usam suas próprias fontes."
+      mod_analise_registravel_ui(
+        "fluxo_np_qui",
+        tagList(
+          mod_seletor_base_analise_ui("base_np_qui"),
+          div(
+            class = "alert alert-light border py-2 small",
+            "A base escolhida vale para Duas variáveis e para Base tidy de contingência. ",
+            "Bases tidy usam a coluna n como frequência. Se a base derivada não aparecer ",
+            "em Base utilizada, volte a Bases Derivadas, clique em Recalcular esta base ",
+            "e depois em Finalizar preparo."
+          ),
+          mod_nonparametric_ui("np_qui", "quiquadrado")
         ),
-        mod_nonparametric_ui("np_qui", "quiquadrado"),
         mod_registrar_execucao_ui("registrar_np_qui")
       )
     ),
@@ -800,18 +809,24 @@ ui <- page_navbar(
     nav_panel(
       title = "PCA (Componentes Principais)",
       icon = icon("diagram-project"),
-      tagList(
-        mod_seletor_base_analise_ui("base_pca"),
-        mod_pca_ui("pca"),
+      mod_analise_registravel_ui(
+        "fluxo_pca",
+        tagList(
+          mod_seletor_base_analise_ui("base_pca"),
+          mod_pca_ui("pca")
+        ),
         mod_registrar_execucao_ui("registrar_pca")
       )
     ),
     nav_panel(
       title = "Análise de Agrupamentos (Clustering)",
       icon = icon("bezier-curve"),
-      tagList(
-        mod_seletor_base_analise_ui("base_hca"),
-        mod_hca_ui("hca"),
+      mod_analise_registravel_ui(
+        "fluxo_hca",
+        tagList(
+          mod_seletor_base_analise_ui("base_hca"),
+          mod_hca_ui("hca")
+        ),
         mod_registrar_execucao_ui("registrar_hca")
       )
     )
@@ -840,9 +855,12 @@ ui <- page_navbar(
     nav_panel(
       title = "Gráfico de Linhas",
       icon = icon("chart-line"),
-      tagList(
-        mod_seletor_base_analise_ui("base_lines"),
-        mod_lines_ui("lines"),
+      mod_analise_registravel_ui(
+        "fluxo_lines",
+        tagList(
+          mod_seletor_base_analise_ui("base_lines"),
+          mod_lines_ui("lines")
+        ),
         mod_registrar_execucao_ui("registrar_lines")
       )
     ),
@@ -1008,6 +1026,25 @@ server <- function(input, output, session) {
   # ==========================================
   
   help_topics <- list(
+    bases = list(
+      title = "Guia — Base Compartilhada e Bases Derivadas",
+      keywords = "base compartilhada dados_analise base derivada ramo receita massa pizza forno preparo agrupar sumarizar comunicação",
+      content = HTML("
+        <h4 class='text-primary' style='font-family: \"Outfit\", sans-serif; font-weight: 700;'>Da massa compartilhada à pizza servida</h4>
+        <p>Pense nos dados importados como os ingredientes que chegam à cozinha. O preparo comum produz uma <b>massa-base</b> confiável: a <b>Base Compartilhada</b>, cujo nome técnico é <code>dados_analise</code>.</p>
+        <p>Quando uma análise pede algo específico, separamos uma porção dessa massa e criamos uma <b>Base Derivada</b>. Adicionar à receita inclui apenas nessa porção os tratamentos necessários — como um filtro, uma dicotomização ou uma padronização. A massa compartilhada e os outros ramos não mudam.</p>
+        <p><b>Recalcular</b> prepara a porção e permite conferi-la; <b>Finalizar preparo</b> declara que ela está pronta; executar a <b>análise</b> é levá-la ao forno; e a <b>Comunicação de Resultados</b> serve a pizza, acompanhada da receita e do modo de preparo para preservar a reprodutibilidade.</p>
+        <div class='alert alert-info'><b>Pergunta que decide:</b> todas as análises deveriam receber esta mudança? Se sim, ela pertence à Base Compartilhada. Se servir apenas a uma finalidade, crie uma Base Derivada.</div>
+        <ol>
+          <li>Importe e organize os dados que serão comuns ao projeto.</li>
+          <li>Use <b>Adicionar Tratamentos à Base</b> para registrar os tratamentos compartilhados.</li>
+          <li>Abra <b>Preparando Dados → Bases Derivadas</b> para criar preparos específicos.</li>
+          <li>Ordene a receita, recalcule a base e confira a prévia e o código R.</li>
+          <li>Finalize o preparo e escolha a base apropriada no módulo de análise.</li>
+        </ol>
+        <p>Todas as porções nascem diretamente da mesma massa-base: Bases Derivadas não podem nascer de outras Bases Derivadas. Assim, a topologia permanece em estrela.</p>
+      ")
+    ),
     flow = list(
       title = "1. Fluxo de Trabalho",
       keywords = "ide_r catalyst andaimes visuais paradigma ensino aprendizagem fluxo trabalho",
@@ -1681,7 +1718,8 @@ RCatalyst::run_ide()</pre>
     for (col_name in names(df)) {
       input_id <- paste0("col_type_", sanitize_id(col_name))
       val <- input[[input_id]]
-      if (!is.null(val) && val != types[[col_name]]) {
+      if (length(val) == 1L && !is.na(val) &&
+          !identical(val, types[[col_name]])) {
         types[[col_name]] <- val
         updated <- TRUE
       }
@@ -2342,7 +2380,7 @@ RCatalyst::run_ide()</pre>
 
   # ============================================================================
   # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
-  # A Trilha de Preparo é a camada MAIS EXTERNA do dataset ativo. Resolução:
+  # Adicionar Tratamentos à Base é a camada MAIS EXTERNA do dataset ativo. Resolução:
   #   importados (current_data)
   #     -> Arrumar/Calcular promovem via dataset_ativo_rv -> base_resolvida
   #     -> replay(base_resolvida, pipeline_rv)            -> dados_analise
@@ -2381,7 +2419,7 @@ RCatalyst::run_ide()</pre>
   promover_dataset <- function(df, fonte, codigo = NULL) {
     dataset_ativo_rv(list(df = df, fonte = fonte))
     base_externa_rv(if (!is.null(codigo) && nzchar(codigo)) list(fonte = fonte, codigo = codigo) else NULL)
-    showNotification(sprintf("Análises agora usam: %s (%d linhas x %d colunas).",
+    showNotification(sprintf("Base Compartilhada atualizada por: %s (%d linhas x %d colunas).",
                              fonte, nrow(df), ncol(df)), type = "message", duration = 6)
   }
 
@@ -2454,6 +2492,7 @@ RCatalyst::run_ide()</pre>
   mod_nonlinear_server("von_bertalanffy", dados_analise, import_info, "von_bertalanffy")
   mod_nonlinear_server("polinomial", dados_analise, import_info, "polinomial")
   mod_nonlinear_server("logaritmica", dados_analise, import_info, "logaritmica")
+  mod_nonlinear_server("logistico", dados_analise, import_info, "logistico")
   regressao_logistica <- mod_regression_server(
     "logistic_regression", dados_analise, import_info, is_logistic = TRUE,
     registro_bases_rv = registro_bases_rv,
@@ -2494,7 +2533,9 @@ RCatalyst::run_ide()</pre>
   mod_aas_server("aas", dados_analise, import_info)
   mod_aep_server("aep", dados_analise, import_info)
   mod_as_server("as", dados_analise, import_info)
-  contingency_shared <- mod_contingency_server("contingency", dados_analise, import_info)
+  # A contingência agora é uma etapa reproduzível da receita de uma Base
+  # Derivada; o fluxo legado de "tabela preparada" fica desativado.
+  contingency_shared <- NULL
   # Arrumar continua lendo os dados IMPORTADOS (current_data) e promove seu
   # resultado às análises via callback on_usar.
   mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar", on_usar = promover_dataset)
@@ -2502,11 +2543,7 @@ RCatalyst::run_ide()</pre>
   # Calcular/Reescalar lê a BASE RESOLVIDA (pré-trilha, para não aplicar a trilha
   # duas vezes) e promove seu resultado pelo mesmo callback.
   mod_calcular_server("calcular", base_resolvida, import_info, on_usar = promover_dataset)
-  # Agrupar/Sumarizar também atua antes da Trilha: cria uma base com uma linha
-  # por grupo e só a promove quando o usuário confirma o resultado.
-  mod_agrupar_sumarizar_server("agrupar_sumarizar", base_resolvida, import_info,
-                               on_usar = promover_dataset)
-  # Trilha de Preparo (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
+  # Adicionar Tratamentos à Base (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
   # do dados_analise, automática (sem "Usar nas análises").
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
   # Fases 3A/3B: cadastro, receita e replay lazy de ramos em estrela. Na 3B.3,
@@ -2541,7 +2578,7 @@ RCatalyst::run_ide()</pre>
   registro_logistic <- mod_registrar_execucao_server(
     "registrar_logistic", regressao_logistica$estado_execucao, regressao_logistica$base_contexto,
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
-    registro_bases_rv, cache_bases_rv, "logistic_regression", "A Regressão Logística"
+    registro_bases_rv, cache_bases_rv, "logistic_regression", "A Regressão Logística Binária"
   )
   registro_parametric <- mod_registrar_execucao_server(
     "registrar_parametric", teste_t$estado_execucao, seletor_parametric$contexto,
@@ -2596,6 +2633,8 @@ RCatalyst::run_ide()</pre>
   observe({
     req(input$main_navbar)
     tab <- input$main_navbar
+    subaba_bases <- input[["bases_derivadas-bases_derivadas_subabas"]]
+    tipo_receita <- input[["bases_derivadas-ramo_tipo"]]
     if (tab == "Estatística Descritiva") {
       used_analyses$descr_stats <- TRUE
     } else if (tab == "Histogramas") {
@@ -2624,7 +2663,9 @@ RCatalyst::run_ide()</pre>
       used_analyses$aep <- TRUE
     } else if (tab == "Amostrando uma AS (Sistemática)") {
       used_analyses$as <- TRUE
-    } else if (tab == "Criando Tabela de Contingência") {
+    } else if (tab == "Bases Derivadas" &&
+               identical(subaba_bases, "Receita da base") &&
+               identical(tipo_receita, "contingencia")) {
       used_analyses$contingency <- TRUE
     } else if (tab == "ANOVA (Análise de Variância)") {
       used_analyses$anova <- TRUE
@@ -2660,6 +2701,8 @@ RCatalyst::run_ide()</pre>
     # Se já estiver em uma aba de análise durante a troca, re-habilita para o novo dataset
     if (!is.null(input$main_navbar)) {
       tab <- input$main_navbar
+      subaba_bases <- input[["bases_derivadas-bases_derivadas_subabas"]]
+      tipo_receita <- input[["bases_derivadas-ramo_tipo"]]
       if (tab == "Estatística Descritiva") {
         used_analyses$descr_stats <- TRUE
       } else if (tab == "Histogramas") {
@@ -2688,7 +2731,9 @@ RCatalyst::run_ide()</pre>
         used_analyses$aep <- TRUE
       } else if (tab == "Amostrando uma AS (Sistemática)") {
         used_analyses$as <- TRUE
-      } else if (tab == "Criando Tabela de Contingência") {
+      } else if (tab == "Bases Derivadas" &&
+                 identical(subaba_bases, "Receita da base") &&
+                 identical(tipo_receita, "contingencia")) {
         used_analyses$contingency <- TRUE
       } else if (tab == "ANOVA (Análise de Variância)") {
         used_analyses$anova <- TRUE

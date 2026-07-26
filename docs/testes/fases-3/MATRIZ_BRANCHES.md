@@ -8,14 +8,26 @@ própria, sem merge na `main`.
 |---:|---|---|---|---|---|---|
 | 0 | `main` | `d804bdb` | versão estável anterior ao ciclo | base congelada | sim | referência |
 | 1 | `feature/fase-3a-registro-bases` | `d9aa689` | 3A + 3A.1: registro em estrela, cache lazy, estados e recálculo manual | `main` | sim | pendente |
-| 2 | `feature/fase-3b-transformacoes-ramos` | `99a4b1a` | 3B.1: editor de receitas específicas | anterior | sim | pendente |
-| 3 | `feature/fase-3b2-seletor-base-piloto` | `07c2cb8` | 3B.2: seletor piloto na regressão logística | anterior | sim | pendente |
+| 2 | `feature/fase-3b-transformacoes-ramos` | `99a4b1a` | 3B.1: editor de receitas específicas | anterior | sim | aprovado com correção* |
+| 3 | `feature/fase-3b2-seletor-base-piloto` | `07c2cb8` | 3B.2: seletor piloto na regressão logística | anterior | sim | aprovado com correções** |
 | 4 | `feature/fase-3b3-seletores-prioritarios` | `ced3fdb` | 3B.3: seletor reutilizável em sete módulos | anterior | sim | pendente |
 | 5 | `feature/fase-3c-registro-execucoes` | `e84e7b3` | 3C: registro independente de execuções | anterior | sim | pendente |
 | 6 | `feature/fase-3c1-execucao-explicita` | `6115420` | 3C.1: botão Executar e rascunho pendente | anterior | sim | pendente |
 | 7 | `feature/fase-3d-comunicacao-resultados` | `4140e08` | 3D: estúdio editorial de comunicação | anterior | sim | pendente |
 | 8 | `feature/fase-3e-exportacao-integrada` | `e7b449d` | 3E: Word seletivo e Projeto R completo | anterior | sim | pendente |
 | 9 | `chore/revisao-fases-3` | `HEAD` da branch | documentação, limpeza e bateria final | 3E | sim | pendente |
+
+\* Os oito blocos funcionais foram aprovados no Windows 10 em 19/07/2026, mas
+o artefato `99a4b1a` apresentou um bloqueio de importação por `NA` antes do
+roteiro. A fonte de trabalho recebeu a correção; gerar novo artefato antes da
+promoção. Evidências em
+[`HOMOLOGACAO_WINDOWS_2026-07-19.md`](HOMOLOGACAO_WINDOWS_2026-07-19.md).
+
+** A Fase 3B.2 e seu teste focal foram aprovados no Windows 10 em 25–26/07/2026.
+Foram corrigidos as métricas do `glm`, a separação entre regressão logística
+binária e curva logística não linear, os diagnósticos e o código R exportado.
+Evidências em
+[`HOMOLOGACAO_WINDOWS_2026-07-25_FASE_3B2.md`](HOMOLOGACAO_WINDOWS_2026-07-25_FASE_3B2.md).
 
 ## Dependência
 

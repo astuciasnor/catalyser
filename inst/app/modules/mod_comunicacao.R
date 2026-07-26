@@ -1,7 +1,8 @@
 # Comunicação de Resultados — estúdio editorial e exportador integrado
 # ---------------------------------------------------------------------------
-# Consome as execuções registradas na Fase 3C. Na Fase 3E, o Word obedece ao
-# manifesto editorial e o Projeto R preserva todas as execuções registradas.
+# Consome as execuções registradas na Fase 3C. A Fase 3D organiza a seleção
+# editorial; na Fase 3E, o Word obedece ao manifesto e o Projeto R preserva
+# todas as execuções registradas.
 
 library(shiny)
 library(bslib)
@@ -14,82 +15,163 @@ mod_comunicacao_ui <- function(id) {
   ns <- NS(id)
   tagList(
     div(
+      class = "d-flex justify-content-between align-items-start gap-3 flex-wrap",
       style = "padding:4px 2px 10px;",
-      h4(
-        "Comunicação de Resultados",
-        style = "font-family:'Outfit',sans-serif; font-weight:700; color:#0F3B5F; margin-bottom:2px;"
-      ),
-      p(
-        style = "color:#495057; font-size:0.9rem; margin:0;",
-        "Organize o que foi executado e escolha o que aparecerá no Word. ",
-        strong("O Projeto R preservará todas as execuções registradas.")
-      )
-    ),
-    layout_columns(
-      col_widths = c(1, 1, 1),
-      style = "grid-template-columns:4fr 5fr 3fr !important;",
-
-      card(
-        card_header(
-          div(
-            class = "d-flex justify-content-between align-items-center",
-            span("1. Execuções registradas"),
-            uiOutput(ns("contador"))
-          )
+      div(
+        h4(
+          "Comunicação de Resultados",
+          style = "font-family:'Outfit',sans-serif; font-weight:700; color:#0F3B5F; margin-bottom:2px;"
         ),
-        card_body(
-          style = "padding:12px 15px;",
-          uiOutput(ns("fila")),
-          uiOutput(ns("acoes_fila")),
-          hr(style = "margin:12px 0 8px;"),
-          h6(icon("database"), " Bases do projeto", class = "mb-2"),
-          uiOutput(ns("bases_projeto")),
-          helpText(
-            "As setas mudam somente a ordem do relatório. Desmarcar 'Incluir no Word' não apaga a execução.",
-            style = "font-size:0.78rem; margin-top:10px;"
-          )
+        p(
+          style = "color:#495057; font-size:0.9rem; margin:0;",
+          "Organize o que foi executado e escolha o que aparecerá no Word. ",
+          strong("O Projeto R preservará todas as execuções registradas.")
         )
       ),
-
-      navset_card_tab(
-        nav_panel(
-          title = "Esboço do documento", icon = icon("list-ol"),
-          card_body(style = "padding:12px 15px;", uiOutput(ns("esboco")))
-        ),
-        nav_panel(
-          title = "Manifesto editorial", icon = icon("code"),
-          card_body(
-            style = "padding:12px 15px;",
-            tags$pre(
-              style = "white-space:pre-wrap; font-size:0.80rem; color:#334155; max-height:620px;",
-              textOutput(ns("manifesto_texto"), container = span)
+      div(
+        class = "align-self-center",
+        uiOutput(ns("contador"))
+      )
+    ),
+    navset_card_tab(
+      id = ns("comunicacao_subabas"),
+      nav_panel(
+        title = "1. Esboço do documento",
+        icon = icon("list-ol"),
+        card_body(
+          style = "padding:14px 16px;",
+          layout_columns(
+            col_widths = c(7, 5),
+            fill = FALSE,
+            fillable = FALSE,
+            div(
+              h5("Estrutura prevista", class = "mb-1"),
+              p(
+                class = "small text-muted mb-3",
+                "O esboço acompanha a seleção e a ordem definidas em Execuções registradas."
+              ),
+              div(
+                class = "border rounded p-3 bg-light",
+                uiOutput(ns("esboco"))
+              ),
+              tags$details(
+                class = "border rounded mt-3",
+                tags$summary(
+                  class = "px-3 py-2 fw-semibold",
+                  style = "cursor:pointer; color:#0F3B5F;",
+                  icon("code"), " Manifesto editorial — detalhe técnico"
+                ),
+                div(
+                  class = "px-3 pb-3",
+                  tags$pre(
+                    style = paste(
+                      "white-space:pre-wrap; font-size:0.80rem;",
+                      "color:#334155; max-height:28rem; overflow:auto;"
+                    ),
+                    textOutput(ns("manifesto_texto"), container = span)
+                  )
+                )
+              )
+            ),
+            card(
+              fill = FALSE,
+              class = "mb-0",
+              card_header("Seções globais do documento"),
+              card_body(
+                style = "padding:12px 15px;",
+                textAreaInput(ns("introducao"), "Introdução (opcional):", rows = 3),
+                textAreaInput(ns("metodos"), "Métodos gerais (opcional):", rows = 3),
+                textAreaInput(ns("discussao"), "Discussão (opcional):", rows = 3),
+                textAreaInput(ns("conclusao"), "Conclusão (opcional):", rows = 2)
+              )
             )
           )
         )
       ),
-
-      div(
-        card(
-          card_header("2. Seções globais"),
-          card_body(
-            style = "padding:12px 15px;",
-            textAreaInput(ns("introducao"), "Introdução (opcional):", rows = 3),
-            textAreaInput(ns("metodos"), "Métodos gerais (opcional):", rows = 3),
-            textAreaInput(ns("discussao"), "Discussão (opcional):", rows = 3),
-            textAreaInput(ns("conclusao"), "Conclusão (opcional):", rows = 2)
+      nav_panel(
+        title = "2. Execuções registradas",
+        icon = icon("list-check"),
+        card_body(
+          style = "padding:14px 16px;",
+          h5("Seleção editorial e ordem dos resultados", class = "mb-1"),
+          p(
+            class = "small text-muted mb-3",
+            "Abra uma execução por vez, escolha o conteúdo do Word e use as setas para definir a ordem do relatório."
+          ),
+          uiOutput(ns("acoes_fila")),
+          uiOutput(ns("fila")),
+          div(
+            class = "alert alert-light border small mt-3 mb-0",
+            icon("circle-info"), " ",
+            "Desmarcar “Incluir esta execução no Word” não apaga a execução: ",
+            "ela permanece preservada no Projeto R."
           )
-        ),
-        card(
-          card_header("3. Saída planejada"),
-          card_body(
-            style = "padding:12px 15px;",
-            uiOutput(ns("resumo_saida")),
-            radioButtons(
-              ns("formato"), "Formato principal:",
-              choices = c("Word (.docx) — tema Ocean" = "docx"),
-              selected = "docx"
+        )
+      ),
+      nav_panel(
+        title = "3. Bases do projeto",
+        icon = icon("database"),
+        card_body(
+          style = "padding:14px 16px;",
+          layout_columns(
+            col_widths = c(7, 5),
+            fill = FALSE,
+            fillable = FALSE,
+            div(
+              h5("Proveniência dos resultados", class = "mb-1"),
+              p(
+                class = "small text-muted mb-3",
+                "Confira a Base Compartilhada e as Bases Derivadas vinculadas às execuções."
+              ),
+              uiOutput(ns("bases_projeto"))
             ),
-            uiOutput(ns("acoes_exportacao"))
+            div(
+              class = "alert alert-info small mb-0",
+              icon("diagram-project"), " ",
+              strong("Percurso preservado. "),
+              "Cada execução mantém a referência à base utilizada. ",
+              "O Projeto R leva todas as bases e execuções registradas, ",
+              "inclusive as que não forem incluídas no Word."
+            )
+          )
+        )
+      ),
+      nav_panel(
+        title = "4. Saída planejada",
+        icon = icon("file-export"),
+        card_body(
+          style = "padding:14px 16px;",
+          layout_columns(
+            col_widths = c(7, 5),
+            fill = FALSE,
+            fillable = FALSE,
+            card(
+              fill = FALSE,
+              class = "mb-0",
+              card_header("Conferência antes da exportação"),
+              card_body(
+                style = "padding:12px 15px;",
+                uiOutput(ns("resumo_saida")),
+                radioButtons(
+                  ns("formato"), "Formato principal:",
+                  choices = c("Word (.docx) — tema Ocean" = "docx"),
+                  selected = "docx"
+                )
+              )
+            ),
+            card(
+              fill = FALSE,
+              class = "mb-0",
+              card_header("Arquivos do projeto"),
+              card_body(
+                style = "padding:12px 15px;",
+                p(
+                  class = "small text-muted",
+                  "Baixe o documento final ou o projeto reproduzível para continuar no RStudio."
+                ),
+                uiOutput(ns("acoes_exportacao"))
+              )
+            )
           )
         )
       )
@@ -229,7 +311,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         ))
       }
 
-      tagList(lapply(seq_along(estado$ordem), function(indice) {
+      paineis <- lapply(seq_along(estado$ordem), function(indice) {
         execucao_id <- estado$ordem[[indice]]
         execucao <- registro[[execucao_id]]
         item <- estado$itens[[execucao_id]]
@@ -237,23 +319,27 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         rotulos <- comunicacao_rotulos_saidas[execucao$saidas_disponiveis]
         rotulos <- rotulos[!is.na(rotulos)]
         choices <- stats::setNames(names(rotulos), unname(rotulos))
-        card(
-          class = "mb-2",
-          style = if (isTRUE(item$incluir_word))
-            "border-left:4px solid #2E7D8F;" else "border-left:4px solid #adb5bd; opacity:0.82;",
-          card_body(
-            style = "padding:10px 12px;",
+        accordion_panel(
+          value = execucao_id,
+          title = div(
+            class = "d-flex justify-content-between align-items-center gap-2 w-100 pe-2",
             div(
-              class = "d-flex justify-content-between align-items-start gap-2",
-              div(
-                span(class = "badge text-bg-secondary", indice), " ",
-                strong(execucao$titulo), br(),
-                tags$small(
-                  class = "text-muted",
-                  tags$code(execucao_id), " · base ", tags$code(execucao$base_objeto)
-                )
-              ),
-              span(class = paste("badge", comunicacao_classe_estado(dependencia)), dependencia)
+              span(class = "badge text-bg-secondary", indice), " ",
+              strong(execucao$titulo),
+              tags$small(
+                class = "text-muted ms-2",
+                tags$code(execucao_id), " · ", tags$code(execucao$base_objeto)
+              )
+            ),
+            span(class = paste("badge", comunicacao_classe_estado(dependencia)), dependencia)
+          ),
+          div(
+            style = if (isTRUE(item$incluir_word))
+              "border-left:4px solid #2E7D8F; padding-left:12px;" else
+              "border-left:4px solid #adb5bd; padding-left:12px; opacity:0.82;",
+            div(
+              class = "small text-muted mb-2",
+              "Base utilizada: ", tags$code(execucao$base_objeto)
             ),
             checkboxInput(
               session$ns(id_controle("incluir", execucao_id)),
@@ -268,7 +354,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
               div(class = "small text-warning mb-2", icon("triangle-exclamation"),
                   " Escolha ao menos um conteúdo ou retire esta execução do Word."),
             div(
-              class = "d-flex gap-2",
+              class = "d-flex gap-2 flex-wrap",
               actionButton(
                 session$ns(id_controle("subir", execucao_id)), "Subir",
                 icon = icon("arrow-up"), class = "btn-sm btn-outline-secondary",
@@ -282,13 +368,24 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
             )
           )
         )
-      }))
+      })
+      do.call(
+        accordion,
+        c(
+          list(
+            id = session$ns("fila_execucoes"),
+            open = estado$ordem[[1]],
+            multiple = FALSE
+          ),
+          paineis
+        )
+      )
     })
 
     output$acoes_fila <- renderUI({
       if (!length(estado_editorial_rv()$ordem)) return(NULL)
       div(
-        class = "d-flex gap-2 flex-wrap mt-2",
+        class = "d-flex gap-2 flex-wrap mb-3",
         actionButton(session$ns("incluir_todas"), "Incluir todas", icon = icon("check-double"),
                      class = "btn-sm btn-outline-success"),
         actionButton(session$ns("excluir_todas"), "Nenhuma no Word", icon = icon("eye-slash"),

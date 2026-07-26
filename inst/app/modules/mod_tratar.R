@@ -1,4 +1,4 @@
-# Modulo "Trilha de Preparo" para a CatalyseR (Fase 2)
+# Módulo "Adicionar Tratamentos à Base" para a CatalyseR (Fase 2)
 # ---------------------------------------------------------------------------
 # Edita o PIPELINE de preparo GLOBAL (pipeline_rv, criado no app). O dados_analise
 # do app e o REPLAY desse pipeline sobre a base_resolvida (ordem LOGICA); a trilha
@@ -10,10 +10,9 @@ library(shiny)
 library(bslib)
 library(DT)
 
-mod_tratar_ui <- function(id) {
+mod_tratar_ui <- function(id, calcular_ui = NULL) {
   ns <- NS(id)
-  tagList(
-    layout_columns(
+  conteudo_tratamentos <- layout_columns(
       col_widths = c(1, 1, 1),
       style = "grid-template-columns: 3.4fr 6.1fr 2.5fr !important;",
 
@@ -22,16 +21,27 @@ mod_tratar_ui <- function(id) {
           card_header("1. Adicionar tratamento"),
           card_body(
             style = "padding: 12px 15px;",
-            selectInput(ns("tipo"), "Tipo de tratamento:",
-              choices = c("Dados faltantes (NA)"          = "tratar_na",
-                          "Dicotomizar (0/1)"             = "dicotomizar",
-                          "Padronizar / Escalar"          = "padronizar",
-                          "Classes de tamanho (binning)"  = "binning",
-                          "Remover duplicatas"            = "remover_duplicatas",
-                          "Padronizar texto"              = "padronizar_texto",
-                          "Calcular variável"             = "calcular",
-                          "Reescalar (prefixo SI)"        = "reescalar",
-                          "Filtrar linhas"                = "filtrar")),
+            tags$style(HTML(sprintf(
+              "#%s .selectize-dropdown-content { max-height: min(30rem, calc(100vh - 15rem)); }",
+              ns("tipo_wrapper")
+            ))),
+            div(
+              id = ns("tipo_wrapper"),
+              selectizeInput(
+                ns("tipo"), "Tipo de tratamento:",
+                choices = c(
+                  "Dados faltantes (NA)"          = "tratar_na",
+                  "Dicotomizar (0/1)"             = "dicotomizar",
+                  "Padronizar / Escalar"          = "padronizar",
+                  "Classes de tamanho (binning)"  = "binning",
+                  "Remover duplicatas"            = "remover_duplicatas",
+                  "Padronizar texto"              = "padronizar_texto",
+                  "Calcular variável"             = "calcular",
+                  "Reescalar (prefixo SI)"        = "reescalar"
+                ),
+                options = list(maxOptions = 12)
+              )
+            ),
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'tratar_na'", ns("tipo")),
@@ -139,36 +149,13 @@ mod_tratar_ui <- function(id) {
               textInput(ns("re_nome"), "Nome da coluna nova:", value = "")
             ),
 
-            conditionalPanel(
-              condition = sprintf("input['%s'] == 'filtrar'", ns("tipo")),
-              selectInput(ns("fil_col"), "Coluna:", choices = NULL),
-              radioButtons(ns("fil_origem"), "Condição:",
-                choices = c("Numérica (comparação)" = "numerica", "Categórica (níveis)" = "categorica"),
-                selected = "numerica", inline = TRUE),
-              conditionalPanel(
-                condition = sprintf("input['%s'] == 'numerica'", ns("fil_origem")),
-                div(class = "d-flex gap-2",
-                  selectInput(ns("fil_op"), "Operador:",
-                              choices = c(">=", ">", "<=", "<", "==", "!="), selected = ">="),
-                  numericInput(ns("fil_valor"), "Valor:", value = 0))
-              ),
-              conditionalPanel(
-                condition = sprintf("input['%s'] == 'categorica'", ns("fil_origem")),
-                selectizeInput(ns("fil_niveis"), "Níveis a MANTER:",
-                               choices = NULL, multiple = TRUE,
-                               options = list(placeholder = "escolha um ou mais...",
-                                              plugins = list("remove_button")))
-              ),
-              helpText("Mantém apenas as linhas que satisfazem a condição.")
-            ),
-
-            actionButton(ns("add_etapa"), "Adicionar à trilha",
+            actionButton(ns("add_etapa"), "Adicionar à Trilha da Base Compartilhada",
                          icon = icon("plus"), class = "btn-primary w-100 mt-2")
           )
         ),
 
         card(
-          card_header("2. Trilha de preparo"),
+          card_header("2. Tratamentos adicionados"),
           card_body(
             style = "padding: 12px 15px;",
             uiOutput(ns("trilha_display")),
@@ -230,11 +217,22 @@ mod_tratar_ui <- function(id) {
             style = "padding: 12px 15px; font-size: 0.8rem; line-height: 1.4;",
             tags$p(style = "margin: 0 0 6px;", "A trilha é a ", strong("ordem lógica"),
                    " do preparo — não a ordem em que você clicou."),
+            tags$p(style = "margin: 0 0 6px;",
+                   "Na Base Compartilhada, a redução de linhas fica restrita à remoção de duplicatas ou ao tratamento de dados faltantes."),
             tags$p(style = "margin: 0;", "Ela gera o script reprodutível e, no futuro, a seção ",
                    strong("Preparação dos dados"), " do relatório.")
           )
         )
       )
+    )
+
+  if (is.null(calcular_ui)) return(tagList(conteudo_tratamentos))
+
+  tagList(
+    tabsetPanel(
+      id = ns("tratamentos_subabas"),
+      tabPanel("Tratamentos e trilha", conteudo_tratamentos),
+      tabPanel("Calculadora guiada", calcular_ui)
     )
   )
 }
@@ -266,7 +264,6 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
       updateSelectizeInput(session, "dup_cols", choices = names(df),
         selected = isolate(input$dup_cols), server = TRUE)
       updateSelectInput(session, "re_col", choices = num, selected = isolate(input$re_col))
-      updateSelectInput(session, "fil_col", choices = names(df), selected = isolate(input$fil_col))
     })
 
     output$na_contagem <- renderText({
@@ -305,13 +302,6 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
       suf <- if (nzchar(input$re_prefixo %||% "")) input$re_prefixo else "base"
       updateTextInput(session, "re_nome", value = paste0(input$re_col, "_", suf))
     }, ignoreInit = TRUE)
-    observeEvent(input$fil_col, {
-      req(input$fil_col %in% names(df_res()))
-      x <- df_res()[[input$fil_col]]
-      updateRadioButtons(session, "fil_origem", selected = if (is.numeric(x)) "numerica" else "categorica")
-      lv <- sort(unique(as.character(x[!is.na(x)])))
-      updateSelectizeInput(session, "fil_niveis", choices = lv, selected = character(0), server = TRUE)
-    })
     output$calc_cols <- renderText({
       df <- df_res(); if (is.null(df) || !ncol(df)) "—" else paste(names(df), collapse = ", ")
     })
@@ -330,9 +320,7 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
         remover_duplicatas = list(colunas = input$dup_cols),
         padronizar_texto = list(coluna = input$txt_col, metodo = input$txt_metodo),
         calcular = list(nome = trimws(input$calc_nome %||% ""), expr = input$calc_expr %||% ""),
-        reescalar = list(coluna = input$re_col, simbolo = input$re_prefixo, nome = trimws(input$re_nome %||% "")),
-        filtrar = list(coluna = input$fil_col, origem = input$fil_origem, operador = input$fil_op,
-                       valor = input$fil_valor, niveis = input$fil_niveis)
+        reescalar = list(coluna = input$re_col, simbolo = input$re_prefixo, nome = trimws(input$re_nome %||% ""))
       )
       msg <- tratamentos[[tipo]]$validar(df, params)
       if (!is.null(msg)) { showNotification(msg, type = "error", duration = 8); return() }
@@ -399,11 +387,11 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
 
     output$status_indicador <- renderUI({
       ps <- pipeline_rv()
-      if (!length(ps)) return(div(style = "color:#888; font-size:0.85rem;", "Trilha vazia."))
+      if (!length(ps)) return(div(style = "color:#888; font-size:0.85rem;", "Nenhum tratamento adicionado."))
       r <- df_res(); n_ativas <- sum(vapply(ps, function(e) isTRUE(e$ativa), logical(1)))
       n_erros <- length(resultado()$erros)
       div(style = "font-size:0.85rem;",
-          span(style = "color:#2E7D8F; font-weight:600;", "Trilha de preparo"), br(),
+          span(style = "color:#2E7D8F; font-weight:600;", "Tratamentos adicionados"), br(),
           sprintf("%d etapa(s) - %d ativa(s) - %d linhas x %d colunas", length(ps), n_ativas, nrow(r), ncol(r)),
           if (n_erros > 0) tagList(br(), span(style = "color:#E76F51; font-weight:600;",
                                               sprintf("%d etapa(s) com erro", n_erros))))

@@ -1,5 +1,33 @@
 source("app.R", local = TRUE)
 
+html_comunicacao <- htmltools::renderTags(
+  mod_comunicacao_ui("teste_comunicacao")
+)$html
+ids_ui_preservados <- c(
+  "contador", "esboco", "manifesto_texto", "introducao", "metodos",
+  "discussao", "conclusao", "fila", "acoes_fila", "bases_projeto",
+  "resumo_saida", "formato", "acoes_exportacao"
+)
+stopifnot(
+  grepl('id="teste_comunicacao-comunicacao_subabas"',
+        html_comunicacao, fixed = TRUE),
+  grepl("1. Esboço do documento", html_comunicacao, fixed = TRUE),
+  grepl("2. Execuções registradas", html_comunicacao, fixed = TRUE),
+  grepl("3. Bases do projeto", html_comunicacao, fixed = TRUE),
+  grepl("4. Saída planejada", html_comunicacao, fixed = TRUE),
+  grepl("<details", html_comunicacao, fixed = TRUE),
+  grepl("Manifesto editorial — detalhe técnico",
+        html_comunicacao, fixed = TRUE),
+  all(vapply(
+    ids_ui_preservados,
+    function(id) grepl(
+      sprintf('id="teste_comunicacao-%s"', id),
+      html_comunicacao, fixed = TRUE
+    ),
+    logical(1)
+  ))
+)
+
 execucao_teste <- function(id, titulo, analise_id, saidas, base = "dados_analise") {
   list(
     id = id,
@@ -102,6 +130,9 @@ testServer(
       identical(inicial$total_execucoes, 2L),
       identical(inicial$total_word, 2L),
       all(vapply(inicial$execucoes, function(x) x$estado_dependencia == "Atualizada", logical(1))),
+      grepl("accordion", output$fila$html, fixed = TRUE),
+      grepl("execucao_0001", output$fila$html, fixed = TRUE),
+      grepl("execucao_0002", output$fila$html, fixed = TRUE),
       grepl("dados_analise", output$bases_projeto$html, fixed = TRUE),
       grepl("base_reg_logistica", output$bases_projeto$html, fixed = TRUE),
       grepl("baixar_projeto", output$acoes_exportacao$html, fixed = TRUE)

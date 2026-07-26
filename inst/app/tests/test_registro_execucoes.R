@@ -110,6 +110,19 @@ library(shiny)
 library(bslib)
 source(file.path("modules", "mod_registrar_execucao.R"), encoding = "UTF-8")
 
+html_fluxo <- htmltools::renderTags(
+  mod_analise_registravel_ui(
+    "teste_fluxo",
+    div("CONTEUDO_ANALISE"),
+    div("CONTEUDO_REGISTRO")
+  )
+)$html
+stopifnot(
+  grepl("1. Configurar e executar", html_fluxo, fixed = TRUE),
+  grepl("2. Adicionar aos resultados", html_fluxo, fixed = TRUE),
+  grepl("teste_fluxo-fluxo_registro_subabas", html_fluxo, fixed = TRUE)
+)
+
 estado_atual <- reactiveVal(estado_linhas("captura_t"))
 registro_rv <- reactiveVal(execucoes_vazio())
 contador_rv <- reactiveVal(0L)
