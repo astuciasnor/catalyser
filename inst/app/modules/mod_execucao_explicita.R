@@ -70,14 +70,6 @@ execucao_explicita_server <- function(input, output, session, assinatura_rv,
   })
 
   observeEvent(input$executar_analise, {
-    assinatura <- tryCatch(isolate(assinatura_rv()), error = function(e) e)
-    if (inherits(assinatura, "error")) {
-      mensagem <- conditionMessage(assinatura)
-      if (!nzchar(mensagem)) mensagem <- "Complete a configuração antes de executar."
-      showNotification(mensagem, type = "warning", duration = 8)
-      return()
-    }
-
     resultado <- tryCatch(isolate(resultado_rv()), error = function(e) e)
     if (inherits(resultado, "error")) {
       mensagem <- conditionMessage(resultado)
@@ -86,12 +78,23 @@ execucao_explicita_server <- function(input, output, session, assinatura_rv,
       return()
     }
 
+    # A assinatura é capturada depois do cálculo para congelar exatamente a
+    # configuração que produziu a prévia apresentada. Isso evita registrar uma
+    # assinatura intermediária quando o cálculo sincroniza controles dependentes.
+    assinatura <- tryCatch(isolate(assinatura_rv()), error = function(e) e)
+    if (inherits(assinatura, "error")) {
+      mensagem <- conditionMessage(assinatura)
+      if (!nzchar(mensagem)) mensagem <- "Complete a configuração antes de executar."
+      showNotification(mensagem, type = "warning", duration = 8)
+      return()
+    }
+
     assinatura_executada_rv(assinatura)
     showNotification(
       sprintf("%s foi executada com a configuração atual.", nome_analise),
       type = "message", duration = 5
     )
-  }, priority = -100)
+  }, priority = 1000)
 
   observe({
     rotulo <- if (identical(estado(), "aguardando")) "Executar análise" else "Executar novamente"

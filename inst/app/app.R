@@ -403,7 +403,38 @@ ui <- page_navbar(
       .selectize-input input {
         font-size: 0.83rem !important;
       }
-      
+      /* O seletor de Base utilizada precisa escapar do cartão e acomodar
+         nomes amigáveis/objetos R longos sem esconder as opções. */
+      .catalyser-base-selector,
+      .catalyser-base-selector > .card-body,
+      .catalyser-base-selector .row {
+        overflow: visible !important;
+      }
+      .catalyser-base-selector {
+        position: relative !important;
+        z-index: 30 !important;
+      }
+      .catalyser-base-selector .selectize-control {
+        position: relative !important;
+        z-index: 31 !important;
+      }
+      .catalyser-base-selector .selectize-dropdown {
+        width: max-content !important;
+        min-width: 100% !important;
+        max-width: min(92vw, 64rem) !important;
+        z-index: 2000 !important;
+      }
+      .catalyser-base-selector .selectize-dropdown .option {
+        white-space: normal !important;
+        overflow-wrap: anywhere;
+        line-height: 1.25;
+        padding-top: 7px !important;
+        padding-bottom: 7px !important;
+      }
+      .catalyser-base-selector .alert {
+        margin-top: 0 !important;
+      }
+
       /* 3. Compactação das Abas Superiores do Painel Central */
       .nav-tabs .nav-link {
         padding: 6px 12px !important;

@@ -10,22 +10,23 @@ library(bslib)
 mod_seletor_base_analise_ui <- function(id) {
   ns <- NS(id)
   card(
-    class = "mb-2",
+    class = "mb-2 catalyser-base-selector",
     fill = FALSE,
     card_body(
       style = "padding:8px 12px;",
       div(
         class = "row g-2 align-items-start",
         div(
-          class = "col-12 col-lg-5",
-          selectInput(
+          class = "col-12",
+          selectizeInput(
             ns("base_id"), "Base utilizada:",
             choices = c("Base compartilhada — dados_analise" = "dados_analise"),
-            width = "100%"
+            width = "100%",
+            options = list(maxOptions = 200)
           )
         ),
         div(
-          class = "col-12 col-lg-7",
+          class = "col-12",
           uiOutput(ns("status"))
         )
       )
@@ -61,7 +62,7 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
           )
         atual <- "dados_analise"
       }
-      updateSelectInput(session, "base_id", choices = escolhas, selected = atual)
+      updateSelectizeInput(session, "base_id", choices = escolhas, selected = atual)
     })
 
     contexto <- reactive({
@@ -85,7 +86,8 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
       estilo <- "font-size:0.78rem; padding:7px 9px; margin:20px 0 0;"
       status_atual <- if (isTRUE(base$derivada)) {
         div(class = "alert alert-info", style = estilo,
-            icon("diagram-project"), " ", tags$code(base$base_objeto),
+            icon("diagram-project"), " ", strong(base$nome_amigavel), " — ",
+            tags$code(base$base_objeto),
             sprintf(" — %d linhas × %d colunas", nrow(base$df), ncol(base$df)))
       } else {
         div(class = "alert alert-light border", style = estilo,

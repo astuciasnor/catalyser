@@ -35,6 +35,28 @@ criar_execucao_exportacao <- function(id, tipo, titulo, parametros, saidas,
   )
 }
 
+codigo_regressao <- exportacao_codigo_estudo(list(
+  tipo = "regressao_linear",
+  base_tipo = "derivada",
+  base_objeto = "base_regressao",
+  parametros = list(resposta = "captura", preditor = "esforco")
+))
+codigo_t <- exportacao_codigo_estudo(list(
+  tipo = "teste_t_two_ind",
+  base_tipo = "derivada",
+  base_objeto = "base_teste_t",
+  parametros = list(
+    resposta = "captura", grupo = "sexo", alternativa = "two.sided",
+    nivel_confianca = 0.95, variancias_iguais = FALSE
+  )
+))
+stopifnot(
+  any(grepl("dados/base_regressao.rds", codigo_regressao, fixed = TRUE)),
+  any(grepl("stats::lm", codigo_regressao, fixed = TRUE)),
+  any(grepl("stats::t.test", codigo_t, fixed = TRUE)),
+  any(grepl("var.equal = FALSE", codigo_t, fixed = TRUE))
+)
+
 dados <- data.frame(
   ano = 2019:2024,
   captura = c(10, 12, 13, 15, 18, 20),
@@ -159,6 +181,11 @@ stopifnot(
   file.exists(file.path(projeto, "custom-reference.docx")),
   any(grepl("Captura ao longo dos anos", qmd, fixed = TRUE)),
   any(grepl("Resumo da captura", qmd, fixed = TRUE)),
+  any(grepl("Código R essencial desta execução", qmd, fixed = TRUE)),
+  any(grepl("ggplot2::ggplot", qmd, fixed = TRUE)),
+  any(grepl("summary(dados[variaveis])", qmd, fixed = TRUE)),
+  sum(grepl("#| eval: false", qmd, fixed = TRUE)) == 2L,
+  sum(grepl("#| include: false", qmd, fixed = TRUE)) >= 4L,
   !any(grepl("## Captura por esforço", qmd, fixed = TRUE))
 )
 

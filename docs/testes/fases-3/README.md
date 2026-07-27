@@ -31,6 +31,8 @@ semestre.
   aprovação do contrato do seletor, correção do `glm` e pendências de interface.
 - [Homologação ponta a ponta no Windows](HOMOLOGACAO_END_TO_END_WINDOWS_2026-07-26.md):
   percurso aprovado da Base Compartilhada ao Projeto R e ao relatório Word.
+- [Roteiro V15 com duas bases e duas análises](ROTEIRO_TESTE_V15_DUAS_ANALISES.md):
+  teste reduzido dos refinamentos de seleção, execução e QMD pedagógico.
 
 ## Roteiros manuais por fase
 

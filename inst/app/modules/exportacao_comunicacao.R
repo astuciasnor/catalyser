@@ -142,6 +142,148 @@ exportacao_yaml_texto <- function(x) {
   paste0('"', gsub('"', '\\"', x, fixed = TRUE), '"')
 }
 
+exportacao_codigo_estudo <- function(execucao) {
+  p <- execucao$parametros %||% list()
+  texto_r <- function(x) exportacao_dput_texto(as.character(x))
+  numero_r <- function(x) exportacao_dput_texto(as.numeric(x))
+  vetor_r <- function(x) exportacao_dput_texto(as.character(x %||% character()))
+  carregar <- if (identical(execucao$base_tipo, "derivada")) {
+    sprintf(
+      "dados <- readRDS('dados/%s.rds')",
+      exportacao_nome_seguro(execucao$base_objeto, "base_derivada")
+    )
+  } else if (identical(execucao$base_tipo, "compartilhada") ||
+             identical(execucao$base_id, "dados_analise")) {
+    "dados <- readRDS('dados/dados_analise.rds')"
+  } else {
+    "# A tabela desta execução está preservada nos parâmetros registrados."
+  }
+
+  codigo <- switch(
+    execucao$tipo,
+    regressao_linear = c(
+      sprintf(
+        "formula_modelo <- stats::reformulate(%s, response = %s)",
+        texto_r(p$preditor), texto_r(p$resposta)
+      ),
+      "modelo <- stats::lm(formula_modelo, data = dados)",
+      "summary(modelo)"
+    ),
+    regressao_logistica = c(
+      sprintf(
+        "formula_modelo <- stats::reformulate(%s, response = %s)",
+        texto_r(p$preditor), texto_r(p$resposta)
+      ),
+      "modelo <- stats::glm(formula_modelo, data = dados, family = stats::binomial())",
+      "summary(modelo)"
+    ),
+    teste_t_one_val = c(
+      sprintf(
+        paste0(
+          "resultado <- stats::t.test(dados[[%s]], mu = %s, ",
+          "alternative = %s, conf.level = %s)"
+        ),
+        texto_r(p$variavel), numero_r(p$media_hipotetica),
+        texto_r(p$alternativa), numero_r(p$nivel_confianca)
+      ),
+      "resultado"
+    ),
+    teste_t_two_ind = c(
+      sprintf(
+        "formula_teste <- stats::reformulate(%s, response = %s)",
+        texto_r(p$grupo), texto_r(p$resposta)
+      ),
+      sprintf(
+        paste0(
+          "resultado <- stats::t.test(formula_teste, data = dados, ",
+          "alternative = %s, conf.level = %s, var.equal = %s)"
+        ),
+        texto_r(p$alternativa), numero_r(p$nivel_confianca),
+        if (isTRUE(p$variancias_iguais)) "TRUE" else "FALSE"
+      ),
+      "resultado"
+    ),
+    teste_t_paired = c(
+      sprintf(
+        paste0(
+          "resultado <- stats::t.test(dados[[%s]], dados[[%s]], paired = TRUE, ",
+          "alternative = %s, conf.level = %s)"
+        ),
+        texto_r(p$variavel_1), texto_r(p$variavel_2),
+        texto_r(p$alternativa), numero_r(p$nivel_confianca)
+      ),
+      "resultado"
+    ),
+    grafico_linhas = c(
+      sprintf(
+        "grafico <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[%s]], y = .data[[%s]], group = 1)) +",
+        texto_r(p$x), texto_r(p$y)
+      ),
+      sprintf("  ggplot2::geom_line(linewidth = %s, color = '#0F3B5F') +",
+              numero_r(p$espessura_linha %||% 1)),
+      if (isTRUE(p$mostrar_pontos))
+        "  ggplot2::geom_point(size = 2.2, color = '#2E7D8F') +" else NULL,
+      "  ggplot2::theme_minimal()",
+      "grafico"
+    ),
+    estatistica_descritiva = c(
+      sprintf("variaveis <- %s", vetor_r(p$variaveis)),
+      "summary(dados[variaveis])"
+    ),
+    qui_quadrado = c(
+      if (identical(p$fonte, "tidy"))
+        sprintf(
+          "tabela <- stats::xtabs(n ~ dados[[%s]] + dados[[%s]], data = dados)",
+          texto_r(p$var_row), texto_r(p$var_col)
+        ) else
+        sprintf(
+          "tabela <- table(dados[[%s]], dados[[%s]])",
+          texto_r(p$var_row), texto_r(p$var_col)
+        ),
+      sprintf(
+        "resultado <- stats::chisq.test(tabela, correct = %s)",
+        if (isTRUE(p$yates)) "TRUE" else "FALSE"
+      ),
+      "resultado"
+    ),
+    pca = c(
+      sprintf("variaveis <- %s", vetor_r(p$variaveis)),
+      sprintf(
+        "modelo_pca <- stats::prcomp(dados[variaveis], center = TRUE, scale. = %s)",
+        if (isTRUE(p$padronizar)) "TRUE" else "FALSE"
+      ),
+      "summary(modelo_pca)"
+    ),
+    hca = c(
+      sprintf("variaveis <- %s", vetor_r(p$variaveis)),
+      "matriz <- scale(dados[variaveis])",
+      sprintf("distancias <- stats::dist(matriz, method = %s)", texto_r(p$distancia)),
+      sprintf("grupos <- stats::hclust(distancias, method = %s)", texto_r(p$ligacao)),
+      sprintf("stats::cutree(grupos, k = %s)", numero_r(p$numero_grupos))
+    ),
+    NULL
+  )
+
+  if (is.null(codigo) || !length(codigo)) {
+    codigo_registrado <- trimws(as.character(execucao$codigo_r %||% ""))
+    codigo <- if (nzchar(codigo_registrado)) {
+      strsplit(codigo_registrado, "\n", fixed = TRUE)[[1]]
+    } else {
+      c(
+        "# Consulte o script numerado desta execução para o replay integral.",
+        "resultado <- catalyser_executar(execucao, dados)"
+      )
+    }
+  }
+  c(
+    "# Código R essencial desta execução.",
+    "# Este chunk pode ser executado manualmente no RStudio.",
+    carregar,
+    "",
+    Filter(Negate(is.null), codigo)
+  )
+}
+
 exportacao_bloco_componente <- function(variavel, execucao_id, componente) {
   rotulo <- comunicacao_rotulos_saidas[[componente]] %||% componente
   id_chunk <- exportacao_nome_seguro(paste(execucao_id, componente), "resultado")
@@ -223,12 +365,21 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
     indice <- match(item$id, ordem_completa)
     arquivo <- exportacao_arquivo_execucao(item, indice)
     variavel <- exportacao_nome_seguro(paste0("resultado_", item$id), "resultado_execucao")
+    codigo_estudo <- exportacao_codigo_estudo(item)
     linhas <- c(
       linhas,
       paste0("## ", item$titulo),
       "",
       sprintf("**Base utilizada:** `%s`  ", item$base_objeto),
       sprintf("**Execução registrada:** `%s`", item$id),
+      "",
+      "<!-- O código abaixo fica explícito no QMD para estudo, mas não entra no Word. -->",
+      "```{r}",
+      sprintf("#| label: codigo-%s", exportacao_nome_seguro(item$id)),
+      "#| eval: false",
+      "#| include: false",
+      codigo_estudo,
+      "```",
       "",
       "```{r}",
       sprintf("#| label: executar-%s", exportacao_nome_seguro(item$id)),
@@ -426,8 +577,10 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       "## Como usar", "",
       "1. Abra `projeto_analise.Rproj` no RStudio.",
       "2. Execute os arquivos da pasta `R/` na ordem numérica para estudar o código.",
-      "3. Abra `relatorio.qmd` e clique em **Render** para gerar o Word.",
-      "4. O Projeto R preserva todas as execuções; o relatório mostra somente as escolhas do manifesto.", "",
+      "3. Abra `relatorio.qmd`: cada análise contém um chunk pedagógico com o código R essencial.",
+      "4. Os chunks pedagógicos usam `eval: false` e `include: false`: podem ser executados manualmente, mas não poluem o Word.",
+      "5. Clique em **Render** para gerar o Word.",
+      "6. O Projeto R preserva todas as execuções; o relatório mostra somente as escolhas do manifesto.", "",
       "As bases derivadas nascem diretamente de `dados_analise`; não existem ramos de ramos."
     ),
     file.path(projeto, "README.md"), useBytes = TRUE
