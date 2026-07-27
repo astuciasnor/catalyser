@@ -5,9 +5,17 @@
 # são duplicados; serão reconstruídos a partir da base e dos parâmetros nas
 # fases de comunicação/exportação.
 
-execucoes_saidas_validas <- c(
-  "narrativa", "tabela", "grafico", "pressupostos", "diagnosticos", "console"
+execucoes_rotulos_saidas <- c(
+  narrativa = "Narrativa",
+  descritivos = "Resumo por grupo",
+  tabela = "Tabela",
+  comparacoes = "Comparações múltiplas",
+  grafico = "Gráfico",
+  pressupostos = "Pressupostos",
+  diagnosticos = "Diagnósticos",
+  console = "Console"
 )
+execucoes_saidas_validas <- names(execucoes_rotulos_saidas)
 
 execucoes_vazio <- function() list()
 

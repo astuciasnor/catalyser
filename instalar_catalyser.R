@@ -9,7 +9,7 @@
 #
 #  So precisa de R >= 4.3 e internet. NAO precisa de git, conta no GitHub, nem
 #  Rtools (os pacotes sao de R puro). Pode clicar em Source de novo quando quiser:
-#  ele so reinstala o que faltar e reabre a IDE.
+#  ele preserva os pacotes CRAN compatíveis, atualiza a IDE e a reabre.
 # =============================================================================
 
 instalar_catalyser <- function(iniciar = FALSE) {
@@ -43,16 +43,23 @@ instalar_catalyser <- function(iniciar = FALSE) {
   }
   cat(sprintf("%s R compativel (>= 4.3.0).\n", OK))
 
-  # helper: instala se faltar; devolve TRUE/FALSE (nunca derruba o script)
-  garante <- function(pkg, github = NULL) {
-    if (requireNamespace(pkg, quietly = TRUE)) {
-      cat(sprintf("  %s %-14s ja instalado\n", OK, pkg)); return(TRUE)
+  # helper: instala se faltar e, quando pedido, atualiza a partir do GitHub.
+  # Usa packageVersion() para não carregar o namespace antes da reinstalação.
+  garante <- function(pkg, github = NULL, versao_minima = NULL, atualizar = FALSE) {
+    versao_instalada <- tryCatch(utils::packageVersion(pkg), error = function(e) NULL)
+    atende_versao <- !is.null(versao_instalada) &&
+      (is.null(versao_minima) || versao_instalada >= utils::package_version(versao_minima))
+    if (atende_versao && !isTRUE(atualizar)) {
+      cat(sprintf("  %s %-14s ja instalado (%s)\n", OK, pkg, versao_instalada))
+      return(TRUE)
     }
-    cat(sprintf("  %s %-14s instalando...\n", SETA, pkg))
+    acao <- if (is.null(versao_instalada)) "instalando" else "atualizando"
+    cat(sprintf("  %s %-14s %s...\n", SETA, pkg, acao))
     res <- tryCatch({
       if (is.null(github)) install.packages(pkg, quiet = TRUE, type = tipo_pkg)
       else remotes::install_github(github, quiet = TRUE, upgrade = "never", force = TRUE)
-      requireNamespace(pkg, quietly = TRUE)
+      nova_versao <- utils::packageVersion(pkg)
+      is.null(versao_minima) || nova_versao >= utils::package_version(versao_minima)
     }, error = function(e) { cat("       ", conditionMessage(e), "\n", sep = ""); FALSE })
     cat(sprintf("  %s %-14s %s\n", if (isTRUE(res)) OK else FALHA, pkg,
                 if (isTRUE(res)) "instalado" else "FALHOU"))
@@ -77,8 +84,16 @@ instalar_catalyser <- function(iniciar = FALSE) {
   if (!tem_remotes) {
     cat(sprintf("  %s 'remotes' nao instalou -> nao da para baixar do GitHub.\n", FALHA))
   } else {
-    ok_dados <- garante("EAPADados", github = "astuciasnor/EAPADados")
-    ok_ide   <- garante("catalyser", github = "astuciasnor/catalyser")
+    ok_dados <- garante(
+      "EAPADados", github = "astuciasnor/EAPADados",
+      versao_minima = "0.1.10"
+    )
+    # A IDE é sempre atualizada: assim executar novamente este instalador
+    # realmente traz o conteúdo mais recente da branch main.
+    ok_ide <- garante(
+      "catalyser", github = "astuciasnor/catalyser",
+      versao_minima = "0.1.4", atualizar = TRUE
+    )
   }
 
   # --- 5. Extras opcionais (so avisa) ---------------------------------------
@@ -107,7 +122,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
   cat("   - Se o erro mencionar 'Rtools': instale o Rtools (Windows) em\n")
   cat("     https://cran.r-project.org/bin/windows/Rtools/  e rode de novo.\n")
   cat("   - Sem internet ou atras de proxy: verifique a conexao e tente de novo.\n")
-  cat("   - Rode este script novamente: ele so reinstala o que faltou.\n\n")
+  cat("   - Rode este script novamente: ele preserva as dependencias compativeis e atualiza a IDE.\n\n")
   invisible(FALSE)
 }
 

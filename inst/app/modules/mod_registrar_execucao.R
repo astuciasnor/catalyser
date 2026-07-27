@@ -262,11 +262,7 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       id_atual <- selecionada_rv()
       execucao <- execucoes_obter(registro_execucoes_rv(), id_atual)
       if (is.null(execucao)) return(NULL)
-      rotulos <- c(
-        narrativa = "Narrativa", tabela = "Tabela", grafico = "Gráfico",
-        pressupostos = "Pressupostos", diagnosticos = "Diagnósticos", console = "Console"
-      )
-      saidas <- unname(rotulos[execucao$saidas_disponiveis])
+      saidas <- unname(execucoes_rotulos_saidas[execucao$saidas_disponiveis])
       div(
         class = "alert alert-light border py-2 mt-2 mb-1",
         style = "font-size:0.78rem;",

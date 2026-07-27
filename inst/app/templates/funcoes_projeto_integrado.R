@@ -391,6 +391,212 @@ catalyser_teste_t <- function(dados, p) {
   )
 }
 
+catalyser_anova <- function(dados, p) {
+  resposta <- p$resposta
+  fator <- p$fator
+  conf <- as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
+  texto_ou <- function(x, padrao) {
+    x <- as.character(catalyser_ou(x, ""))
+    if (!length(x) || !nzchar(trimws(x[[1]]))) padrao else x[[1]]
+  }
+  catalyser_colunas(dados, c(resposta, fator))
+  if (!is.numeric(dados[[resposta]]))
+    stop(sprintf("A resposta '%s' precisa ser numérica para a ANOVA.", resposta), call. = FALSE)
+  if (identical(resposta, fator))
+    stop("A resposta e o fator precisam ser variáveis diferentes.", call. = FALSE)
+
+  linhas_originais <- nrow(dados)
+  completos <- stats::complete.cases(dados[c(resposta, fator)])
+  d <- dados[completos, c(resposta, fator), drop = FALSE]
+  names(d) <- c("resposta", "fator")
+  d$fator <- droplevels(as.factor(d$fator))
+  excluidos <- linhas_originais - nrow(d)
+  if (nlevels(d$fator) < 2L)
+    stop("A ANOVA precisa de pelo menos dois grupos com dados.", call. = FALSE)
+  if (any(table(d$fator) < 2L))
+    stop("Cada grupo precisa de pelo menos duas observações.", call. = FALSE)
+
+  modelo <- stats::aov(resposta ~ fator, data = d)
+  resumo <- summary(modelo)[[1]]
+  df_entre <- resumo$Df[1]; df_dentro <- resumo$Df[2]
+  sq_entre <- resumo$`Sum Sq`[1]; sq_dentro <- resumo$`Sum Sq`[2]
+  qm_entre <- resumo$`Mean Sq`[1]; qm_dentro <- resumo$`Mean Sq`[2]
+  f_anova <- resumo$`F value`[1]; p_anova <- resumo$`Pr(>F)`[1]
+  sq_total <- sq_entre + sq_dentro
+  eta2 <- sq_entre / sq_total
+  omega2 <- (sq_entre - df_entre * qm_dentro) / (sq_total + qm_dentro)
+
+  niveis <- levels(d$fator)
+  descritivos <- do.call(rbind, lapply(niveis, function(nivel) {
+    valores <- d$resposta[d$fator == nivel]
+    data.frame(
+      Grupo = nivel, n = length(valores),
+      `Média` = mean(valores), `Desvio-padrão` = stats::sd(valores),
+      Mediana = stats::median(valores), `Mínimo` = min(valores), `Máximo` = max(valores),
+      check.names = FALSE, stringsAsFactors = FALSE
+    )
+  }))
+  rownames(descritivos) <- NULL
+
+  tabela <- data.frame(
+    `Fonte de variação` = c("Entre grupos (fator)", "Dentro dos grupos (resíduos)", "Total"),
+    `Graus de liberdade` = c(df_entre, df_dentro, df_entre + df_dentro),
+    `Soma de quadrados` = c(sq_entre, sq_dentro, sq_total),
+    `Quadrado médio` = c(qm_entre, qm_dentro, NA_real_),
+    `F` = c(f_anova, NA_real_, NA_real_),
+    `p-valor` = c(p_anova, NA_real_, NA_real_),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+
+  tukey <- tryCatch(stats::TukeyHSD(modelo, conf.level = conf), error = function(e) NULL)
+  comparacoes <- if (is.null(tukey)) NULL else {
+    bruto <- as.data.frame(tukey[[1]])
+    saida <- data.frame(
+      `Par comparado` = rownames(bruto),
+      `Diferença estimada` = bruto$diff,
+      `IC inferior` = bruto$lwr,
+      `IC superior` = bruto$upr,
+      `p ajustado` = bruto$`p adj`,
+      `Evidência` = ifelse(bruto$`p adj` < 0.05,
+                           "Há evidência de diferença", "Sem evidência de diferença"),
+      check.names = FALSE, stringsAsFactors = FALSE
+    )
+    rownames(saida) <- NULL
+    saida
+  }
+
+  residuos <- stats::residuals(modelo)
+  shapiro <- if (length(residuos) >= 3L && length(residuos) <= 5000L) {
+    tryCatch(stats::shapiro.test(residuos), error = function(e) NULL)
+  } else NULL
+  levene <- if (requireNamespace("car", quietly = TRUE)) {
+    tryCatch(car::leveneTest(resposta ~ fator, data = d, center = stats::median),
+             error = function(e) NULL)
+  } else NULL
+  bartlett <- tryCatch(stats::bartlett.test(resposta ~ fator, data = d), error = function(e) NULL)
+
+  estat <- function(x, campo) {
+    if (is.null(x)) return(NA_real_)
+    unname(as.numeric(x[[campo]][[1]]))
+  }
+  pressupostos <- data.frame(
+    Pressuposto = c(
+      "Normalidade dos resíduos (Shapiro-Wilk)",
+      "Homogeneidade de variâncias (Levene, centro na mediana)",
+      "Homogeneidade de variâncias (Bartlett — informação adicional)"
+    ),
+    `Estatística` = c(
+      estat(shapiro, "statistic"),
+      if (is.null(levene)) NA_real_ else suppressWarnings(as.numeric(levene[["F value"]][1])),
+      estat(bartlett, "statistic")
+    ),
+    `p-valor` = c(
+      estat(shapiro, "p.value"),
+      if (is.null(levene)) NA_real_ else suppressWarnings(as.numeric(levene[["Pr(>F)"]][1])),
+      estat(bartlett, "p.value")
+    ),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+
+  diagnosticos <- data.frame(
+    Indicador = c("n analisado", "Casos excluídos", "Grupos", "Eta quadrado (η²)", "Ômega quadrado (ω²)"),
+    Valor = c(nrow(d), excluidos, nlevels(d$fator), eta2, omega2),
+    check.names = FALSE
+  )
+
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    resumo_grupos <- do.call(rbind, lapply(niveis, function(nivel) {
+      valores <- d$resposta[d$fator == nivel]
+      n <- length(valores)
+      margem <- if (n > 1L) stats::qt(1 - (1 - conf) / 2, df = n - 1L) * stats::sd(valores) / sqrt(n) else NA_real_
+      data.frame(fator = nivel, media = mean(valores),
+                 inferior = mean(valores) - margem, superior = mean(valores) + margem,
+                 stringsAsFactors = FALSE)
+    }))
+    resumo_grupos$fator <- factor(resumo_grupos$fator, levels = niveis)
+    cores <- rep(c("#0F3B5F", "#2E7D8F", "#62B6B7", "#E89B3C", "#E76F51"),
+                 length.out = length(niveis))
+    # Médias de níveis nominais não são conectadas por linha: não existe ordem
+    # natural entre espécies ou locais.
+    tema <- switch(
+      texto_ou(p$tema, "minimal"),
+      classic = ggplot2::theme_classic(base_size = 12),
+      bw = ggplot2::theme_bw(base_size = 12),
+      gray = ggplot2::theme_gray(base_size = 12),
+      light = ggplot2::theme_light(base_size = 12),
+      ggplot2::theme_minimal(base_size = 12)
+    )
+    grafico <- ggplot2::ggplot(d, ggplot2::aes(x = fator, y = resposta)) +
+      ggplot2::geom_boxplot(ggplot2::aes(fill = fator), alpha = 0.25,
+                            outlier.shape = NA, show.legend = FALSE) +
+      ggplot2::geom_jitter(ggplot2::aes(color = fator), width = 0.12, height = 0,
+                           alpha = 0.6, size = 2.2, show.legend = FALSE) +
+      ggplot2::geom_errorbar(
+        data = resumo_grupos,
+        ggplot2::aes(x = fator, ymin = inferior, ymax = superior),
+        inherit.aes = FALSE, width = 0.14, linewidth = 0.9, color = "#0F3B5F"
+      ) +
+      ggplot2::geom_point(
+        data = resumo_grupos, ggplot2::aes(x = fator, y = media),
+        inherit.aes = FALSE, size = 3.4, shape = 18, color = "#E76F51"
+      ) +
+      ggplot2::scale_fill_manual(values = cores) +
+      ggplot2::scale_color_manual(values = cores) +
+      tema +
+      ggplot2::labs(
+        title = texto_ou(p$titulo_grafico, sprintf("%s por %s", resposta, fator)),
+        x = texto_ou(p$rotulo_x, fator),
+        y = texto_ou(p$rotulo_y, resposta),
+        subtitle = sprintf("Losango = média; barra = IC %.0f%% da média", 100 * conf)
+      )
+  }
+
+  pares <- if (is.null(comparacoes)) character() else
+    comparacoes[["Par comparado"]][comparacoes[["p ajustado"]] < 0.05]
+  narrativa <- sprintf(
+    paste0(
+      "A ANOVA de um fator comparou '%s' entre %d grupos de '%s', com %d observações completas",
+      "%s. O resultado foi F(%d; %d) = %s, %s, com η² = %s e ω² = %s. %s%s"
+    ),
+    resposta, nlevels(d$fator), fator, nrow(d),
+    if (excluidos > 0) sprintf(" (%d linha(s) excluída(s) por dados faltantes)", excluidos) else "",
+    df_entre, df_dentro, catalyser_num(f_anova), catalyser_p(p_anova),
+    catalyser_num(eta2), catalyser_num(omega2),
+    if (!is.na(p_anova) && p_anova < 0.05)
+      "Rejeitou-se H0 de igualdade das médias. "
+    else
+      "Não houve evidência suficiente para rejeitar H0 de igualdade das médias. ",
+    if (length(pares))
+      sprintf("Nas comparações de Tukey houve evidência de diferença em: %s.",
+              paste(pares, collapse = "; "))
+    else
+      "As comparações de Tukey não apontaram pares com evidência de diferença."
+  )
+
+  console <- c(
+    utils::capture.output(print(summary(modelo))),
+    "",
+    if (is.null(tukey)) "Tukey HSD indisponível." else utils::capture.output(print(tukey)),
+    "",
+    if (is.null(shapiro)) "Shapiro-Wilk não calculado." else utils::capture.output(print(shapiro)),
+    "",
+    if (is.null(levene)) "Teste de Levene indisponível (pacote 'car' ausente)." else utils::capture.output(print(levene))
+  )
+
+  list(
+    narrativa = narrativa,
+    descritivos = descritivos,
+    tabela = tabela,
+    comparacoes = comparacoes,
+    grafico = grafico,
+    pressupostos = pressupostos,
+    diagnosticos = diagnosticos,
+    console = console,
+    objeto = modelo
+  )
+}
+
 catalyser_linhas <- function(dados, p) {
   catalyser_colunas(dados, c(p$x, p$y, if (!identical(catalyser_ou(p$grupo, "none"), "none")) p$grupo))
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("O pacote ggplot2 é necessário para o gráfico.", call. = FALSE)
@@ -518,6 +724,7 @@ catalyser_executar <- function(execucao, dados = NULL) {
     teste_t_one_val = catalyser_teste_t(dados, p),
     teste_t_two_ind = catalyser_teste_t(dados, p),
     teste_t_paired = catalyser_teste_t(dados, p),
+    anova_um_fator = catalyser_anova(dados, p),
     grafico_linhas = catalyser_linhas(dados, p),
     qui_quadrado = catalyser_qui_quadrado(dados, p),
     pca = catalyser_pca(dados, p),

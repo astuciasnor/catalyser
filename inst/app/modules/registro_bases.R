@@ -9,6 +9,7 @@ bases_finalidades <- c(
   "Gráficos" = "graficos",
   "Regressão logística" = "reg_logistica",
   "Qui-quadrado" = "qui_quadrado",
+  "ANOVA" = "anova",
   "Regressão múltipla" = "reg_multipla",
   "PCA / Agrupamentos" = "multivariada",
   "Outra finalidade" = "outra"

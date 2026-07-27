@@ -1,0 +1,157 @@
+# Teste das duas escolhas sucessivas de Y no Gráfico de Linhas — V16
+# Executar a partir de inst/app.
+#
+# O percurso testado não é um gráfico com dois eixos Y. São duas configurações
+# independentes do mesmo seletor Y, cada uma registrada como execução própria.
+
+source("app.R", encoding = "UTF-8")
+source("templates/funcoes_projeto_integrado.R", encoding = "UTF-8")
+
+# Biometria de corvinas com comprimento e peso completos (Base Derivada B).
+base_graficos_corvina <- data.frame(
+  id = 1:8,
+  especie = rep("corvina", 8),
+  comprimento_cm = c(13.4, 15.3, 18.2, 21.0, 24.6, 27.3, 30.1, 33.1),
+  peso_g = c(33, 42, 71, 110, 171, 226, 289, 340),
+  stringsAsFactors = FALSE
+)
+dados_rv <- reactive(base_graficos_corvina)
+info_rv <- reactive(list(
+  source = "local", file_name = "Treino-Transformacoes.xlsx",
+  excel_sheet = "biometria", csv_header = TRUE, csv_sep = ",", csv_dec = "."
+))
+
+estados_registrados <- list()
+
+testServer(mod_lines_server, args = list(data_rv = dados_rv, import_info = info_rv), {
+  # --- Primeira configuração: Y = comprimento_cm ---------------------------
+  session$setInputs(
+    var_x = "id", var_y = "comprimento_cm", var_group = "none",
+    show_points = TRUE, line_w = 1, graph_theme = "minimal",
+    legend_pos = "right", custom_title = "Comprimento das corvinas por observação",
+    custom_label_x = "Observação", custom_label_y = "Comprimento (cm)"
+  )
+  stopifnot(identical(exec_ctrl$estado(), "aguardando"))
+
+  session$setInputs(executar_analise = 1)
+  stopifnot(identical(exec_ctrl$estado(), "atualizada"))
+
+  estado_1 <- estado_execucao()
+  stopifnot(
+    identical(estado_1$analise_id, "lines"),
+    identical(estado_1$tipo, "grafico_linhas"),
+    identical(estado_1$parametros$x, "id"),
+    identical(estado_1$parametros$y, "comprimento_cm"),
+    identical(estado_1$titulo, "Comprimento das corvinas por observação")
+  )
+  # O gráfico executado usa mesmo comprimento_cm.
+  dados_camada_1 <- ggplot2::ggplot_build(make_plot())$data[[1]]
+  stopifnot(isTRUE(
+    abs(max(dados_camada_1$y) - max(base_graficos_corvina$comprimento_cm)) < 1e-8
+  ))
+
+  # --- Trocar somente Y deixa a execução pendente ---------------------------
+  session$setInputs(var_y = "peso_g")
+  stopifnot(identical(exec_ctrl$estado(), "pendente"))
+
+  # O gráfico não muda silenciosamente antes do clique: o eventReactive ainda
+  # devolve a configuração anterior.
+  dados_camada_pendente <- ggplot2::ggplot_build(make_plot())$data[[1]]
+  stopifnot(
+    isTRUE(abs(max(dados_camada_pendente$y) - max(base_graficos_corvina$comprimento_cm)) < 1e-8),
+    identical(estado_1$parametros$y, "comprimento_cm")
+  )
+
+  # --- Segunda configuração: Y = peso_g ------------------------------------
+  session$setInputs(custom_title = "Peso das corvinas por observação",
+                    custom_label_y = "Peso (g)")
+  session$setInputs(executar_analise = 2)
+  stopifnot(identical(exec_ctrl$estado(), "atualizada"))
+
+  estado_2 <- estado_execucao()
+  stopifnot(
+    identical(estado_2$parametros$y, "peso_g"),
+    identical(estado_2$parametros$x, "id"),
+    identical(estado_2$titulo, "Peso das corvinas por observação")
+  )
+  dados_camada_2 <- ggplot2::ggplot_build(make_plot())$data[[1]]
+  stopifnot(isTRUE(
+    abs(max(dados_camada_2$y) - max(base_graficos_corvina$peso_g)) < 1e-8
+  ))
+
+  # A primeira configuração não foi sobrescrita pela segunda.
+  stopifnot(
+    identical(estado_1$parametros$y, "comprimento_cm"),
+    !identical(estado_1$parametros$y, estado_2$parametros$y)
+  )
+
+  estados_registrados <<- list(primeira = estado_1, segunda = estado_2)
+})
+
+# =============================================================================
+# As duas execuções coexistem no registro central
+# =============================================================================
+contexto_base_b <- list(
+  base_id = "base_0002", base_objeto = "base_graficos_corvina",
+  nome_amigavel = "Biometria completa das corvinas", base_tipo = "derivada",
+  derivada = TRUE, finalidade = "graficos", versao_receita = 3L
+)
+
+registro <- execucoes_vazio()
+registro <- execucoes_adicionar(
+  registro,
+  execucoes_criar("execucao_0002", estados_registrados$primeira, contexto_base_b, 7L)
+)
+registro <- execucoes_adicionar(
+  registro,
+  execucoes_criar("execucao_0003", estados_registrados$segunda, contexto_base_b, 7L)
+)
+
+stopifnot(
+  length(registro) == 2L,
+  identical(registro$execucao_0002$parametros$y, "comprimento_cm"),
+  identical(registro$execucao_0003$parametros$y, "peso_g"),
+  identical(registro$execucao_0002$base_objeto, "base_graficos_corvina"),
+  identical(registro$execucao_0003$base_objeto, "base_graficos_corvina"),
+  length(execucoes_da_analise(registro, "lines")) == 2L
+)
+
+# =============================================================================
+# Cada replay usa a sua própria variável Y
+# =============================================================================
+replay_1 <- catalyser_executar(registro$execucao_0002, base_graficos_corvina)
+replay_2 <- catalyser_executar(registro$execucao_0003, base_graficos_corvina)
+y_1 <- ggplot2::ggplot_build(replay_1$grafico)$data[[1]]$y
+y_2 <- ggplot2::ggplot_build(replay_2$grafico)$data[[1]]$y
+
+stopifnot(
+  isTRUE(abs(max(y_1) - max(base_graficos_corvina$comprimento_cm)) < 1e-8),
+  isTRUE(abs(max(y_2) - max(base_graficos_corvina$peso_g)) < 1e-8),
+  !isTRUE(all.equal(y_1, y_2))
+)
+
+# =============================================================================
+# O QMD contém os dois códigos, cada um com o seu Y
+# =============================================================================
+codigo_1 <- exportacao_codigo_estudo(registro$execucao_0002)
+codigo_2 <- exportacao_codigo_estudo(registro$execucao_0003)
+stopifnot(
+  any(grepl("comprimento_cm", codigo_1, fixed = TRUE)),
+  !any(grepl("peso_g", codigo_1, fixed = TRUE)),
+  any(grepl("peso_g", codigo_2, fixed = TRUE)),
+  !any(grepl("comprimento_cm", codigo_2, fixed = TRUE)),
+  any(grepl("dados/base_graficos_corvina.rds", codigo_1, fixed = TRUE))
+)
+
+estado_editorial <- comunicacao_sincronizar(comunicacao_estado_vazio(), registro)
+manifesto <- comunicacao_manifesto(
+  estado_editorial, registro,
+  stats::setNames(as.list(rep("Atualizada", 2L)), names(registro))
+)
+stopifnot(
+  manifesto$total_execucoes == 2L,
+  identical(manifesto$execucoes$execucao_0002$parametros$y, "comprimento_cm"),
+  identical(manifesto$execucoes$execucao_0003$parametros$y, "peso_g")
+)
+
+cat("OK: as duas escolhas de Y no Gráfico de Linhas coexistem e não se sobrescrevem\n")

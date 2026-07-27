@@ -807,7 +807,14 @@ ui <- page_navbar(
     nav_panel(
       title = "ANOVA (Análise de Variância)",
       icon = icon("sliders"),
-      mod_anova_ui("anova")
+      mod_analise_registravel_ui(
+        "fluxo_anova",
+        tagList(
+          mod_seletor_base_analise_ui("base_anova"),
+          mod_anova_ui("anova")
+        ),
+        mod_registrar_execucao_ui("registrar_anova")
+      )
     ),
     nav_panel(
       title = "ANCOVA (Análise de Covariância)",
@@ -2553,6 +2560,11 @@ RCatalyst::run_ide()</pre>
     revisao_dados_analise_rv, finalidade_preferida = "qui_quadrado",
     nome_analise = "O Qui-quadrado"
   )
+  seletor_anova <- mod_seletor_base_analise_server(
+    "base_anova", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "anova",
+    nome_analise = "A ANOVA"
+  )
   seletor_pca <- mod_seletor_base_analise_server(
     "base_pca", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv, finalidade_preferida = "multivariada",
@@ -2653,7 +2665,7 @@ RCatalyst::run_ide()</pre>
     "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv
   )
-  mod_anova_server("anova", dados_analise, import_info)
+  anova_resultado <- mod_anova_server("anova", seletor_anova$dados, import_info)
   mod_ancova_server("ancova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
@@ -2695,6 +2707,11 @@ RCatalyst::run_ide()</pre>
     "registrar_np_qui", qui_quadrado$estado_execucao, seletor_np_qui$contexto,
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
     registro_bases_rv, cache_bases_rv, "np_qui_quadrado", "O Qui-quadrado"
+  )
+  registro_anova <- mod_registrar_execucao_server(
+    "registrar_anova", anova_resultado$estado_execucao, seletor_anova$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "anova", "A ANOVA"
   )
   registro_pca <- mod_registrar_execucao_server(
     "registrar_pca", pca_resultado$estado_execucao, seletor_pca$contexto,
@@ -4181,10 +4198,13 @@ RCatalyst::run_ide()</pre>
           "load('dados/dados_limpos.rda')",
           "dados <- df_clean",
           "",
-          sprintf("r_anova <- calcular_anova(dados, var_x = '%s', var_y = '%s')", var_x, var_y),
-          "print(mostrar_anova_tab(r_anova))",
-          "print(mostrar_anova_tukey(r_anova))",
-          "print(mostrar_anova_pressupostos(r_anova))"
+          sprintf("r_anova <- calcular_anova(dados, dep_var = '%s', ind_var = '%s')", var_y, var_x),
+          "print(arrumar_descritivos_anova(r_anova))",
+          "print(arrumar_tabela_anova(r_anova))",
+          "print(arrumar_tamanho_efeito_anova(r_anova))",
+          "print(arrumar_tukey_anova(r_anova))",
+          "print(arrumar_pressupostos_anova(r_anova))",
+          "cat(relatar_anova(r_anova))"
         )
         writeLines(anova_script_content, file.path(dir_scripts, "10_analise_anova.R"))
         scripts_incluidos <- c(scripts_incluidos, "scripts/10_analise_anova.R")
@@ -4196,20 +4216,20 @@ RCatalyst::run_ide()</pre>
           "```{r}",
           "#| label: anova-consolidado",
           "source('../scripts/funcoes_anova.R')",
-          sprintf("r_anova <- calcular_anova(dados, '%s', '%s')", var_x, var_y),
-          "knitr::kable(mostrar_anova_tab(r_anova), digits = 4, caption = 'Tabela da ANOVA')",
+          sprintf("r_anova <- calcular_anova(dados, '%s', '%s')", var_y, var_x),
+          "knitr::kable(arrumar_tabela_anova(r_anova), digits = 4, caption = 'Tabela da ANOVA')",
           "```",
           "",
           "### Comparações Múltiplas (Tukey HSD)",
           "```{r}",
           "#| label: anova-tukey",
-          "knitr::kable(mostrar_anova_tukey(r_anova), digits = 4, caption = 'Comparações de Tukey HSD')",
+          "knitr::kable(arrumar_tukey_anova(r_anova), digits = 4, caption = 'Comparações de Tukey HSD')",
           "```",
           "",
           "### Verificação dos Pressupostos",
           "```{r}",
           "#| label: anova-pressupostos",
-          "knitr::kable(mostrar_anova_pressupostos(r_anova), digits = 4, caption = 'Testes de Normalidade e Homocedasticidade')",
+          "knitr::kable(arrumar_pressupostos_anova(r_anova), digits = 4, caption = 'Testes de Normalidade e Homogeneidade de Variâncias')",
           "```",
           ""
         )

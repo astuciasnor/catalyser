@@ -214,6 +214,24 @@ exportacao_codigo_estudo <- function(execucao) {
       ),
       "resultado"
     ),
+    anova_um_fator = c(
+      sprintf(
+        "formula_anova <- stats::reformulate(%s, response = %s)",
+        texto_r(p$fator), texto_r(p$resposta)
+      ),
+      "modelo_anova <- stats::aov(formula_anova, data = dados)",
+      "",
+      "summary(modelo_anova)",
+      sprintf("stats::TukeyHSD(modelo_anova, conf.level = %s)",
+              numero_r(p$nivel_confianca %||% 0.95)),
+      sprintf(
+        "car::leveneTest(dados[[%s]], as.factor(dados[[%s]]), center = stats::median)",
+        texto_r(p$resposta), texto_r(p$fator)
+      ),
+      "stats::shapiro.test(stats::residuals(modelo_anova))",
+      "effectsize::eta_squared(modelo_anova)",
+      "effectsize::omega_squared(modelo_anova)"
+    ),
     grafico_linhas = c(
       sprintf(
         "grafico <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[%s]], y = .data[[%s]], group = 1)) +",

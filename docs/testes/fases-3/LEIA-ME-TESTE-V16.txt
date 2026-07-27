@@ -1,0 +1,129 @@
+CATALYSER V16 - ANOVA INTEGRADA E DOIS VALORES DE Y
+Pacote de homologacao - 27/07/2026
+===================================================================
+
+Este arquivo acompanha o ZIP catalyser-anova-integrada-AAAAMMDD-v16.zip.
+Siga os passos na ordem. Nao pule o passo 2.
+
+-------------------------------------------------------------------
+1. COPIAR O ZIP PARA A VM
+-------------------------------------------------------------------
+Copie catalyser-anova-integrada-AAAAMMDD-v16.zip e SHA256SUMS.txt
+para a VM Windows 10, em uma pasta vazia (ex.: C:\teste-v16).
+
+-------------------------------------------------------------------
+2. CONFERIR O SHA-256
+-------------------------------------------------------------------
+No PowerShell, dentro da pasta:
+
+    Get-FileHash .\catalyser-anova-integrada-AAAAMMDD-v16.zip -Algorithm SHA256
+
+Compare a saida com a linha correspondente de SHA256SUMS.txt.
+Se nao bater, pare: o arquivo chegou corrompido.
+
+-------------------------------------------------------------------
+3. DESCOMPACTAR EM PASTA NOVA
+-------------------------------------------------------------------
+Descompacte em uma pasta que ainda nao exista (ex.: C:\teste-v16\v16).
+Nao descompacte por cima de uma instalacao anterior.
+
+-------------------------------------------------------------------
+4. ABRIR A PASTA CORRETA
+-------------------------------------------------------------------
+A pasta correta e a que contem DESCRIPTION e a pasta inst\app.
+Dentro de inst\app estao app.R, modules\, templates\ e dados\.
+
+-------------------------------------------------------------------
+5. INICIAR A CATALYSER COM R 4.6.1
+-------------------------------------------------------------------
+No PowerShell, a partir da raiz do pacote:
+
+    $R = "C:\R\R-4.6.1\bin\Rscript.exe"
+    & $R -e "shiny::runApp('inst/app', launch.browser = TRUE)"
+
+Se faltar algum pacote, instale-o e reinicie. Pacotes usados pela
+ANOVA: car, effectsize, ggplot2, flextable, readxl.
+
+Opcional (recomendado): rodar antes os testes automatizados.
+
+    & $R inst/app/tests/run_tests.R
+
+-------------------------------------------------------------------
+6. EXECUTAR O ROTEIRO DAS DUAS BASES
+-------------------------------------------------------------------
+Siga docs\testes\fases-3\ROTEIRO_TESTE_V16_ANOVA_E_DOIS_Y.md.
+
+Resumo do percurso:
+  a) importar Treino-Transformacoes.xlsx, planilha biometria;
+  b) Trilha de Preparo: padronizar texto de especie e local
+     (espacos + minusculas) e remover duplicatas -> 68 linhas;
+  c) Base Derivada A: "Profundidade de captura por especie"
+     (base_anova_profundidade_especie, finalidade ANOVA),
+     removendo NA em profundidade_m;
+  d) Base Derivada B: "Biometria completa das corvinas"
+     (base_graficos_corvina, finalidade Graficos), filtrando
+     especie == "corvina" e removendo NA em comprimento_cm e peso_g
+     -> 19 linhas;
+  e) ANOVA: profundidade_m ~ especie, executar UMA vez, conferir
+     n = 68, 5 grupos, F = 2,831, gl 4 e 63, p = 0,0318,
+     eta2 = 0,152, omega2 = 0,097, Shapiro p = 0,7035,
+     Levene p = 0,2458; adicionar aos resultados com o titulo
+     "Profundidade de captura entre especies";
+  f) Grafico de Linhas na base B: X = id, Y = comprimento_cm,
+     executar e adicionar; depois trocar SOMENTE Y para peso_g,
+     conferir que a execucao fica pendente, executar de novo e
+     adicionar como SEGUNDA execucao.
+
+Resultado esperado: tres execucoes registradas (uma ANOVA e dois
+graficos), vinculadas as bases derivadas corretas.
+
+-------------------------------------------------------------------
+7. GERAR WORD E PROJETO R
+-------------------------------------------------------------------
+Em Comunicacao de Resultados:
+  - confirmar as tres execucoes e as duas bases derivadas;
+  - manter a ANOVA primeiro e os graficos depois;
+  - marcar todos os componentes da ANOVA (narrativa, resumo por
+    grupo, tabela, comparacoes, grafico, pressupostos,
+    diagnosticos, console);
+  - incluir os dois graficos no Word;
+  - conferir o Esboco do documento e o Manifesto editorial;
+  - gerar o Word;
+  - gerar o Projeto R (.zip).
+
+-------------------------------------------------------------------
+8. COPIAR O PROJETO R PARA O WINDOWS 11
+-------------------------------------------------------------------
+Copie o .zip do Projeto R para a maquina com RStudio e
+descompacte em pasta nova.
+
+-------------------------------------------------------------------
+9. EXECUTAR OS SCRIPTS NA ORDEM
+-------------------------------------------------------------------
+Abra projeto_analise.Rproj no RStudio e execute os arquivos da
+pasta R\ na ordem numerica (00, 01, 02, 03..., 04...).
+O script 04 da ANOVA deve carregar base_anova_profundidade_especie
+e reproduzir F = 2,831 e p = 0,0318.
+
+-------------------------------------------------------------------
+10. RENDERIZAR O QMD
+-------------------------------------------------------------------
+Abra relatorio.qmd e clique em Render (saida docx).
+Confira que o chunk pedagogico da ANOVA mostra, no arquivo-fonte:
+    stats::aov, stats::TukeyHSD, car::leveneTest,
+    stats::shapiro.test, effectsize::eta_squared,
+    effectsize::omega_squared
+com eval: false e include: false - ou seja, visivel no .qmd e
+ausente no Word.
+
+-------------------------------------------------------------------
+11. REGISTRAR DIVERGENCIAS
+-------------------------------------------------------------------
+Para cada diferenca, anote com captura de tela:
+  - passo do roteiro;
+  - o que era esperado;
+  - o que aconteceu;
+  - valores exibidos (n, F, gl, p, eta2, omega2).
+
+Enquanto houver divergencia aberta, a V16 nao e homologada e nao
+deve receber push.

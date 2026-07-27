@@ -4,14 +4,7 @@
 # Este arquivo guarda apenas decisões editoriais do Word: ordem, inclusão e
 # componentes escolhidos. Desmarcar um item nunca remove a execução do Projeto R.
 
-comunicacao_rotulos_saidas <- c(
-  narrativa = "Narrativa",
-  tabela = "Tabela",
-  grafico = "Gráfico",
-  pressupostos = "Pressupostos",
-  diagnosticos = "Diagnósticos",
-  console = "Console"
-)
+comunicacao_rotulos_saidas <- execucoes_rotulos_saidas
 
 comunicacao_estado_vazio <- function() {
   list(versao = 1L, ordem = character(), itens = list())

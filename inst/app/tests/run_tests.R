@@ -38,7 +38,10 @@ testes <- c(
   "test_logisticas_separadas.R",
   "test_comunicacao_resultados.R",
   "test_funcoes_projeto_integrado.R",
-  "test_exportacao_comunicacao.R"
+  "test_exportacao_comunicacao.R",
+  "test_anova_integrada.R",
+  "test_anova_exportacao.R",
+  "test_grafico_linhas_troca_y.R"
 )
 
 ausentes <- testes[!file.exists(file.path("tests", testes))]
