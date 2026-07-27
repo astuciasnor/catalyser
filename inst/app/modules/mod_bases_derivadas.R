@@ -279,13 +279,24 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
 
       tagList(
         div(
-          class = "alert alert-info mb-3",
-          style = "font-size:0.9rem; padding:9px 12px;",
-          icon("diagram-project"),
-          strong(" Base ativa: "),
-          base$nome_amigavel,
-          " — ",
-          tags$code(base$nome_r)
+          class = "d-flex flex-wrap gap-2 align-items-stretch mb-3",
+          div(
+            class = "alert alert-info mb-0 flex-grow-1",
+            style = "font-size:0.9rem; padding:9px 12px;",
+            icon("diagram-project"),
+            strong(" Base ativa: "),
+            base$nome_amigavel,
+            " — ",
+            tags$code(base$nome_r)
+          ),
+          div(
+            class = "d-grid",
+            actionButton(
+              ns("recalcular_receita"), "Recalcular a Base",
+              icon = icon("arrows-rotate"),
+              class = "btn-primary h-100"
+            )
+          )
         ),
         alternar_controles
       )
@@ -833,7 +844,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       )
     })
 
-    observeEvent(input$recalcular, {
+    recalcular_base_selecionada <- function() {
       base <- base_selecionada()
       if (is.null(base)) { showNotification("Selecione uma base.", type = "warning"); return() }
       anterior <- bases_cache_obter(caches(), base$id)
@@ -851,6 +862,15 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
                                  base$nome_r, entrada$linhas, entrada$colunas),
                          type = "message", duration = 5)
       }
+      invisible(entrada)
+    }
+
+    observeEvent(input$recalcular, {
+      recalcular_base_selecionada()
+    })
+
+    observeEvent(input$recalcular_receita, {
+      recalcular_base_selecionada()
     })
 
     observeEvent(input$finalizar, {

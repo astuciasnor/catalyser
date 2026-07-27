@@ -13,6 +13,10 @@ codigo_seletor_base <- paste(
   readLines("modules/mod_seletor_base_analise.R", encoding = "UTF-8"),
   collapse = "\n"
 )
+codigo_organizar <- paste(
+  readLines("modules/mod_organizar_variaveis.R", encoding = "UTF-8"),
+  collapse = "\n"
+)
 codigo_nao_parametrico <- paste(
   readLines("modules/mod_nonparametric.R", encoding = "UTF-8"),
   collapse = "\n"
@@ -28,8 +32,24 @@ html_tratamentos <- htmltools::renderTags(
 html_bases <- htmltools::renderTags(
   mod_bases_derivadas_ui("teste_bases_menu")
 )$html
+html_arrumar_emp <- htmltools::renderTags(
+  mod_arrumar_ui("teste_arrumar_emp", modo_fixo = "empilhar")
+)$html
+html_arrumar_sep <- htmltools::renderTags(
+  mod_arrumar_ui("teste_arrumar_sep", modo_fixo = "separar")
+)$html
+html_organizar <- htmltools::renderTags(
+  mod_organizar_variaveis_ui("teste_organizar")
+)$html
 
 stopifnot(
+  grepl('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
+  regexpr('title = "Separar Coluna em Colunas"', codigo_app, fixed = TRUE) <
+    regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
+  regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE) <
+    regexpr('title = "Adicionar Tratamentos à Base"', codigo_app, fixed = TRUE),
+  !grepl('uiOutput("dataset_vars_selector"', codigo_app, fixed = TRUE),
+  !grepl('uiOutput("variable_type_converter_ui")', codigo_app, fixed = TRUE),
   grepl('title = "Adicionar Tratamentos à Base"', codigo_app, fixed = TRUE),
   !grepl('title = "Trilha de Preparo"', codigo_app, fixed = TRUE),
   !grepl('title = "Calcular / Reescalar Variável"', codigo_app, fixed = TRUE),
@@ -65,6 +85,21 @@ stopifnot(
   grepl('value="filtrar"', html_bases, fixed = TRUE),
   grepl("Agrupar / Sumarizar", html_bases, fixed = TRUE),
   grepl("Tabela de Contingência", html_bases, fixed = TRUE),
+  grepl("recalcular_receita", codigo_bases, fixed = TRUE),
+  grepl("Recalcular a Base", codigo_bases, fixed = TRUE),
+  grepl("recalcular_base_selecionada", codigo_bases, fixed = TRUE),
+  grepl("acumular_codigo = TRUE", codigo_app, fixed = TRUE),
+  grepl("# Etapa seguinte:", codigo_app, fixed = TRUE),
+  !grepl("Renomear colunas", html_arrumar_emp, fixed = TRUE),
+  !grepl("Recodificar níveis", html_arrumar_emp, fixed = TRUE),
+  !grepl("Tipar colunas", html_arrumar_sep, fixed = TRUE),
+  !grepl("Selecionar variáveis", html_arrumar_sep, fixed = TRUE),
+  grepl('id="teste_organizar-abrir_selecionar"', html_organizar, fixed = TRUE),
+  grepl('id="teste_organizar-abrir_renomear"', html_organizar, fixed = TRUE),
+  grepl('id="teste_organizar-abrir_tipar"', html_organizar, fixed = TRUE),
+  grepl('id="teste_organizar-abrir_recodificar"', html_organizar, fixed = TRUE),
+  grepl("não filtram linhas", html_organizar, fixed = TRUE),
+  grepl("organizar_variaveis_codigo", codigo_organizar, fixed = TRUE),
   grepl("Se a base derivada não aparecer", codigo_app, fixed = TRUE),
   grepl("Base(s) ainda fora da lista", codigo_seletor_base, fixed = TRUE),
   grepl("falta Finalizar preparo", codigo_seletor_base, fixed = TRUE),

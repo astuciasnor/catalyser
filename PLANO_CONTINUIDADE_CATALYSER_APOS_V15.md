@@ -1,12 +1,13 @@
 # Plano de continuidade da CatalyseR após a V15
 
 - **Data de referência:** 26/07/2026
-- **Versão atual:** 0.1.3 — V15 de teste
+- **Versão atual:** 0.1.3 — V15 ampliada de teste
 - **Branch atual:** `chore/revisao-fases-3`
 - **Checkpoint funcional:** `025af6c` —
   `checkpoint-pipeline-e2e-2026-07-26`
 - **Checkpoint V15:** `6084d92` —
   `checkpoint-v15-refinamentos-2026-07-26`
+- **Checkpoint V15 ampliada:** `checkpoint-v15-ampliada-2026-07-26`
 
 ## 1. Finalidade deste documento
 
@@ -126,12 +127,20 @@ commit compreensível e deixar o aplicativo executável.
 - reprodução dos scripts e do QMD fora da CatalyseR;
 - nomes longos mais legíveis no seletor de bases;
 - código essencial das análises explícito no QMD;
+- atalho `Recalcular a Base` dentro da sub-aba `Receita da base`, ligado ao
+  mesmo recálculo da sub-aba de gestão;
+- módulo `Organizar Variáveis`, depois de `Separar Coluna em Colunas`, reunindo
+  seleção, renomeação, definição de tipos e recodificação de categorias;
+- retirada desses quatro controles repetidos das interfaces de Importação,
+  Empilhar e Separar, sem remover a compatibilidade interna existente;
+- preservação do código das etapas estruturais anteriores quando
+  `Organizar Variáveis` promove seu resultado para a Base Compartilhada;
 - instalação limpa do pacote 0.1.3.
 
 ### 4.2. Evidências
 
 - Todos os testes em `inst/app/tests/run_tests.R` passaram.
-- A sintaxe dos 64 arquivos R foi aprovada.
+- A sintaxe dos 66 arquivos R foi aprovada.
 - O teste de exportação renderizou o Word.
 - O seletor foi inspecionado em 1366 × 768.
 - `R CMD build` e a instalação em biblioteca vazia passaram.
@@ -538,21 +547,25 @@ catalyser-anova-integrada-AAAAMMDD-v16.zip
 5. `docs/testes/fases-3/HOMOLOGACAO_END_TO_END_WINDOWS_2026-07-26.md`;
 6. `docs/testes/fases-3/ROTEIRO_TESTE_V15_DUAS_ANALISES.md`;
 7. `inst/app/modules/mod_anova.R`;
-8. `inst/app/modules/mod_execucao_explicita.R`;
-9. `inst/app/modules/mod_seletor_base_analise.R`;
-10. `inst/app/modules/registro_execucoes.R`;
-11. `inst/app/modules/exportacao_comunicacao.R`;
-12. `inst/app/templates/funcoes_projeto_integrado.R`;
-13. trechos de integração dos módulos em `inst/app/app.R`.
+8. `inst/app/modules/mod_organizar_variaveis.R`;
+9. `inst/app/modules/mod_execucao_explicita.R`;
+10. `inst/app/modules/mod_seletor_base_analise.R`;
+11. `inst/app/modules/registro_execucoes.R`;
+12. `inst/app/modules/exportacao_comunicacao.R`;
+13. `inst/app/templates/funcoes_projeto_integrado.R`;
+14. trechos de integração dos módulos em `inst/app/app.R`.
 
 ## 14. Instrução curta para passagem de serviço
 
-> Continue a CatalyseR a partir do commit `6084d92`, sem criar novas análises.
+> Continue a CatalyseR a partir da tag
+> `checkpoint-v15-ampliada-2026-07-26`, sem criar novas análises.
 > Integre a ANOVA de um fator ao mesmo contrato já usado por teste t e regressão
 > linear: seletor de base, execução explícita, registro, Comunicação, replay,
 > QMD pedagógico e Word. Preserve os IDs e as regras estatísticas existentes,
-> faça refatorações pequenas com testes e gere a V16 somente depois de validar
-> duas Bases Derivadas e duas análises, sendo uma delas ANOVA.
+> preserve também o módulo `Organizar Variáveis` e o recálculo disponível nas
+> duas sub-abas de Bases Derivadas, faça refatorações pequenas com testes e gere
+> a V16 somente depois de validar duas Bases Derivadas e duas análises, sendo uma
+> delas ANOVA.
 
 ## 15. Regra final de decisão
 

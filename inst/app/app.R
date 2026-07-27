@@ -28,6 +28,7 @@ source("modules/mod_mapa.R", encoding = "UTF-8")
 source("modules/mod_mapa_pontos.R", encoding = "UTF-8")
 source("modules/mod_series_temporais.R", encoding = "UTF-8")
 source("modules/mod_arrumar.R", encoding = "UTF-8")
+source("modules/mod_organizar_variaveis.R", encoding = "UTF-8")
 source("modules/mod_calcular.R", encoding = "UTF-8")
 source("modules/mod_agrupar_sumarizar.R", encoding = "UTF-8")
 source("modules/registro_tratamentos.R", encoding = "UTF-8")
@@ -526,11 +527,16 @@ ui <- page_navbar(
                     maxOptions = 100
                   ))
               ),
-              uiOutput("dataset_vars_selector", style = "margin-top: -10px; margin-bottom: 0px; padding: 0;"),
-              hr(style = "margin: 6px 0;")
+              div(
+                class = "alert alert-light border mt-2 mb-0",
+                style = "font-size:0.8rem; padding:8px 10px;",
+                icon("arrow-right"),
+                " Depois de carregar, use ",
+                strong("Organizar Variáveis"),
+                " para selecionar, renomear, tipar ou recodificar."
+              )
             )
-          ),
-          uiOutput("variable_type_converter_ui")
+          )
         ),
         
         # COLUNA 2: ABAS DE EXIBIÇÃO (PRINCIPAL)
@@ -588,6 +594,11 @@ ui <- page_navbar(
       title = "Separar Coluna em Colunas",
       icon = icon("table-columns"),
       mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
+    ),
+    nav_panel(
+      title = "Organizar Variáveis",
+      icon = icon("list-check"),
+      mod_organizar_variaveis_ui("organizar_variaveis")
     ),
     nav_panel(
       title = "Adicionar Tratamentos à Base",
@@ -2447,9 +2458,28 @@ RCatalyst::run_ide()</pre>
   }, ignoreInit = TRUE)
 
   # Callback que os módulos Arrumar chamam ao clicar "Usar nas análises".
-  promover_dataset <- function(df, fonte, codigo = NULL) {
+  promover_dataset <- function(df, fonte, codigo = NULL, acumular_codigo = FALSE) {
+    anterior <- base_externa_rv()
+    codigo_final <- codigo
+    if (isTRUE(acumular_codigo) &&
+        !is.null(anterior$codigo) && nzchar(anterior$codigo) &&
+        !is.null(codigo) && nzchar(codigo)) {
+      codigo_final <- paste(
+        anterior$codigo,
+        "",
+        sprintf("# Etapa seguinte: %s", fonte),
+        codigo,
+        sep = "\n"
+      )
+    }
     dataset_ativo_rv(list(df = df, fonte = fonte))
-    base_externa_rv(if (!is.null(codigo) && nzchar(codigo)) list(fonte = fonte, codigo = codigo) else NULL)
+    base_externa_rv(
+      if (!is.null(codigo_final) && nzchar(codigo_final)) {
+        list(fonte = fonte, codigo = codigo_final)
+      } else {
+        NULL
+      }
+    )
     showNotification(sprintf("Base Compartilhada atualizada por: %s (%d linhas x %d colunas).",
                              fonte, nrow(df), ncol(df)), type = "message", duration = 6)
   }
@@ -2571,6 +2601,17 @@ RCatalyst::run_ide()</pre>
   # resultado às análises via callback on_usar.
   mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar", on_usar = promover_dataset)
   mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar", on_usar = promover_dataset)
+  # Selecionar, renomear, tipar e recodificar ficam centralizados neste módulo.
+  # Ele lê a base resolvida para poder suceder uma promoção de Empilhar/Separar.
+  mod_organizar_variaveis_server(
+    "organizar_variaveis", base_resolvida,
+    on_usar = function(df, fonte, codigo) {
+      promover_dataset(
+        df, fonte, codigo,
+        acumular_codigo = TRUE
+      )
+    }
+  )
   # Calcular/Reescalar lê a BASE RESOLVIDA (pré-trilha, para não aplicar a trilha
   # duas vezes) e promove seu resultado pelo mesmo callback.
   mod_calcular_server("calcular", base_resolvida, import_info, on_usar = promover_dataset)

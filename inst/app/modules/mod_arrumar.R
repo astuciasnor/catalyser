@@ -644,14 +644,6 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             style = "padding: 12px 15px;",
             uiOutput(ns("status_indicador")),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("abrir_renomear"), "Renomear colunas",
-                         icon = icon("i-cursor"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
-            actionButton(ns("abrir_recodificar"), "Recodificar níveis",
-                         icon = icon("tags"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
-            actionButton(ns("abrir_tipar"), "Tipar colunas",
-                         icon = icon("sliders"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
-            actionButton(ns("abrir_selecionar"), "Selecionar variáveis",
-                         icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
             downloadButton(ns("baixar_script"), "Baixar script .R",
                            class = "btn-outline-secondary btn-sm w-100 mb-2"),
             downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
@@ -677,7 +669,12 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
               tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
                 tags$li("Escolha a coluna a quebrar."),
                 tags$li("Detecte/escolha o separador; cada pedaço vira uma coluna."))),
-            tags$p(style = "margin: 0;", "Depois: renomeie, selecione e baixe o script .R + os dados.")
+            tags$p(
+              style = "margin: 0;",
+              "Depois de aplicar à Base Compartilhada, use ",
+              strong("Organizar Variáveis"),
+              " para selecionar, renomear, tipar ou recodificar."
+            )
           )
         )
       )
