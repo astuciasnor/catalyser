@@ -48,7 +48,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
   garante <- function(pkg, github = NULL, versao_minima = NULL, atualizar = FALSE) {
     versao_instalada <- tryCatch(utils::packageVersion(pkg), error = function(e) NULL)
     atende_versao <- !is.null(versao_instalada) &&
-      (is.null(versao_minima) || versao_instalada >= utils::package_version(versao_minima))
+      (is.null(versao_minima) || versao_instalada >= base::package_version(versao_minima))
     if (atende_versao && !isTRUE(atualizar)) {
       cat(sprintf("  %s %-14s ja instalado (%s)\n", OK, pkg, versao_instalada))
       return(TRUE)
@@ -59,7 +59,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
       if (is.null(github)) install.packages(pkg, quiet = TRUE, type = tipo_pkg)
       else remotes::install_github(github, quiet = TRUE, upgrade = "never", force = TRUE)
       nova_versao <- utils::packageVersion(pkg)
-      is.null(versao_minima) || nova_versao >= utils::package_version(versao_minima)
+      is.null(versao_minima) || nova_versao >= base::package_version(versao_minima)
     }, error = function(e) { cat("       ", conditionMessage(e), "\n", sep = ""); FALSE })
     cat(sprintf("  %s %-14s %s\n", if (isTRUE(res)) OK else FALHA, pkg,
                 if (isTRUE(res)) "instalado" else "FALHOU"))
