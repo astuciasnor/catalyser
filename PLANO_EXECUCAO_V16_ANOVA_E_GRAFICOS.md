@@ -18,7 +18,7 @@ homologar a V16 da CatalyseR sem reabrir decisões já aprovadas na V15.
 A entrega deve completar dois percursos:
 
 1. integrar uma **ANOVA de um fator completa** ao pipeline comum
-   `Base Derivada → Executar análise → Adicionar aos resultados → Comunicação
+   `Base Derivada → Executar análise → Adicionar Novo Resultado → Comunicação
    → Word → Projeto R`;
 2. usar uma **segunda Base Derivada independente** para executar o Gráfico de
    Linhas duas vezes, alternando a variável do eixo Y entre
@@ -388,7 +388,7 @@ Requisitos:
 - alteração de Y, X ou base deixa a execução pendente;
 - resultado antigo não pode parecer atual;
 - configuração inválida não deve produzir resultado parcial;
-- o botão “Adicionar aos resultados” só fica disponível após execução válida.
+- o botão “Adicionar Novo Resultado” só fica disponível após execução válida.
 
 ### 6.4. Organização pedagógica da ANOVA
 
@@ -632,7 +632,7 @@ Checkpoint esperado:
 6. Conferir resultado principal, comparações, pressupostos, diagnósticos e
    console.
 7. Confirmar que o resultado usa 68 observações e cinco espécies.
-8. Clicar em **Adicionar aos resultados**.
+8. Clicar em **Adicionar Novo Resultado**.
 9. Usar o título `Profundidade de captura entre espécies`.
 
 ### 9.1. Benchmarks aproximados
@@ -677,7 +677,7 @@ de `0,0300`. Pequenas diferenças de arredondamento são aceitáveis.
    - marcar pontos: sim.
 4. Usar o título `Comprimento das corvinas por observação`.
 5. Clicar uma vez em **Executar análise**.
-6. Adicionar aos resultados.
+6. Clicar em **Adicionar Novo Resultado**.
 7. Alterar somente Y para `peso_g`.
 8. Confirmar que a interface marca o resultado anterior como pendente.
 9. Confirmar que o gráfico não muda silenciosamente antes do clique.

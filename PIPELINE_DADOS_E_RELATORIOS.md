@@ -245,8 +245,8 @@ ramo mudar, o item permanece preservado, mas recebe o estado **Precisa
 atualizar**. Uma entrada manual do Qui-quadrado não depende da revisão de
 `dados_analise`.
 
-As ações implementadas são **Adicionar aos resultados**, **Atualizar
-resultado**, **Salvar como novo** e **Remover dos resultados**. O registro é
+As ações implementadas são **Adicionar Novo Resultado**, **Atualizar Resultado
+Anterior** e **Apagar Resultado Selecionado**. O registro é
 limpo quando outro conjunto de dados bruto é carregado, evitando misturar
 execuções de projetos diferentes.
 
@@ -256,8 +256,8 @@ o clique em **Executar análise**. Depois do clique, a configuração e a revis�
 da base ficam assinadas. Qualquer mudança analítica ou de dados oculta a prévia
 anterior, marca o rascunho como pendente e exige **Executar novamente**.
 
-O registrador só habilita **Adicionar aos resultados**, **Atualizar resultado**
-e **Salvar como novo** quando a prévia corresponde à configuração e à base
+O registrador só habilita **Adicionar Novo Resultado** e **Atualizar Resultado
+Anterior** quando a prévia corresponde à configuração e à base
 atuais. Assim, uma execução desatualizada nunca entra silenciosamente no fluxo
 de comunicação. Os downloads antigos do próprio módulo também ficam bloqueados
 até uma execução atual. Seleções que continuam válidas são preservadas ao sair e
@@ -267,16 +267,16 @@ retornar ao módulo; variáveis removidas exigem nova escolha.
 
 Mudar variável ou parâmetro altera somente o rascunho. O fluxo explícito é:
 
-> **Configurar → Executar análise → Examinar a prévia → Adicionar aos resultados**
+> **Configurar → Executar análise → Examinar a prévia → Adicionar Novo Resultado**
 
 Para evitar que explorações passageiras encham o relatório, o usuário deve
 clicar em:
 
-> **Adicionar aos resultados**
+> **Adicionar Novo Resultado**
 
 Esse clique captura a base, os parâmetros e as saídas daquela execução. Depois,
-a interface oferece **Atualizar resultado**, **Salvar como novo** e **Remover dos
-resultados**.
+a interface oferece **Atualizar Resultado Anterior**, **Adicionar Novo
+Resultado** e **Apagar Resultado Selecionado**.
 
 ### Exemplo: vários gráficos da mesma base
 
@@ -287,7 +287,7 @@ resultados**.
 | `grafico_003` | `dados_analise` | ano | CPUE | CPUE por ano |
 
 Trocar o eixo Y não sobrescreve gráfico já registrado. Cada clique em
-**Adicionar aos resultados** cria uma execução independente.
+**Adicionar Novo Resultado** cria uma execução independente.
 
 Na Fase 3C, a lista e os controles aparecem dentro do próprio módulo analítico.
 A Fase 3C.1 acrescenta a execução explícita antes desse registro e bloqueia as
@@ -461,7 +461,7 @@ Use depois do primeiro, pedindo continuidade visual:
 > exemplo de uma mesma base e o mesmo eixo X “ano” gerando três resultados
 > independentes: “Gráfico 1 — produção”, “Gráfico 2 — esforço” e “Gráfico 3 —
 > CPUE”. Mostre a sequência “Rascunho de configuração → Executar análise →
-> Prévia executada → Adicionar aos resultados”: mudar parâmetros deixa o
+> Prévia executada → Adicionar Novo Resultado”: mudar parâmetros deixa o
 > rascunho pendente; executar gera a prévia; adicionar registra uma execução
 > reproduzível. Em seguida, mostre um “Registro de Vínculos” com o
 > fluxo “Base → Análise/Gráfico → Resultado registrado”. À direita, crie o painel

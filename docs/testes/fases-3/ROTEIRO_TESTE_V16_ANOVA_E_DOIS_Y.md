@@ -78,7 +78,7 @@ Checkpoint: **19 linhas**; `comprimento_cm` entre ~13,4 e ~33,1; `peso_g` entre
    Pressupostos e diagnósticos, Console R, Laboratório didático.
 7. Conferir que o resultado usa **68 observações** e **cinco espécies**.
 8. Sub-aba **2. Adicionar aos resultados** → título
-   `Profundidade de captura entre espécies` → **Adicionar aos resultados**.
+   `Profundidade de captura entre espécies` → **Adicionar Novo Resultado**.
 
 ### 4.1. Benchmarks
 
@@ -113,7 +113,7 @@ No Tukey, `pescada amarela-corvina` deve ter p ajustado próximo de **0,0300**.
   **pendente** e o painel avisa "Execute novamente".
 - Enquanto pendente, o resultado exibido continua sendo o da configuração
   anterior — nada muda silenciosamente.
-- O botão **Adicionar aos resultados** fica desabilitado sem execução válida.
+- O botão **Adicionar Novo Resultado** fica desabilitado sem execução válida.
 - Escolher uma configuração inválida (resposta não numérica, fator com um só
   nível, grupo com uma observação) mostra mensagem com ação corretiva e **não**
   produz resultado parcial.
@@ -129,7 +129,7 @@ No Tukey, `pescada amarela-corvina` deve ter p ajustado próximo de **0,0300**.
 3. Configurar: X = `id`; Y = `comprimento_cm`; série por cor = `Nenhuma`;
    marcar pontos = sim.
 4. Título: `Comprimento das corvinas por observação`.
-5. Clicar **uma vez** em **Executar análise** → **Adicionar aos resultados**.
+5. Clicar **uma vez** em **Executar análise** → **Adicionar Novo Resultado**.
 6. Alterar **somente Y** para `peso_g`.
 7. Confirmar que a interface marca a execução como **pendente** e que o gráfico
    **não** muda antes do clique.
@@ -137,7 +137,7 @@ No Tukey, `pescada amarela-corvina` deve ter p ajustado próximo de **0,0300**.
 9. Clicar **uma vez** em **Executar análise**; confirmar que o gráfico agora usa
    `peso_g`.
 10. Em **Execução selecionada**, manter `Nova execução` e clicar
-    **Adicionar aos resultados** (segunda execução, não substituição).
+    **Adicionar Novo Resultado** (segunda execução, não substituição).
 
 O eixo `id` é apenas a ordem das observações — não é série temporal.
 

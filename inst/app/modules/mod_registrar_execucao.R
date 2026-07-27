@@ -137,12 +137,12 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
         selectInput(session$ns("execucao_id"), "Execução selecionada:",
                     choices = escolhas, selected = atual),
         if (!nzchar(atual)) {
-          botao("adicionar", "Adicionar aos resultados", "plus", "btn-success", pronto)
+          botao("adicionar", "Adicionar Novo Resultado", "plus", "btn-success", pronto)
         } else {
           div(class = "d-flex gap-2 flex-wrap",
-              botao("atualizar", "Atualizar resultado", "rotate", "btn-primary", pronto),
-              botao("salvar_novo", "Salvar como novo", "copy", "btn-outline-success", pronto),
-              botao("remover", "Remover dos resultados", "trash", "btn-outline-danger", TRUE))
+              botao("atualizar", "Atualizar Resultado Anterior", "rotate", "btn-primary", pronto),
+              botao("salvar_novo", "Adicionar Novo Resultado", "copy", "btn-outline-success", pronto),
+              botao("remover", "Apagar Resultado Selecionado", "trash", "btn-outline-danger", TRUE))
         },
         if (!pronto) div(
           class = "small text-warning mt-2",

@@ -105,7 +105,7 @@ stopifnot(inherits(erro, "try-error"))
 
 cat("OK: contrato puro do registro de execuções\n")
 
-# Integração mínima do módulo Shiny: adicionar, salvar como novo e atualizar.
+# Integração mínima do módulo Shiny: adicionar novo, atualizar anterior e apagar.
 library(shiny)
 library(bslib)
 source(file.path("modules", "mod_registrar_execucao.R"), encoding = "UTF-8")
@@ -146,12 +146,17 @@ testServer(
   {
     stopifnot(
       grepl("0 registradas", output$contador$html, fixed = TRUE),
-      grepl("Adicionar aos resultados", output$gerenciamento$html, fixed = TRUE),
+      grepl("Adicionar Novo Resultado", output$gerenciamento$html, fixed = TRUE),
       grepl("Prévia executada, ainda não registrada", output$dependencia$html, fixed = TRUE)
     )
 
     session$setInputs(titulo = "Captura por ano", adicionar = 1)
     stopifnot(length(registro_rv()) == 1L, identical(contador_rv(), 1L))
+    stopifnot(
+      grepl("Atualizar Resultado Anterior", output$gerenciamento$html, fixed = TRUE),
+      grepl("Adicionar Novo Resultado", output$gerenciamento$html, fixed = TRUE),
+      grepl("Apagar Resultado Selecionado", output$gerenciamento$html, fixed = TRUE)
+    )
 
     estado_atual(estado_linhas("esforco_h"))
     session$setInputs(titulo = "Esforço por ano", salvar_novo = 1)
