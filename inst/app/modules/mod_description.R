@@ -73,6 +73,7 @@ mod_descr_stats_ui <- function(id) {
 mod_descr_stats_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     revisao_execucao <- execucao_revisao_dados(data_rv)
+    gatilho_execucao <- reactiveVal(0L)
     
     # Atualiza as escolhas de variáveis com base nos dados importados
     observe({
@@ -105,7 +106,7 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
     })
 
     # Calcula somente quando o usuário confirma a configuração.
-    descr_data <- eventReactive(input$executar_analise, {
+    descr_data <- eventReactive(gatilho_execucao(), {
       df <- data_rv()
       req(df, input$vars_selected)
       
@@ -130,11 +131,12 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
       res_df <- do.call(rbind, stats_list)
       rownames(res_df) <- NULL
       res_df
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, descr_data,
-      nome_analise = "A estatística descritiva"
+      nome_analise = "A estatística descritiva",
+      gatilho_rv = gatilho_execucao
     )
     
     # Renderiza a tabela DT formatada

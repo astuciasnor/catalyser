@@ -315,9 +315,9 @@ mod_calcular_ui <- function(id) {
             downloadButton(ns("baixar_dados"), "Baixar dados (.xlsx)",
                            class = "btn-outline-primary btn-sm w-100 mb-2"),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("usar_analises"), "Aplicar à Base Compartilhada",
+            actionButton(ns("usar_analises"), "Adicionar Mudança à Trilha da Base Compartilhada",
                          icon = icon("share-from-square"), class = "btn-primary w-100"),
-            helpText("Esta tabela passa a compor a Base Compartilhada (dados_analise). Volte aos dados importados pelo painel de importação quando necessário.")
+            helpText("As variáveis criadas passam a compor a Base Compartilhada e seu código é preservado na trilha de preparo.")
           )
         ),
         card(
@@ -544,7 +544,13 @@ mod_calcular_server <- function(id, data_rv, import_info, on_usar = NULL) {
         showNotification("Crie ao menos uma variável antes de usar nas análises.", type = "warning")
         return()
       }
-      if (is.function(on_usar)) on_usar(resultado_rv(), "resultado do Calcular/Reescalar")
+      if (is.function(on_usar)) {
+        on_usar(
+          resultado_rv(),
+          "Criação de Variáveis",
+          codigo_rv()
+        )
+      }
     })
   })
 }

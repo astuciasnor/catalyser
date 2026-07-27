@@ -118,6 +118,7 @@ mod_hca_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     revisao_execucao <- execucao_revisao_dados(data_rv)
+    gatilho_execucao <- reactiveVal(0L)
     
     # Atualiza as opções de variáveis baseadas no dataset
     observe({
@@ -164,7 +165,7 @@ mod_hca_server <- function(id, data_rv, import_info) {
     })
 
     # Executa a AAH apenas após confirmação explícita.
-    result_rv <- eventReactive(input$executar_analise, {
+    result_rv <- eventReactive(gatilho_execucao(), {
       df <- data_rv()
       req(df)
       vars <- input$vars_selected
@@ -180,11 +181,12 @@ mod_hca_server <- function(id, data_rv, import_info) {
         scale = input$scale,
         label_var = input$label_var
       )
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, result_rv,
-      nome_analise = "A análise de agrupamentos"
+      nome_analise = "A análise de agrupamentos",
+      gatilho_rv = gatilho_execucao
     )
     
     # Renderizar Dendrograma

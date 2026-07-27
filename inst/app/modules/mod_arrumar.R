@@ -211,6 +211,14 @@ arrumar_validar <- function(cfg, df) {
   if (any(!nzchar(cfg$novas)))
     return("Dê um nome a cada coluna nova (separe por vírgula).")
 
+  nomes_normalizados <- tolower(trimws(cfg$novas))
+  if (anyDuplicated(nomes_normalizados)) {
+    return(paste0(
+      "Cada coluna extraída precisa de um nome diferente. ",
+      "Exemplo: use 'ano, medida'."
+    ))
+  }
+
   # Extração: por delimitador (simples) ou por regex (avançado)
   if (identical(cfg$metodo, "delim")) {
     if (is.null(cfg$delim) || !nzchar(cfg$delim))
@@ -245,6 +253,39 @@ arrumar_validar <- function(cfg, df) {
       return(paste("Colunas não encontradas:", paste(falta, collapse = ", ")))
     if (!nzchar(cfg$values_to))
       return("Informe o nome da coluna de valores (ex.: 'valor').")
+    valor_normalizado <- tolower(trimws(cfg$values_to))
+    if (valor_normalizado %in% nomes_normalizados) {
+      return(paste0(
+        "O nome da coluna de valores deve ser diferente dos nomes das colunas ",
+        "extraídas do cabeçalho. Neste exemplo, use 'ano, medida' no primeiro ",
+        "campo e 'captura_t' no campo de valores."
+      ))
+    }
+    colunas_preservadas <- setdiff(names(df), cfg$cols_medida)
+    conflito_preservado <- colunas_preservadas[
+      tolower(trimws(colunas_preservadas)) == valor_normalizado
+    ]
+    if (length(conflito_preservado)) {
+      return(sprintf(
+        paste0(
+          "A coluna de valores não pode se chamar '%s', porque esse nome já ",
+          "existe na base e será preservado. Escolha outro nome, como 'captura_t'."
+        ),
+        cfg$values_to
+      ))
+    }
+    conflitos_extraidos <- colunas_preservadas[
+      tolower(trimws(colunas_preservadas)) %in% nomes_normalizados
+    ]
+    if (length(conflitos_extraidos)) {
+      return(sprintf(
+        paste0(
+          "O nome '%s' já existe na base e será preservado. Escolha outro nome ",
+          "para a coluna extraída do cabeçalho."
+        ),
+        conflitos_extraidos[[1]]
+      ))
+    }
     if (identical(cfg$saida, "largo") && !nzchar(cfg$wider_names))
       return("Escolha qual coluna vira as novas colunas no formato largo.")
     if (identical(cfg$metodo, "delim")) {
@@ -454,16 +495,15 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
   combinado   <- is.null(modo_fixo)
   mostrar_emp <- combinado || identical(modo_fixo, "empilhar")
   mostrar_sep <- combinado || identical(modo_fixo, "separar")
+  mostrar_wider <- identical(modo_fixo, "alargar")
 
   # Embrulha em conditionalPanel(modo == X) só quando os dois modos convivem.
   so_modo <- function(modo, ui) if (combinado)
     conditionalPanel(sprintf("input['%s'] == '%s'", ns("modo"), modo), ui) else ui
 
-  # No menu "Empilhar" também oferecemos ALARGAR (pivot_wider avulso) como
-  # operação da etapa. op_emp() mostra os cartões de empilhar só quando op=='empilhar'.
-  reshape_fixo <- identical(modo_fixo, "empilhar")
-  op_emp <- function(ui) if (reshape_fixo)
-    conditionalPanel(sprintf("input['%s'] == 'empilhar'", ns("op")), ui) else ui
+  # Empilhar e alargar agora têm sub-abas próprias no menu. O helper evita que
+  # os controles de extração apareçam na sub-aba dedicada ao pivot_wider().
+  op_emp <- function(ui) if (mostrar_wider) NULL else ui
 
   # Numeração dos cartões conforme o contexto.
   if (combinado) { n_grp <- 2L; n_regex <- 3L; n_saida <- 4L }
@@ -489,29 +529,18 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
           )
         ),
 
-        # --- Escolha da operação (só no menu Empilhar): empilhar ou alargar ---
-        if (reshape_fixo) card(
-          card_header("Operação desta etapa"),
+        # --- Modo ALARGAR (pivot_wider) em sub-aba própria ---
+        if (mostrar_wider) card(
+          card_header("1. Alargar dados"),
           card_body(
             style = "padding: 12px 15px;",
-            radioButtons(ns("op"), NULL,
-              choices = c("Empilhar (largo → longo)" = "empilhar",
-                          "Alargar (longo → largo)"  = "alargar"),
-              selected = "empilhar"),
-            helpText(HTML("<b>Empilhar</b>: junta colunas largas numa só.<br><b>Alargar</b>: espalha os níveis de uma coluna em várias (útil após empilhar)."))
-          )
-        ),
-
-        # --- Modo ALARGAR (pivot_wider avulso): só no menu Empilhar ---
-        if (reshape_fixo) conditionalPanel(
-          condition = sprintf("input['%s'] == 'alargar'", ns("op")),
-          card(
-            card_header("Alargar (longo → largo)"),
-            card_body(
-              style = "padding: 12px 15px;",
-              selectInput(ns("wider_names2"), "Coluna que vira novas colunas (names_from):", choices = NULL),
-              selectInput(ns("wider_values"), "Coluna com os valores (values_from):", choices = NULL),
-              helpText("Espalha os níveis da 1ª coluna em colunas novas, preenchidas pela 2ª.")
+            selectInput(ns("wider_names2"), "Coluna que vira novas colunas (names_from):", choices = NULL),
+            selectInput(ns("wider_values"), "Coluna com os valores (values_from):", choices = NULL),
+            helpText("Espalha os níveis da primeira coluna em novas colunas, preenchidas pelos valores da segunda."),
+            div(
+              class = "alert alert-light border",
+              style = "font-size:0.8rem; padding:8px 10px; margin-bottom:0;",
+              tags$code("tidyr::pivot_wider()")
             )
           )
         ),
@@ -596,18 +625,46 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                           value = "^(\\d{4}) - (.*)$"))
             ),
 
-            textInput(ns("novas_cols"), "Nomes das colunas novas (na ordem):",
-                      value = "parte1, parte2"),
+            textInput(
+              ns("novas_cols"),
+              if (identical(modo_fixo, "empilhar")) {
+                "Nomes das colunas que descrevem os cabeçalhos (na ordem):"
+              } else {
+                "Nomes das colunas novas (na ordem):"
+              },
+              value = if (identical(modo_fixo, "empilhar")) {
+                "ano, medida"
+              } else {
+                "parte1, parte2"
+              }
+            ),
             if (mostrar_emp) so_modo("empilhar", tagList(
-              textInput(ns("values_to"), "Nome da coluna de valores:", value = "valor"),
+              div(
+                class = "alert alert-info",
+                style = "font-size:0.8rem; padding:8px 10px; margin-bottom:10px;",
+                tags$strong("Exemplo: "),
+                tags$code("2022 - Captura (t)"),
+                " vira ",
+                tags$code("ano = 2022"),
+                " e ",
+                tags$code("medida = Captura (t)"),
+                ". O número observado ficará em outra coluna."
+              ),
+              textInput(
+                ns("values_to"),
+                "Nome da coluna que receberá os valores:",
+                value = "captura_t"
+              ),
+              helpText(
+                "Use um nome diferente dos anteriores. Ex.: ano, medida e captura_t."
+              ),
               checkboxInput(ns("como_numero"), "Converter valores para número", value = TRUE)
             ))
           )
         )),
 
-        # (O "alargar" agora é uma OPERAÇÃO à parte — não mais um modo de saída do
-        # empilhar. Empilhar sempre gera formato LONGO; para alargar, escolha a
-        # operação "Alargar (longo → largo)" acima e aplique como nova etapa.)
+        # Empilhar sempre gera formato longo; pivot_wider() vive na sub-aba
+        # "Alargar Dados" e pode ser aplicado como a mudança seguinte.
 
         actionButton(ns("aplicar"), "Aplicar transformação",
                      icon = icon("play"), class = "btn-primary w-100 mt-2"),
@@ -649,9 +706,9 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
                            class = "btn-outline-primary btn-sm w-100 mb-2"),
             hr(style = "margin: 10px 0;"),
-            actionButton(ns("usar_analises"), "Aplicar à Base Compartilhada",
+            actionButton(ns("usar_analises"), "Adicionar Mudança à Trilha da Base Compartilhada",
                          icon = icon("share-from-square"), class = "btn-primary w-100"),
-            helpText("Esta tabela passa a compor a Base Compartilhada (dados_analise). Você pode voltar aos dados importados no painel de importação.")
+            helpText("A prévia passa a compor a Base Compartilhada e seu código é preservado na trilha de preparo.")
           )
         ),
         card(
@@ -663,7 +720,13 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
               tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
                 tags$li("Escolha (ou detecte) as colunas de medida."),
                 tags$li("Separe o nome por delimitador (ou regex) em ano/métrica."),
-                tags$li("Mantenha longo ou alargue uma métrica."))),
+                tags$li("Confira o formato longo; para o inverso, use a sub-aba Alargar Dados."))),
+            if (mostrar_wider) tagList(
+              tags$p(style = "margin: 0 0 6px;", strong("Alargar"), " (longo → largo):"),
+              tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
+                tags$li("Escolha a coluna que contém os nomes futuros."),
+                tags$li("Escolha a coluna que contém os valores."),
+                tags$li("Aplique e confira a nova estrutura."))),
             if (mostrar_sep) tagList(
               tags$p(style = "margin: 0 0 6px;", strong("Separar"), " (metadados dentro de uma coluna):"),
               tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
@@ -690,11 +753,10 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
 
     base_data <- reactive({ req(data_rv()); data_rv() })
 
-    # Modo efetivo: no menu Empilhar, a operação vem do seletor (empilhar/alargar);
-    # no menu Separar é fixo; no modo combinado, do radio principal.
+    # Cada sub-aba usa um modo fixo; o modo combinado permanece disponível para
+    # compatibilidade com chamadas antigas do módulo.
     modo_atual <- reactive({
-      if (identical(modo_fixo, "empilhar")) (input$op %||% "empilhar")
-      else if (!is.null(modo_fixo)) modo_fixo
+      if (!is.null(modo_fixo)) modo_fixo
       else input$modo
     })
 
@@ -786,7 +848,7 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
       req(identical(input$metodo, "delim"))
       nn <- input$n_cols; if (is.null(nn) || is.na(nn)) nn <- 2
       updateTextInput(session, "novas_cols", value = arrumar_nomes_padrao(as.integer(nn)))
-    })
+    }, ignoreInit = TRUE)
 
     # Detectar o separador automaticamente, olhando os valores (separar) ou os
     # nomes das colunas de medida (empilhar).
@@ -817,7 +879,11 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
         updateTextInput(session, "delim_custom", value = det$delim)
       }
       updateNumericInput(session, "n_cols", value = det$n)
-      updateTextInput(session, "novas_cols", value = arrumar_nomes_padrao(det$n))
+      nomes_atuais <- trimws(strsplit(input$novas_cols %||% "", ",")[[1]])
+      nomes_atuais <- nomes_atuais[nzchar(nomes_atuais)]
+      if (length(nomes_atuais) != det$n) {
+        updateTextInput(session, "novas_cols", value = arrumar_nomes_padrao(det$n))
+      }
       showNotification(sprintf("Separador detectado: '%s' → %d colunas.",
                                arrumar_delim_rotulo(det$delim), det$n),
                        type = "message", duration = 6)
@@ -1223,7 +1289,13 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
         return()
       }
       if (is.function(on_usar)) {
-        fonte <- if (identical(modo_fixo, "separar")) "resultado do Separar" else "resultado do Empilhar"
+        fonte <- switch(
+          modo_atual(),
+          empilhar = "Empilhar Dados — pivot_longer()",
+          alargar = "Alargar Dados — pivot_wider()",
+          separar = "Separar Dados em Colunas",
+          "Pivotar e Separar Dados"
+        )
         on_usar(resultado_final(), fonte, codigo_rv())
       }
     })

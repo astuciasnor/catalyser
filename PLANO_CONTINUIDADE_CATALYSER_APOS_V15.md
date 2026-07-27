@@ -129,8 +129,15 @@ commit compreensível e deixar o aplicativo executável.
 - código essencial das análises explícito no QMD;
 - atalho `Recalcular a Base` dentro da sub-aba `Receita da base`, ligado ao
   mesmo recálculo da sub-aba de gestão;
-- módulo `Organizar Variáveis`, depois de `Separar Coluna em Colunas`, reunindo
-  seleção, renomeação, definição de tipos e recodificação de categorias;
+- estúdio `Pivotar e Separar Dados`, reunindo `pivot_longer()`,
+  `pivot_wider()` e separação em colunas;
+- módulo `Organizar Variáveis` dividido em `Criação de Variáveis` e
+  `Arrumação de Variáveis`;
+- cálculo e reescala centralizados em `Criação de Variáveis`;
+- `Adicionar Tratamentos à Base` dividido em `Tratamentos e trilha` e
+  `Checagem Final da Base Compartilhada`;
+- Checagem Final em grade 20/80, com ajustes leves à esquerda e tabela
+  paginada/rolável à direita;
 - retirada desses quatro controles repetidos das interfaces de Importação,
   Empilhar e Separar, sem remover a compatibilidade interna existente;
 - preservação do código das etapas estruturais anteriores quando
@@ -140,7 +147,7 @@ commit compreensível e deixar o aplicativo executável.
 ### 4.2. Evidências
 
 - Todos os testes em `inst/app/tests/run_tests.R` passaram.
-- A sintaxe dos 66 arquivos R foi aprovada.
+- A sintaxe dos 67 arquivos R foi aprovada.
 - O teste de exportação renderizou o Word.
 - O seletor foi inspecionado em 1366 × 768.
 - `R CMD build` e a instalação em biblioteca vazia passaram.

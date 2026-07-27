@@ -10,7 +10,7 @@ library(shiny)
 library(bslib)
 library(DT)
 
-mod_tratar_ui <- function(id, calcular_ui = NULL) {
+mod_tratar_ui <- function(id, checagem_ui = NULL) {
   ns <- NS(id)
   conteudo_tratamentos <- layout_columns(
       col_widths = c(1, 1, 1),
@@ -35,11 +35,9 @@ mod_tratar_ui <- function(id, calcular_ui = NULL) {
                   "Padronizar / Escalar"          = "padronizar",
                   "Classes de tamanho (binning)"  = "binning",
                   "Remover duplicatas"            = "remover_duplicatas",
-                  "Padronizar texto"              = "padronizar_texto",
-                  "Calcular variável"             = "calcular",
-                  "Reescalar (prefixo SI)"        = "reescalar"
+                  "Padronizar texto"              = "padronizar_texto"
                 ),
-                options = list(maxOptions = 12)
+                options = list(maxOptions = 10)
               )
             ),
 
@@ -128,27 +126,6 @@ mod_tratar_ui <- function(id, calcular_ui = NULL) {
               helpText("Reescreve a própria coluna (uniformiza nomes).")
             ),
 
-            conditionalPanel(
-              condition = sprintf("input['%s'] == 'calcular'", ns("tipo")),
-              textInput(ns("calc_nome"), "Nome da variável nova:", value = "nova_variavel"),
-              textInput(ns("calc_expr"), "Fórmula (use os nomes das colunas):",
-                        value = "", placeholder = "100 * peso_g / comprimento_cm^3"),
-              div(style = "font-size: 0.78rem; color: #555;",
-                  strong("Colunas: "), textOutput(ns("calc_cols"), inline = TRUE))
-            ),
-
-            conditionalPanel(
-              condition = sprintf("input['%s'] == 'reescalar'", ns("tipo")),
-              selectInput(ns("re_col"), "Coluna numérica:", choices = NULL),
-              selectInput(ns("re_prefixo"), "Prefixo de destino:",
-                choices = c("base (x 1)" = "", "quilo k (x10^3)" = "k", "mega M (x10^6)" = "M",
-                            "giga G (x10^9)" = "G", "tera T (x10^12)" = "T",
-                            "mili m (x10^-3)" = "m", "micro u (x10^-6)" = "µ",
-                            "nano n (x10^-9)" = "n", "pico p (x10^-12)" = "p"),
-                selected = "k"),
-              textInput(ns("re_nome"), "Nome da coluna nova:", value = "")
-            ),
-
             actionButton(ns("add_etapa"), "Adicionar à Trilha da Base Compartilhada",
                          icon = icon("plus"), class = "btn-primary w-100 mt-2")
           )
@@ -226,13 +203,19 @@ mod_tratar_ui <- function(id, calcular_ui = NULL) {
       )
     )
 
-  if (is.null(calcular_ui)) return(tagList(conteudo_tratamentos))
+  if (is.null(checagem_ui)) {
+    return(tagList(conteudo_tratamentos))
+  }
 
   tagList(
+    tags$style(HTML(sprintf(
+      "#%s > .nav { margin-bottom: 10px; }",
+      ns("tratamentos_subabas")
+    ))),
     tabsetPanel(
       id = ns("tratamentos_subabas"),
       tabPanel("Tratamentos e trilha", conteudo_tratamentos),
-      tabPanel("Calculadora guiada", calcular_ui)
+      tabPanel("Checagem Final da Base Compartilhada", checagem_ui)
     )
   )
 }
@@ -263,7 +246,6 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
         choices = if (length(cat_cols)) cat_cols else names(df), selected = isolate(input$txt_col))
       updateSelectizeInput(session, "dup_cols", choices = names(df),
         selected = isolate(input$dup_cols), server = TRUE)
-      updateSelectInput(session, "re_col", choices = num, selected = isolate(input$re_col))
     })
 
     output$na_contagem <- renderText({
@@ -297,15 +279,6 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
       req(input$bin_col)
       updateTextInput(session, "bin_nome", value = paste0(input$bin_col, "_classe"))
     }, ignoreInit = TRUE)
-    observeEvent(list(input$re_col, input$re_prefixo), {
-      req(input$re_col)
-      suf <- if (nzchar(input$re_prefixo %||% "")) input$re_prefixo else "base"
-      updateTextInput(session, "re_nome", value = paste0(input$re_col, "_", suf))
-    }, ignoreInit = TRUE)
-    output$calc_cols <- renderText({
-      df <- df_res(); if (is.null(df) || !ncol(df)) "—" else paste(names(df), collapse = ", ")
-    })
-
     observeEvent(input$add_etapa, {
       df <- df_res(); tipo <- input$tipo
       params <- switch(tipo,
@@ -318,9 +291,7 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
         binning = list(coluna = input$bin_col, n = input$bin_n, metodo = input$bin_metodo,
                        nome = trimws(input$bin_nome %||% "")),
         remover_duplicatas = list(colunas = input$dup_cols),
-        padronizar_texto = list(coluna = input$txt_col, metodo = input$txt_metodo),
-        calcular = list(nome = trimws(input$calc_nome %||% ""), expr = input$calc_expr %||% ""),
-        reescalar = list(coluna = input$re_col, simbolo = input$re_prefixo, nome = trimws(input$re_nome %||% ""))
+        padronizar_texto = list(coluna = input$txt_col, metodo = input$txt_metodo)
       )
       msg <- tratamentos[[tipo]]$validar(df, params)
       if (!is.null(msg)) { showNotification(msg, type = "error", duration = 8); return() }

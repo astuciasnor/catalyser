@@ -15,6 +15,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 Imports:
     shiny,
+    later,
     bslib,
     ggplot2,
     DT,

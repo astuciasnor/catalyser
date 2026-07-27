@@ -3,6 +3,36 @@
 
 source("app.R", encoding = "UTF-8")
 
+codigo_execucao_explicita <- paste(
+  readLines("modules/mod_execucao_explicita.R", encoding = "UTF-8"),
+  collapse = "\n"
+)
+stopifnot(
+  grepl("invisible(resultado_rv())", codigo_execucao_explicita, fixed = TRUE),
+  grepl("onmousedown = HTML", codigo_execucao_explicita, fixed = TRUE),
+  grepl("window.jQuery(el).trigger('change')", codigo_execucao_explicita,
+        fixed = TRUE),
+  grepl("onclick = HTML", codigo_execucao_explicita, fixed = TRUE),
+  grepl("Shiny.setInputValue(inputId, Date.now()", codigo_execucao_explicita,
+        fixed = TRUE),
+  grepl("priority = 1000", codigo_execucao_explicita, fixed = TRUE),
+  grepl("priority = -1000", codigo_execucao_explicita, fixed = TRUE)
+)
+
+modulos_explicitos <- c(
+  "mod_description.R", "mod_hca.R", "mod_nonparametric.R",
+  "mod_parametric.R", "mod_pca.R", "mod_regression.R", "mod_viz_extra.R"
+)
+stopifnot(all(vapply(modulos_explicitos, function(arquivo) {
+  codigo <- paste(
+    readLines(file.path("modules", arquivo), encoding = "UTF-8"),
+    collapse = "\n"
+  )
+  grepl("gatilho_execucao <- reactiveVal(0L)", codigo, fixed = TRUE) &&
+    grepl("eventReactive(gatilho_execucao()", codigo, fixed = TRUE) &&
+    grepl("gatilho_rv = gatilho_execucao", codigo, fixed = TRUE)
+}, logical(1))))
+
 dados_iniciais <- data.frame(
   ano = 2021:2025,
   captura_t = c(10, 13, 17, 16, 21),

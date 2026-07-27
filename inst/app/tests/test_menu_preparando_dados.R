@@ -25,7 +25,7 @@ codigo_nao_parametrico <- paste(
 html_tratamentos <- htmltools::renderTags(
   mod_tratar_ui(
     "teste_tratar",
-    calcular_ui = mod_calcular_ui("calcular")
+    checagem_ui = mod_organizar_variaveis_checagem_ui("teste_organizar")
   )
 )$html
 
@@ -38,13 +38,24 @@ html_arrumar_emp <- htmltools::renderTags(
 html_arrumar_sep <- htmltools::renderTags(
   mod_arrumar_ui("teste_arrumar_sep", modo_fixo = "separar")
 )$html
+html_arrumar_wider <- htmltools::renderTags(
+  mod_arrumar_ui("teste_arrumar_wider", modo_fixo = "alargar")
+)$html
 html_organizar <- htmltools::renderTags(
-  mod_organizar_variaveis_ui("teste_organizar")
+  mod_organizar_variaveis_ui(
+    "teste_organizar",
+    criacao_ui = mod_calcular_ui("calcular")
+  )
 )$html
 
 stopifnot(
+  grepl('title = "Pivotar e Separar Dados"', codigo_app, fixed = TRUE),
+  grepl("Empilhar Dados — pivot_longer()", codigo_app, fixed = TRUE),
+  grepl("Alargar Dados — pivot_wider()", codigo_app, fixed = TRUE),
+  grepl("Separar Dados em Colunas", codigo_app, fixed = TRUE),
+  grepl('modo_fixo = "alargar"', codigo_app, fixed = TRUE),
   grepl('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
-  regexpr('title = "Separar Coluna em Colunas"', codigo_app, fixed = TRUE) <
+  regexpr('title = "Pivotar e Separar Dados"', codigo_app, fixed = TRUE) <
     regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
   regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE) <
     regexpr('title = "Adicionar Tratamentos à Base"', codigo_app, fixed = TRUE),
@@ -61,14 +72,17 @@ stopifnot(
         codigo_app, fixed = TRUE),
   !grepl('mod_agrupar_sumarizar_server("agrupar_sumarizar"',
          codigo_app, fixed = TRUE),
-  grepl('id="teste_tratar-tratamentos_subabas"', html_tratamentos, fixed = TRUE),
-  grepl("Tratamentos e trilha", html_tratamentos, fixed = TRUE),
-  grepl("Calculadora guiada", html_tratamentos, fixed = TRUE),
+  !grepl("Calculadora guiada", html_tratamentos, fixed = TRUE),
   grepl('id="teste_tratar-tipo"', html_tratamentos, fixed = TRUE),
   grepl("max-height: min(30rem", html_tratamentos, fixed = TRUE),
-  grepl("options = list(maxOptions = 12)", codigo_tratar, fixed = TRUE),
-  grepl("Calcular variável", html_tratamentos, fixed = TRUE),
-  grepl("Reescalar (prefixo SI)", html_tratamentos, fixed = TRUE),
+  grepl("options = list(maxOptions = 10)", codigo_tratar, fixed = TRUE),
+  !grepl("Calcular variável", html_tratamentos, fixed = TRUE),
+  !grepl("Reescalar (prefixo SI)", html_tratamentos, fixed = TRUE),
+  grepl('id="teste_tratar-tratamentos_subabas"',
+        html_tratamentos, fixed = TRUE),
+  grepl("Tratamentos e trilha", html_tratamentos, fixed = TRUE),
+  grepl("Checagem Final da Base Compartilhada",
+        html_tratamentos, fixed = TRUE),
   grepl("Adicionar à Trilha da Base Compartilhada",
         html_tratamentos, fixed = TRUE),
   !grepl('value="filtrar"', html_tratamentos, fixed = TRUE),
@@ -90,14 +104,37 @@ stopifnot(
   grepl("recalcular_base_selecionada", codigo_bases, fixed = TRUE),
   grepl("acumular_codigo = TRUE", codigo_app, fixed = TRUE),
   grepl("# Etapa seguinte:", codigo_app, fixed = TRUE),
+  grepl("adicionar_mudanca_compartilhada", codigo_app, fixed = TRUE),
+  grepl('mod_arrumar_server(\n    "arrumar_wider"', codigo_app, fixed = TRUE),
   !grepl("Renomear colunas", html_arrumar_emp, fixed = TRUE),
   !grepl("Recodificar níveis", html_arrumar_emp, fixed = TRUE),
+  grepl("Nomes das colunas que descrevem os cabeçalhos",
+        html_arrumar_emp, fixed = TRUE),
+  grepl("Nome da coluna que receberá os valores",
+        html_arrumar_emp, fixed = TRUE),
+  grepl("ano = 2022", html_arrumar_emp, fixed = TRUE),
+  grepl('value="ano, medida"', html_arrumar_emp, fixed = TRUE),
+  grepl('value="captura_t"', html_arrumar_emp, fixed = TRUE),
   !grepl("Tipar colunas", html_arrumar_sep, fixed = TRUE),
   !grepl("Selecionar variáveis", html_arrumar_sep, fixed = TRUE),
   grepl('id="teste_organizar-abrir_selecionar"', html_organizar, fixed = TRUE),
   grepl('id="teste_organizar-abrir_renomear"', html_organizar, fixed = TRUE),
   grepl('id="teste_organizar-abrir_tipar"', html_organizar, fixed = TRUE),
   grepl('id="teste_organizar-abrir_recodificar"', html_organizar, fixed = TRUE),
+  grepl("Criação de Variáveis", html_organizar, fixed = TRUE),
+  grepl("Arrumação de Variáveis", html_organizar, fixed = TRUE),
+  !grepl("Checagem Final da Base Compartilhada", html_organizar, fixed = TRUE),
+  grepl("grid-template-columns:minmax(210px,20%) minmax(0,80%)",
+        html_tratamentos, fixed = TRUE),
+  grepl('id="teste_organizar-preview_final"', html_tratamentos, fixed = TRUE),
+  grepl("Adicionar Mudança à Trilha da Base Compartilhada",
+        html_tratamentos, fixed = TRUE),
+  grepl("Adicionar Mudança à Trilha da Base Compartilhada",
+        html_arrumar_emp, fixed = TRUE),
+  grepl("Adicionar Mudança à Trilha da Base Compartilhada",
+        html_arrumar_wider, fixed = TRUE),
+  grepl("Adicionar Mudança à Trilha da Base Compartilhada",
+        html_arrumar_sep, fixed = TRUE),
   grepl("não filtram linhas", html_organizar, fixed = TRUE),
   grepl("organizar_variaveis_codigo", codigo_organizar, fixed = TRUE),
   grepl("Se a base derivada não aparecer", codigo_app, fixed = TRUE),
@@ -114,7 +151,10 @@ stopifnot(
   grepl("align-items:start !important", codigo_nao_parametrico, fixed = TRUE),
   grepl('updateSelectInput(session, "chi_tidy_n", choices = character(0))',
         codigo_nao_parametrico, fixed = TRUE),
-  grepl('id="calcular-', html_tratamentos, fixed = TRUE),
+  !grepl('id="calcular-', html_tratamentos, fixed = TRUE),
+  grepl('id="calcular-', html_organizar, fixed = TRUE),
+  grepl('mod_organizar_variaveis_checagem_ui("organizar_variaveis")',
+        codigo_app, fixed = TRUE),
   !grepl('id="agrupar_sumarizar-', html_bases, fixed = TRUE),
   !grepl('id="contingency-', html_bases, fixed = TRUE)
 )
@@ -186,4 +226,4 @@ stopifnot(
   )
 )
 
-cat("OK: menu Preparando Dados reorganizado sem alterar namespaces\n")
+cat("OK: menu Preparando Dados reorganizado em estúdios pedagógicos\n")

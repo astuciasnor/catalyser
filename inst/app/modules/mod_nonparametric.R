@@ -226,6 +226,7 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
     ns <- session$ns
     modo_explicito <- identical(fixed_test, "quiquadrado")
     revisao_execucao <- if (modo_explicito) execucao_revisao_dados(data_rv) else reactive(0L)
+    gatilho_execucao <- reactiveVal(0L)
 
     # Atualiza os seletores de variáveis
     observe({
@@ -477,7 +478,7 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
     }
 
     test_results <- if (modo_explicito) {
-      eventReactive(input$executar_analise, calcular_resultado(), ignoreInit = TRUE)
+      eventReactive(gatilho_execucao(), calcular_resultado(), ignoreInit = FALSE)
     } else {
       reactive(calcular_resultado())
     }
@@ -485,7 +486,8 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
     exec_ctrl <- if (modo_explicito) {
       execucao_explicita_server(
         input, output, session, assinatura_execucao, test_results,
-        nome_analise = "O qui-quadrado"
+        nome_analise = "O qui-quadrado",
+        gatilho_rv = gatilho_execucao
       )
     } else {
       list(estado = reactive("atualizada"), atualizada = reactive(TRUE))

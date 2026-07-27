@@ -278,6 +278,7 @@ mod_lines_ui <- function(id) {
 mod_lines_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     revisao_execucao <- execucao_revisao_dados(data_rv)
+    gatilho_execucao <- reactiveVal(0L)
 
     observe({
       df <- data_rv(); req(df)
@@ -314,7 +315,7 @@ mod_lines_server <- function(id, data_rv, import_info) {
       updateTextInput(session, "custom_label_y", value = input$var_y)
     })
 
-    make_plot <- eventReactive(input$executar_analise, {
+    make_plot <- eventReactive(gatilho_execucao(), {
       df <- data_rv(); req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
       grp <- input$var_group
@@ -338,11 +339,12 @@ mod_lines_server <- function(id, data_rv, import_info) {
       }
       p + viz_theme(input$graph_theme, input$legend_pos) +
         labs(title = title_val, x = xlab, y = ylab, color = if (has_grp) grp else NULL)
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, make_plot,
-      nome_analise = "O gráfico de linhas"
+      nome_analise = "O gráfico de linhas",
+      gatilho_rv = gatilho_execucao
     )
 
     output$plot <- renderPlot({ make_plot() })

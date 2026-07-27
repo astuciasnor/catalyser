@@ -10,7 +10,7 @@ ids_preservados <- c(
   "tabela", "preview", "codigo", "detalhes", "renomear", "recalcular",
   "finalizar", "reabrir", "excluir", "editor_base", "ramo_tipo",
   "parametros_etapa", "adicionar_etapa", "receita_ramo",
-  "etapa_selecionada", "etapa_subir", "etapa_descer", "etapa_alternar",
+  "etapa_subir", "etapa_descer", "etapa_alternar",
   "etapa_remover", "etapas_limpar"
 )
 
@@ -21,7 +21,16 @@ stopifnot(
   grepl("Base ativa:", codigo_bases, fixed = TRUE),
   grepl("col_widths = c(3, 7, 2)", codigo_bases, fixed = TRUE),
   grepl('min_height = "5rem"', codigo_bases, fixed = TRUE),
-  grepl("tipo.selectize.enable()", codigo_bases, fixed = TRUE),
+  grepl("seletor.selectize.enable()", codigo_bases, fixed = TRUE),
+  grepl("var seletores = ['%s', '%s']", codigo_bases, fixed = TRUE),
+  grepl('id="teste_bases-seletor_etapa"', html_bases, fixed = TRUE),
+  grepl('ns("etapa_selecionada"), "Etapa selecionada:"', codigo_bases,
+        fixed = TRUE),
+  grepl("output$seletor_etapa <- renderUI", codigo_bases, fixed = TRUE),
+  grepl("choices = escolhas, selected = atual", codigo_bases, fixed = TRUE),
+  grepl("etapa_preferida_rv <- reactiveVal(NULL)", codigo_bases, fixed = TRUE),
+  grepl("base_atualizada <- bases_obter(novo, base$id)", codigo_bases,
+        fixed = TRUE),
   grepl('id="teste_bases-controles_receita" disabled="disabled"',
         html_bases, fixed = TRUE),
   grepl('class="d-grid mt-3 pt-3 border-top"', html_bases, fixed = TRUE),

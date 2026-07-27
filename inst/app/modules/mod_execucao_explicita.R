@@ -10,7 +10,33 @@ execucao_explicita_controles_ui <- function(ns, ativo = TRUE) {
     hr(style = "margin: 10px 0;"),
     actionButton(
       ns("executar_analise"), "Executar análise",
-      icon = icon("play"), class = "btn-primary w-100"
+      icon = icon("play"), class = "btn-primary w-100",
+      onmousedown = HTML(sprintf(
+        paste0(
+          "var botao=this;",
+          "document.querySelectorAll('[id^=\"%s\"]').forEach(function(el){",
+          "if(el!==botao && el.classList.contains('shiny-bound-input') && window.jQuery){",
+          "window.jQuery(el).trigger('change');",
+          "}",
+          "});"
+        ),
+        ns("")
+      )),
+      onclick = HTML(sprintf(
+        paste0(
+          "event.preventDefault();",
+          "event.stopPropagation();",
+          "event.stopImmediatePropagation();",
+          "var inputId='%s';",
+          "window.setTimeout(function(){",
+          "if(window.Shiny){",
+          "Shiny.setInputValue(inputId, Date.now(), {priority:'event'});",
+          "}",
+          "},150);",
+          "return false;"
+        ),
+        ns("executar_analise")
+      ))
     ),
     uiOutput(ns("execucao_status"))
   )
@@ -59,8 +85,10 @@ execucao_assinatura <- function(input, ids, revisao_dados) {
 }
 
 execucao_explicita_server <- function(input, output, session, assinatura_rv,
-                                      resultado_rv, nome_analise = "A análise") {
+                                      resultado_rv, nome_analise = "A análise",
+                                      gatilho_rv = NULL) {
   assinatura_executada_rv <- reactiveVal(NULL)
+  tentativa_execucao_rv <- reactiveVal(0L)
 
   estado <- reactive({
     executada <- assinatura_executada_rv()
@@ -69,13 +97,25 @@ execucao_explicita_server <- function(input, output, session, assinatura_rv,
     if (!is.null(atual) && identical(executada, atual)) "atualizada" else "pendente"
   })
 
-  observeEvent(input$executar_analise, {
+  # Os painéis de resultado começam ocultos. Sem esta inscrição silenciosa, um
+  # eventReactive() lazy podia ser inicializado somente depois do primeiro
+  # clique e tratar esse clique como preparação, não como execução. Com o botão
+  # ainda em zero, a chamada apenas registra a dependência; nenhum cálculo roda.
+  observe({
+    tryCatch(
+      invisible(resultado_rv()),
+      error = function(e) invisible(NULL)
+    )
+  }, priority = 1000)
+
+  concluir_execucao <- function(mostrar_erro = TRUE) {
     resultado <- tryCatch(isolate(resultado_rv()), error = function(e) e)
     if (inherits(resultado, "error")) {
       mensagem <- conditionMessage(resultado)
       if (!nzchar(mensagem)) mensagem <- "A configuração ainda não produz uma análise válida."
-      showNotification(mensagem, type = "warning", duration = 10)
-      return()
+      if (isTRUE(mostrar_erro))
+        showNotification(mensagem, type = "warning", duration = 10)
+      return(invisible(FALSE))
     }
 
     # A assinatura é capturada depois do cálculo para congelar exatamente a
@@ -85,8 +125,9 @@ execucao_explicita_server <- function(input, output, session, assinatura_rv,
     if (inherits(assinatura, "error")) {
       mensagem <- conditionMessage(assinatura)
       if (!nzchar(mensagem)) mensagem <- "Complete a configuração antes de executar."
-      showNotification(mensagem, type = "warning", duration = 8)
-      return()
+      if (isTRUE(mostrar_erro))
+        showNotification(mensagem, type = "warning", duration = 8)
+      return(invisible(FALSE))
     }
 
     assinatura_executada_rv(assinatura)
@@ -94,7 +135,33 @@ execucao_explicita_server <- function(input, output, session, assinatura_rv,
       sprintf("%s foi executada com a configuração atual.", nome_analise),
       type = "message", duration = 5
     )
-  }, priority = 1000)
+    invisible(TRUE)
+  }
+
+  if (is.function(gatilho_rv)) {
+    observeEvent(input$executar_analise, {
+      tentativa_execucao_rv(0L)
+      gatilho_rv(as.integer(isolate(gatilho_rv())) + 1L)
+    }, priority = 1000)
+
+    observeEvent(gatilho_rv(), {
+      tentativa <- as.integer(isolate(tentativa_execucao_rv()))
+      max_tentativas_internas <- 2L
+      sucesso <- concluir_execucao(
+        mostrar_erro = tentativa >= max_tentativas_internas
+      )
+      if (!isTRUE(sucesso) && tentativa < max_tentativas_internas) {
+        tentativa_execucao_rv(tentativa + 1L)
+        later::later(function() {
+          gatilho_rv(as.integer(isolate(gatilho_rv())) + 1L)
+        }, delay = 0.15)
+      }
+    }, ignoreInit = TRUE, priority = -1000)
+  } else {
+    observeEvent(input$executar_analise, {
+      concluir_execucao()
+    }, priority = -1000)
+  }
 
   observe({
     rotulo <- if (identical(estado(), "aguardando")) "Executar análise" else "Executar novamente"

@@ -586,26 +586,38 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "Empilhar Colunas (Largo → Longo)",
+      title = "Pivotar e Separar Dados",
       icon = icon("layer-group"),
-      mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
-    ),
-    nav_panel(
-      title = "Separar Coluna em Colunas",
-      icon = icon("table-columns"),
-      mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
+      tabsetPanel(
+        id = "pivotar_separar_subabas",
+        tabPanel(
+          "Empilhar Dados — pivot_longer()",
+          mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
+        ),
+        tabPanel(
+          "Alargar Dados — pivot_wider()",
+          mod_arrumar_ui("arrumar_wider", modo_fixo = "alargar")
+        ),
+        tabPanel(
+          "Separar Dados em Colunas",
+          mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
+        )
+      )
     ),
     nav_panel(
       title = "Organizar Variáveis",
       icon = icon("list-check"),
-      mod_organizar_variaveis_ui("organizar_variaveis")
+      mod_organizar_variaveis_ui(
+        "organizar_variaveis",
+        criacao_ui = mod_calcular_ui("calcular")
+      )
     ),
     nav_panel(
       title = "Adicionar Tratamentos à Base",
       icon = icon("timeline"),
       mod_tratar_ui(
         "tratar",
-        calcular_ui = mod_calcular_ui("calcular")
+        checagem_ui = mod_organizar_variaveis_checagem_ui("organizar_variaveis")
       )
     ),
     nav_panel(
@@ -2484,6 +2496,16 @@ RCatalyst::run_ide()</pre>
                              fonte, nrow(df), ncol(df)), type = "message", duration = 6)
   }
 
+  # Empilhar, alargar, separar, criar e organizar variáveis são mudanças
+  # estruturais encadeáveis. Todas passam por este único ponto para preservar
+  # a ordem e o código na trilha da Base Compartilhada.
+  adicionar_mudanca_compartilhada <- function(df, fonte, codigo = NULL) {
+    promover_dataset(
+      df, fonte, codigo,
+      acumular_codigo = TRUE
+    )
+  }
+
   # Voltar aos dados importados
   observeEvent(input$voltar_importados, {
     dataset_ativo_rv(NULL); base_externa_rv(NULL)
@@ -2597,24 +2619,31 @@ RCatalyst::run_ide()</pre>
   # A contingência agora é uma etapa reproduzível da receita de uma Base
   # Derivada; o fluxo legado de "tabela preparada" fica desativado.
   contingency_shared <- NULL
-  # Arrumar continua lendo os dados IMPORTADOS (current_data) e promove seu
-  # resultado às análises via callback on_usar.
-  mod_arrumar_server("arrumar_emp", current_data, import_info, modo_fixo = "empilhar", on_usar = promover_dataset)
-  mod_arrumar_server("arrumar_sep", current_data, import_info, modo_fixo = "separar", on_usar = promover_dataset)
+  # As três operações estruturais leem a Base Compartilhada resolvida. Assim,
+  # podem ser encadeadas sem retornar silenciosamente aos dados importados.
+  mod_arrumar_server(
+    "arrumar_emp", base_resolvida, import_info,
+    modo_fixo = "empilhar", on_usar = adicionar_mudanca_compartilhada
+  )
+  mod_arrumar_server(
+    "arrumar_wider", base_resolvida, import_info,
+    modo_fixo = "alargar", on_usar = adicionar_mudanca_compartilhada
+  )
+  mod_arrumar_server(
+    "arrumar_sep", base_resolvida, import_info,
+    modo_fixo = "separar", on_usar = adicionar_mudanca_compartilhada
+  )
   # Selecionar, renomear, tipar e recodificar ficam centralizados neste módulo.
   # Ele lê a base resolvida para poder suceder uma promoção de Empilhar/Separar.
   mod_organizar_variaveis_server(
     "organizar_variaveis", base_resolvida,
-    on_usar = function(df, fonte, codigo) {
-      promover_dataset(
-        df, fonte, codigo,
-        acumular_codigo = TRUE
-      )
-    }
+    on_usar = adicionar_mudanca_compartilhada
   )
-  # Calcular/Reescalar lê a BASE RESOLVIDA (pré-trilha, para não aplicar a trilha
-  # duas vezes) e promove seu resultado pelo mesmo callback.
-  mod_calcular_server("calcular", base_resolvida, import_info, on_usar = promover_dataset)
+  # Criação de Variáveis ocupa a primeira sub-aba de Organizar Variáveis.
+  mod_calcular_server(
+    "calcular", base_resolvida, import_info,
+    on_usar = adicionar_mudanca_compartilhada
+  )
   # Adicionar Tratamentos à Base (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
   # do dados_analise, automática (sem "Usar nas análises").
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)

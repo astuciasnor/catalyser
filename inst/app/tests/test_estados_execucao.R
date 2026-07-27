@@ -22,6 +22,26 @@ info_rv <- reactive(list(
   csv_header = TRUE, csv_sep = ",", csv_dec = "."
 ))
 
+# A base de treino traz seis grafias de sexo. O teste t não pode colapsá-las
+# silenciosamente: precisa orientar a recodificação e executar após a correção.
+dados_sexo_inconsistente <- data.frame(
+  cpue = seq(1, 6),
+  sexo = c("f", "F", "Femea", "m", "M", "Macho"),
+  stringsAsFactors = FALSE
+)
+mensagem_sexo <- teste_t_validar_duas_amostras(
+  dados_sexo_inconsistente, "cpue", "sexo"
+)
+stopifnot(
+  grepl("exatamente duas categorias", mensagem_sexo, fixed = TRUE),
+  grepl("Foram encontradas 6", mensagem_sexo, fixed = TRUE),
+  grepl("Organizar Variáveis", mensagem_sexo, fixed = TRUE)
+)
+dados_sexo_inconsistente$sexo <- c("F", "F", "F", "M", "M", "M")
+stopifnot(is.null(teste_t_validar_duas_amostras(
+  dados_sexo_inconsistente, "cpue", "sexo"
+)))
+
 testServer(mod_descr_stats_server, args = list(data_rv = dados_rv, import_info = info_rv), {
   session$setInputs(
     vars_selected = c("captura_t", "cpue"), var_group = "sexo",

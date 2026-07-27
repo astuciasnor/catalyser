@@ -79,7 +79,8 @@ Botões **Baixar script (.R)** e **Baixar dados preparados (.xlsx)**.
 ## 12. (Opcional) menus vizinhos — ainda SEPARADOS da trilha
 Estes exercitam os outros menus, mas **ainda não aparecem no desenho da trilha**
 (a unificação é a Fase 3):
-- **Calcular / Reescalar**: fator de condição `100*peso_g/comprimento_cm^3`;
+- **Organizar Variáveis → Criação de Variáveis**: fator de condição
+  `100*peso_g/comprimento_cm^3`;
   reescalar `peso_g` (g → kg).
 - **Arrumar**: separar `amostra` pelo "_" (→ `local`, `estacao`); empilhar a aba
   `desembarques_largo` (colunas 2022/2023/2024).

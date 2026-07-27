@@ -112,6 +112,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     revisao_execucao <- execucao_revisao_dados(data_rv)
+    gatilho_execucao <- reactiveVal(0L)
     
     # Atualiza lista de variáveis numéricas na interface
     observe({
@@ -136,15 +137,16 @@ mod_pca_server <- function(id, data_rv, import_info) {
     })
     
     # Executa a PCA apenas após confirmação explícita.
-    result_rv <- eventReactive(input$executar_analise, {
+    result_rv <- eventReactive(gatilho_execucao(), {
       df <- data_rv()
       req(df, length(input$vars_selected) >= 2)
       calcular_pca(df, input$vars_selected, input$scale)
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, result_rv,
-      nome_analise = "A PCA"
+      nome_analise = "A PCA",
+      gatilho_rv = gatilho_execucao
     )
     
     # Tabela de variância explicada e gráfico de cotovelo

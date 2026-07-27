@@ -50,7 +50,7 @@ O fluxo de preparo comum é:
 ```text
 Dados importados
     ↓
-Arrumar / Calcular / Agrupar-Sumarizar compartilhado
+Pivotar e Separar / Criar e Arrumar Variáveis
     ↓
 base_resolvida
     ↓
@@ -63,9 +63,9 @@ A Base Compartilhada existe desde a importação. Ela não nasce quando o usuár
 abre o módulo Bases Derivadas. Abrir ou fechar menus também não define a fronteira
 entre preparo comum e específico.
 
-Ao clicar em **Aplicar à Base Compartilhada** nos módulos estruturais, o resultado
-confirmado passa a compor a base comum. A Trilha é reaplicada sobre essa camada e
-gera `dados_analise`.
+Ao clicar em **Adicionar Mudança à Trilha da Base Compartilhada** nos módulos
+estruturais, o resultado confirmado passa a compor a base comum. A Trilha é
+reaplicada sobre essa camada e gera `dados_analise`.
 
 ## A pergunta que decide
 

@@ -143,7 +143,7 @@ mod_bases_derivadas_ui <- function(id) {
                 ),
                 div(
                   uiOutput(ns("receita_ramo")),
-                  selectInput(ns("etapa_selecionada"), "Etapa selecionada:", choices = NULL),
+                  uiOutput(ns("seletor_etapa")),
                   div(
                     class = "d-flex gap-2 flex-wrap",
                     actionButton(ns("etapa_subir"), "Subir", icon = icon("arrow-up"),
@@ -259,11 +259,14 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           "  function aplicar() {",
           "    var controles = document.getElementById('%s');",
           "    if (controles) controles.disabled = desabilitar;",
-          "    var tipo = document.getElementById('%s');",
-          "    if (tipo && tipo.selectize) {",
-          "      if (desabilitar) tipo.selectize.disable();",
-          "      else tipo.selectize.enable();",
-          "    }",
+          "    var seletores = ['%s', '%s'];",
+          "    seletores.forEach(function(id) {",
+          "      var seletor = document.getElementById(id);",
+          "      if (seletor && seletor.selectize) {",
+          "        if (desabilitar) seletor.selectize.disable();",
+          "        else seletor.selectize.enable();",
+          "      }",
+          "    });",
           "  }",
           "  aplicar();",
           "  if (window.requestAnimationFrame) window.requestAnimationFrame(aplicar);",
@@ -272,7 +275,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         ),
         if (is.null(base)) "true" else "false",
         ns("controles_receita"),
-        ns("ramo_tipo")
+        ns("ramo_tipo"),
+        ns("etapa_selecionada")
       )))
 
       if (is.null(base)) return(tagList(alternar_controles))
@@ -598,14 +602,26 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       )
     })
 
-    observeEvent(base_selecionada(), {
+    etapa_preferida_rv <- reactiveVal(NULL)
+
+    output$seletor_etapa <- renderUI({
       base <- base_selecionada()
+      if (is.null(base)) return(NULL)
       escolhas <- if (is.null(base)) character(0) else bases_rotulos_etapas(base)
-      atual <- isolate(input$etapa_selecionada)
-      selecionada <- if (!is.null(atual) && atual %in% unname(escolhas)) atual else
+      atual <- etapa_preferida_rv() %||% isolate(input$etapa_selecionada)
+      atual <- if (!is.null(atual) && atual %in% unname(escolhas)) atual else
         if (length(escolhas)) tail(unname(escolhas), 1) else character(0)
-      updateSelectInput(session, "etapa_selecionada", choices = escolhas, selected = selecionada)
-    }, ignoreNULL = FALSE)
+      selectInput(
+        ns("etapa_selecionada"), "Etapa selecionada:",
+        choices = escolhas, selected = atual
+      )
+    })
+
+    observeEvent(input$etapa_selecionada, {
+      preferida <- etapa_preferida_rv()
+      if (!is.null(preferida) && identical(input$etapa_selecionada, preferida))
+        etapa_preferida_rv(NULL)
+    }, ignoreInit = TRUE)
 
     coletar_params <- function(tipo) {
       switch(tipo,
@@ -698,11 +714,13 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         showNotification(conditionMessage(novo), type = "error", duration = 10)
       } else {
         registro_bases_rv(novo)
-        updateSelectInput(session, "etapa_selecionada",
-                          selected = as.character(
-                            if (atualizar_redutor) indices_redutores[[1]]
-                            else length(base$etapas %||% list()) + 1L
-                          ))
+        base_atualizada <- bases_obter(novo, base$id)
+        etapa_preferida_rv(
+          as.character(
+            if (atualizar_redutor) indices_redutores[[1]] else
+              length(base_atualizada$etapas %||% list())
+          )
+        )
         showNotification(
           if (atualizar_redutor)
             "Etapa final atualizada. Recalcule a base para renovar a prévia."
@@ -727,7 +745,9 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         return(FALSE)
       }
       registro_bases_rv(novo)
-      if (!is.null(selecionar)) updateSelectInput(session, "etapa_selecionada", selected = as.character(selecionar))
+      if (!is.null(selecionar)) {
+        etapa_preferida_rv(as.character(selecionar))
+      }
       showNotification(mensagem, type = "message", duration = 4)
       TRUE
     }

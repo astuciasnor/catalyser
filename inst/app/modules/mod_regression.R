@@ -238,6 +238,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
 
     dados_modulo <- reactive({ base_contexto()$df })
     revisao_execucao <- execucao_revisao_dados(dados_modulo)
+    gatilho_execucao <- reactiveVal(0L)
 
     assinatura_execucao <- reactive({
       req(input$var_x, input$var_y, input$model_type)
@@ -335,7 +336,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     }, ignoreInit = FALSE)
     
     # O modelo só é ajustado após o clique explícito.
-    model_fit <- eventReactive(input$executar_analise, {
+    model_fit <- eventReactive(gatilho_execucao(), {
       df <- dados_modulo()
       req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
@@ -391,7 +392,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           )
         }
       }
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
 
     # Auxiliar para colocar crase em nomes de variáveis com espaços
     backtick <- function(s) {
@@ -1668,7 +1669,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, model_fit,
-      nome_analise = if (isTRUE(is_logistic)) "A regressão logística" else "A regressão"
+      nome_analise = if (isTRUE(is_logistic)) "A regressão logística" else "A regressão",
+      gatilho_rv = gatilho_execucao
     )
 
     invisible(list(

@@ -82,7 +82,7 @@ No Gráfico de Linhas ou na Regressão Linear:
 
 1. escolha X = `comprimento_cm` e Y = `peso_g`;
 2. execute a análise, mas não precisa registrá-la;
-3. volte a **Preparando Dados → Calcular / Reescalar Variável**;
+3. volte a **Preparando Dados → Organizar Variáveis → Criação de Variáveis**;
 4. crie, por exemplo, `peso_kg = peso_g / 1000`;
 5. clique no comando do módulo que promove o resultado para uso nas análises;
 6. retorne à análise interrompida.

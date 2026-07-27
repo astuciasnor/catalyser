@@ -29,7 +29,12 @@ Na Base Compartilhada:
   1. filtrar `especie` igual a `corvina`;
   2. remover linhas com NA em `cpue`;
   3. remover linhas com NA em `sexo`.
-- Recalcule e finalize o preparo.
+- Em **Etapa selecionada**, escolha alternadamente as etapas 1, 2 e 3 e
+  confirme que **Subir**, **Descer**, **Ativar/Desativar** e **Remover** ficam
+  disponíveis. Não é necessário alterar a ordem definitiva; se remover uma
+  etapa durante o teste, adicione-a novamente.
+- Ainda na sub-aba **Receita da base**, clique em **Recalcular a Base** e
+  finalize o preparo.
 
 Em **Teste t de Student**:
 
@@ -39,6 +44,11 @@ Em **Teste t de Student**:
 - grupo: `sexo`;
 - clique uma única vez em **Executar análise**;
 - confirme a atualização da saída e clique em **Adicionar aos resultados**.
+
+Se `sexo` tiver mais de duas grafias/categorias, a CatalyseR deve informar
+quais foram encontradas. Nesse caso, volte a **Preparando Dados > Organizar
+Variáveis**, padronize/recodifique `sexo` para somente `F` e `M`, aplique à Base
+Compartilhada e recalcule a Base Derivada antes de repetir o teste.
 
 ## Base derivada 2 — regressão linear
 
@@ -83,3 +93,5 @@ RStudio, mas não são impressos no relatório Word.
 - O Projeto R preserva as duas bases e os dois scripts.
 - O QMD contém `stats::t.test(...)` e `stats::lm(...)`.
 - O Word renderiza sem mostrar os chunks pedagógicos.
+- O seletor **Etapa selecionada** permite escolher qualquer etapa da receita.
+- O recálculo pode ser feito sem sair da sub-aba **Receita da base**.

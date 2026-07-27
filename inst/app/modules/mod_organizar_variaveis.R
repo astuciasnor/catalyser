@@ -101,134 +101,252 @@ organizar_variaveis_codigo <- function(renomear = character(0),
   paste(c(linhas, "", "print(dados_organizados)"), collapse = "\n")
 }
 
-mod_organizar_variaveis_ui <- function(id) {
+mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem = FALSE) {
   ns <- NS(id)
-  tagList(
-    layout_columns(
-      col_widths = c(3, 7, 2),
-      fill = FALSE,
-      fillable = FALSE,
 
-      div(
-        card(
+  arrumacao_ui <- layout_columns(
+    col_widths = c(3, 7, 2),
+    fill = FALSE,
+    fillable = FALSE,
+
+    div(
+      card(
+        fill = FALSE,
+        card_header("Arrumação de Variáveis"),
+        card_body(
           fill = FALSE,
-          card_header("Organizar Variáveis"),
-          card_body(
-            fill = FALSE,
-            fillable = FALSE,
-            div(
-              class = "alert alert-info",
-              style = "font-size:0.83rem; padding:9px 11px;",
-              icon("circle-info"),
-              " Use este painel depois de importar, empilhar, alargar ou separar os dados."
+          fillable = FALSE,
+          div(
+            class = "alert alert-info",
+            style = "font-size:0.83rem; padding:9px 11px;",
+            icon("circle-info"),
+            " Use este painel depois de importar, pivotar ou separar os dados."
+          ),
+          div(
+            class = "d-grid gap-2",
+            actionButton(
+              ns("abrir_selecionar"), "Selecionar variáveis",
+              icon = icon("list-check"), class = "btn-outline-secondary"
             ),
-            div(
-              class = "d-grid gap-2",
-              actionButton(
-                ns("abrir_selecionar"), "Selecionar variáveis",
-                icon = icon("list-check"), class = "btn-outline-secondary"
-              ),
-              actionButton(
-                ns("abrir_renomear"), "Renomear variáveis",
-                icon = icon("i-cursor"), class = "btn-outline-secondary"
-              ),
-              actionButton(
-                ns("abrir_tipar"), "Definir tipos",
-                icon = icon("sliders"), class = "btn-outline-secondary"
-              ),
-              actionButton(
-                ns("abrir_recodificar"), "Recodificar categorias",
-                icon = icon("tags"), class = "btn-outline-secondary"
-              )
+            actionButton(
+              ns("abrir_renomear"), "Renomear variáveis",
+              icon = icon("i-cursor"), class = "btn-outline-secondary"
             ),
-            helpText(
-              "Estas ações organizam colunas e categorias; não filtram linhas."
+            actionButton(
+              ns("abrir_tipar"), "Definir tipos",
+              icon = icon("sliders"), class = "btn-outline-secondary"
+            ),
+            actionButton(
+              ns("abrir_recodificar"), "Recodificar níveis",
+              icon = icon("tags"), class = "btn-outline-secondary"
             )
-          )
-        ),
-        card(
-          fill = FALSE,
-          card_header("Ordem aplicada"),
-          card_body(
-            fill = FALSE,
-            style = "font-size:0.8rem; line-height:1.45;",
-            tags$ol(
-              style = "padding-left:18px; margin-bottom:0;",
-              tags$li("Renomear"),
-              tags$li("Recodificar"),
-              tags$li("Definir tipos"),
-              tags$li("Selecionar")
-            )
-          )
+          ),
+          helpText("Estas ações organizam colunas e categorias; não filtram linhas.")
         )
       ),
-
-      navset_card_tab(
-        height = "auto",
-        nav_panel(
-          "Resultado", icon = icon("table"),
-          card_body(
-            fill = FALSE,
-            style = "padding:10px 15px;",
-            DTOutput(ns("preview_depois"))
-          )
-        ),
-        nav_panel(
-          "Base de entrada", icon = icon("table-list"),
-          card_body(
-            fill = FALSE,
-            style = "padding:10px 15px;",
-            DTOutput(ns("preview_antes"))
-          )
-        ),
-        nav_panel(
-          "Script gerado", icon = icon("code"),
-          card_body(
-            fill = FALSE,
-            style = "padding:10px 15px;",
-            tags$pre(
-              style = "white-space:pre-wrap; font-size:0.82rem;",
-              verbatimTextOutput(ns("script_preview"))
-            )
+      card(
+        fill = FALSE,
+        card_header("Ordem aplicada"),
+        card_body(
+          fill = FALSE,
+          style = "font-size:0.8rem; line-height:1.45;",
+          tags$ol(
+            style = "padding-left:18px; margin-bottom:0;",
+            tags$li("Renomear"),
+            tags$li("Recodificar"),
+            tags$li("Definir tipos"),
+            tags$li("Selecionar")
           )
         )
-      ),
+      )
+    ),
 
-      div(
-        card(
+    navset_card_tab(
+      height = "auto",
+      nav_panel(
+        "Resultado", icon = icon("table"),
+        card_body(
           fill = FALSE,
-          card_header("Aplicar"),
-          card_body(
-            fill = FALSE,
-            fillable = FALSE,
-            uiOutput(ns("status")),
-            uiOutput(ns("resumo_acoes")),
-            div(class = "d-grid gap-2 mt-2",
-              actionButton(
-                ns("limpar"), "Desfazer organizações",
-                icon = icon("rotate-left"), class = "btn-outline-secondary btn-sm"
-              ),
-              downloadButton(
-                ns("baixar_script"), "Baixar script .R",
-                class = "btn-outline-secondary btn-sm"
-              ),
-              downloadButton(
-                ns("baixar_dados"), "Baixar dados (.xlsx)",
-                class = "btn-outline-primary btn-sm"
-              ),
-              actionButton(
-                ns("usar_base"), "Aplicar à Base Compartilhada",
-                icon = icon("share-from-square"), class = "btn-primary"
-              )
-            ),
-            helpText(
-              "A base só muda quando você clicar em Aplicar à Base Compartilhada."
-            )
+          style = "padding:10px 15px;",
+          DTOutput(ns("preview_depois"))
+        )
+      ),
+      nav_panel(
+        "Base de entrada", icon = icon("table-list"),
+        card_body(
+          fill = FALSE,
+          style = "padding:10px 15px;",
+          DTOutput(ns("preview_antes"))
+        )
+      ),
+      nav_panel(
+        "Script gerado", icon = icon("code"),
+        card_body(
+          fill = FALSE,
+          style = "padding:10px 15px;",
+          tags$pre(
+            style = "white-space:pre-wrap; font-size:0.82rem;",
+            verbatimTextOutput(ns("script_preview"))
           )
+        )
+      )
+    ),
+
+    div(
+      card(
+        fill = FALSE,
+        card_header("Adicionar à trilha"),
+        card_body(
+          fill = FALSE,
+          fillable = FALSE,
+          uiOutput(ns("status")),
+          uiOutput(ns("resumo_acoes")),
+          div(
+            class = "d-grid gap-2 mt-2",
+            actionButton(
+              ns("limpar"), "Desfazer organizações",
+              icon = icon("rotate-left"), class = "btn-outline-secondary btn-sm"
+            ),
+            downloadButton(
+              ns("baixar_script"), "Baixar script .R",
+              class = "btn-outline-secondary btn-sm"
+            ),
+            downloadButton(
+              ns("baixar_dados"), "Baixar dados (.xlsx)",
+              class = "btn-outline-primary btn-sm"
+            ),
+            actionButton(
+              ns("usar_base"), "Adicionar Mudança à Trilha da Base Compartilhada",
+              icon = icon("share-from-square"), class = "btn-primary"
+            )
+          ),
+          helpText("A Base Compartilhada só muda quando a prévia é adicionada à trilha.")
         )
       )
     )
   )
+
+  clicar <- function(alvo) {
+    sprintf(
+      "var alvo=document.getElementById('%s'); if(alvo){alvo.click();}",
+      ns(alvo)
+    )
+  }
+
+  checagem_ui <- div(
+    id = ns("checagem_layout"),
+    class = "catalyser-checagem-final-grid",
+
+    card(
+      fill = FALSE,
+      card_header("Ajustes finais"),
+      card_body(
+        fill = FALSE,
+        div(
+          class = "d-grid gap-2",
+          actionButton(
+            ns("final_renomear"), "Renomear variáveis",
+            icon = icon("i-cursor"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_renomear")
+          ),
+          actionButton(
+            ns("final_selecionar"), "Selecionar variáveis",
+            icon = icon("list-check"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_selecionar")
+          ),
+          actionButton(
+            ns("final_remover"), "Remover variáveis",
+            icon = icon("trash"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_selecionar")
+          ),
+          actionButton(
+            ns("final_recodificar"), "Recodificar níveis",
+            icon = icon("tags"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_recodificar")
+          ),
+          actionButton(
+            ns("final_tipar"), "Definir tipos",
+            icon = icon("sliders"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_tipar")
+          ),
+          actionButton(
+            ns("final_revisar_categorias"), "Revisar categorias",
+            icon = icon("magnifying-glass"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("abrir_recodificar")
+          ),
+          actionButton(
+            ns("final_desfazer"), "Desfazer ajustes",
+            icon = icon("rotate-left"), class = "btn-outline-secondary btn-sm",
+            onclick = clicar("limpar")
+          ),
+          downloadButton(
+            ns("baixar_dados_final"), "Baixar base final",
+            class = "btn-outline-primary btn-sm"
+          ),
+          actionButton(
+            ns("usar_base_final"), "Adicionar Mudança à Trilha da Base Compartilhada",
+            icon = icon("share-from-square"), class = "btn-primary btn-sm"
+          )
+        ),
+        hr(style = "margin:10px 0;"),
+        uiOutput(ns("status_final")),
+        uiOutput(ns("resumo_acoes_final"))
+      )
+    ),
+
+    card(
+      fill = FALSE,
+      card_header("Tabela final da Base Compartilhada"),
+      card_body(
+        fill = FALSE,
+        style = "padding:10px 12px;",
+        div(
+          class = "alert alert-light border",
+          style = "font-size:0.8rem; padding:7px 10px;",
+          "Use a paginação para muitas linhas e a rolagem horizontal para muitas colunas."
+        ),
+        DTOutput(ns("preview_final"))
+      )
+    )
+  )
+
+  if (isTRUE(somente_checagem)) {
+    return(tagList(
+      tags$style(HTML(sprintf(
+        paste0(
+          "#%s { display:grid; grid-template-columns:minmax(210px,20%%) minmax(0,80%%);",
+          "gap:12px; align-items:start; width:100%%; }",
+          "@media (max-width: 900px) { #%s { grid-template-columns:1fr; } }"
+        ),
+        ns("checagem_layout"),
+        ns("checagem_layout")
+      ))),
+      checagem_ui
+    ))
+  }
+
+  tagList(
+    tags$style(HTML(sprintf(
+      "#%s > .nav { margin-bottom: 10px; }",
+      ns("organizar_subabas")
+    ))),
+    tabsetPanel(
+      id = ns("organizar_subabas"),
+      tabPanel(
+        "Criação de Variáveis",
+        if (is.null(criacao_ui)) {
+          div(class = "alert alert-info", "O painel de criação de variáveis não foi configurado.")
+        } else {
+          criacao_ui
+        }
+      ),
+      tabPanel("Arrumação de Variáveis", arrumacao_ui)
+    )
+  )
+}
+
+mod_organizar_variaveis_checagem_ui <- function(id) {
+  mod_organizar_variaveis_ui(id, somente_checagem = TRUE)
 }
 
 mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
@@ -665,6 +783,20 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       )
     })
 
+    output$preview_final <- renderDT({
+      datatable(
+        resultado_final(),
+        rownames = FALSE,
+        filter = "top",
+        options = list(
+          scrollX = TRUE,
+          autoWidth = TRUE,
+          pageLength = 10,
+          lengthMenu = list(c(5, 10, 25, 50, 100), c("5", "10", "25", "50", "100"))
+        )
+      )
+    }, server = TRUE)
+
     output$script_preview <- renderText(codigo_rv())
 
     output$status <- renderUI({
@@ -687,6 +819,22 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       }
     })
 
+    output$status_final <- renderUI({
+      dados <- resultado_final()
+      if (!tem_alteracoes()) {
+        div(
+          style = "font-size:0.78rem; color:#666;",
+          sprintf("Base atual: %d linhas × %d colunas.", nrow(dados), ncol(dados))
+        )
+      } else {
+        div(
+          class = "alert alert-success",
+          style = "font-size:0.78rem; padding:7px 9px; margin-bottom:6px;",
+          sprintf("Prévia final: %d linhas × %d colunas.", nrow(dados), ncol(dados))
+        )
+      }
+    })
+
     output$resumo_acoes <- renderUI({
       itens <- c(
         if (length(renomear_rv())) sprintf("%d nome(s)", length(renomear_rv())),
@@ -701,6 +849,20 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       )
     })
 
+    output$resumo_acoes_final <- renderUI({
+      itens <- c(
+        if (length(renomear_rv())) sprintf("%d nome(s)", length(renomear_rv())),
+        if (length(recodes_rv())) sprintf("%d recodificação(ões)", length(recodes_rv())),
+        if (length(tipos_rv())) sprintf("%d tipo(s)", length(tipos_rv())),
+        if (!is.null(selecionar_rv())) sprintf("%d variável(is) mantida(s)", length(selecionar_rv()))
+      )
+      if (!length(itens)) return(NULL)
+      tags$ul(
+        style = "font-size:0.75rem; padding-left:16px; margin:6px 0;",
+        lapply(itens, tags$li)
+      )
+    })
+
     output$baixar_script <- downloadHandler(
       filename = function() paste0("organizar_variaveis_", Sys.Date(), ".R"),
       content = function(file) writeLines(codigo_rv(), file, useBytes = TRUE)
@@ -711,13 +873,18 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       content = function(file) writexl::write_xlsx(resultado_final(), file)
     )
 
-    observeEvent(input$usar_base, {
+    output$baixar_dados_final <- downloadHandler(
+      filename = function() paste0("base_compartilhada_final_", Sys.Date(), ".xlsx"),
+      content = function(file) writexl::write_xlsx(resultado_final(), file)
+    )
+
+    adicionar_trilha <- function() {
       if (!tem_alteracoes()) {
         showNotification(
-          "Faça ao menos uma organização antes de atualizar a Base Compartilhada.",
+          "Faça ao menos uma organização antes de adicionar a mudança à trilha.",
           type = "warning"
         )
-        return()
+        return(invisible(FALSE))
       }
       if (is.function(on_usar)) {
         on_usar(
@@ -726,6 +893,15 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
           codigo_rv()
         )
       }
+      invisible(TRUE)
+    }
+
+    observeEvent(input$usar_base, {
+      adicionar_trilha()
+    })
+
+    observeEvent(input$usar_base_final, {
+      adicionar_trilha()
     })
 
     invisible(list(

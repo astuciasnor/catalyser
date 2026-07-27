@@ -200,9 +200,50 @@ plot_t_distribution <- function(df_val, t_calc, alternative, alpha, g_theme, tit
          subtitle = sprintf("Graus de Liberdade (df) = %g | Área Vermelha = Região de Rejeição (α = %g)", df_val, alpha))
 }
 
+teste_t_validar_duas_amostras <- function(df, resposta, grupo) {
+  if (is.null(df) || !is.data.frame(df))
+    return("A base utilizada ainda não está disponível.")
+  if (is.null(resposta) || !nzchar(resposta) || !resposta %in% names(df))
+    return("Selecione uma variável resposta existente na base.")
+  if (is.null(grupo) || !nzchar(grupo) || !grupo %in% names(df))
+    return("Selecione uma variável de grupo existente na base.")
+  if (!is.numeric(df[[resposta]]))
+    return(sprintf(
+      "A variável resposta '%s' precisa ser numérica para o teste t.",
+      resposta
+    ))
+
+  dados <- stats::na.omit(df[, c(resposta, grupo), drop = FALSE])
+  niveis <- unique(as.character(dados[[grupo]]))
+  niveis <- niveis[!is.na(niveis)]
+
+  if (length(niveis) != 2L) {
+    encontrados <- if (length(niveis)) {
+      paste(sprintf("'%s'", niveis), collapse = ", ")
+    } else {
+      "nenhuma categoria"
+    }
+    return(sprintf(
+      paste0(
+        "O teste t independente exige exatamente duas categorias em '%s'. ",
+        "Foram encontradas %d: %s. Padronize ou recodifique essa variável ",
+        "em Organizar Variáveis e recalcule a Base Derivada."
+      ),
+      grupo, length(niveis), encontrados
+    ))
+  }
+
+  contagens <- table(factor(dados[[grupo]], levels = niveis))
+  if (any(contagens < 2L))
+    return("Cada categoria precisa ter pelo menos duas observações válidas.")
+
+  NULL
+}
+
 mod_parametric_server <- function(id, data_rv, import_info) {
   moduleServer(id, function(input, output, session) {
     revisao_execucao <- execucao_revisao_dados(data_rv)
+    gatilho_execucao <- reactiveVal(0L)
     
     # Auxiliar para colocar crase em nomes de variáveis com espaços
     backtick <- function(s) {
@@ -282,21 +323,42 @@ mod_parametric_server <- function(id, data_rv, import_info) {
     }, ignoreInit = FALSE)
     
     # O teste só é calculado após confirmação explícita.
-    test_results <- eventReactive(input$executar_analise, {
+    test_results <- eventReactive(gatilho_execucao(), {
       df <- data_rv()
-      req(df, input$test_type)
-      
+      validate(
+        need(!is.null(df) && is.data.frame(df), "A base utilizada ainda não está disponível."),
+        need(!is.null(input$test_type) && nzchar(input$test_type),
+             "Selecione o tipo de teste t.")
+      )
+
+      validate(
+        need(!is.null(input$conf_level) && !is.na(input$conf_level),
+             "Informe o nível de confiança."),
+        need(!is.null(input$alternative) && nzchar(input$alternative),
+             "Selecione a hipótese alternativa.")
+      )
       conf_level_decimal <- input$conf_level / 100
       alternative_val <- input$alternative
-      
+
       if (input$test_type == "one_val") {
-        req(input$one_var_y)
-        req(input$one_var_y %in% names(df))
+        validate(
+          need(!is.null(input$one_var_y) && nzchar(input$one_var_y),
+               "Selecione a variável numérica do teste t."),
+          need(input$one_var_y %in% names(df),
+               "A variável numérica selecionada não existe na base utilizada.")
+        )
         x <- df[[input$one_var_y]]
         x_clean <- x[!is.na(x)]
-        req(length(x_clean) > 2)
-        
-        req(!is.null(input$one_mu), !is.na(input$one_mu))
+        validate(
+          need(is.numeric(x), "A variável selecionada precisa ser numérica."),
+          need(length(x_clean) > 2,
+               "A variável selecionada precisa ter pelo menos três valores não ausentes.")
+        )
+
+        validate(
+          need(!is.null(input$one_mu) && !is.na(input$one_mu),
+               "Informe a média hipotética do teste.")
+        )
         t_out <- t.test(x_clean, mu = input$one_mu, alternative = alternative_val, conf.level = conf_level_decimal)
         
         # Obter dados para pressupostos (a própria variável centrada na média)
@@ -305,17 +367,26 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         list(t_out = t_out, norm_data = norm_data, type = "one_val", var_names = c(input$one_var_y))
         
       } else if (input$test_type == "two_ind") {
-        req(input$two_var_y, input$two_var_x)
-        req(input$two_var_y %in% names(df), input$two_var_x %in% names(df))
-        
+        validate(
+          need(!is.null(input$two_var_y) && nzchar(input$two_var_y),
+               "Selecione a variável dependente numérica."),
+          need(!is.null(input$two_var_x) && nzchar(input$two_var_x),
+               "Selecione a variável de agrupamento."),
+          need(input$two_var_y %in% names(df),
+               "A variável dependente selecionada não existe na base utilizada."),
+          need(input$two_var_x %in% names(df),
+               "A variável de agrupamento selecionada não existe na base utilizada.")
+        )
+
+        erro_configuracao <- teste_t_validar_duas_amostras(
+          df, input$two_var_y, input$two_var_x
+        )
+        validate(need(is.null(erro_configuracao), erro_configuracao))
+
         df_clean <- df[, c(input$two_var_y, input$two_var_x)]
         df_clean <- na.omit(df_clean)
         df_clean[[input$two_var_x]] <- as.factor(df_clean[[input$two_var_x]])
-        
-        # Verifica se o fator tem exatamente 2 níveis
-        levels_gp <- levels(df_clean[[input$two_var_x]])
-        req(length(levels_gp) == 2)
-        
+
         formula_obj <- as.formula(paste(backtick(input$two_var_y), "~", backtick(input$two_var_x)))
         t_out <- t.test(formula_obj, data = df_clean, alternative = alternative_val, 
                         conf.level = conf_level_decimal, var.equal = input$two_var_equal)
@@ -327,12 +398,23 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         list(t_out = t_out, norm_data = norm_data, type = "two_ind", var_names = c(input$two_var_y, input$two_var_x))
         
       } else if (input$test_type == "paired") {
-        req(input$pair_var_y1, input$pair_var_y2)
-        req(input$pair_var_y1 %in% names(df), input$pair_var_y2 %in% names(df))
-        
+        validate(
+          need(!is.null(input$pair_var_y1) && nzchar(input$pair_var_y1),
+               "Selecione a primeira variável da análise pareada."),
+          need(!is.null(input$pair_var_y2) && nzchar(input$pair_var_y2),
+               "Selecione a segunda variável da análise pareada."),
+          need(input$pair_var_y1 %in% names(df),
+               "A primeira variável selecionada não existe na base utilizada."),
+          need(input$pair_var_y2 %in% names(df),
+               "A segunda variável selecionada não existe na base utilizada.")
+        )
+
         df_clean <- df[, c(input$pair_var_y1, input$pair_var_y2)]
         df_clean <- na.omit(df_clean)
-        req(nrow(df_clean) > 2)
+        validate(
+          need(nrow(df_clean) > 2,
+               "A análise pareada precisa ter pelo menos três pares completos.")
+        )
         
         x1 <- df_clean[[input$pair_var_y1]]
         x2 <- df_clean[[input$pair_var_y2]]
@@ -345,7 +427,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         
         list(t_out = t_out, norm_data = norm_data, type = "paired", var_names = c(input$pair_var_y1, input$pair_var_y2))
       }
-    }, ignoreInit = TRUE)
+    }, ignoreInit = FALSE)
     
     # Exibe as hipóteses estatísticas na tela
     output$hypothesis_text <- renderPrint({
@@ -1014,7 +1096,8 @@ mod_parametric_server <- function(id, data_rv, import_info) {
 
     exec_ctrl <- execucao_explicita_server(
       input, output, session, assinatura_execucao, test_results,
-      nome_analise = "O teste t"
+      nome_analise = "O teste t",
+      gatilho_rv = gatilho_execucao
     )
 
     invisible(list(
