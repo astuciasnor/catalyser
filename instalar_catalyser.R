@@ -113,7 +113,9 @@ instalar_catalyser <- function(iniciar = FALSE) {
   falhou <- c(falhas_cran, if (!ok_dados) "EAPADados", if (!ok_ide) "catalyser")
   if (length(falhou) == 0) {
     cat(sprintf("\n  %s Tudo pronto! Para abrir a CatalyseR, rode:\n\n", OK))
-    cat("      catalyser::run_app()\n\n")
+    cat("      catalyser::run_app(launch.browser = TRUE)\n\n")
+    cat("  Para iniciar sem abrir o navegador automaticamente:\n\n")
+    cat("      catalyser::run_app(launch.browser = FALSE)\n\n")
     if (isTRUE(iniciar)) { cat("  Abrindo a IDE...\n\n"); try(catalyser::run_app()) }
     return(invisible(TRUE))
   }

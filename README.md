@@ -40,14 +40,20 @@ Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e 
 
 ## 💻 Como Executar
 
-Após a instalação, para iniciar a interface gráfica da IDE Científica no seu navegador, basta carregar o pacote e rodar a função `run_app()`:
+Após a instalação, para iniciar a IDE Científica diretamente no navegador
+padrão:
 
 ```r
-library(catalyser)
-
-# Iniciar o aplicativo
-run_app()
+catalyser::run_app(launch.browser = TRUE)
 ```
+
+Para iniciar o servidor sem abrir o navegador automaticamente:
+
+```r
+catalyser::run_app(launch.browser = FALSE)
+```
+
+Nesse caso, copie para o navegador o endereço local exibido no console.
 
 ---
 
