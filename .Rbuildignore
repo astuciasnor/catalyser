@@ -22,6 +22,7 @@
 ^GUIA_.*\.md$
 ^PLANO_.*\.md$
 ^docs$
+^skills$
 ^\.git$
 ^\.gitignore$
 ^LICENSE\.md$

@@ -113,6 +113,15 @@ exportacao_arquivo_execucao <- function(execucao, indice) {
 exportacao_codigo_execucao <- function(execucao, indice, registro_bases, arquivos_bases) {
   variavel <- exportacao_nome_seguro(paste0("resultado_", execucao$id), "resultado_execucao")
   base <- bases_obter(registro_bases, execucao$base_id)
+  codigo_pedagogico <- if (execucao$tipo %in% c("anova_um_fator", "grafico_linhas")) {
+    exportacao_codigo_estudo(
+      execucao,
+      incluir_carregamento = FALSE,
+      incluir_cabecalho = FALSE
+    )
+  } else {
+    character()
+  }
   carregar <- if (identical(execucao$base_tipo, "derivada") && !is.null(base)) {
     arquivo <- arquivos_bases[[base$id]]
     c(sprintf("source('%s', local = TRUE)", arquivo), sprintf("dados <- %s", base$nome_r))
@@ -129,8 +138,20 @@ exportacao_codigo_execucao <- function(execucao, indice, registro_bases, arquivo
     "source('R/00_funcoes_projeto.R', local = TRUE)",
     carregar,
     "",
-    "# Configuração congelada pelo clique 'Adicionar aos resultados'.",
-    paste0("execucao <- ", exportacao_dput_texto(execucao)),
+    if (length(codigo_pedagogico)) c(
+      "# -------------------------------------------------------------------------",
+      "# Código essencial — leia e execute esta seção como faria no RStudio.",
+      "# -------------------------------------------------------------------------",
+      codigo_pedagogico,
+      ""
+    ) else NULL,
+    "# -------------------------------------------------------------------------",
+    "# Integração com o relatório",
+    "# -------------------------------------------------------------------------",
+    "# A configuração completa fica nos metadados, separada do código de estudo.",
+    "registro_execucoes <- readRDS('metadados/registro_execucoes.rds')",
+    sprintf("execucao <- registro_execucoes[[%s]]", exportacao_dput_texto(execucao$id)),
+    "if (is.null(execucao)) stop('A execução registrada não foi encontrada nos metadados.')",
     "",
     sprintf("%s <- catalyser_executar(execucao, dados)", variavel),
     sprintf("if (!is.null(%s$console)) cat(paste(%s$console, collapse = '\\n'), '\\n')", variavel, variavel)
@@ -142,7 +163,8 @@ exportacao_yaml_texto <- function(x) {
   paste0('"', gsub('"', '\\"', x, fixed = TRUE), '"')
 }
 
-exportacao_codigo_estudo <- function(execucao) {
+exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
+                                     incluir_cabecalho = TRUE) {
   p <- execucao$parametros %||% list()
   texto_r <- function(x) exportacao_dput_texto(as.character(x))
   numero_r <- function(x) exportacao_dput_texto(as.numeric(x))
@@ -215,34 +237,124 @@ exportacao_codigo_estudo <- function(execucao) {
       "resultado"
     ),
     anova_um_fator = c(
+      "# 1. Declarar as variáveis e o nível de confiança.",
+      sprintf("variavel_resposta <- %s", texto_r(p$resposta)),
+      sprintf("variavel_fator <- %s", texto_r(p$fator)),
+      sprintf("nivel_confianca <- %s", numero_r(p$nivel_confianca %||% 0.95)),
+      "",
+      "# 2. Manter casos completos e declarar o fator.",
+      "dados_anova <- dados[",
+      "  stats::complete.cases(dados[c(variavel_resposta, variavel_fator)]),",
+      "  ,",
+      "  drop = FALSE",
+      "]",
+      "dados_anova[[variavel_fator]] <- droplevels(as.factor(dados_anova[[variavel_fator]]))",
+      "",
+      "# 3. Resumir a resposta em cada grupo antes do teste.",
+      "resumo_por_grupo <- dados_anova |>",
+      "  dplyr::group_by(.data[[variavel_fator]]) |>",
+      "  dplyr::summarise(",
+      "    n = dplyr::n(),",
+      "    media = mean(.data[[variavel_resposta]]),",
+      "    desvio_padrao = stats::sd(.data[[variavel_resposta]]),",
+      "    .groups = 'drop'",
+      "  )",
+      "",
+      "# 4. Ajustar a ANOVA de um fator.",
       sprintf(
         "formula_anova <- stats::reformulate(%s, response = %s)",
-        texto_r(p$fator), texto_r(p$resposta)
+        "variavel_fator", "variavel_resposta"
       ),
-      "modelo_anova <- stats::aov(formula_anova, data = dados)",
+      "modelo_anova <- stats::aov(formula_anova, data = dados_anova)",
+      "tabela_anova <- summary(modelo_anova)",
       "",
-      "summary(modelo_anova)",
-      sprintf("stats::TukeyHSD(modelo_anova, conf.level = %s)",
-              numero_r(p$nivel_confianca %||% 0.95)),
-      sprintf(
-        "car::leveneTest(dados[[%s]], as.factor(dados[[%s]]), center = stats::median)",
-        texto_r(p$resposta), texto_r(p$fator)
-      ),
-      "stats::shapiro.test(stats::residuals(modelo_anova))",
-      "effectsize::eta_squared(modelo_anova)",
-      "effectsize::omega_squared(modelo_anova)"
+      "# 5. Comparar pares e verificar os pressupostos.",
+      "comparacoes_tukey <- stats::TukeyHSD(modelo_anova, conf.level = nivel_confianca)",
+      "teste_levene <- car::leveneTest(",
+      "  dados_anova[[variavel_resposta]],",
+      "  dados_anova[[variavel_fator]],",
+      "  center = stats::median",
+      ")",
+      "teste_shapiro <- stats::shapiro.test(stats::residuals(modelo_anova))",
+      "",
+      "# 6. Calcular tamanhos de efeito.",
+      "eta_quadrado <- effectsize::eta_squared(modelo_anova)",
+      "omega_quadrado <- effectsize::omega_squared(modelo_anova)",
+      "",
+      "# 7. Examinar os objetos principais.",
+      "resumo_por_grupo",
+      "tabela_anova",
+      "comparacoes_tukey",
+      "teste_levene",
+      "teste_shapiro",
+      "eta_quadrado",
+      "omega_quadrado"
     ),
     grafico_linhas = c(
+      "# 1. Declarar as variáveis e os textos do gráfico.",
+      sprintf("variavel_x <- %s", texto_r(p$x)),
+      sprintf("variavel_y <- %s", texto_r(p$y)),
+      sprintf("variavel_grupo <- %s", texto_r(p$grupo %||% "none")),
+      sprintf("titulo_grafico <- %s",
+              texto_r(p$titulo_grafico %||% execucao$titulo %||%
+                        sprintf("%s ao longo de %s", p$y, p$x))),
+      sprintf("rotulo_x <- %s", texto_r(p$rotulo_x %||% p$x)),
+      sprintf("rotulo_y <- %s", texto_r(p$rotulo_y %||% p$y)),
+      "",
+      "# 2. Construir o mapeamento estético.",
+      if (identical(p$grupo %||% "none", "none")) {
+        "mapeamento <- ggplot2::aes(x = .data[[variavel_x]], y = .data[[variavel_y]], group = 1)"
+      } else {
+        c(
+          "dados[[variavel_grupo]] <- as.factor(dados[[variavel_grupo]])",
+          "mapeamento <- ggplot2::aes(",
+          "  x = .data[[variavel_x]], y = .data[[variavel_y]],",
+          "  color = .data[[variavel_grupo]], group = .data[[variavel_grupo]]",
+          ")"
+        )
+      },
+      "",
+      "# 3. Montar o gráfico em camadas.",
+      "grafico_linhas <- ggplot2::ggplot(dados, mapeamento) +",
+      if (identical(p$grupo %||% "none", "none")) {
+        sprintf("  ggplot2::geom_line(linewidth = %s, color = '#0F3B5F') +",
+                numero_r(p$espessura_linha %||% 1))
+      } else {
+        sprintf("  ggplot2::geom_line(linewidth = %s) +",
+                numero_r(p$espessura_linha %||% 1))
+      },
+      if (isTRUE(p$mostrar_pontos)) {
+        if (identical(p$grupo %||% "none", "none")) {
+          "  ggplot2::geom_point(size = 2.4, color = '#2E7D8F') +"
+        } else {
+          "  ggplot2::geom_point(size = 2.4) +"
+        }
+      } else NULL,
+      if (!identical(p$grupo %||% "none", "none"))
+        "  ggplot2::scale_color_manual(values = c('#0F3B5F', '#2E7D8F', '#62B6B7', '#E89B3C', '#E76F51')) +" else NULL,
       sprintf(
-        "grafico <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[%s]], y = .data[[%s]], group = 1)) +",
-        texto_r(p$x), texto_r(p$y)
+        "  %s +",
+        switch(
+          as.character(p$tema %||% "minimal"),
+          classic = "ggplot2::theme_classic(base_size = 14)",
+          bw = "ggplot2::theme_bw(base_size = 14)",
+          gray = "ggplot2::theme_gray(base_size = 14)",
+          light = "ggplot2::theme_light(base_size = 14)",
+          "ggplot2::theme_minimal(base_size = 14)"
+        )
       ),
-      sprintf("  ggplot2::geom_line(linewidth = %s, color = '#0F3B5F') +",
-              numero_r(p$espessura_linha %||% 1)),
-      if (isTRUE(p$mostrar_pontos))
-        "  ggplot2::geom_point(size = 2.2, color = '#2E7D8F') +" else NULL,
-      "  ggplot2::theme_minimal()",
-      "grafico"
+      "  ggplot2::theme(",
+      "    plot.title = ggplot2::element_text(face = 'bold', size = 16, color = '#0F3B5F'),",
+      sprintf("    legend.position = %s", texto_r(p$posicao_legenda %||% "right")),
+      "  ) +",
+      "  ggplot2::labs(",
+      "    title = titulo_grafico, x = rotulo_x, y = rotulo_y,",
+      if (identical(p$grupo %||% "none", "none"))
+        "    color = NULL" else "    color = variavel_grupo",
+      "  )",
+      "",
+      "# 4. Exibir o gráfico.",
+      "grafico_linhas"
     ),
     estatistica_descritiva = c(
       sprintf("variaveis <- %s", vetor_r(p$variaveis)),
@@ -294,10 +406,11 @@ exportacao_codigo_estudo <- function(execucao) {
     }
   }
   c(
-    "# Código R essencial desta execução.",
-    "# Este chunk pode ser executado manualmente no RStudio.",
-    carregar,
-    "",
+    if (isTRUE(incluir_cabecalho)) c(
+      "# Código R essencial desta execução.",
+      "# Este chunk pode ser executado manualmente no RStudio."
+    ) else NULL,
+    if (isTRUE(incluir_carregamento)) c(carregar, "") else NULL,
     Filter(Negate(is.null), codigo)
   )
 }

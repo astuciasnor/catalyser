@@ -388,6 +388,7 @@ mod_lines_server <- function(id, data_rv, import_info) {
           espessura_linha = input$line_w,
           tema = input$graph_theme,
           posicao_legenda = input$legend_pos,
+          titulo_grafico = titulo,
           rotulo_x = input$custom_label_x,
           rotulo_y = input$custom_label_y
         ),

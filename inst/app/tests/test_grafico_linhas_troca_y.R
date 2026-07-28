@@ -42,6 +42,10 @@ testServer(mod_lines_server, args = list(data_rv = dados_rv, import_info = info_
     identical(estado_1$tipo, "grafico_linhas"),
     identical(estado_1$parametros$x, "id"),
     identical(estado_1$parametros$y, "comprimento_cm"),
+    identical(
+      estado_1$parametros$titulo_grafico,
+      "Comprimento das corvinas por observação"
+    ),
     identical(estado_1$titulo, "Comprimento das corvinas por observação")
   )
   # O gráfico executado usa mesmo comprimento_cm.
@@ -72,6 +76,10 @@ testServer(mod_lines_server, args = list(data_rv = dados_rv, import_info = info_
   stopifnot(
     identical(estado_2$parametros$y, "peso_g"),
     identical(estado_2$parametros$x, "id"),
+    identical(
+      estado_2$parametros$titulo_grafico,
+      "Peso das corvinas por observação"
+    ),
     identical(estado_2$titulo, "Peso das corvinas por observação")
   )
   dados_camada_2 <- ggplot2::ggplot_build(make_plot())$data[[1]]
@@ -127,7 +135,12 @@ y_2 <- ggplot2::ggplot_build(replay_2$grafico)$data[[1]]$y
 stopifnot(
   isTRUE(abs(max(y_1) - max(base_graficos_corvina$comprimento_cm)) < 1e-8),
   isTRUE(abs(max(y_2) - max(base_graficos_corvina$peso_g)) < 1e-8),
-  !isTRUE(all.equal(y_1, y_2))
+  !isTRUE(all.equal(y_1, y_2)),
+  identical(replay_1$grafico$labels$title, "Comprimento das corvinas por observação"),
+  identical(replay_1$grafico$labels$x, "Observação"),
+  identical(replay_1$grafico$labels$y, "Comprimento (cm)"),
+  identical(replay_2$grafico$labels$title, "Peso das corvinas por observação"),
+  identical(replay_2$grafico$labels$y, "Peso (g)")
 )
 
 # =============================================================================
@@ -140,7 +153,10 @@ stopifnot(
   !any(grepl("peso_g", codigo_1, fixed = TRUE)),
   any(grepl("peso_g", codigo_2, fixed = TRUE)),
   !any(grepl("comprimento_cm", codigo_2, fixed = TRUE)),
-  any(grepl("dados/base_graficos_corvina.rds", codigo_1, fixed = TRUE))
+  any(grepl("dados/base_graficos_corvina.rds", codigo_1, fixed = TRUE)),
+  any(grepl("variavel_y <-", codigo_1, fixed = TRUE)),
+  any(grepl("grafico_linhas <-", codigo_1, fixed = TRUE)),
+  any(grepl("titulo_grafico <-", codigo_1, fixed = TRUE))
 )
 
 estado_editorial <- comunicacao_sincronizar(comunicacao_estado_vazio(), registro)

@@ -115,12 +115,14 @@ codigo <- exportacao_codigo_estudo(list(
 
 stopifnot(
   any(grepl("dados/base_anova_profundidade_especie.rds", codigo, fixed = TRUE)),
+  any(grepl("variavel_resposta <-", codigo, fixed = TRUE)),
+  any(grepl("resumo_por_grupo <-", codigo, fixed = TRUE)),
   any(grepl("stats::reformulate", codigo, fixed = TRUE)),
-  any(grepl("stats::aov(formula_anova, data = dados)", codigo, fixed = TRUE)),
+  any(grepl("stats::aov(formula_anova, data = dados_anova)", codigo, fixed = TRUE)),
   any(grepl("stats::TukeyHSD", codigo, fixed = TRUE)),
   any(grepl("car::leveneTest", codigo, fixed = TRUE)),
-  any(grepl('dados[["profundidade_m"]]', codigo, fixed = TRUE)),
-  any(grepl('dados[["especie"]]', codigo, fixed = TRUE)),
+  any(grepl("dados_anova[[variavel_resposta]]", codigo, fixed = TRUE)),
+  any(grepl("dados_anova[[variavel_fator]]", codigo, fixed = TRUE)),
   any(grepl("center = stats::median", codigo, fixed = TRUE)),
   any(grepl("stats::shapiro.test", codigo, fixed = TRUE)),
   any(grepl("effectsize::eta_squared", codigo, fixed = TRUE)),
@@ -222,14 +224,27 @@ projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos)
 qmd <- readLines(file.path(projeto, "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
 scripts <- list.files(file.path(projeto, "R"), pattern = "^04_.*\\.R$", full.names = TRUE)
 script_anova <- readLines(scripts[[1]], warn = FALSE, encoding = "UTF-8")
+scripts_texto <- lapply(
+  scripts,
+  readLines,
+  warn = FALSE,
+  encoding = "UTF-8"
+)
 
 stopifnot(
   length(scripts) == 3L,
-  # O script numerado da ANOVA usa a Base Derivada correta.
+  all(vapply(scripts_texto, function(x)
+    any(grepl("registro_execucoes.rds", x, fixed = TRUE)), logical(1))),
+  all(vapply(scripts_texto, function(x)
+    !any(grepl("execucao <- structure(", x, fixed = TRUE)), logical(1))),
   any(grepl("base_anova_profundidade_especie", script_anova, fixed = TRUE)),
+  any(grepl("Código essencial", script_anova, fixed = TRUE)),
+  any(grepl("variavel_resposta <-", script_anova, fixed = TRUE)),
+  any(grepl("registro_execucoes.rds", script_anova, fixed = TRUE)),
+  !any(grepl("execucao <- structure(", script_anova, fixed = TRUE)),
   any(grepl("catalyser_executar(execucao, dados)", script_anova, fixed = TRUE)),
-  # O QMD traz o código essencial e os rótulos dos componentes novos.
-  any(grepl("stats::aov(formula_anova, data = dados)", qmd, fixed = TRUE)),
+  any(grepl("stats::aov(formula_anova, data = dados_anova)", qmd, fixed = TRUE)),
+  any(grepl("variavel_resposta <-", qmd, fixed = TRUE)),
   any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
   any(grepl("### Resumo por grupo", qmd, fixed = TRUE)),
   any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
@@ -237,6 +252,8 @@ stopifnot(
   # As duas execuções gráficas continuam separadas no relatório.
   any(grepl("Comprimento das corvinas por observação", qmd, fixed = TRUE)),
   any(grepl("Peso das corvinas por observação", qmd, fixed = TRUE)),
+  any(grepl("grafico_linhas <-", qmd, fixed = TRUE)),
+  any(grepl("titulo_grafico <-", qmd, fixed = TRUE)),
   any(grepl("comprimento_cm", qmd, fixed = TRUE)),
   any(grepl("peso_g", qmd, fixed = TRUE))
 )
@@ -244,7 +261,11 @@ stopifnot(
 # Todos os scripts numerados executam fora da CatalyseR.
 anterior <- getwd()
 setwd(projeto)
-for (arquivo in scripts) sys.source(arquivo, envir = new.env(parent = globalenv()))
+for (arquivo in scripts) {
+  ambiente_script <- new.env(parent = globalenv())
+  sys.source(arquivo, envir = ambiente_script)
+  stopifnot(length(ls(ambiente_script, pattern = "^resultado_execucao_")) == 1L)
+}
 setwd(anterior)
 
 zip_saida <- file.path(raiz, "projeto_anova.zip")

@@ -600,6 +600,10 @@ catalyser_anova <- function(dados, p) {
 catalyser_linhas <- function(dados, p) {
   catalyser_colunas(dados, c(p$x, p$y, if (!identical(catalyser_ou(p$grupo, "none"), "none")) p$grupo))
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("O pacote ggplot2 é necessário para o gráfico.", call. = FALSE)
+  texto_ou <- function(x, padrao) {
+    x <- as.character(catalyser_ou(x, ""))
+    if (!length(x) || !nzchar(trimws(x[[1]]))) padrao else x[[1]]
+  }
   grupo <- catalyser_ou(p$grupo, "none")
   aes <- if (identical(grupo, "none")) {
     ggplot2::aes(x = .data[[p$x]], y = .data[[p$y]], group = 1)
@@ -614,10 +618,44 @@ catalyser_linhas <- function(dados, p) {
     ggplot2::geom_line(linewidth = as.numeric(catalyser_ou(p$espessura_linha, 1)))
   }
   grafico <- ggplot2::ggplot(dados, aes) +
-    camada_linha +
-    ggplot2::theme_minimal(base_size = 12) +
-    ggplot2::labs(x = catalyser_ou(p$rotulo_x, p$x), y = catalyser_ou(p$rotulo_y, p$y))
-  if (isTRUE(p$mostrar_pontos)) grafico <- grafico + ggplot2::geom_point(size = 2.2)
+    camada_linha
+  if (isTRUE(p$mostrar_pontos)) {
+    grafico <- grafico + if (identical(grupo, "none")) {
+      ggplot2::geom_point(size = 2.4, color = "#2E7D8F")
+    } else {
+      ggplot2::geom_point(size = 2.4)
+    }
+  }
+  if (!identical(grupo, "none")) {
+    cores <- rep(
+      c("#0F3B5F", "#2E7D8F", "#62B6B7", "#E89B3C", "#E76F51"),
+      length.out = length(unique(dados[[grupo]]))
+    )
+    grafico <- grafico + ggplot2::scale_color_manual(values = cores)
+  }
+  tema <- switch(
+    texto_ou(p$tema, "minimal"),
+    classic = ggplot2::theme_classic(base_size = 14),
+    bw = ggplot2::theme_bw(base_size = 14),
+    gray = ggplot2::theme_gray(base_size = 14),
+    light = ggplot2::theme_light(base_size = 14),
+    ggplot2::theme_minimal(base_size = 14)
+  )
+  grafico <- grafico +
+    tema +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 16, color = "#0F3B5F"),
+      plot.subtitle = ggplot2::element_text(size = 12, color = "#495057"),
+      axis.title = ggplot2::element_text(color = "#212529"),
+      legend.position = texto_ou(p$posicao_legenda, "right"),
+      legend.title = ggplot2::element_text(face = "bold")
+    ) +
+    ggplot2::labs(
+      title = texto_ou(p$titulo_grafico, sprintf("%s ao longo de %s", p$y, p$x)),
+      x = texto_ou(p$rotulo_x, p$x),
+      y = texto_ou(p$rotulo_y, p$y),
+      color = if (!identical(grupo, "none")) grupo else NULL
+    )
   list(grafico = grafico)
 }
 
@@ -716,6 +754,10 @@ catalyser_hca <- function(dados, p) {
 catalyser_executar <- function(execucao, dados = NULL) {
   p <- execucao$parametros
   tipo <- execucao$tipo
+  if (identical(tipo, "grafico_linhas") &&
+      (is.null(p$titulo_grafico) || !nzchar(trimws(as.character(p$titulo_grafico))))) {
+    p$titulo_grafico <- execucao$titulo
+  }
   resultado <- switch(
     tipo,
     estatistica_descritiva = catalyser_resumo_descritivo(dados, p),

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refinar análises CatalyseR"
+  short_description: "Refina duas análises por ciclo com testes"
+  default_prompt: "Use $refinar-analises-catalyser para refinar duas análises da CatalyseR de ponta a ponta."

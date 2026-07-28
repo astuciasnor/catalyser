@@ -92,7 +92,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
     # realmente traz o conteúdo mais recente da branch main.
     ok_ide <- garante(
       "catalyser", github = "astuciasnor/catalyser",
-      versao_minima = "0.1.4", atualizar = TRUE
+      versao_minima = "0.1.5", atualizar = TRUE
     )
   }
 
