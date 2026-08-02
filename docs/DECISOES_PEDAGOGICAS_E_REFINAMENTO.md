@@ -1,7 +1,7 @@
 # Decisões pedagógicas e de refinamento da CatalyseR
 
 **Status:** adotadas
-**Última consolidação:** 27/07/2026
+**Última consolidação:** 02/08/2026
 
 ## 1. Estágio do projeto
 
@@ -50,6 +50,30 @@ O aprendizado obtido numa dupla deve ser aplicado à dupla seguinte. Padrões
 novos e comprovados podem retornar às duplas anteriores. Esse movimento é um
 refinamento em espiral, não uma sequência rígida e irreversível.
 
+### 3.1. Fluxo oficial de cada ciclo e entrega dupla
+
+O caminho de desenvolvimento de uma análise é:
+
+1. aprimorar o método, as validações e as saídas da análise;
+2. criar ou consolidar sua função pública `catalyser_*`, documentada no pacote;
+3. integrar a mesma função à CatalyseR e ao replay do Projeto R;
+4. testar a análise na IDE como um usuário, usando o pacote instalado;
+5. acompanhar sua evolução no `relatorio.qmd` e no Word;
+6. executar testes, `R CMD build` e `R CMD check` proporcionais à mudança;
+7. commitar e enviar a versão instalável à `main`;
+8. atualizar o projeto canônico de teste rápido, com bases e análises prontas,
+   e renderizar seu Word.
+
+O preparo de dados e a arquitetura de Base Compartilhada/Bases Derivadas estão
+consolidados. Não reabrir esse subsistema durante os ciclos de análise, salvo
+para corrigir um defeito comprovado. Quando uma análise exigir preparo
+específico, usar os tratamentos e as receitas de base derivada já existentes.
+
+Cada ciclo só é apresentado como pronto quando houver **duas entregas
+verificadas**: (a) CatalyseR instalável pela `main` com `remotes` e (b) Projeto R
+de teste rápido com o cenário preparado e o Word renderizado. Informar
+explicitamente ao autor quando ambas estiverem disponíveis.
+
 ## 4. Código humano como produto
 
 O script R numerado deve se aproximar do que uma pessoa escreveria:
@@ -82,9 +106,9 @@ Decisão adotada para a estrutura do Projeto R:
 3. **Cada análise constrói a sua base derivada** num chunk do `.qmd`, com a
    receita visível no fonte e silenciosa no Word (`echo: false`). Não há mais
    script `03_` por base derivada — a receita vive num só lugar.
-4. Os scripts `R/04_*` continuam, um por execução, para estudar ou rodar uma
-   análise isolada fora do Quarto. Eles usam a **fotografia** da base derivada em
-   vez de repetir a receita.
+4. Os scripts `R/02_execucao_*` continuam, um por execução, para estudar ou
+   rodar uma análise isolada fora do Quarto. Eles reconstruem a Base
+   Compartilhada e, quando necessário, a receita da base derivada.
 5. Quando há operação estrutural promovida, o script usa a fotografia da base
    resolvida e mantém o código estrutural como referência comentada. Motivo
    honesto: cada bloco promovido recomeça pela leitura da planilha, então blocos
@@ -154,6 +178,22 @@ Quando escalas personalizadas forem incluídas:
 - preferir `coord_cartesian()` para aproximação sem descartar dados;
 - iniciar o eixo Y em zero em gráficos de barras;
 - registrar a configuração no script, QMD e replay.
+
+### 6.1. Personalização posterior no Projeto R
+
+Registrar como evolução planejada a possibilidade de o usuário ajustar a
+apresentação depois da exportação, diretamente no Projeto R. A prioridade é a
+**formatação dos gráficos**; em seguida, a das tabelas.
+
+Nos gráficos, o código exportado deve facilitar alterações de tema, paleta,
+rótulos, escalas, limites visuais, tamanhos, posição da legenda e dimensões da
+figura. Nas tabelas, deve permitir ajustar colunas exibidas, títulos, casas
+decimais, alinhamento, largura e tema visual sem refazer o cálculo estatístico.
+
+Primeiro preservar essa liberdade em código humano, legível e localizado no
+Projeto R. Só promover para controles da interface as opções frequentes,
+pedagogicamente úteis e estatisticamente seguras. A personalização visual não
+deve mudar silenciosamente dados, modelo, estimativas ou decisões inferenciais.
 
 ## 7. Mini-refatorações
 
