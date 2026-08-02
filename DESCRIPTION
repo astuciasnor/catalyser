@@ -42,6 +42,7 @@ Imports:
     vistributions,
     EAPADados (>= 0.1.10)
 Suggests:
+    knitr,
     geobr,
     sf,
     ggspatial,
@@ -57,3 +58,4 @@ Remotes:
     astuciasnor/EAPADados
 Depends: R (>= 4.3.0)
 Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.0.0

@@ -1,4 +1,4 @@
-source("templates/funcoes_projeto_integrado.R", encoding = "UTF-8")
+source(file.path("tests", "carregar_catalyser.R"), chdir = FALSE)
 
 dados <- data.frame(
   x = 1:12,
