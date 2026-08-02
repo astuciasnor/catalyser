@@ -80,7 +80,8 @@ mod_anova_ui <- function(id) {
             anova_titulo_secao("Saída bruta do R"),
             helpText(
               "Esta é a saída que o R mostra sem a camada de apresentação da CatalyseR.",
-              "Vale conhecê-la para não se perder fora do ecossistema.",
+              "Vale conhecê-la para não se perder fora do ecossistema — mas ela fica",
+              "só aqui: não é oferecida como conteúdo do relatório.",
               style = "font-size: 0.85rem;"
             ),
             verbatimTextOutput(ns("console_bruto"))
@@ -282,11 +283,25 @@ mod_anova_server <- function(id, data_rv, import_info) {
         hr(),
         anova_titulo_secao("Resumo por grupo"),
         tableOutput(ns("descritivos_table")),
+        helpText(
+          "A coluna Diferença traz as letras de Tukey: grupos que compartilham",
+          "ao menos uma letra não apresentaram evidência de diferença entre si.",
+          "A letra 'a' fica com o grupo de maior média.",
+          style = "font-size: 0.82rem;"
+        ),
         hr(),
         anova_titulo_secao("Tabela da ANOVA"),
         tableOutput(ns("anova_table")),
         anova_titulo_secao("Tamanho de efeito"),
         tableOutput(ns("efeito_table")),
+        helpText(
+          "η² é a fração da variação da resposta atribuída ao fator; ω² corrige o viés",
+          "otimista do η² em amostras pequenas. A coluna Leitura usa a convenção de Cohen",
+          "(0,01 pequeno · 0,06 médio · 0,14 grande) — é referência estatística, não",
+          "interpretação biológica: um efeito pequeno pode importar no manejo, e um grande",
+          "pode ser irrelevante na prática.",
+          style = "font-size: 0.82rem;"
+        ),
         if (!is.na(r$efeito_aviso)) div(class = "alert alert-light border py-2 small", r$efeito_aviso),
         hr(),
         anova_titulo_secao("Gráfico principal"),
@@ -581,9 +596,11 @@ mod_anova_server <- function(id, data_rv, import_info) {
           rotulo_x = input$custom_label_x %||% "",
           rotulo_y = input$custom_label_y %||% ""
         ),
+        # O console fica fora do relatório: a aba Console R existe na interface
+        # para estudo, mas a saída bruta não vai para o Word nem para o QMD.
         saidas_disponiveis = c(
           "narrativa", "descritivos", "tabela", "comparacoes",
-          "grafico", "pressupostos", "diagnosticos", "console"
+          "grafico", "pressupostos", "diagnosticos"
         ),
         resultado_resumo = list(
           n = as.integer(r$n),

@@ -5,7 +5,7 @@
 # independentes do mesmo seletor Y, cada uma registrada como execução própria.
 
 source("app.R", encoding = "UTF-8")
-source("templates/funcoes_projeto_integrado.R", encoding = "UTF-8")
+source(file.path("tests", "carregar_catalyser.R"), chdir = FALSE)
 
 # Biometria de corvinas com comprimento e peso completos (Base Derivada B).
 base_graficos_corvina <- data.frame(
@@ -93,8 +93,38 @@ testServer(mod_lines_server, args = list(data_rv = dados_rv, import_info = info_
     !identical(estado_1$parametros$y, estado_2$parametros$y)
   )
 
+  # Contagem honesta das observações: nenhuma linha entra ou sai em silêncio.
+  stopifnot(
+    identical(estado_2$resultado_resumo$n, 8L),
+    identical(estado_2$resultado_resumo$descartadas, 0L)
+  )
+
   estados_registrados <<- list(primeira = estado_1, segunda = estado_2)
 })
+
+# --- Dados faltantes são contados, não descartados em silêncio ---------------
+base_com_falhas <- base_graficos_corvina
+base_com_falhas$peso_g[c(2, 5)] <- NA
+testServer(
+  mod_lines_server,
+  args = list(data_rv = reactive(base_com_falhas), import_info = info_rv),
+  {
+    session$setInputs(
+      var_x = "id", var_y = "peso_g", var_group = "none",
+      show_points = TRUE, line_w = 1, graph_theme = "minimal",
+      legend_pos = "right", custom_title = "Peso das corvinas por observação",
+      custom_label_x = "Observação", custom_label_y = "Peso (g)"
+    )
+    session$setInputs(executar_analise = 1)
+    estado <- estado_execucao()
+    stopifnot(
+      identical(estado$resultado_resumo$n, 6L),
+      identical(estado$resultado_resumo$descartadas, 2L),
+      # O gráfico usa apenas as observações completas.
+      nrow(ggplot2::ggplot_build(make_plot())$data[[1]]) == 6L
+    )
+  }
+)
 
 # =============================================================================
 # As duas execuções coexistem no registro central
@@ -153,10 +183,47 @@ stopifnot(
   !any(grepl("peso_g", codigo_1, fixed = TRUE)),
   any(grepl("peso_g", codigo_2, fixed = TRUE)),
   !any(grepl("comprimento_cm", codigo_2, fixed = TRUE)),
-  any(grepl("dados/base_graficos_corvina.rds", codigo_1, fixed = TRUE)),
+  any(grepl("dados <- base_graficos_corvina", codigo_1, fixed = TRUE)),
   any(grepl("variavel_y <-", codigo_1, fixed = TRUE)),
   any(grepl("grafico_linhas <-", codigo_1, fixed = TRUE)),
-  any(grepl("titulo_grafico <-", codigo_1, fixed = TRUE))
+  any(grepl("titulo_grafico <-", codigo_1, fixed = TRUE)),
+  # O código exportado torna a exclusão visível e reproduzível, como na ANOVA.
+  any(grepl("stats::complete.cases(dados[colunas_grafico])", codigo_1, fixed = TRUE)),
+  any(grepl("descartadas por dados faltantes", codigo_1, fixed = TRUE)),
+  any(grepl("ggplot2::ggplot(dados_grafico, mapeamento)", codigo_1, fixed = TRUE))
+)
+
+# O replay também conta as observações e usa somente as completas.
+replay_falhas <- catalyser_linhas(
+  base_com_falhas,
+  list(x = "id", y = "peso_g", grupo = "none", mostrar_pontos = TRUE,
+       espessura_linha = 1, tema = "minimal", posicao_legenda = "right")
+)
+stopifnot(
+  is.data.frame(replay_falhas$observacoes),
+  identical(replay_falhas$observacoes$Valor, c(6L, 2L)),
+  nrow(ggplot2::ggplot_build(replay_falhas$grafico)$data[[1]]) == 6L
+)
+
+# =============================================================================
+# Labels do QMD: a variável distingue; o ID desempata quando ela se repete
+# =============================================================================
+# Com Y diferente, a própria variável já separa os dois labels.
+raizes_distintas <- exportacao_raizes_chunk(registro)
+stopifnot(
+  identical(unname(raizes_distintas[["execucao_0002"]]), "linhas-comprimento-cm"),
+  identical(unname(raizes_distintas[["execucao_0003"]]), "linhas-peso-g")
+)
+
+# Com o mesmo Y, as raízes colidiriam. O Quarto falha com labels repetidos, então
+# o desempate pelo ID precisa entrar.
+registro_mesmo_y <- registro
+registro_mesmo_y$execucao_0003$parametros$y <- "comprimento_cm"
+raizes_iguais <- exportacao_raizes_chunk(registro_mesmo_y)
+stopifnot(
+  identical(unname(raizes_iguais[["execucao_0002"]]), "linhas-comprimento-cm-execucao-0002"),
+  identical(unname(raizes_iguais[["execucao_0003"]]), "linhas-comprimento-cm-execucao-0003"),
+  !any(duplicated(unname(raizes_iguais)))
 )
 
 estado_editorial <- comunicacao_sincronizar(comunicacao_estado_vazio(), registro)

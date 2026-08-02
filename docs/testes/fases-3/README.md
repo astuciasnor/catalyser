@@ -7,6 +7,11 @@ base compartilhada → bases derivadas → análise explícita
                    → comunicação → Word + Projeto R
 ```
 
+As Fases 3A–3E, a V16 e a primeira humanização dos pilotos já foram integradas
+à `main`. O conteúdo permanece como trilha de auditoria e como bateria de
+regressão; para novos refinamentos, combine estes roteiros com
+[as decisões pedagógicas atuais](../../DECISOES_PEDAGOGICAS_E_REFINAMENTO.md).
+
 ## Regra de segurança
 
 As branches são cumulativas, mas independentes da `main`. Receber `push` de uma
@@ -33,6 +38,15 @@ semestre.
   percurso aprovado da Base Compartilhada ao Projeto R e ao relatório Word.
 - [Roteiro V15 com duas bases e duas análises](ROTEIRO_TESTE_V15_DUAS_ANALISES.md):
   teste reduzido dos refinamentos de seleção, execução e QMD pedagógico.
+- [Roteiro V16 — ANOVA e dois valores de Y](ROTEIRO_TESTE_V16_ANOVA_E_DOIS_Y.md):
+  pipeline dos dois pilotos, com benchmarks e replay externo.
+- [Revisão pré-main da V16](REVISAO_PRE_MAIN_V16_2026-07-27.md):
+  evidências automáticas e decisão de integração da versão 0.1.4.
+
+Depois dessa revisão, a versão 0.1.5 humanizou os scripts numerados e o QMD dos
+pilotos ANOVA + Gráfico de Linhas. Os testes automatizados correspondentes
+estão em `inst/app/tests/test_anova_exportacao.R` e
+`inst/app/tests/test_grafico_linhas_troca_y.R`.
 
 ## Roteiros manuais por fase
 

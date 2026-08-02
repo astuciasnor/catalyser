@@ -256,7 +256,11 @@ mod_lines_ui <- function(id) {
         title = "Gráfico de Linhas",
         nav_panel(
           title = "Visualização", icon = icon("chart-line"),
-          card_body(style = "padding: 15px;", plotOutput(ns("plot"), height = "450px"))
+          card_body(
+            style = "padding: 15px;",
+            plotOutput(ns("plot"), height = "450px"),
+            uiOutput(ns("observacoes_plotadas"))
+          )
         )
       )),
       card(
@@ -315,11 +319,24 @@ mod_lines_server <- function(id, data_rv, import_info) {
       updateTextInput(session, "custom_label_y", value = input$var_y)
     })
 
+    # Contagem honesta das observações do gráfico: o ggplot2 descartaria as
+    # linhas incompletas com um aviso discreto. A ANOVA já informa exclusões;
+    # o gráfico de linhas passa a fazer o mesmo.
+    observacoes_grafico <- reactiveVal(NULL)
+
     make_plot <- eventReactive(gatilho_execucao(), {
       df <- data_rv(); req(df, input$var_x, input$var_y)
       req(input$var_x %in% names(df), input$var_y %in% names(df))
       grp <- input$var_group
       has_grp <- !is.null(grp) && grp != "none" && grp %in% names(df)
+
+      colunas <- c(input$var_x, input$var_y, if (has_grp) grp)
+      completos <- stats::complete.cases(df[unique(colunas)])
+      observacoes_grafico(list(n = sum(completos), descartadas = sum(!completos)))
+      if (!sum(completos))
+        stop("Nenhuma observação tem os dois eixos preenchidos. Trate os dados faltantes antes de montar o gráfico.",
+             call. = FALSE)
+      df <- df[completos, , drop = FALSE]
       if (has_grp) df[[grp]] <- as.factor(df[[grp]])
 
       title_val <- if (nzchar(input$custom_title)) input$custom_title else paste(input$var_y, "x", input$var_x)
@@ -348,6 +365,21 @@ mod_lines_server <- function(id, data_rv, import_info) {
     )
 
     output$plot <- renderPlot({ make_plot() })
+
+    output$observacoes_plotadas <- renderUI({
+      make_plot()
+      info <- observacoes_grafico()
+      if (is.null(info)) return(NULL)
+      classe <- if (info$descartadas > 0) "alert-warning" else "alert-light border"
+      div(
+        class = paste("alert py-2 small mt-2 mb-0", classe),
+        icon(if (info$descartadas > 0) "filter" else "circle-check"),
+        sprintf(
+          " %d observação(ões) plotada(s); %d descartada(s) por dados faltantes em %s ou %s.",
+          info$n, info$descartadas, input$var_x %||% "X", input$var_y %||% "Y"
+        )
+      )
+    })
 
     output$download_project_zip <- downloadHandler(
       filename = function() paste0("projeto_linhas_", format(Sys.Date(), "%Y-%m-%d"), ".zip"),
@@ -393,7 +425,11 @@ mod_lines_server <- function(id, data_rv, import_info) {
           rotulo_y = input$custom_label_y
         ),
         saidas_disponiveis = c("grafico"),
-        resultado_resumo = list(x = input$var_x, y = input$var_y, grupo = grupo)
+        resultado_resumo = list(
+          x = input$var_x, y = input$var_y, grupo = grupo,
+          n = as.integer((observacoes_grafico()$n) %||% NA_integer_),
+          descartadas = as.integer((observacoes_grafico()$descartadas) %||% NA_integer_)
+        )
       )
     })
 

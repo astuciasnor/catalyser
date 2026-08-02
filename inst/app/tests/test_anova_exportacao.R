@@ -2,7 +2,10 @@
 # Executar a partir de inst/app.
 
 source("app.R", local = TRUE)
-source("templates/funcoes_projeto_integrado.R", encoding = "UTF-8")
+# As funcoes de analise agora vivem no pacote. Este helper usa a versao
+# instalada quando ela existe e, senao, carrega os arquivos de R/ direto do
+# codigo-fonte - assim o teste roda antes e depois de instalar.
+source(file.path("tests", "carregar_catalyser.R"), chdir = FALSE)
 
 quase_igual <- function(x, y, tol = 1e-6) {
   isTRUE(is.finite(x) && is.finite(y) && abs(x - y) <= tol)
@@ -54,7 +57,7 @@ stopifnot(
 
 # Os nomes dos componentes coincidem com as saídas declaradas pelo módulo.
 saidas_modulo <- c("narrativa", "descritivos", "tabela", "comparacoes",
-                   "grafico", "pressupostos", "diagnosticos", "console")
+                   "grafico", "pressupostos", "diagnosticos")
 stopifnot(all(saidas_modulo %in% names(replay)))
 
 # =============================================================================
@@ -68,6 +71,27 @@ indicador <- function(tabela, padrao) {
 }
 eta_replay <- indicador(replay$diagnosticos, "Eta quadrado")
 omega_replay <- indicador(replay$diagnosticos, "mega quadrado")
+
+# A narrativa do Word (replay) segue a mesma regra da interface: não repete o
+# que as tabelas mostram e remete a elas. Se as duas divergirem, o relatório
+# passa a contar uma história diferente da tela.
+narrativa_interface <- relatar_anova(r_interface)
+for (texto in list(narrativa_interface, replay$narrativa)) {
+  stopifnot(
+    grepl("resumo por grupo", texto, fixed = TRUE),
+    grepl("tabela de pressupostos", texto, fixed = TRUE),
+    grepl("convenção de Cohen", texto, fixed = TRUE),
+    !grepl("Shapiro", texto, fixed = TRUE),
+    !grepl("Levene", texto, fixed = TRUE),
+    !grepl("média = ", texto, fixed = TRUE),
+    !grepl("H0 aceita", texto, fixed = TRUE)
+  )
+}
+gl_esperado <- sprintf("F(%d; %d)", r_interface$df_entre, r_interface$df_dentro)
+stopifnot(
+  grepl(gl_esperado, narrativa_interface, fixed = TRUE),
+  grepl(gl_esperado, replay$narrativa, fixed = TRUE)
+)
 
 stopifnot(
   quase_igual(f_replay, r_interface$f_anova, 1e-8),
@@ -114,7 +138,8 @@ codigo <- exportacao_codigo_estudo(list(
 ))
 
 stopifnot(
-  any(grepl("dados/base_anova_profundidade_especie.rds", codigo, fixed = TRUE)),
+  any(grepl("dados <- base_anova_profundidade_especie", codigo, fixed = TRUE)),
+  any(grepl("anova-profundidade-m-base", codigo, fixed = TRUE)),
   any(grepl("variavel_resposta <-", codigo, fixed = TRUE)),
   any(grepl("resumo_por_grupo <-", codigo, fixed = TRUE)),
   any(grepl("stats::reformulate", codigo, fixed = TRUE)),
@@ -203,7 +228,7 @@ stopifnot(
   exportacao_validar_manifesto(manifesto, exigir_word = TRUE)$ok,
   # A ANOVA vem primeiro; os dois gráficos coexistem depois.
   identical(names(manifesto$execucoes), c("execucao_0001", "execucao_0002", "execucao_0003")),
-  length(manifesto$execucoes$execucao_0001$saidas_word) == 8L
+  length(manifesto$execucoes$execucao_0001$saidas_word) == 7L
 )
 
 raiz <- tempfile("teste_anova_v16_")
@@ -222,8 +247,11 @@ argumentos <- list(
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
 qmd <- readLines(file.path(projeto, "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
-scripts <- list.files(file.path(projeto, "R"), pattern = "^04_.*\\.R$", full.names = TRUE)
+scripts <- list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$", full.names = TRUE)
 script_anova <- readLines(scripts[[1]], warn = FALSE, encoding = "UTF-8")
+base_compartilhada <- readLines(
+  file.path(projeto, "R", "01_base_compartilhada.R"), warn = FALSE, encoding = "UTF-8"
+)
 scripts_texto <- lapply(
   scripts,
   readLines,
@@ -231,23 +259,73 @@ scripts_texto <- lapply(
   encoding = "UTF-8"
 )
 
+rotulos <- trimws(sub("^#\\|\\s*label:", "", grep("^#\\|\\s*label:", qmd, value = TRUE)))
+stopifnot(
+  # Labels dizem a intenção científica, não o número interno da execução.
+  "anova-profundidade-m-codigo" %in% rotulos,
+  "anova-profundidade-m-modelo" %in% rotulos,
+  "anova-profundidade-m-tukey" %in% rotulos,
+  "anova-profundidade-m-resumo-grupos" %in% rotulos,
+  "anova-profundidade-m-replay" %in% rotulos,
+  # Nenhum label sobrou com sublinhado ou com o ID cru como raiz.
+  !any(grepl("_", rotulos, fixed = TRUE)),
+  !any(grepl("^codigo-execucao", rotulos)),
+  !any(grepl("^executar-execucao", rotulos)),
+  # Os dois gráficos têm Y diferente, então a própria variável já distingue os
+  # labels — sem precisar do ID da execução.
+  "linhas-comprimento-cm-grafico" %in% rotulos,
+  "linhas-peso-g-grafico" %in% rotulos,
+  !any(duplicated(rotulos))
+)
+
 stopifnot(
   length(scripts) == 3L,
+  # Um único script constrói a Base Compartilhada; os antigos 00/02 e os 03 saíram.
+  file.exists(file.path(projeto, "R", "01_base_compartilhada.R")),
+  # A pasta R/ tem apenas 01_base_compartilhada.R e os 02_execucao_*.R.
+  # Os antigos 00_funcoes_projeto.R e 03_<base derivada>.R nao existem mais.
+  length(list.files(file.path(projeto, "R"), pattern = "^0[03]_.*\\.R$")) == 0L,
+  length(list.files(file.path(projeto, "R"), pattern = "^01_.*\\.R$")) == 1L,
+  # E o console nao aparece em nenhum chunk do relatorio.
+  !any(grepl("[['console']]", qmd, fixed = TRUE)),
+  !any(grepl("-console", qmd, fixed = TRUE)),
+  any(grepl("catalyser_conferir_base(", base_compartilhada, fixed = TRUE)),
+  # O QMD chama esse script uma única vez.
+  sum(grepl("source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
+            qmd, fixed = TRUE)) == 1L,
+  # E constrói a base derivada da ANOVA no chunk da própria análise.
+  any(grepl("#| label: anova-profundidade-m-base", qmd, fixed = TRUE)),
+  any(grepl("base_anova_profundidade_especie <- dados", qmd, fixed = TRUE)),
+  any(grepl("dados_da_analise <- base_anova_profundidade_especie", qmd, fixed = TRUE)),
+  # O replay usa a base do chunk; o sys.source opaco saiu do relatório.
+  any(grepl("catalyser_executar(analises_registradas[[", qmd, fixed = TRUE)),
+  # As funcoes vem do pacote instalado, nao mais de um arquivo copiado.
+  any(grepl("library(catalyser)", qmd, fixed = TRUE)),
+  !file.exists(file.path(projeto, "R", "00_funcoes_projeto.R")),
+  !any(grepl("sys.source(", qmd, fixed = TRUE)),
   all(vapply(scripts_texto, function(x)
     any(grepl("registro_execucoes.rds", x, fixed = TRUE)), logical(1))),
   all(vapply(scripts_texto, function(x)
     !any(grepl("execucao <- structure(", x, fixed = TRUE)), logical(1))),
   any(grepl("base_anova_profundidade_especie", script_anova, fixed = TRUE)),
-  any(grepl("Código essencial", script_anova, fixed = TRUE)),
+  # O script conta a historia em tres partes nomeadas.
+  any(grepl("PARTE 1 - PREPARAR OS DADOS DESTA ANÁLISE", script_anova, fixed = TRUE)),
+  any(grepl("PARTE 2 - A ANÁLISE", script_anova, fixed = TRUE)),
+  any(grepl("PARTE 3 - REFAZER O RESULTADO DO RELATÓRIO", script_anova, fixed = TRUE)),
+  any(grepl("# Pergunta   :", script_anova, fixed = TRUE)),
+  any(grepl("library(catalyser)", script_anova, fixed = TRUE)),
   any(grepl("variavel_resposta <-", script_anova, fixed = TRUE)),
   any(grepl("registro_execucoes.rds", script_anova, fixed = TRUE)),
   !any(grepl("execucao <- structure(", script_anova, fixed = TRUE)),
-  any(grepl("catalyser_executar(execucao, dados)", script_anova, fixed = TRUE)),
+  any(grepl("catalyser_executar(configuracao, dados)", script_anova, fixed = TRUE)),
   any(grepl("stats::aov(formula_anova, data = dados_anova)", qmd, fixed = TRUE)),
   any(grepl("variavel_resposta <-", qmd, fixed = TRUE)),
   any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
   any(grepl("### Resumo por grupo", qmd, fixed = TRUE)),
   any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
+  # O comentário separa método (para estudo) de mecanismo editorial.
+  any(grepl("Método: o código abaixo fica explícito", qmd, fixed = TRUE)),
+  any(grepl("Mecanismo editorial", qmd, fixed = TRUE)),
   any(grepl("Profundidade de captura entre espécies", qmd, fixed = TRUE)),
   # As duas execuções gráficas continuam separadas no relatório.
   any(grepl("Comprimento das corvinas por observação", qmd, fixed = TRUE)),

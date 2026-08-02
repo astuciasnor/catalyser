@@ -1,7 +1,8 @@
 # Roteiro de homologação da V16 — ANOVA integrada e dois valores de Y
 
 - **Data:** 27/07/2026
-- **Base:** V15 homologada (`6511753`), branch de trabalho `feature/v16-anova-integrada`
+- **Base:** branch `main`, commit `6aa407a`, `DESCRIPTION` 0.1.5 — a V16 já foi
+  integrada e recebeu dois ciclos de refinamento dos pilotos
 - **Escopo:** ANOVA de um fator no pipeline comum + duas execuções do Gráfico de
   Linhas alternando o eixo Y
 - **Dataset:** `inst/app/dados/Treino-Transformacoes.xlsx`, planilha `biometria`
@@ -122,6 +123,21 @@ No Tukey, `pescada amarela-corvina` deve ter p ajustado próximo de **0,0300**.
 - O gráfico principal mostra observações, distribuição, média e IC 95%, e
   **não** conecta as médias das espécies por linha.
 
+### 4.3. Refinamentos do segundo ciclo
+
+- Todas as tabelas usam **vírgula decimal**; nenhum número aparece com ponto.
+- O p-valor abaixo de 0,001 aparece como **`< 0,001`**, não como `0,0000`.
+- A linha **Total** da tabela da ANOVA traz `-` em quadrado médio, F e p.
+- O **Tukey vem ordenado por p ajustado**: com esta base,
+  `pescada amarela-corvina` deve ser a primeira linha.
+- O tamanho de efeito tem coluna **Leitura convencional**; com η² = 0,152 deve
+  dizer **grande**, e a nota abaixo deve avisar que é convenção de Cohen, não
+  interpretação biológica.
+- A **narrativa não repete** as médias por grupo nem os p de Shapiro e Levene;
+  ela remete ao resumo por grupo e à tabela de pressupostos.
+- A narrativa do **Word deve ser a mesma da tela** (mesma estrutura, mesmos
+  F/gl/p e mesma remissão). Se divergirem, é defeito.
+
 ## 5. Duas escolhas de Y no Gráfico de Linhas
 
 1. **Visualizando Dados → Gráfico de Linhas**.
@@ -140,6 +156,14 @@ No Tukey, `pescada amarela-corvina` deve ter p ajustado próximo de **0,0300**.
     **Adicionar Novo Resultado** (segunda execução, não substituição).
 
 O eixo `id` é apenas a ordem das observações — não é série temporal.
+
+### 5.1. Contagem das observações
+
+- Abaixo do gráfico deve aparecer a contagem: com a base B,
+  **19 observações plotadas; 0 descartadas**.
+- Para testar o aviso, escolher Y = `cpue` na Base Compartilhada (que tem
+  faltantes): a faixa deve ficar **amarela** e informar quantas linhas saíram.
+- Nenhuma linha pode ser descartada em silêncio.
 
 ## 6. Comunicação de Resultados
 
@@ -165,7 +189,13 @@ O Projeto R preserva todas as execuções, mesmo as desmarcadas no Word.
    `stats::aov`, `stats::TukeyHSD`, `car::leveneTest`, `stats::shapiro.test`,
    `effectsize::eta_squared` e `effectsize::omega_squared`, com
    `eval: false` e `include: false`.
-5. Renderizar para Word e comparar os benchmarks com os da CatalyseR.
+5. Conferir os **labels dos chunks**: devem ser
+   `anova-profundidade-m-codigo`, `-modelo`, `-tukey`, `-resumo-grupos`,
+   `-replay` e, nos gráficos, `linhas-comprimento-cm-...` e
+   `linhas-peso-g-...`. Nenhum label com sublinhado ou com o ID cru como raiz.
+6. Conferir que o código do gráfico monta `dados_grafico` com
+   `stats::complete.cases()` e imprime quantas observações foram descartadas.
+7. Renderizar para Word e comparar os benchmarks com os da CatalyseR.
 
 ## 8. Interface
 

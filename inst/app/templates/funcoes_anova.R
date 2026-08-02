@@ -40,6 +40,45 @@ anova_p_texto <- function(p, dig = 4) {
   if (p[[1]] < 0.001) "p < 0,001" else paste0("p = ", anova_fmt(p, dig))
 }
 
+# Formatadores vetorizados das tabelas. A narrativa e as tabelas usam a mesma
+# convenção brasileira: vírgula decimal e "-" para o que não se aplica.
+anova_num_col <- function(x, dig = 2) {
+  vapply(
+    x,
+    function(v) if (is.null(v) || is.na(v)) "-" else
+      formatC(as.numeric(v), format = "f", digits = dig, decimal.mark = ","),
+    character(1), USE.NAMES = FALSE
+  )
+}
+
+anova_p_col <- function(p, dig = 4) {
+  vapply(
+    p,
+    function(v) {
+      if (is.null(v) || is.na(v)) return("-")
+      if (v < 0.001) "< 0,001" else formatC(as.numeric(v), format = "f", digits = dig, decimal.mark = ",")
+    },
+    character(1), USE.NAMES = FALSE
+  )
+}
+
+# Leitura convencional do tamanho de efeito (referências de Cohen para eta
+# quadrado). É convenção estatística, não interpretação biológica: um efeito
+# "pequeno" pode ser importante em manejo, e um "grande" pode ser irrelevante.
+anova_leitura_efeito <- function(valor) {
+  vapply(
+    valor,
+    function(v) {
+      if (is.null(v) || is.na(v)) return("-")
+      if (v < 0.01) "muito pequeno"
+      else if (v < 0.06) "pequeno"
+      else if (v < 0.14) "médio"
+      else "grande"
+    },
+    character(1), USE.NAMES = FALSE
+  )
+}
+
 if (!exists("%||%")) {
   `%||%` <- function(x, y) if (is.null(x)) y else x
 }
@@ -56,6 +95,79 @@ anova_tema <- function(nome = "minimal", base_size = 14) {
     "light"   = ggplot2::theme_light(base_size = base_size),
     ggplot2::theme_minimal(base_size = base_size)
   )
+}
+
+# ---- Letras de diferença (compact letter display) -----------------------------
+
+#' Letras compactas a partir das comparações de Tukey
+#'
+#' Grupos que compartilham ao menos uma letra não apresentaram evidência de
+#' diferença entre si. É a convenção usada em pesca e agronomia.
+#'
+#' O algoritmo é o clássico "inserir e absorver": começa com todos os grupos
+#' numa única letra e, a cada par com evidência de diferença, quebra as letras
+#' que contêm os dois; no fim, descarta as letras contidas em outras. Está
+#' escrito aqui, e não delegado a um pacote, para que o Projeto R exportado
+#' funcione sem instalar nada além do que já é exigido.
+#'
+#' A letra "a" vai para o grupo de maior média.
+#'
+#' @param pares matriz 2 x n com os nomes dos dois grupos de cada comparação
+#' @param p_ajustado vetor de p ajustados, na mesma ordem das colunas de `pares`
+#' @param medias vetor nomeado com a média de cada grupo
+#' @return vetor de caracteres nomeado por grupo
+anova_letras_tukey <- function(pares, p_ajustado, medias, alfa = 0.05) {
+  grupos <- names(medias)
+  if (!length(grupos)) return(character())
+  if (length(grupos) == 1L) return(stats::setNames("a", grupos))
+
+  significativos <- which(!is.na(p_ajustado) & p_ajustado < alfa)
+  colunas <- list(grupos)
+
+  for (k in significativos) {
+    a <- pares[1, k]
+    b <- pares[2, k]
+    if (!(a %in% grupos) || !(b %in% grupos)) next
+    novas <- list()
+    for (col in colunas) {
+      if (a %in% col && b %in% col) {
+        novas[[length(novas) + 1L]] <- setdiff(col, a)
+        novas[[length(novas) + 1L]] <- setdiff(col, b)
+      } else {
+        novas[[length(novas) + 1L]] <- col
+      }
+    }
+    novas <- Filter(function(x) length(x) > 0L, novas)
+    novas <- unique(lapply(novas, sort))
+    # Absorver: uma letra contida em outra não acrescenta informação.
+    manter <- rep(TRUE, length(novas))
+    for (i in seq_along(novas)) {
+      for (j in seq_along(novas)) {
+        if (i != j && manter[i] && manter[j] &&
+            length(novas[[i]]) < length(novas[[j]]) &&
+            all(novas[[i]] %in% novas[[j]])) {
+          manter[i] <- FALSE
+        }
+      }
+    }
+    colunas <- novas[manter]
+  }
+
+  # A letra "a" fica com o grupo de maior média.
+  chave <- vapply(colunas, function(col) max(medias[col], na.rm = TRUE), numeric(1))
+  colunas <- colunas[order(chave, decreasing = TRUE)]
+
+  alfabeto <- if (length(colunas) <= length(letters)) {
+    letters
+  } else {
+    c(letters, paste0(rep(letters, each = length(letters)), letters))
+  }
+
+  saida <- stats::setNames(rep("", length(grupos)), grupos)
+  for (k in seq_along(colunas)) {
+    for (g in colunas[[k]]) saida[[g]] <- paste0(saida[[g]], alfabeto[k])
+  }
+  saida
 }
 
 # ---- Validação ---------------------------------------------------------------
@@ -152,12 +264,20 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   }
   descritivos_df <- do.call(rbind, lapply(niveis, function(nivel) {
     valores <- d$resposta[d$fator == nivel]
+    n_grupo <- length(valores)
+    ep <- stats::sd(valores) / sqrt(n_grupo)
+    margem <- if (n_grupo > 1L) {
+      stats::qt(1 - (1 - nivel_confianca) / 2, df = n_grupo - 1L) * ep
+    } else NA_real_
     data.frame(
       Grupo = nivel,
-      N = length(valores),
+      N = n_grupo,
       Ausentes = as.integer(ausentes_por_grupo[[nivel]]),
       Media = mean(valores),
       Desvio_Padrao = stats::sd(valores),
+      Erro_Padrao = ep,
+      IC_Inferior = mean(valores) - margem,
+      IC_Superior = mean(valores) + margem,
       Mediana = stats::median(valores),
       Minimo = min(valores),
       Maximo = max(valores),
@@ -256,6 +376,24 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   }
   rownames(tukey_df) <- NULL
 
+  # --- Letras de diferença ---------------------------------------------------
+  # Os pares são reconstruídos a partir dos próprios níveis, e não quebrando o
+  # nome "b-a" no hífen: nomes de espécie podem conter hífen ou espaço.
+  medias_por_grupo <- stats::setNames(descritivos_df$Media, descritivos_df$Grupo)
+  letras <- if (nrow(tukey_df) && length(niveis) > 1L) {
+    combos <- utils::combn(niveis, 2L)
+    nomes_esperados <- paste0(combos[2, ], "-", combos[1, ])
+    posicao <- match(nomes_esperados, tukey_df$Comparacao)
+    anova_letras_tukey(
+      pares = combos[c(2L, 1L), , drop = FALSE],
+      p_ajustado = tukey_df$p_adj[posicao],
+      medias = medias_por_grupo
+    )
+  } else {
+    stats::setNames(rep("a", length(niveis)), niveis)
+  }
+  descritivos_df$Letras <- unname(letras[descritivos_df$Grupo])
+
   console <- c(
     "# summary(modelo_anova)",
     utils::capture.output(print(summary(fit))),
@@ -283,6 +421,7 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
     fit = fit,
     anova_df = anova_df,
     descritivos_df = descritivos_df,
+    letras = letras,
     efeito_df = efeito_df,
     efeito_aviso = efeito_aviso,
     eta2 = eta2,
@@ -311,33 +450,44 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
 
 # ---- Arrumação (data.frame em português) -------------------------------------
 
-#' Resumo descritivo por grupo
+#' Resumo por grupo com média ± desvio-padrão e letras de diferença
+#'
+#' A coluna de letras é a leitura rápida da tabela: grupos que compartilham uma
+#' letra não apresentaram evidência de diferença entre si no teste de Tukey.
 arrumar_descritivos_anova <- function(r) {
   d <- r$descritivos_df
-  data.frame(
+  nivel <- 100 * (r$nivel_confianca %||% 0.95)
+  saida <- data.frame(
     `Grupo` = d$Grupo,
     `n` = d$N,
+    `Média ± DP` = paste(anova_num_col(d$Media, 2), "±", anova_num_col(d$Desvio_Padrao, 2)),
+    `IC da média` = ifelse(
+      is.na(d$IC_Inferior) | is.na(d$IC_Superior),
+      "não estimável",
+      sprintf("[%s; %s]", anova_num_col(d$IC_Inferior, 2), anova_num_col(d$IC_Superior, 2))
+    ),
+    `Diferença` = d$Letras,
     `Ausentes excluídos` = d$Ausentes,
-    `Média` = round(d$Media, 3),
-    `Desvio-padrão` = round(d$Desvio_Padrao, 3),
-    `Mediana` = round(d$Mediana, 3),
-    `Mínimo` = round(d$Minimo, 3),
-    `Máximo` = round(d$Maximo, 3),
     check.names = FALSE,
     stringsAsFactors = FALSE
   )
+  names(saida)[4] <- sprintf("IC %.0f%% da média", nivel)
+  saida
 }
 
 #' Tabela da ANOVA
+#'
+#' Casas decimais escolhidas pelo significado: somas e quadrados médios estão na
+#' escala da resposta ao quadrado (2 casas bastam), F é um índice adimensional
+#' (3 casas) e o p-valor decide (4 casas, ou "< 0,001").
 arrumar_tabela_anova <- function(r) {
-  fmt_col <- function(x, dig) vapply(x, function(v) if (is.na(v)) "-" else formatC(v, format = "f", digits = dig), character(1))
   data.frame(
     `Fonte de variação` = r$anova_df$Fonte,
     `Graus de liberdade` = r$anova_df$Df,
-    `Soma de quadrados` = fmt_col(r$anova_df$Soma_Quadrados, 3),
-    `Quadrado médio` = fmt_col(r$anova_df$Quadrados_Medios, 3),
-    `F` = fmt_col(r$anova_df$F_valor, 3),
-    `p-valor` = fmt_col(r$anova_df$p_valor, 4),
+    `Soma de quadrados` = anova_num_col(r$anova_df$Soma_Quadrados, 2),
+    `Quadrado médio` = anova_num_col(r$anova_df$Quadrados_Medios, 2),
+    `F` = anova_num_col(r$anova_df$F_valor, 3),
+    `p-valor` = anova_p_col(r$anova_df$p_valor),
     check.names = FALSE,
     stringsAsFactors = FALSE
   )
@@ -349,13 +499,14 @@ arrumar_tamanho_efeito_anova <- function(r) {
     is.na(r$efeito_df$IC_Inferior) | is.na(r$efeito_df$IC_Superior),
     "não disponível",
     sprintf("[%s; %s]",
-            formatC(r$efeito_df$IC_Inferior, format = "f", digits = 3),
-            formatC(r$efeito_df$IC_Superior, format = "f", digits = 3))
+            anova_num_col(r$efeito_df$IC_Inferior, 3),
+            anova_num_col(r$efeito_df$IC_Superior, 3))
   )
   data.frame(
     `Medida` = r$efeito_df$Medida,
-    `Valor` = round(r$efeito_df$Valor, 4),
+    `Valor` = anova_num_col(r$efeito_df$Valor, 3),
     `Intervalo de confiança` = ic,
+    `Leitura convencional` = anova_leitura_efeito(r$efeito_df$Valor),
     check.names = FALSE,
     stringsAsFactors = FALSE
   )
@@ -373,8 +524,12 @@ arrumar_pressupostos_anova <- function(r) {
       "Homogeneidade de variâncias (Levene, centro na mediana)",
       "Homogeneidade de variâncias (Bartlett — informação adicional)"
     ),
-    `Estatística` = c(round(r$sh_stat, 4), round(r$levene_f, 4), round(r$bt_stat, 4)),
-    `p-valor` = c(round(r$sh_p, 4), round(r$levene_p, 4), round(r$bt_p, 4)),
+    `Estatística` = c(
+      anova_num_col(r$sh_stat, 4),
+      anova_num_col(r$levene_f, 3),
+      anova_num_col(r$bt_stat, 3)
+    ),
+    `p-valor` = anova_p_col(c(r$sh_p, r$levene_p, r$bt_p)),
     `Leitura` = c(
       leitura(r$sh_p,
               "Sem evidência de afastamento da normalidade",
@@ -392,15 +547,19 @@ arrumar_pressupostos_anova <- function(r) {
 }
 
 #' Comparações múltiplas de Tukey
+#'
+#' Ordenada por p ajustado: com cinco grupos são dez linhas, e quem lê procura
+#' primeiro os pares com evidência de diferença.
 arrumar_tukey_anova <- function(r) {
   d <- r$tukey_df
+  if (nrow(d)) d <- d[order(d$p_adj, na.last = TRUE), , drop = FALSE]
   nivel <- 100 * (r$nivel_confianca %||% 0.95)
   saida <- data.frame(
     `Par comparado` = d$Comparacao,
-    `Diferença estimada` = round(d$Diferenca, 3),
-    `IC inferior` = round(d$Lwr, 3),
-    `IC superior` = round(d$Upr, 3),
-    `p ajustado` = round(d$p_adj, 4),
+    `Diferença estimada` = anova_num_col(d$Diferenca, 2),
+    `IC inferior` = anova_num_col(d$Lwr, 2),
+    `IC superior` = anova_num_col(d$Upr, 2),
+    `p ajustado` = anova_p_col(d$p_adj),
     `Evidência` = d$Evidencia,
     check.names = FALSE,
     stringsAsFactors = FALSE
@@ -414,68 +573,56 @@ arrumar_tukey_anova <- function(r) {
 
 #' Narrativa automática em português
 #'
-#' Nunca afirma a aceitação da hipótese nula: ausência de evidência não é
-#' evidência de ausência.
+#' Duas regras moldam este texto:
+#'
+#' 1. Nunca afirma a aceitação da hipótese nula — ausência de evidência não é
+#'    evidência de ausência.
+#' 2. Não repete o que as tabelas ao lado já mostram. As médias de cada grupo
+#'    ficam no resumo por grupo; os p de Shapiro-Wilk e Levene ficam na tabela de
+#'    pressupostos. A narrativa dá a pergunta, a amostra, a decisão, o tamanho do
+#'    efeito e a síntese dos pares — e remete ao resto.
 relatar_anova <- function(r) {
-  medias <- paste(
-    sprintf("%s (n = %d; média = %s)",
-            r$descritivos_df$Grupo, r$descritivos_df$N,
-            vapply(r$descritivos_df$Media, anova_fmt, character(1), 2)),
-    collapse = "; "
-  )
-
   abertura <- sprintf(
     paste0(
-      "A pergunta analisada foi se a média de '%s' difere entre os grupos de '%s'. ",
-      "Foram usadas %d observações completas%s, distribuídas em %d grupos: %s. "
+      "A pergunta analisada foi se a média de '%s' difere entre os %d grupos de '%s' (%s). ",
+      "Entraram %d observações completas%s. "
     ),
-    r$dep_var, r$ind_var, r$n,
-    if (r$excluidos > 0) sprintf(" (%d linha(s) excluída(s) por dados faltantes na resposta ou no fator)", r$excluidos) else "",
-    r$n_grupos, medias
+    r$dep_var, r$n_grupos, r$ind_var, paste(r$grupos, collapse = ", "), r$n,
+    if (r$excluidos > 0)
+      sprintf(", depois de excluir %d linha(s) com dados faltantes na resposta ou no fator",
+              r$excluidos)
+    else " (nenhuma linha foi excluída por dados faltantes)"
   )
 
   aviso_pequenos <- if (length(r$grupos_pequenos)) {
-    sprintf("Atenção: os grupos %s têm menos de cinco observações, o que torna os testes menos sensíveis. ",
+    sprintf("Atenção: os grupos %s têm menos de cinco observações, o que torna o teste menos sensível. ",
             paste(r$grupos_pequenos, collapse = ", "))
   } else ""
 
   efeito <- sprintf(
-    "O tamanho de efeito foi η² = %s e ω² = %s. ",
-    anova_fmt(r$eta2, 3), anova_fmt(r$omega2, 3)
-  )
-
-  diagnostico <- paste0(
-    "Quanto aos diagnósticos, o teste de Shapiro-Wilk dos resíduos resultou em ",
-    if (is.na(r$sh_p)) "valor não calculado para este tamanho amostral" else
-      sprintf("W = %s (%s)", anova_fmt(r$sh_stat, 4), anova_p_texto(r$sh_p)),
-    " e o teste de Levene com centro na mediana resultou em ",
-    if (is.na(r$levene_p)) "valor não calculado (pacote 'car' ausente)" else
-      sprintf("F = %s (%s)", anova_fmt(r$levene_f, 3), anova_p_texto(r$levene_p)),
-    ". Esses resultados não comprovam os pressupostos; apenas não revelaram ",
-    "afastamentos grandes o bastante para serem detectados com este n. ",
-    "Examine também os gráficos de resíduos e o Q-Q plot. "
+    "O fator explicou %s%% da variação da resposta (η² = %s; ω² = %s), efeito %s pela convenção de Cohen. ",
+    anova_fmt(100 * r$eta2, 1), anova_fmt(r$eta2, 3), anova_fmt(r$omega2, 3),
+    anova_leitura_efeito(r$eta2)
   )
 
   resultado <- if (!is.na(r$p_anova) && r$p_anova < 0.05) {
-    pares <- r$tukey_df$Comparacao[r$tukey_df$p_adj < 0.05]
+    pares <- r$tukey_df$Comparacao[!is.na(r$tukey_df$p_adj) & r$tukey_df$p_adj < 0.05]
     complemento <- if (length(pares)) {
       sprintf(
         paste0(
-          "Nas comparações de Tukey, houve evidência de diferença nos pares: %s. ",
-          "A interpretação principal, no entanto, decorre da ANOVA global e do plano analítico definido antes da coleta."
+          "Entre os %d pares comparados por Tukey, houve evidência de diferença em %s. ",
+          "A interpretação principal decorre da ANOVA global e do plano analítico definido antes da coleta, não de uma varredura de pares. "
         ),
-        paste(pares, collapse = "; ")
+        nrow(r$tukey_df), paste(pares, collapse = "; ")
       )
     } else {
       paste0(
-        "As comparações de Tukey não apontaram pares com evidência de diferença, ",
-        "situação possível quando o efeito global é pequeno e o ajuste para comparações múltiplas é conservador."
+        "Nenhum par isolado apresentou evidência de diferença no teste de Tukey — ",
+        "situação possível quando o efeito global é modesto e o ajuste para comparações múltiplas é conservador. "
       )
     }
     sprintf(
-      paste0(
-        "Rejeitou-se H0 de igualdade das médias: F(%d; %d) = %s, %s. %s%s"
-      ),
+      "Rejeitou-se H0 de igualdade das médias: F(%d; %d) = %s, %s. %s%s",
       r$df_entre, r$df_dentro, anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova),
       efeito, complemento
     )
@@ -484,69 +631,78 @@ relatar_anova <- function(r) {
       paste0(
         "Não houve evidência suficiente para rejeitar H0 de igualdade das médias: ",
         "F(%d; %d) = %s, %s. %s",
-        "Isso não significa que as médias sejam iguais; significa que estes dados não permitiram detectar diferença."
+        "Isso não significa que as médias sejam iguais; significa que estes dados não permitiram detectar diferença. "
       ),
       r$df_entre, r$df_dentro, anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova), efeito
     )
   }
 
-  fecho <- paste0(
-    " A ANOVA compara médias entre grupos observados; por si só, não estabelece relação de causa e efeito."
+  remissao <- paste0(
+    "As médias e dispersões de cada grupo estão no resumo por grupo; os testes de ",
+    "normalidade dos resíduos e de homogeneidade de variâncias, na tabela de pressupostos, ",
+    "que deve ser lida junto com os gráficos de resíduos e o Q-Q plot. "
   )
 
-  paste0(abertura, aviso_pequenos, diagnostico, resultado, fecho)
+  fecho <- paste0(
+    "A ANOVA compara médias entre grupos observados; por si só, não estabelece relação de causa e efeito."
+  )
+
+  paste0(abertura, aviso_pequenos, resultado, remissao, fecho)
 }
 
 # ---- Gráficos ----------------------------------------------------------------
 
-#' Gráfico principal da ANOVA
+#' Gráfico principal da ANOVA: barras com IC e letras
 #'
-#' Mostra as observações individuais, a distribuição de cada grupo, a média e o
-#' IC 95%. As médias de níveis nominais NÃO são conectadas por linha: isso
-#' sugeriria uma ordem que não existe entre espécies ou locais.
+#' Barras com a média de cada grupo, barras de erro com o intervalo de confiança
+#' da média e, acima delas, as letras de diferença. Grupos que compartilham uma
+#' letra não apresentaram evidência de diferença no teste de Tukey.
+#'
+#' Duas decisões de leitura: o eixo Y começa em zero, porque em gráfico de barras
+#' o comprimento é o que se compara; e as médias de níveis nominais não são
+#' conectadas por linha, que sugeriria uma ordem inexistente entre espécies.
 grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
                           tema = "minimal") {
   if (!requireNamespace("ggplot2", quietly = TRUE))
     stop("O pacote ggplot2 é necessário para o gráfico da ANOVA.", call. = FALSE)
-  d <- r$dados
   nivel <- r$nivel_confianca %||% 0.95
-  resumo <- do.call(rbind, lapply(levels(d$fator), function(nivel_fator) {
-    valores <- d$resposta[d$fator == nivel_fator]
-    n <- length(valores)
-    ep <- stats::sd(valores) / sqrt(n)
-    margem <- if (n > 1L) stats::qt(1 - (1 - nivel) / 2, df = n - 1L) * ep else NA_real_
-    data.frame(
-      fator = nivel_fator, media = mean(valores),
-      inferior = mean(valores) - margem, superior = mean(valores) + margem,
-      stringsAsFactors = FALSE
-    )
-  }))
-  resumo$fator <- factor(resumo$fator, levels = levels(d$fator))
+  resumo <- r$descritivos_df
+  resumo$fator <- factor(resumo$Grupo, levels = levels(r$dados$fator))
 
   titulo_final <- titulo %||% sprintf("%s por %s", r$dep_var, r$ind_var)
   if (!nzchar(titulo_final)) titulo_final <- sprintf("%s por %s", r$dep_var, r$ind_var)
 
-  ggplot2::ggplot(d, ggplot2::aes(x = fator, y = resposta)) +
-    ggplot2::geom_boxplot(ggplot2::aes(fill = fator), alpha = 0.25,
-                          outlier.shape = NA, show.legend = FALSE) +
-    ggplot2::geom_jitter(ggplot2::aes(color = fator), width = 0.12, height = 0,
-                         alpha = 0.6, size = 2.2, show.legend = FALSE) +
+  # Espaço acima da maior barra de erro para as letras não encostarem no topo.
+  topo <- max(c(resumo$IC_Superior, resumo$Media), na.rm = TRUE)
+  # Médias negativas tornam o zero um piso enganoso; nesse caso, escala livre.
+  piso <- if (min(c(resumo$IC_Inferior, resumo$Media), na.rm = TRUE) < 0) NA_real_ else 0
+
+  cores <- rep(anova_cores_ocean, length.out = nlevels(resumo$fator))
+
+  ggplot2::ggplot(resumo, ggplot2::aes(x = fator, y = Media)) +
+    ggplot2::geom_col(
+      ggplot2::aes(fill = fator), width = 0.66, show.legend = FALSE, alpha = 0.92
+    ) +
     ggplot2::geom_errorbar(
-      data = resumo,
-      ggplot2::aes(x = fator, ymin = inferior, ymax = superior),
-      inherit.aes = FALSE, width = 0.14, linewidth = 0.9, color = "#0F3B5F"
+      ggplot2::aes(ymin = IC_Inferior, ymax = IC_Superior),
+      width = 0.16, linewidth = 0.8, color = "#0F3B5F"
     ) +
-    ggplot2::geom_point(
-      data = resumo, ggplot2::aes(x = fator, y = media),
-      inherit.aes = FALSE, size = 3.4, shape = 18, color = "#E76F51"
+    ggplot2::geom_text(
+      ggplot2::aes(y = IC_Superior, label = Letras),
+      vjust = -0.7, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
-    ggplot2::scale_fill_manual(values = rep(anova_cores_ocean, length.out = nlevels(d$fator))) +
-    ggplot2::scale_color_manual(values = rep(anova_cores_ocean, length.out = nlevels(d$fator))) +
+    ggplot2::scale_fill_manual(values = cores) +
+    ggplot2::scale_y_continuous(
+      limits = c(piso, topo * 1.18),
+      expand = ggplot2::expansion(mult = c(0, 0.02))
+    ) +
     anova_tema(tema) +
     ggplot2::labs(
       title = titulo_final,
-      subtitle = sprintf("Losango = média; barra = IC %.0f%% da média; pontos = observações",
-                         100 * nivel),
+      subtitle = sprintf(
+        "Barras = média; hastes = IC %.0f%% da média; grupos com a mesma letra não diferiram (Tukey)",
+        100 * nivel
+      ),
       x = rotulo_x %||% r$ind_var,
       y = rotulo_y %||% r$dep_var
     ) +

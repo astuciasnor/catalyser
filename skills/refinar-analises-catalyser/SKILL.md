@@ -18,12 +18,28 @@ uso, ensino, replay e apresentação antes de selecionar outra.
 ## Preparar o ciclo
 
 1. Ler `AGENTS.md` da pasta-mãe e as instruções locais aplicáveis.
-2. Ler [references/criterios-pedagogicos.md](references/criterios-pedagogicos.md).
-3. Para a dupla ANOVA + gráfico de linhas, ler
+2. Registrar branch, commit e versão do `DESCRIPTION`.
+3. Inspecionar primeiro o código e os testes da dupla; não deduzir o estado
+   atual a partir de planos ou roteiros Markdown.
+4. Ler `docs/DECISOES_PEDAGOGICAS_E_REFINAMENTO.md`, o registro permanente das
+   decisões adotadas.
+5. Ler [references/criterios-pedagogicos.md](references/criterios-pedagogicos.md).
+6. Para a dupla ANOVA + gráfico de linhas, ler
    [references/piloto-anova-grafico-linhas.md](references/piloto-anova-grafico-linhas.md).
-4. Inspecionar `git status`, branch, testes existentes e documentação canônica.
-5. Registrar uma linha de base executando os testes específicos da dupla.
-6. Confirmar que qualquer falha observada é reproduzível antes de alterar código.
+7. Inspecionar `git status` e a documentação factual aplicável.
+8. Distinguir no documento do piloto o que já foi entregue do refinamento ainda
+   pendente; não reimplementar a linha de base humanizada.
+9. Registrar uma linha de base executando os testes específicos da dupla.
+10. Confirmar que qualquer falha observada é reproduzível antes de alterar código.
+
+Tratar `docs/historico/` somente como memória de decisões. Se um Markdown atual
+divergir do código ou dos testes da `main`, corrigir o Markdown no mesmo ciclo e
+registrar a versão/commit inspecionado.
+
+Se a dupla tocar seleção de base, preparo ou exportação, ler também
+`EVOLUCAO_TRATAMENTO_DADOS.md`, `PIPELINE_DADOS_E_RELATORIOS.md` ou
+`MODULO_COMUNICACAO_RESULTADOS.md`, conforme o caso. Conferir os módulos R antes
+de repetir qualquer rótulo ou localização descrita nesses mapas.
 
 Não criar análise nova, não mudar regra estatística silenciosamente e não mexer
 em módulos fora da dupla sem necessidade demonstrada.
@@ -70,6 +86,10 @@ reprodutibilidade, mas devem ficar separados e explicados.
 No `relatorio.qmd`, usar labels semânticos e comentários curtos. O código de
 estudo deve ser executável quando copiado para o console. Não prometer que um
 chunk oculto é pedagógico se ele apenas chama um replay opaco.
+
+Nos pilotos ANOVA e gráfico de linhas, preservar o gerador compartilhado
+`exportacao_codigo_estudo()` entre scripts numerados e QMD. Uma melhoria
+pedagógica não deve recriar dois geradores divergentes.
 
 ## Solicitar mini-refatorações
 
