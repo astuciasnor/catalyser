@@ -209,6 +209,7 @@ argumentos <- list(
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
 arquivos_execucao <- list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$", full.names = TRUE)
 qmd <- readLines(file.path(projeto, "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
+leiame <- readLines(file.path(projeto, "README.md"), warn = FALSE, encoding = "UTF-8")
 
 base_compartilhada <- readLines(
   file.path(projeto, "R", "01_base_compartilhada.R"), warn = FALSE, encoding = "UTF-8"
@@ -225,6 +226,10 @@ stopifnot(
   # As bases derivadas não têm mais script próprio: a receita vive no QMD.
   length(list.files(file.path(projeto, "R"), pattern = "^03_.*\\.R$")) == 0L,
   file.exists(file.path(projeto, "metadados", "manifesto_editorial.rds")),
+  any(grepl("R/02_execucao_*.R", leiame, fixed = TRUE)),
+  !any(grepl("R/04_*.R", leiame, fixed = TRUE)),
+  any(grepl("A pasta `metadados/`", leiame, fixed = TRUE)),
+  any(grepl("não precisa ser aberta nem", leiame, fixed = TRUE)),
   file.exists(file.path(projeto, "custom-reference.docx")),
   any(grepl("Captura ao longo dos anos", qmd, fixed = TRUE)),
   any(grepl("Resumo da captura", qmd, fixed = TRUE)),
