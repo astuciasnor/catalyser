@@ -1,8 +1,8 @@
 # Gerenciador de Bases Derivadas — Fases 3A a 3B
 # ---------------------------------------------------------------------------
 # Interface para criar e administrar ramos em estrela e editar sua receita.
-# O painel ainda não altera a entrada dos módulos analíticos; essa integração é
-# feita separadamente para manter cada mudança pequena e testável.
+# A integração com os módulos analíticos é feita pelos seletores de base no
+# app.R, que oferecem somente ramos finalizados, recalculados e atualizados.
 
 library(shiny)
 library(bslib)

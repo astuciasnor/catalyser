@@ -375,7 +375,11 @@ bases_rotulos_etapas <- function(base, reg_tratamentos = tratamentos) {
   )
 }
 
-bases_codigo <- function(base, reg_tratamentos = tratamentos) {
+#' Código R da receita de uma base derivada
+#'
+#' `incluir_print = FALSE` serve aos chunks do relatório, onde a base é
+#' construída sem imprimir nada no Word.
+bases_codigo <- function(base, reg_tratamentos = tratamentos, incluir_print = TRUE) {
   linhas <- c(
     sprintf("# Base derivada: %s", base$nome_amigavel),
     "# Origem obrigatória: dados_analise",
@@ -391,7 +395,8 @@ bases_codigo <- function(base, reg_tratamentos = tratamentos) {
     linhas <- c(linhas, sprintf("# Etapa %d: %s", i, tt$rotulo(et$params)),
                 tt$codigo(et$params), "")
   }
-  linhas <- c(linhas, sprintf("%s <- dados", base$nome_r), "", sprintf("print(%s)", base$nome_r))
+  linhas <- c(linhas, sprintf("%s <- dados", base$nome_r))
+  if (isTRUE(incluir_print)) linhas <- c(linhas, "", sprintf("print(%s)", base$nome_r))
   paste(linhas, collapse = "\n")
 }
 

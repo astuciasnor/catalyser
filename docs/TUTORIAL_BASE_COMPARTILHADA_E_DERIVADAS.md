@@ -1,5 +1,7 @@
 # Tutorial — Base Compartilhada e Bases Derivadas
 
+**Verificado em:** CatalyseR 0.1.5, commit `6aa407a`, 27/07/2026
+
 ## A ideia em uma frase
 
 A **Base Compartilhada** é o ingrediente básico preparado uma vez para o projeto;
@@ -50,11 +52,13 @@ O fluxo de preparo comum é:
 ```text
 Dados importados
     ↓
-Pivotar e Separar / Criar e Arrumar Variáveis
+Pivotar e Separar Dados
     ↓
-base_resolvida
+Organizar Variáveis
     ↓
-Trilha de Preparo compartilhada
+base_resolvida (mudanças estruturais confirmadas)
+    ↓
+Adicionar Tratamentos à Base → Tratamentos e trilha
     ↓
 Base Compartilhada (dados_analise)
 ```
@@ -64,8 +68,10 @@ abre o módulo Bases Derivadas. Abrir ou fechar menus também não define a fron
 entre preparo comum e específico.
 
 Ao clicar em **Adicionar Mudança à Trilha da Base Compartilhada** nos módulos
-estruturais, o resultado confirmado passa a compor a base comum. A Trilha é
-reaplicada sobre essa camada e gera `dados_analise`.
+estruturais, o resultado confirmado passa a compor `base_resolvida`. Apesar do
+rótulo pedagógico do botão, essas mudanças estruturais ficam em
+`base_externa_rv`; a lista de tratamentos de `pipeline_rv` é outra camada,
+reaplicada por último para gerar `dados_analise`.
 
 ## A pergunta que decide
 
@@ -84,6 +90,10 @@ Exemplos de preparo compartilhado:
 - organizar a planilha em estrutura tidy;
 - tratar um erro de unidade que afeta todo o estudo.
 
+No painel **Tratamentos e trilha**, reduzir linhas é permitido somente para
+remover duplicatas ou durante o tratamento explícito de NA. Pivotar pode mudar
+o número de linhas porque é uma arrumação estrutural, anterior a essa regra.
+
 Exemplos de preparo derivado:
 
 - dicotomizar `cpue` para regressão logística;
@@ -98,8 +108,10 @@ No módulo **Preparando Dados → Bases Derivadas**:
 
 1. clique em **Criar base derivada**;
 2. informe um nome amigável, a finalidade e o nome R;
-3. adicione os tratamentos específicos na ordem lógica;
-4. clique em **Recalcular esta base**;
+3. abra **Receita da base** e adicione os tratamentos específicos na ordem
+   lógica;
+4. clique em **Recalcular a Base** na própria sub-aba ou em
+   **Recalcular esta base** na gestão;
 5. confira a prévia e o código R;
 6. clique em **Finalizar preparo** quando a receita estiver pronta.
 

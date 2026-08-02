@@ -1,5 +1,9 @@
 # Ajuda da IDE — Menu **Arrumar** (esboço)
 
+> **Documento histórico.** O desenho atual foi consolidado no módulo
+> **Pivotar e Separar Dados**; preserve este texto apenas como memória do esboço
+> que antecedeu a implementação.
+
 > Esboço do conteúdo da Ajuda da CatalyseR para o módulo de arrumação de dados
 > (`mod_arrumar.R`). Tom: conversa direta com o pesquisador, "no mouse".
 > As marcações `[PRINT: …]` e `[ESQUEMA: …]` indicam onde entram capturas de tela

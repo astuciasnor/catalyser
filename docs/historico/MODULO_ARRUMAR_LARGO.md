@@ -1,5 +1,9 @@
 # Proposta de arquitetura — Módulo "Arrumar (Largo → Longo)" na CatalyseR
 
+> **Documento histórico.** Esta proposta antecede o estúdio atual
+> **Pivotar e Separar Dados**, com as sub-abas Empilhar, Alargar e Separar.
+> Não deve ser usada como especificação de implementação vigente.
+
 > Módulo genérico de *reshape* wide→tidy com extração de metadados do nome das
 > colunas, 100% no mouse, que **gera o script `.R`** ao final. Encaixa na *etapa de
 > preparo compartilhada* (importar → arrumar → filtrar → tipar → recodificar) e no

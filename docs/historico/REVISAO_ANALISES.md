@@ -1,5 +1,9 @@
 # Revisão das Análises — CatalyseR (roteiro hoje/amanhã/sexta)
 
+> **Documento histórico.** Este inventário pontual de julho de 2026 não
+> representa sozinho o estado atual das análises. O refinamento vigente ocorre
+> em ciclos de duas análises, conforme a documentação e a skill atuais.
+
 > Passe de revisão módulo a módulo. Para cada análise: **estado atual**, **o que
 > melhorar** (priorizado: 🔴 importante · 🟡 médio · 🟢 polimento) e **esforço**
 > estimado. Vira o roteiro dos três dias. Datado jul/2026.
@@ -265,6 +269,5 @@ curvas por AIC.
 
 **Maiores (decidir se v1 ou backlog):** ANOVA de dois fatores (fechando o ciclo com o
 Delineamento), ANCOVA, regressão múltipla, novos datasets + prompt.
-
 
 

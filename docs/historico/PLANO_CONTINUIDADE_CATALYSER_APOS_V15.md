@@ -1,5 +1,9 @@
 # Plano de continuidade da CatalyseR após a V15
 
+> **Plano concluído e arquivado.** A ANOVA e o pipeline da V16 foram integrados;
+> a orientação vigente está em
+> `docs/DECISOES_PEDAGOGICAS_E_REFINAMENTO.md`.
+
 - **Data de referência:** 26/07/2026
 - **Versão atual:** 0.1.3 — V15 ampliada de teste
 - **Branch atual:** `chore/revisao-fases-3`

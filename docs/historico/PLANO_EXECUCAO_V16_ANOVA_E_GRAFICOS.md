@@ -1,5 +1,8 @@
 # Plano de execução da V16 — ANOVA completa e teste de dois valores de Y
 
+> **Plano concluído e arquivado.** A V16 foi homologada e integrada; este
+> documento permanece como registro do percurso e dos critérios usados.
+
 - **Data de referência:** 27/07/2026
 - **Base homologada:** CatalyseR V15, pacote `0.1.3`
 - **Versão de entrega da V16:** pacote `0.1.4`

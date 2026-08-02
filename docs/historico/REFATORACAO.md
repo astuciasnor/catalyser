@@ -1,5 +1,9 @@
 # CatalyseR — Refatoração leve (retomar depois)
 
+> **Documento histórico.** Registra um diagnóstico e uma prova de conceito de
+> julho de 2026. Para mudanças atuais, aplicar as mini-refatorações descritas em
+> `docs/DECISOES_PEDAGOGICAS_E_REFINAMENTO.md` e na skill de refinamento.
+
 Status: **pausado** em jul/2026. Retomar a partir daqui quando houver disposição
 para propagar aos demais módulos e testar.
 

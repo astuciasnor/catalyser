@@ -1,5 +1,9 @@
 # Plano estratégico — CatalyseR rumo à v1 (estabilizar + polir)
 
+> **Documento histórico.** As pendências operacionais descritas aqui refletem
+> um estágio anterior à instalação funcional pela `main` e à integração do
+> pipeline de análises. As decisões vigentes estão no índice de `docs/`.
+
 > **Princípio-guia (jul/2026):** *não* incluir análises novas. Só **corrigir o que já
 > temos** e **arrumar a Trilha e o relatório com várias análises**, deixando-os
 > **leves, rápidos e usáveis**. Tudo o que for "novo tipo de análise" vai para backlog.

@@ -1,27 +1,31 @@
 # Decisão de arquitetura — Agrupar/Sumarizar como Base Derivada
 
+**Status:** implementada e homologada
+**Verificado em:** CatalyseR 0.1.5, commit `6aa407a`, 27/07/2026
+
 ## Situação atual
 
-O módulo **Agrupar/Sumarizar** recebe `base_resolvida`, gera uma prévia temporária
-e oferece **Usar este resultado nas análises**. Ao confirmar, substitui a camada
-que alimenta a Base Compartilhada. O resultado não recebe nome e uma nova promoção
-substitui a anterior.
+**Agrupar / Sumarizar** aparece em
+**Preparando Dados → Bases Derivadas → Receita da base**, dentro da caixa
+**Tratamento a adicionar**. A etapa parte obrigatoriamente da Base Compartilhada,
+fica registrada na receita do ramo nomeado e produz uma linha por grupo.
 
-## Problema
+O fluxo compartilhado antigo, que promovia uma prévia anônima para
+`base_resolvida`, não é o comportamento canônico.
 
-Sumarizar normalmente muda a unidade de observação: várias linhas viram uma linha
-por grupo. Essa transformação costuma servir a uma finalidade específica e não
+## Razão da decisão
+
+Sumarizar muda a unidade de observação: várias linhas podem virar uma linha por
+grupo. Essa transformação costuma servir a uma finalidade específica e não
 deve substituir silenciosamente a base comum usada pelas outras análises.
 
-Exemplo: uma linha por desembarque pode virar uma linha por `ano × espécie`. Essa
-tabela é apropriada para determinado gráfico ou série, mas não necessariamente
-para teste t, regressão individual ou PCA.
+Exemplo: uma linha por desembarque pode virar uma linha por `ano × espécie`.
+Essa tabela é apropriada para determinado gráfico ou série, mas não
+necessariamente para teste t, regressão individual ou PCA.
 
-## Decisão
-
-O comportamento padrão será salvar a tabela agrupada como **Base Derivada
-nomeada**, diretamente da Base Compartilhada (`dados_analise`). Deve ser possível
-manter várias tabelas agrupadas na mesma sessão.
+O comportamento canônico é, portanto, manter a tabela agrupada como **Base
+Derivada nomeada**, diretamente da Base Compartilhada (`dados_analise`). Várias
+tabelas agrupadas podem coexistir na mesma sessão.
 
 Exemplos:
 
@@ -29,15 +33,17 @@ Exemplos:
 - `base_producao_mensal`;
 - `base_desembarque_local`.
 
-## Fluxo de interface proposto
+## Fluxo de interface atual
 
-1. Selecionar variáveis de agrupamento, variáveis numéricas e medidas-resumo.
-2. Clicar em **Gerar prévia da tabela agrupada**.
-3. Conferir resultado e código R.
-4. Informar nome amigável, finalidade e nome R sugerido.
-5. Clicar em **Salvar como Base Derivada**.
-6. Abrir ou destacar a nova entrada no Registro de Bases.
-7. Finalizar o preparo quando a receita estiver pronta.
+1. Criar ou selecionar uma Base Derivada no **Registro de Bases**.
+2. Abrir a sub-aba **Receita da base**.
+3. Escolher **Agrupar / Sumarizar** em **Tratamento a adicionar**.
+4. Selecionar variáveis de agrupamento, variáveis numéricas e medidas-resumo.
+5. Adicionar a etapa à receita do ramo.
+6. Manter a agregação como última etapa da receita, pois ela muda a unidade de
+   observação.
+7. Clicar em **Recalcular esta base** e conferir prévia e código.
+8. Clicar em **Finalizar preparo** quando a receita estiver pronta.
 
 ## Contrato da nova base
 
@@ -58,16 +64,13 @@ Cada tabela agrupada deve registrar:
 Não será permitido agrupar a partir de outra Base Derivada. A topologia permanece
 em estrela.
 
-## Exceção compartilhada
+## Limite da Base Compartilhada
 
-Aplicar uma tabela agrupada à Base Compartilhada pode permanecer como ação
-avançada e secundária, somente quando a nova unidade de observação for realmente
-comum a todas as análises. A ação deve:
-
-- usar rótulo explícito, como **Substituir a Base Compartilhada**;
-- explicar a mudança da unidade de observação;
-- exigir confirmação;
-- informar que as Bases Derivadas ficarão desatualizadas.
+Não há ação comum para promover uma sumarização à Base Compartilhada. Na
+filosofia vigente, a sub-aba **Tratamentos e trilha** preserva as observações,
+salvo remoção explícita de duplicatas ou de linhas com NA. A arrumação
+estrutural compartilhada pode pivotar a tabela; filtros, agrupamentos,
+sumarizações e tabelas de contingência pertencem às Bases Derivadas.
 
 ## Critérios de teste
 
@@ -83,9 +86,9 @@ comum a todas as análises. A ação deve:
 - impedir ramo de ramo;
 - permitir que os seletores analíticos consumam apenas bases prontas e atualizadas.
 
-## Sequenciamento
+## Histórico
 
-Esta mudança não deve alterar retroativamente a branch histórica
-`feature/fase-3b-transformacoes-ramos` no commit `99a4b1a`, que ainda será
-retestada na VM Windows 10. A implementação entra em uma revisão posterior e
-recebe roteiro próprio de migração e homologação.
+A decisão nasceu após os testes da branch histórica
+`feature/fase-3b-transformacoes-ramos`, no commit `99a4b1a`, e foi incorporada
+posteriormente ao fluxo homologado. A referência à branch permanece apenas para
+auditoria; novos trabalhos devem seguir a implementação da `main`.

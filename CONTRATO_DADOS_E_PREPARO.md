@@ -60,9 +60,10 @@ Os resultados continuam acessíveis aos estudantes; o código interno usa nomes 
 Não impor um único formato. **Longo** é melhor quando a mesma variável é medida
 repetidamente (momentos, tratamentos): `id_peixe | momento | peso_g`. Já **PCA,
 agrupamento, heatmap e matrizes de abundância** costumam precisar de **largo**. Solução:
-aceitar planilhas **estruturalmente coerentes** e deixar as trilhas produzirem as bases
-derivadas (`dados_analise`, `base_pca`, `base_agrupamento`, `base_regressao`,
-`base_qui_quadrado`). A base original **nunca** é modificada diretamente.
+aceitar planilhas **estruturalmente coerentes** e deixar o preparo produzir a Base
+Compartilhada (`dados_analise`) e, quando necessário, Bases Derivadas
+(`base_pca`, `base_agrupamento`, `base_regressao`, `base_qui_quadrado`). A base
+original **nunca** é modificada diretamente.
 
 ## O que a CatalyseR faz
 

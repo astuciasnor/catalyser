@@ -6,6 +6,18 @@
 
 comunicacao_rotulos_saidas <- execucoes_rotulos_saidas
 
+# O console cru NAO entra no relatorio. Ele continua existindo na interface,
+# para o aluno reconhecer a saida do R sem a camada da CatalyseR, e continua no
+# objeto do replay para quem quiser inspecionar. Mas nao e oferecido como
+# conteudo do Word: relatorio de artigo e tese nao leva despejo de console.
+#
+# A exclusao fica aqui, num lugar so, e vale para todas as analises.
+comunicacao_saidas_fora_do_relatorio <- "console"
+
+comunicacao_saidas_relatorio <- function() {
+  setdiff(names(comunicacao_rotulos_saidas), comunicacao_saidas_fora_do_relatorio)
+}
+
 comunicacao_estado_vazio <- function() {
   list(versao = 1L, ordem = character(), itens = list())
 }
@@ -13,7 +25,7 @@ comunicacao_estado_vazio <- function() {
 comunicacao_saidas_padrao <- function(execucao) {
   disponiveis <- intersect(
     unique(as.character(execucao$saidas_disponiveis %||% character())),
-    names(comunicacao_rotulos_saidas)
+    comunicacao_saidas_relatorio()
   )
   principais <- intersect(c("narrativa", "tabela", "grafico"), disponiveis)
   if (length(principais)) principais else head(disponiveis, 1L)
@@ -34,7 +46,7 @@ comunicacao_sincronizar <- function(estado, registro_execucoes) {
     anterior <- estado$itens[[id]]
     disponiveis <- intersect(
       unique(as.character(execucao$saidas_disponiveis %||% character())),
-      names(comunicacao_rotulos_saidas)
+      comunicacao_saidas_relatorio()
     )
     if (is.null(anterior)) {
       incluir <- TRUE
@@ -59,7 +71,7 @@ comunicacao_sincronizar <- function(estado, registro_execucoes) {
 
 comunicacao_definir_item <- function(estado, id, incluir_word = NULL,
                                      saidas_selecionadas = NULL,
-                                     saidas_disponiveis = names(comunicacao_rotulos_saidas)) {
+                                     saidas_disponiveis = comunicacao_saidas_relatorio()) {
   if (is.null(estado$itens[[id]]))
     stop("A execução não pertence ao estado editorial.", call. = FALSE)
   item <- estado$itens[[id]]
@@ -67,7 +79,7 @@ comunicacao_definir_item <- function(estado, id, incluir_word = NULL,
   if (!is.null(saidas_selecionadas)) {
     item$saidas_selecionadas <- intersect(
       unique(as.character(saidas_selecionadas)),
-      intersect(saidas_disponiveis, names(comunicacao_rotulos_saidas))
+      intersect(saidas_disponiveis, comunicacao_saidas_relatorio())
     )
   }
   estado$itens[[id]] <- item

@@ -2443,10 +2443,10 @@ RCatalyst::run_ide()</pre>
   # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
   # Adicionar Tratamentos à Base é a camada MAIS EXTERNA do dataset ativo. Resolução:
   #   importados (current_data)
-  #     -> Arrumar/Calcular promovem via dataset_ativo_rv -> base_resolvida
-  #     -> replay(base_resolvida, pipeline_rv)            -> dados_analise
-  # REGRA anti-dupla-aplicação: Arrumar/Calcular/Trilha leem a base_resolvida
-  # (pré-trilha), NUNCA o dados_analise. A trilha é sempre a última camada.
+  #     -> Pivotar/Separar/Organizar promovem via dataset_ativo_rv -> base_resolvida
+  #     -> replay(base_resolvida, pipeline_rv)                     -> dados_analise
+  # REGRA anti-dupla-aplicação: os módulos estruturais e a Trilha leem
+  # base_resolvida (pré-trilha), NUNCA dados_analise. A Trilha é a última camada.
   # ============================================================================
   dataset_ativo_rv <- reactiveVal(NULL)   # NULL = usar dados importados
   pipeline_rv      <- reactiveVal(list()) # trilha de preparo (lista de etapas)
@@ -2476,7 +2476,7 @@ RCatalyst::run_ide()</pre>
     revisao_dados_analise_rv(revisao_dados_analise_rv() + 1L)
   }, ignoreInit = TRUE)
 
-  # Callback que os módulos Arrumar chamam ao clicar "Usar nas análises".
+  # Callback usado pelos módulos estruturais ao confirmar a mudança compartilhada.
   promover_dataset <- function(df, fonte, codigo = NULL, acumular_codigo = FALSE) {
     anterior <- base_externa_rv()
     codigo_final <- codigo

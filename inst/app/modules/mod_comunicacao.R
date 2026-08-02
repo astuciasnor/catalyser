@@ -316,7 +316,10 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         execucao <- registro[[execucao_id]]
         item <- estado$itens[[execucao_id]]
         dependencia <- dependencias[[execucao_id]] %||% "Não verificada"
-        rotulos <- comunicacao_rotulos_saidas[execucao$saidas_disponiveis]
+        # O console fica fora da lista: não é conteúdo de relatório.
+        rotulos <- comunicacao_rotulos_saidas[
+          intersect(execucao$saidas_disponiveis, comunicacao_saidas_relatorio())
+        ]
         rotulos <- rotulos[!is.na(rotulos)]
         choices <- stats::setNames(names(rotulos), unname(rotulos))
         accordion_panel(

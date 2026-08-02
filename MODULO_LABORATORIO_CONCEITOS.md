@@ -1,8 +1,21 @@
 # Laboratório de Conceitos — visualizadores pedagógicos (apoio ao professor)
 
+**Verificado em:** CatalyseR 0.1.5, commit `6aa407a`, 27/07/2026
+
 > Repurpose do menu **"Calculando Probabilidades" → "Laboratório de Conceitos"**
 > (decidido jul/2026). Um QUARTO pilar pedagógico do ecossistema: **visualizar**
 > os fundamentos da estatística, não só calcular. Apoio direto ao professor em aula.
+
+## Estado implementado
+
+O menu **Laboratório de Conceitos** e seus itens já aparecem na navegação. A
+sub-aba **Visão geral** é uma casca informativa: TLC, Lei dos Grandes Números,
+Cobertura do IC, H0/p-valor e Curvas z/t/F/qui-quadrado ainda mostram
+placeholders “em construção”.
+
+**Distribuição Normal** e **Distribuição Binomial** já existem como módulos
+separados no mesmo menu. Não descrever os outros visualizadores como
+implementados até que haja módulo e teste correspondentes.
 
 ## Objetivo
 Menu-laboratório com visualizadores INTERATIVOS (sliders + gráfico reativo) de
@@ -30,7 +43,7 @@ reativo (ggplot no tema Ocean) + texto explicativo curto. **Autocontido**
 (`rnorm`/`sample`/`replicate`…), NÃO depende de dados importados. Todos vivem no
 menu **Laboratório de Conceitos**.
 
-## Plano (v1.1, paralelo às análises)
+## Próxima implementação planejada
 Pilotar o **TLC** primeiro (mais impactante), validando o padrão; depois LGN,
 Cobertura do IC, H0/p-valor e as curvas z/t/F/qui-quadrado. O rename do menu é barato
 (como foi o da Comunicação de Resultados); os visualizadores entram um a um.

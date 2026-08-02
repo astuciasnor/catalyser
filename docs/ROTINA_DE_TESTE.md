@@ -70,7 +70,7 @@ Antes de commitar, feche o ciclo com build e check:
 ```bash
 cd D:/Claude/eapa
 "C:/R/R-4.6.1/bin/R.exe" CMD build catalyser > saida-check.txt 2>&1
-"C:/R/R-4.6.1/bin/R.exe" CMD check --no-manual catalyser_0.1.5.tar.gz >> saida-check.txt 2>&1
+"C:/R/R-4.6.1/bin/R.exe" CMD check --no-manual catalyser_0.1.6.tar.gz >> saida-check.txt 2>&1
 ```
 
 Aceite apenas a nota conhecida — pacotes do `Imports` que o check não vê porque

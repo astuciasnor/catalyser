@@ -1,5 +1,9 @@
 # Roteiro de teste — Trilha de Preparo (CatalyseR)
 
+> **Documento histórico.** O roteiro antecede a organização atual dos módulos
+> **Pivotar e Separar Dados**, **Organizar Variáveis** e **Bases Derivadas**.
+> Use os roteiros em `docs/testes/fases-3/` para homologação vigente.
+
 Objetivo: ver a **trilha de transformações** crescer e reagir ao vivo.
 Dados: `inst/app/dados/Treino-Transformacoes.xlsx`, aba **biometria** (consulte a
 aba `guia` do próprio arquivo em caso de dúvida).
