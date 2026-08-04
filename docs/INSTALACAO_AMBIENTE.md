@@ -145,7 +145,7 @@ em ordem de custo:
    Na raiz do projeto:
 
    ```powershell
-   .\verificar-sandbox.ps1     # diz se dá, e o que falta
+   .\scripts\verificar-sandbox.ps1     # diz se dá, e o que falta
    ```
 
    Se faltar apenas ativar o recurso, num PowerShell **como Administrador**:
@@ -166,13 +166,13 @@ em ordem de custo:
 3. **Limpar a máquina real.** Só se não houver alternativa: você perde a
    biblioteca de pacotes, o histórico e as configurações do RStudio.
 
-Para o terceiro caso existe `limpar-ambiente-r.ps1`, na raiz do projeto. Ele é
+Para o terceiro caso existe `scripts/limpar-ambiente-r.ps1`. Ele é
 **seguro por padrão**: sem argumentos, apenas mostra o que faria.
 
 ```powershell
-.\limpar-ambiente-r.ps1                    # simulação
-.\limpar-ambiente-r.ps1 -Confirmar         # executa
-.\limpar-ambiente-r.ps1 -Confirmar -IncluirRegistro   # + chaves R-core
+.\scripts\limpar-ambiente-r.ps1                    # simulação
+.\scripts\limpar-ambiente-r.ps1 -Confirmar         # executa
+.\scripts\limpar-ambiente-r.ps1 -Confirmar -IncluirRegistro   # + chaves R-core
 ```
 
 Antes de apagar qualquer coisa ele grava um inventário — lista de pacotes

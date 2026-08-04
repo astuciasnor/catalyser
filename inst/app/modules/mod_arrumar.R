@@ -735,7 +735,7 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             tags$p(
               style = "margin: 0;",
               "Depois de aplicar à Base Compartilhada, use ",
-              strong("Organizar Variáveis"),
+              strong("Criar e Editar Variáveis e Níveis"),
               " para selecionar, renomear, tipar ou recodificar."
             )
           )

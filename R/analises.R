@@ -945,6 +945,216 @@ catalyser_anova <- function(dados, p) {
   )
 }
 
+#' ANOVA de dois fatores com interação
+#'
+#' Ajusta um modelo fatorial (`resposta ~ fator_a * fator_b`) e devolve os
+#' componentes que a CatalyseR usa na Comunicação de Resultados. A função
+#' trabalha com observações individuais, remove e conta casos incompletos e
+#' mantém as médias por célula separadas da tabela do modelo.
+#'
+#' @param dados Um data.frame com uma linha por observação.
+#' @param p Lista com `resposta`, `fator_a` e `fator_b`; aceita ainda
+#'   `nivel_confianca`, `titulo_grafico`, `rotulo_x`, `rotulo_y` e `tema`.
+#' @return Lista com narrativa, médias por célula, tabela da ANOVA, tamanhos de
+#'   efeito, Tukey da interação, gráfico, pressupostos, diagnósticos, console e
+#'   o objeto `aov` em `objeto`.
+#' @export
+catalyser_anova_dois_fatores <- function(dados, p) {
+  resposta <- as.character(catalyser_ou(p$resposta, ""))[[1]]
+  fator_a <- as.character(catalyser_ou(p$fator_a, ""))[[1]]
+  fator_b <- as.character(catalyser_ou(p$fator_b, ""))[[1]]
+  if (!nzchar(resposta) || !nzchar(fator_a) || !nzchar(fator_b))
+    stop("A ANOVA de dois fatores precisa de resposta, fator_a e fator_b.", call. = FALSE)
+  catalyser_colunas(dados, c(resposta, fator_a, fator_b))
+  if (!is.numeric(dados[[resposta]]))
+    stop(sprintf("A resposta '%s' precisa ser numérica para a ANOVA.", resposta), call. = FALSE)
+  if (length(unique(c(resposta, fator_a, fator_b))) < 3L)
+    stop("A resposta e os dois fatores precisam ser variáveis diferentes.", call. = FALSE)
+
+  conf <- suppressWarnings(as.numeric(catalyser_ou(p$nivel_confianca, 0.95))[[1]])
+  if (!is.finite(conf) || conf <= 0 || conf >= 1) conf <- 0.95
+  preparo <- catalyser_completos(dados, c(resposta, fator_a, fator_b))
+  d <- data.frame(
+    resposta = as.numeric(preparo$dados[[resposta]]),
+    fator_a = droplevels(as.factor(preparo$dados[[fator_a]])),
+    fator_b = droplevels(as.factor(preparo$dados[[fator_b]])),
+    stringsAsFactors = FALSE
+  )
+  if (nrow(d) < 6L)
+    stop("A ANOVA de dois fatores precisa de pelo menos seis observações completas.", call. = FALSE)
+  if (nlevels(d$fator_a) < 2L || nlevels(d$fator_b) < 2L)
+    stop("Cada fator precisa ter pelo menos dois níveis com dados.", call. = FALSE)
+  contagens <- table(d$fator_a, d$fator_b)
+  if (any(contagens < 2L)) {
+    ruins <- which(contagens < 2L, arr.ind = TRUE)
+    nomes <- apply(ruins, 1L, function(i)
+      paste(rownames(contagens)[i[[1]]], colnames(contagens)[i[[2]]], sep = " \u00d7 "))
+    stop(sprintf("Cada célula do fatorial precisa de pelo menos duas observações: %s.",
+                 paste(nomes, collapse = "; ")), call. = FALSE)
+  }
+
+  modelo <- stats::aov(resposta ~ fator_a * fator_b, data = d)
+  an <- summary(modelo)[[1]]
+  nomes_an <- trimws(rownames(an))
+  linhas <- match(c("fator_a", "fator_b", "fator_a:fator_b"), nomes_an)
+  residuo <- match("Residuals", nomes_an)
+  pegar <- function(coluna, indices) {
+    if (!coluna %in% names(an)) return(rep(NA_real_, length(indices)))
+    as.numeric(an[[coluna]][indices])
+  }
+  df_efeitos <- pegar("Df", linhas)
+  ss_efeitos <- pegar("Sum Sq", linhas)
+  qm_efeitos <- pegar("Mean Sq", linhas)
+  f_efeitos <- pegar("F value", linhas)
+  p_efeitos <- pegar("Pr(>F)", linhas)
+  df_res <- as.numeric(an$Df[residuo])
+  ss_res <- as.numeric(an$`Sum Sq`[residuo])
+  qm_res <- as.numeric(an$`Mean Sq`[residuo])
+  ss_total <- sum((d$resposta - mean(d$resposta))^2)
+
+  nomes_tabela <- c("Fonte de varia\u00e7\u00e3o", "Graus de liberdade",
+                    "Soma de quadrados", "Quadrado m\u00e9dio", "F", "p-valor")
+  tabela <- data.frame(
+    fonte = c(sprintf("Fator A (%s)", fator_a), sprintf("Fator B (%s)", fator_b),
+              sprintf("Intera\u00e7\u00e3o %s \u00d7 %s", fator_a, fator_b),
+              "Res\u00edduos", "Total"),
+    gl = c(df_efeitos, df_res, nrow(d) - 1L),
+    sq = c(ss_efeitos, ss_res, ss_total),
+    qm = c(qm_efeitos, qm_res, NA_real_),
+    f = c(f_efeitos, NA_real_, NA_real_),
+    p = c(p_efeitos, NA_real_, NA_real_),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  names(tabela) <- nomes_tabela
+
+  niveis_a <- levels(d$fator_a)
+  niveis_b <- levels(d$fator_b)
+  celulas <- do.call(rbind, lapply(niveis_a, function(a) {
+    do.call(rbind, lapply(niveis_b, function(b) {
+      valores <- d$resposta[d$fator_a == a & d$fator_b == b]
+      n <- length(valores)
+      media <- mean(valores)
+      margem <- stats::qt(1 - (1 - conf) / 2, df = n - 1L) *
+        stats::sd(valores) / sqrt(n)
+      data.frame(fator_a = a, fator_b = b, n = n, media = media,
+                 desvio = stats::sd(valores), ic_inferior = media - margem,
+                 ic_superior = media + margem, stringsAsFactors = FALSE)
+    }))
+  }))
+  rownames(celulas) <- NULL
+  tamanhos_celula <- stats::setNames(celulas$n,
+                                     paste(celulas$fator_a, celulas$fator_b, sep = " \u00d7 "))
+  balanceado <- length(unique(celulas$n)) == 1L
+
+  efeito <- data.frame(
+    efeito = c("Fator A", "Fator B", "Intera\u00e7\u00e3o A \u00d7 B"),
+    eta = ss_efeitos / (ss_efeitos + ss_res),
+    omega = (ss_efeitos - df_efeitos * qm_res) / (ss_total + qm_res),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  names(efeito) <- c("Efeito", "Eta\u00b2 parcial", "\u00d4mega\u00b2")
+
+  residuos <- stats::residuals(modelo)
+  ajustados <- stats::fitted(modelo)
+  shapiro <- if (length(residuos) >= 3L && length(residuos) <= 5000L)
+    tryCatch(stats::shapiro.test(residuos), error = function(e) NULL) else NULL
+  grupo_levene <- interaction(d$fator_a, d$fator_b, drop = TRUE, sep = " \u00d7 ")
+  levene <- if (requireNamespace("car", quietly = TRUE))
+    tryCatch(car::leveneTest(d$resposta, grupo_levene, center = stats::median),
+             error = function(e) NULL) else NULL
+  estat <- function(x, campo) if (is.null(x)) NA_real_ else
+    suppressWarnings(unname(as.numeric(x[[campo]][[1]])))
+  pressupostos <- data.frame(
+    pressuposto = c("Normalidade dos resíduos (Shapiro-Wilk)",
+                    "Homogeneidade das variâncias por célula (Levene)"),
+    estatistica = c(estat(shapiro, "statistic"),
+                    if (is.null(levene)) NA_real_ else
+                      suppressWarnings(as.numeric(levene[["F value"]][1]))),
+    p = c(estat(shapiro, "p.value"),
+          if (is.null(levene)) NA_real_ else
+            suppressWarnings(as.numeric(levene[["Pr(>F)"]][1]))),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  names(pressupostos) <- c("Pressuposto", "Estatística", "p-valor")
+
+  comparacoes <- tryCatch({
+    tukey <- stats::TukeyHSD(modelo, which = "fator_a:fator_b", conf.level = conf)[[1]]
+    bruto <- as.data.frame(tukey)
+    saida <- data.frame(par = rownames(bruto), diff = bruto$diff, lwr = bruto$lwr,
+                        upr = bruto$upr, p_adj = bruto$`p adj`,
+                        check.names = FALSE, stringsAsFactors = FALSE)
+    names(saida) <- c("Célula comparada", "Diferença estimada", "IC inferior",
+                      "IC superior", "p ajustado")
+    rownames(saida) <- NULL
+    saida
+  }, error = function(e) NULL)
+
+  texto_ou <- function(x, padrao) {
+    x <- as.character(catalyser_ou(x, ""))
+    if (!length(x) || !nzchar(trimws(x[[1]]))) padrao else x[[1]]
+  }
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    gd <- celulas
+    gd$fator_a <- factor(gd$fator_a, levels = niveis_a)
+    gd$fator_b <- factor(gd$fator_b, levels = niveis_b)
+    grafico <- ggplot2::ggplot(gd, ggplot2::aes(x = fator_a, y = media,
+                                                color = fator_b, group = fator_b)) +
+      ggplot2::geom_line(linewidth = 0.9) + ggplot2::geom_point(size = 3) +
+      ggplot2::geom_errorbar(ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
+                             width = 0.1, linewidth = 0.7) +
+      ggplot2::scale_color_manual(values = rep(c("#0F3B5F", "#2E7D8F", "#E89B3C", "#E76F51"),
+                                                length.out = length(niveis_b))) +
+      switch(texto_ou(p$tema, "minimal"),
+             classic = ggplot2::theme_classic(base_size = 12),
+             bw = ggplot2::theme_bw(base_size = 12),
+             gray = ggplot2::theme_gray(base_size = 12),
+             light = ggplot2::theme_light(base_size = 12),
+             ggplot2::theme_minimal(base_size = 12)) +
+      ggplot2::labs(title = texto_ou(p$titulo_grafico,
+                                     sprintf("Interação entre %s e %s", fator_a, fator_b)),
+                    subtitle = sprintf("Médias por célula; hastes = IC %.0f%%", 100 * conf),
+                    x = texto_ou(p$rotulo_x, fator_a), y = texto_ou(p$rotulo_y, resposta),
+                    color = fator_b)
+  }
+
+  p_int <- p_efeitos[[3]]
+  leitura <- if (is.na(p_int)) "não disponível" else
+    if (p_int < 0.05) "há evidência de interação" else
+      "não há evidência suficiente de interação"
+  narrativa <- paste0(
+    sprintf("A pergunta foi se '%s' varia conforme '%s' e '%s'. ", resposta, fator_a, fator_b),
+    sprintf("Entraram %d observações completas%s. ", nrow(d),
+            if (preparo$descartadas > 0L)
+              sprintf("; %d linha(s) foram excluídas por dados faltantes", preparo$descartadas)
+            else " (nenhuma linha foi excluída por dados faltantes)"),
+    if (balanceado) "As células têm o mesmo tamanho amostral. " else
+      sprintf("O delineamento é desequilibrado (n por célula: %s). ",
+              paste(names(tamanhos_celula), tamanhos_celula, sep = " = ", collapse = "; ")),
+    sprintf("O modelo fatorial encontrou %s (F = %s; %s). ", leitura,
+            catalyser_num(f_efeitos[[3]]), catalyser_p(p_int)),
+    sprintf("Os efeitos principais devem ser interpretados junto com a interação: quando ela é relevante, o efeito de '%s' depende de '%s'. ", fator_a, fator_b),
+    "As médias por célula, os testes de pressupostos e o gráfico de interação completam a leitura."
+  )
+  tukey_console <- tryCatch(stats::TukeyHSD(modelo, which = "fator_a:fator_b", conf.level = conf),
+                            error = function(e) NULL)
+  console <- c(utils::capture.output(print(summary(modelo))), "",
+               if (is.null(shapiro)) "Shapiro-Wilk não calculado." else utils::capture.output(print(shapiro)), "",
+               if (is.null(levene)) "Levene indisponível (pacote 'car' ausente)." else utils::capture.output(print(levene)), "",
+               if (is.null(tukey_console)) "Tukey das células indisponível." else utils::capture.output(print(tukey_console)))
+  diagnosticos <- data.frame(
+    Indicador = c("n analisado", "Casos excluídos", "Células", "Delineamento"),
+    Valor = c(nrow(d), preparo$descartadas, nrow(celulas), if (balanceado) "balanceado" else "desequilibrado"),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  list(narrativa = narrativa, celulas = celulas, tabela = tabela, efeito = efeito,
+       comparacoes = comparacoes, grafico = grafico, pressupostos = pressupostos,
+       diagnosticos = diagnosticos, console = console, objeto = modelo,
+       dados = d, resposta = resposta, fator_a = fator_a, fator_b = fator_b,
+       nivel_confianca = conf, residuos = residuos, ajustados = ajustados,
+       tamanhos_celula = tamanhos_celula, delineamento_balanceado = balanceado)
+}
+
 #' Grafico de linhas
 #'
 #' Monta um grafico de linhas com o visual da CatalyseR. Antes de desenhar,
@@ -1197,6 +1407,7 @@ catalyser_executar <- function(execucao, dados = NULL) {
     teste_t_two_ind = catalyser_teste_t(dados, p),
     teste_t_paired = catalyser_teste_t(dados, p),
     anova_um_fator = catalyser_anova(dados, p),
+    anova_dois_fatores = catalyser_anova_dois_fatores(dados, p),
     grafico_linhas = catalyser_linhas(dados, p),
     qui_quadrado = catalyser_qui_quadrado(dados, p),
     pca = catalyser_pca(dados, p),

@@ -17,6 +17,7 @@ source("modules/mod_description.R", encoding = "UTF-8")
 source("modules/mod_parametric.R", encoding = "UTF-8")
 source("modules/mod_sampling.R", encoding = "UTF-8")
 source("modules/mod_anova.R", encoding = "UTF-8")
+source("modules/mod_anova_dois_fatores.R", encoding = "UTF-8")
 source("modules/mod_pca.R", encoding = "UTF-8")
 source("modules/mod_hca.R", encoding = "UTF-8")
 source("modules/mod_contingency.R", encoding = "UTF-8")
@@ -532,7 +533,7 @@ ui <- page_navbar(
                 style = "font-size:0.8rem; padding:8px 10px;",
                 icon("arrow-right"),
                 " Depois de carregar, use ",
-                strong("Organizar Variáveis"),
+                strong("Criar e Editar Variáveis e Níveis"),
                 " para selecionar, renomear, tipar ou recodificar."
               )
             )
@@ -605,7 +606,7 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "Organizar Variáveis",
+      title = "Criar e Editar Variáveis e Níveis",
       icon = icon("list-check"),
       mod_organizar_variaveis_ui(
         "organizar_variaveis",
@@ -814,6 +815,18 @@ ui <- page_navbar(
           mod_anova_ui("anova")
         ),
         mod_registrar_execucao_ui("registrar_anova")
+      )
+    ),
+    nav_panel(
+      title = "ANOVA a dois fatores",
+      icon = icon("table-cells-large"),
+      mod_analise_registravel_ui(
+        "fluxo_anova2",
+        tagList(
+          mod_seletor_base_analise_ui("base_anova2"),
+          mod_anova_dois_fatores_ui("anova2")
+        ),
+        mod_registrar_execucao_ui("registrar_anova2")
       )
     ),
     nav_panel(
@@ -2443,7 +2456,7 @@ RCatalyst::run_ide()</pre>
   # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
   # Adicionar Tratamentos à Base é a camada MAIS EXTERNA do dataset ativo. Resolução:
   #   importados (current_data)
-  #     -> Pivotar/Separar/Organizar promovem via dataset_ativo_rv -> base_resolvida
+  #     -> Pivotar/Separar/Criar e Editar promovem via dataset_ativo_rv -> base_resolvida
   #     -> replay(base_resolvida, pipeline_rv)                     -> dados_analise
   # REGRA anti-dupla-aplicação: os módulos estruturais e a Trilha leem
   # base_resolvida (pré-trilha), NUNCA dados_analise. A Trilha é a última camada.
@@ -2565,6 +2578,11 @@ RCatalyst::run_ide()</pre>
     revisao_dados_analise_rv, finalidade_preferida = "anova",
     nome_analise = "A ANOVA"
   )
+  seletor_anova2 <- mod_seletor_base_analise_server(
+    "base_anova2", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "anova",
+    nome_analise = "A ANOVA de dois fatores"
+  )
   seletor_pca <- mod_seletor_base_analise_server(
     "base_pca", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv, finalidade_preferida = "multivariada",
@@ -2651,7 +2669,7 @@ RCatalyst::run_ide()</pre>
     "organizar_variaveis", base_resolvida,
     on_usar = adicionar_mudanca_compartilhada
   )
-  # Criação de Variáveis ocupa a primeira sub-aba de Organizar Variáveis.
+  # Criação de Variáveis ocupa a primeira sub-aba de Criar e Editar Variáveis e Níveis.
   mod_calcular_server(
     "calcular", base_resolvida, import_info,
     on_usar = adicionar_mudanca_compartilhada
@@ -2666,6 +2684,7 @@ RCatalyst::run_ide()</pre>
     revisao_dados_analise_rv
   )
   anova_resultado <- mod_anova_server("anova", seletor_anova$dados, import_info)
+  anova2_resultado <- mod_anova_dois_fatores_server("anova2", seletor_anova2$dados, import_info)
   mod_ancova_server("ancova", dados_analise, import_info)
 
   # --- MÓDULOS DE TESTES NÃO PARAMÉTRICOS (um por item de menu; qui-quadrado usa a tabela preparada) ---
@@ -2713,6 +2732,11 @@ RCatalyst::run_ide()</pre>
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
     registro_bases_rv, cache_bases_rv, "anova", "A ANOVA"
   )
+  registro_anova2 <- mod_registrar_execucao_server(
+    "registrar_anova2", anova2_resultado$estado_execucao, seletor_anova2$contexto,
+    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
+    registro_bases_rv, cache_bases_rv, "anova_dois_fatores", "A ANOVA de dois fatores"
+  )
   registro_pca <- mod_registrar_execucao_server(
     "registrar_pca", pca_resultado$estado_execucao, seletor_pca$contexto,
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
@@ -2737,6 +2761,7 @@ RCatalyst::run_ide()</pre>
     as = FALSE,
     contingency = FALSE,
     anova = FALSE,
+    anova2 = FALSE,
     pca = FALSE,
     hca = FALSE,
     exponencial = FALSE,
@@ -2787,6 +2812,8 @@ RCatalyst::run_ide()</pre>
       used_analyses$contingency <- TRUE
     } else if (tab == "ANOVA (Análise de Variância)") {
       used_analyses$anova <- TRUE
+    } else if (tab == "ANOVA a dois fatores") {
+      used_analyses$anova2 <- TRUE
     } else if (tab == "PCA (Componentes Principais)") {
       used_analyses$pca <- TRUE
     } else if (tab == "Análise de Agrupamentos (Clustering)") {
@@ -2813,6 +2840,7 @@ RCatalyst::run_ide()</pre>
     used_analyses$as <- FALSE
     used_analyses$contingency <- FALSE
     used_analyses$anova <- FALSE
+    used_analyses$anova2 <- FALSE
     used_analyses$pca <- FALSE
     used_analyses$hca <- FALSE
     
@@ -2855,6 +2883,8 @@ RCatalyst::run_ide()</pre>
         used_analyses$contingency <- TRUE
       } else if (tab == "ANOVA (Análise de Variância)") {
         used_analyses$anova <- TRUE
+      } else if (tab == "ANOVA a dois fatores") {
+        used_analyses$anova2 <- TRUE
       } else if (tab == "PCA (Componentes Principais)") {
         used_analyses$pca <- TRUE
       } else if (tab == "Análise de Agrupamentos (Clustering)") {
@@ -2875,7 +2905,7 @@ RCatalyst::run_ide()</pre>
                       used_analyses$logaritmica || used_analyses$logistico ||
                       used_analyses$parametric || used_analyses$aas ||
                       used_analyses$aep || used_analyses$as ||
-                      used_analyses$contingency || used_analyses$anova ||
+                      used_analyses$contingency || used_analyses$anova || used_analyses$anova2 ||
                       used_analyses$pca || used_analyses$hca
       
       tagList(
@@ -2987,9 +3017,15 @@ RCatalyst::run_ide()</pre>
         ),
         div(
           style = if (!used_analyses$anova) "opacity: 0.5; pointer-events: none;" else "",
-          checkboxInput("exp_anova", 
-                        label = if (used_analyses$anova) "ANOVA (Análise de Variância)" else "ANOVA (Não realizada)", 
+          checkboxInput("exp_anova",
+                        label = if (used_analyses$anova) "ANOVA (Análise de Variância)" else "ANOVA (Não realizada)",
                         value = used_analyses$anova)
+        ),
+        div(
+          style = if (!used_analyses$anova2) "opacity: 0.5; pointer-events: none;" else "",
+          checkboxInput("exp_anova2",
+                        label = if (used_analyses$anova2) "ANOVA a dois fatores" else "ANOVA a dois fatores (Não realizada)",
+                        value = used_analyses$anova2)
         ),
         
         # Menu: Estatística Multivariada
@@ -4234,7 +4270,75 @@ RCatalyst::run_ide()</pre>
           ""
         )
       }
-      
+
+      # --- SEÇÃO: ANOVA A DOIS FATORES ---
+      if (isTRUE(input$exp_anova2)) {
+        file.copy("templates/funcoes_anova_dois_fatores.R",
+                  file.path(dir_scripts, "funcoes_anova_dois_fatores.R"),
+                  overwrite = TRUE)
+        var_y2 <- input[["anova2-var_y"]]
+        var_a2 <- input[["anova2-var_a"]]
+        var_b2 <- input[["anova2-var_b"]]
+        conf2 <- suppressWarnings(as.numeric(input[["anova2-conf_level"]]))
+        if (!length(conf2) || is.na(conf2)) conf2 <- 95
+        tema2 <- input[["anova2-graph_theme"]] %||% "minimal"
+        titulo2 <- input[["anova2-custom_title"]] %||% ""
+        label_x2 <- input[["anova2-custom_label_x"]] %||% ""
+        label_y2 <- input[["anova2-custom_label_y"]] %||% ""
+
+        anova2_script_content <- c(
+          "# --- SCRIPT DE ANOVA A DOIS FATORES ---",
+          "source('scripts/funcoes_anova_dois_fatores.R')",
+          "load('dados/dados_limpos.rda')",
+          "dados <- df_clean",
+          "",
+          sprintf("r_anova2 <- calcular_anova_dois_fatores(dados, dep_var = '%s', fator_a = '%s', fator_b = '%s', nivel_confianca = %.2f)",
+                  var_y2, var_a2, var_b2, conf2 / 100),
+          "print(arrumar_tabela_anova_dois_fatores(r_anova2))",
+          "print(arrumar_celulas_anova_dois_fatores(r_anova2))",
+          "print(arrumar_efeito_anova_dois_fatores(r_anova2))",
+          "print(arrumar_pressupostos_anova_dois_fatores(r_anova2))",
+          "print(arrumar_comparacoes_anova_dois_fatores(r_anova2))",
+          "cat(relatar_anova_dois_fatores(r_anova2))",
+          sprintf("print(grafico_anova_dois_fatores(r_anova2, titulo = '%s', rotulo_x = '%s', rotulo_y = '%s', tema = '%s'))",
+                  titulo2, label_x2, label_y2, tema2)
+        )
+        writeLines(anova2_script_content,
+                   file.path(dir_scripts, "10b_analise_anova_dois_fatores.R"))
+        scripts_incluidos <- c(scripts_incluidos, "scripts/10b_analise_anova_dois_fatores.R")
+
+        qmd_sections[["anova2"]] <- c(
+          "## ANOVA a dois fatores",
+          "Modelo fatorial com efeitos principais e interação.",
+          "",
+          "```{r}",
+          "#| label: anova2-consolidado",
+          "source('../scripts/funcoes_anova_dois_fatores.R')",
+          sprintf("r_anova2 <- calcular_anova_dois_fatores(dados, '%s', '%s', '%s', nivel_confianca = %.2f)",
+                  var_y2, var_a2, var_b2, conf2 / 100),
+          "knitr::kable(arrumar_tabela_anova_dois_fatores(r_anova2), digits = 4, caption = 'Tabela da ANOVA a dois fatores')",
+          "```",
+          "",
+          "### Médias por célula e interação",
+          "```{r}",
+          "#| label: anova2-celulas",
+          "knitr::kable(arrumar_celulas_anova_dois_fatores(r_anova2), digits = 3, caption = 'Médias por célula')",
+          "grafico_anova_dois_fatores(r_anova2)",
+          "```",
+          "",
+          "### Tamanhos de efeito e pressupostos",
+          "```{r}",
+          "#| label: anova2-pressupostos",
+          "knitr::kable(arrumar_efeito_anova_dois_fatores(r_anova2), digits = 4, caption = 'Tamanhos de efeito')",
+          "knitr::kable(arrumar_pressupostos_anova_dois_fatores(r_anova2), digits = 4, caption = 'Pressupostos')",
+          "```",
+          "",
+          "### Relato",
+          "> `r relatar_anova_dois_fatores(r_anova2)`",
+          ""
+        )
+      }
+
       # --- SEÇÃO: PCA ---
       if (isTRUE(input$exp_pca)) {
         file.copy("templates/funcoes_pca.R", file.path(dir_scripts, "funcoes_pca.R"), overwrite = TRUE)
@@ -4418,6 +4522,9 @@ RCatalyst::run_ide()</pre>
       }
       if (!is.null(qmd_sections[["anova"]])) {
         qmd_lines <- c(qmd_lines, "---", qmd_sections[["anova"]])
+      }
+      if (!is.null(qmd_sections[["anova2"]])) {
+        qmd_lines <- c(qmd_lines, "---", qmd_sections[["anova2"]])
       }
       if (!is.null(qmd_sections[["pca"]])) {
         qmd_lines <- c(qmd_lines, "---", qmd_sections[["pca"]])

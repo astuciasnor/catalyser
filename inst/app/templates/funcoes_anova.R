@@ -189,7 +189,7 @@ anova_validar_entrada <- function(df, dep_var, ind_var) {
     return(sprintf("A base não contém a(s) coluna(s): %s. Reveja a base escolhida em Base utilizada.",
                    paste(ausentes, collapse = ", ")))
   if (!is.numeric(df[[dep_var]]))
-    return(sprintf("A resposta '%s' precisa ser numérica. Use Organizar Variáveis para convertê-la antes da ANOVA.",
+    return(sprintf("A resposta '%s' precisa ser numérica. Use Criar e Editar Variáveis e Níveis para convertê-la antes da ANOVA.",
                    dep_var))
 
   completos <- stats::complete.cases(df[c(dep_var, ind_var)])

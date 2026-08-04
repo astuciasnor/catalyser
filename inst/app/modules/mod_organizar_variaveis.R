@@ -1,4 +1,4 @@
-# Organizar Variáveis — seleção, nomes, tipos e categorias
+# Criar e Editar Variáveis e Níveis — seleção, nomes, tipos e categorias
 # ---------------------------------------------------------------------------
 # Centraliza o polimento de colunas que antes aparecia repetido nos módulos de
 # importação, Empilhar e Separar. A entrada é a base resolvida atual; o usuário
@@ -112,7 +112,7 @@ mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem =
     div(
       card(
         fill = FALSE,
-        card_header("Arrumação de Variáveis"),
+        card_header("Edição de Variáveis e Níveis"),
         card_body(
           fill = FALSE,
           fillable = FALSE,
@@ -340,7 +340,7 @@ mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem =
           criacao_ui
         }
       ),
-      tabPanel("Arrumação de Variáveis", arrumacao_ui)
+      tabPanel("Edição de Variáveis e Níveis", arrumacao_ui)
     )
   )
 }
@@ -889,7 +889,7 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       if (is.function(on_usar)) {
         on_usar(
           resultado_final(),
-          "Organizar Variáveis",
+          "Criar e Editar Variáveis e Níveis",
           codigo_rv()
         )
       }

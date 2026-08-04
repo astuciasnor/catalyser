@@ -54,10 +54,10 @@ stopifnot(
   grepl("Alargar Dados — pivot_wider()", codigo_app, fixed = TRUE),
   grepl("Separar Dados em Colunas", codigo_app, fixed = TRUE),
   grepl('modo_fixo = "alargar"', codigo_app, fixed = TRUE),
-  grepl('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
+  grepl('title = "Criar e Editar Variáveis e Níveis"', codigo_app, fixed = TRUE),
   regexpr('title = "Pivotar e Separar Dados"', codigo_app, fixed = TRUE) <
-    regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE),
-  regexpr('title = "Organizar Variáveis"', codigo_app, fixed = TRUE) <
+    regexpr('title = "Criar e Editar Variáveis e Níveis"', codigo_app, fixed = TRUE),
+  regexpr('title = "Criar e Editar Variáveis e Níveis"', codigo_app, fixed = TRUE) <
     regexpr('title = "Adicionar Tratamentos à Base"', codigo_app, fixed = TRUE),
   !grepl('uiOutput("dataset_vars_selector"', codigo_app, fixed = TRUE),
   !grepl('uiOutput("variable_type_converter_ui")', codigo_app, fixed = TRUE),
@@ -122,7 +122,7 @@ stopifnot(
   grepl('id="teste_organizar-abrir_tipar"', html_organizar, fixed = TRUE),
   grepl('id="teste_organizar-abrir_recodificar"', html_organizar, fixed = TRUE),
   grepl("Criação de Variáveis", html_organizar, fixed = TRUE),
-  grepl("Arrumação de Variáveis", html_organizar, fixed = TRUE),
+  grepl("Edição de Variáveis e Níveis", html_organizar, fixed = TRUE),
   !grepl("Checagem Final da Base Compartilhada", html_organizar, fixed = TRUE),
   grepl("grid-template-columns:minmax(210px,20%) minmax(0,80%)",
         html_tratamentos, fixed = TRUE),

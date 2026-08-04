@@ -227,7 +227,7 @@ teste_t_validar_duas_amostras <- function(df, resposta, grupo) {
       paste0(
         "O teste t independente exige exatamente duas categorias em '%s'. ",
         "Foram encontradas %d: %s. Padronize ou recodifique essa variável ",
-        "em Organizar Variáveis e recalcule a Base Derivada."
+        "em Criar e Editar Variáveis e Níveis e recalcule a Base Derivada."
       ),
       grupo, length(niveis), encontrados
     ))

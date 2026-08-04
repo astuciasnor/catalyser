@@ -1,7 +1,9 @@
 Package: catalyser
 Type: Package
 Title: CatalyseR: IDE Científica para Análise de Dados em R
-Version: 0.1.6
+Version: 0.1.7
+Author: Evaldo Silva [aut, cre]
+Maintainer: Evaldo Silva <astuciasnor@gmail.com>
 Authors@R: c(
     person(
       "Evaldo", "Silva",

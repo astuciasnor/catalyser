@@ -237,7 +237,7 @@ roxygen + `.rda`). Sugestões de escopo:
 descreve o ecossistema EAPA (contexto amazônico, colunas *tidy*, tipos, faixas
 plausíveis, a análise-alvo e o formato de saída `.csv`/`.xlsx`), para gerar dados
 sintéticos realistas ou orientar a busca de dados reais. Padronizar num arquivo
-(`PROMPT_DADOS_EAPA.md`) reutilizável por análise.
+(`../../../documentacao/PROMPT_DADOS_EAPA.md`) reutilizável por análise.
 
 ---
 
@@ -269,5 +269,4 @@ curvas por AIC.
 
 **Maiores (decidir se v1 ou backlog):** ANOVA de dois fatores (fechando o ciclo com o
 Delineamento), ANCOVA, regressão múltipla, novos datasets + prompt.
-
 

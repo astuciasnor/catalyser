@@ -14,7 +14,7 @@ A plataforma é dividida em módulos analíticos completos e independentes:
 
 * **Estatística Descritiva:** Sumarização e exploração de variáveis, tabelas de frequência e geração de gráficos descritivos.
 * **Testes Paramétricos:** Comparação de médias usando testes de hipótese (como o Teste t de Student).
-* **Análise de Variância (ANOVA):** ANOVA de um fator com comparações múltiplas de Tukey, tamanho de efeito e diagnósticos.
+* **Análise de Variância (ANOVA):** ANOVA de um fator e ANOVA de dois fatores com interação, comparações múltiplas de Tukey, tamanho de efeito e diagnósticos.
 * **Regressão Linear:** Ajuste de modelos de regressão, diagnósticos de resíduos e visualização gráfica de ajuste.
 * **Técnicas de Amostragem:** Ferramentas para determinação de tamanho amostral e seleção de amostras.
 * **Análise Multivariada (PCA & HCA):**

@@ -35,7 +35,7 @@ mensagem_sexo <- teste_t_validar_duas_amostras(
 stopifnot(
   grepl("exatamente duas categorias", mensagem_sexo, fixed = TRUE),
   grepl("Foram encontradas 6", mensagem_sexo, fixed = TRUE),
-  grepl("Organizar Variáveis", mensagem_sexo, fixed = TRUE)
+  grepl("Criar e Editar Variáveis e Níveis", mensagem_sexo, fixed = TRUE)
 )
 dados_sexo_inconsistente$sexo <- c("F", "F", "F", "M", "M", "M")
 stopifnot(is.null(teste_t_validar_duas_amostras(

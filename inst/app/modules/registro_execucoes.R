@@ -8,7 +8,9 @@
 execucoes_rotulos_saidas <- c(
   narrativa = "Narrativa",
   descritivos = "Resumo por grupo",
+  celulas = "Médias por célula",
   tabela = "Tabela",
+  efeito = "Tamanhos de efeito",
   comparacoes = "Comparações múltiplas",
   grafico = "Gráfico",
   pressupostos = "Pressupostos",

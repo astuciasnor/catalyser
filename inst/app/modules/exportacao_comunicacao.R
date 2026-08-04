@@ -124,7 +124,7 @@ exportacao_bloco_estrutural <- function(base_externa = NULL) {
     "# 2. Operações estruturais",
     "# -----------------------------------------------------------------------",
     "# Houve mudança estrutural promovida na CatalyseR (Pivotar/Separar ou",
-    "# Organizar Variáveis). Para o projeto reproduzir exatamente a base que você",
+    "# Criar e Editar Variáveis e Níveis). Para o projeto reproduzir exatamente a base que você",
     "# viu na tela, o script carrega a fotografia materializada na exportação.",
     "base_resolvida <- as.data.frame(readRDS(file.path('dados', 'base_resolvida.rds')))",
     "",
@@ -224,6 +224,7 @@ exportacao_codigo_base_compartilhada <- function(pipeline, base_externa = NULL,
 exportacao_tipo_legivel <- function(tipo) {
   legiveis <- c(
     anova_um_fator = "anova_um_fator",
+    anova_dois_fatores = "anova_dois_fatores",
     grafico_linhas = "grafico_de_linhas",
     regressao_linear = "regressao_linear",
     regressao_logistica = "regressao_logistica",
@@ -278,7 +279,7 @@ exportacao_codigo_execucao <- function(execucao, indice, registro_bases,
   variavel <- exportacao_nome_seguro(paste0("resultado_", execucao$id), "resultado_execucao")
   base <- bases_obter(registro_bases, execucao$base_id)
   raiz_chunk <- raiz_chunk %||% exportacao_raiz_chunk(execucao)
-  codigo_pedagogico <- if (execucao$tipo %in% c("anova_um_fator", "grafico_linhas")) {
+  codigo_pedagogico <- if (execucao$tipo %in% c("anova_um_fator", "anova_dois_fatores", "grafico_linhas")) {
     exportacao_codigo_estudo(
       execucao,
       incluir_carregamento = FALSE,
@@ -381,6 +382,8 @@ exportacao_pergunta <- function(execucao) {
   p <- execucao$parametros %||% list()
   switch(
     as.character(execucao$tipo %||% ""),
+    anova_dois_fatores = sprintf("'%s' varia conforme '%s' e '%s'?",
+                                 p$resposta, p$fator_a, p$fator_b),
     anova_um_fator = sprintf("a média de '%s' difere entre os grupos de '%s'?",
                              p$resposta, p$fator),
     grafico_linhas = sprintf("como '%s' se comporta ao longo de '%s'?", p$y, p$x),
@@ -551,6 +554,40 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
       "eta_quadrado",
       "omega_quadrado"
     ),
+    anova_dois_fatores = c(
+      "# 1. Declarar a resposta, os dois fatores e o nível de confiança.",
+      sprintf("variavel_resposta <- %s", texto_r(p$resposta)),
+      sprintf("variavel_fator_a <- %s", texto_r(p$fator_a)),
+      sprintf("variavel_fator_b <- %s", texto_r(p$fator_b)),
+      sprintf("nivel_confianca <- %s", numero_r(p$nivel_confianca %||% 0.95)),
+      "",
+      "# 2. Manter casos completos e transformar os fatores em categorias.",
+      "colunas_anova2 <- c(variavel_resposta, variavel_fator_a, variavel_fator_b)",
+      "dados_anova2 <- dados[stats::complete.cases(dados[colunas_anova2]), , drop = FALSE]",
+      "dados_anova2[[variavel_fator_a]] <- droplevels(as.factor(dados_anova2[[variavel_fator_a]]))",
+      "dados_anova2[[variavel_fator_b]] <- droplevels(as.factor(dados_anova2[[variavel_fator_b]]))",
+      "",
+      "# 3. Ajustar a ANOVA fatorial com interação.",
+      "dados_anova2$.anova2_resposta <- dados_anova2[[variavel_resposta]]",
+      "dados_anova2$.anova2_fator_a <- dados_anova2[[variavel_fator_a]]",
+      "dados_anova2$.anova2_fator_b <- dados_anova2[[variavel_fator_b]]",
+      "modelo_anova2 <- stats::aov(.anova2_resposta ~ .anova2_fator_a * .anova2_fator_b, data = dados_anova2)",
+      "tabela_anova2 <- summary(modelo_anova2)",
+      "",
+      "# 4. Resumir médias por célula e comparar células.",
+      "medias_celulas <- aggregate(dados_anova2[[variavel_resposta]], dados_anova2[c(variavel_fator_a, variavel_fator_b)], function(x) c(n = length(x), media = mean(x), dp = stats::sd(x)))",
+      "comparacoes_tukey <- stats::TukeyHSD(modelo_anova2, which = '.anova2_fator_a:.anova2_fator_b', conf.level = nivel_confianca)",
+      "",
+      "# 5. Verificar pressupostos antes de interpretar os efeitos.",
+      "teste_shapiro <- stats::shapiro.test(stats::residuals(modelo_anova2))",
+      "teste_levene <- if (requireNamespace('car', quietly = TRUE)) car::leveneTest(dados_anova2[[variavel_resposta]], interaction(dados_anova2[[variavel_fator_a]], dados_anova2[[variavel_fator_b]]), center = stats::median) else NULL",
+      "",
+      "tabela_anova2",
+      "medias_celulas",
+      "comparacoes_tukey",
+      "teste_shapiro",
+      "teste_levene"
+    ),
     grafico_linhas = c(
       "# 1. Declarar as variáveis e os textos do gráfico.",
       sprintf("variavel_x <- %s", texto_r(p$x)),
@@ -708,6 +745,8 @@ exportacao_slug_chunk <- function(x, padrao = "analise") {
 exportacao_sufixo_componente <- function(tipo, componente) {
   especificos <- if (identical(tipo, "anova_um_fator")) {
     c(tabela = "modelo", comparacoes = "tukey", descritivos = "resumo-grupos")
+  } else if (identical(tipo, "anova_dois_fatores")) {
+    c(tabela = "modelo", celulas = "celulas", efeito = "efeitos", comparacoes = "tukey")
   } else {
     c(comparacoes = "comparacoes", descritivos = "resumo-grupos")
   }
@@ -722,6 +761,7 @@ exportacao_raiz_chunk <- function(execucao) {
   partes <- switch(
     as.character(execucao$tipo %||% ""),
     anova_um_fator = c("anova", p$resposta),
+    anova_dois_fatores = c("anova2", p$resposta),
     grafico_linhas = c("linhas", p$y),
     regressao_linear = c("regressao", p$resposta),
     regressao_logistica = c("regressao-logistica", p$resposta),
@@ -1040,7 +1080,7 @@ exportacao_leiame_projeto <- function(nome_projeto, import_info = list()) {
     "- `base_compartilhada.xlsx` — a base já tratada, para abrir no Excel ou",
     "  enviar a quem não usa R. É entrega, não fonte do relatório.",
     "- `base_resolvida.rds` — aparece apenas se houve mudança estrutural",
-    "  promovida (Pivotar/Separar ou Organizar Variáveis).", "",
+    "  promovida (Pivotar/Separar ou Criar e Editar Variáveis e Níveis).", "",
     "Não há cópia das bases derivadas: elas são um salto reproduzível a partir",
     "de `dados_analise`, e a receita aparece no código.", "",
     "## O caminho dos dados", "",

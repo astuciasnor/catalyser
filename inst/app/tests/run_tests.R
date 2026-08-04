@@ -343,6 +343,7 @@ testes <- c(
   "test_funcoes_analise.R",
   "test_exportacao_comunicacao.R",
   "test_anova_integrada.R",
+  "test_anova_dois_fatores.R",
   "test_anova_exportacao.R",
   "test_grafico_linhas_troca_y.R"
 )

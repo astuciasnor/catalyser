@@ -1,4 +1,4 @@
-# Integração pedagógica de Pivotar/Separar e Organizar Variáveis
+# Integração pedagógica de Pivotar/Separar e Criar e Editar Variáveis e Níveis
 # Executar a partir de inst/app.
 
 source("app.R", local = TRUE)

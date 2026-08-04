@@ -54,11 +54,11 @@ testServer(
     session$flushReact()
     promovido <- promovido_rv()
     stopifnot(
-      identical(promovido$fonte, "Organizar Variáveis"),
+      identical(promovido$fonte, "Criar e Editar Variáveis e Níveis"),
       identical(promovido$df, resultado),
       grepl("dados_organizados", promovido$codigo, fixed = TRUE)
     )
   }
 )
 
-cat("OK: Organizar Variáveis centraliza seleção, nomes, tipos e categorias\n")
+cat("OK: Criar e Editar Variáveis e Níveis centraliza seleção, nomes, tipos e categorias\n")

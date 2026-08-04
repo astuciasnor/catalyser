@@ -6,7 +6,8 @@ projeto, conforme `DECISOES_PEDAGOGICAS_E_REFINAMENTO.md` §10.
 
 ## O ciclo, em uma linha
 
-Duplo clique em **`rodar-testes-catalyser.bat`** (raiz de `D:\Claude\eapa`),
+Duplo clique em **`scripts/rodar-testes-catalyser.bat`** (pasta `scripts/` de
+`D:\Claude\eapa`),
 escolha o modo, espere. Depois é só dizer "rodei".
 
 O `.bat` grava dois arquivos:
@@ -31,9 +32,9 @@ está sempre no topo.
 Também funciona sem menu, útil para atalhos:
 
 ```powershell
-.\rodar-testes-catalyser.bat 1
-.\rodar-testes-catalyser.bat 2
-.\rodar-testes-catalyser.bat 3
+.\scripts\rodar-testes-catalyser.bat 1
+.\scripts\rodar-testes-catalyser.bat 2
+.\scripts\rodar-testes-catalyser.bat 3
 ```
 
 ## Pelo terminal, se preferir
