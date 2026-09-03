@@ -50,6 +50,137 @@ anova2_p <- function(x) {
   if (x[[1]] < 0.001) "< 0,001" else anova2_num(x, 3L)
 }
 
+# ---- Identidade visual dos gráficos fatoriais ------------------------------
+#
+# Estes helpers trabalham apenas com a tabela de médias por célula já produzida
+# pelo núcleo analítico. Assim, a interface não volta aos dados brutos nem cria
+# dependências de dplyr/patchwork para desenhar os dois painéis.
+
+anova2_paleta_ocean <- function(n, nomes = NULL) {
+  n <- max(1L, as.integer(n))
+  base <- c("#2E7D8F", "#E76F51", "#0F3B5F", "#E89B3C", "#62B6B7")
+  cores <- if (n <= length(base)) base[seq_len(n)] else
+    grDevices::colorRampPalette(base)(n)
+  if (!is.null(nomes) && length(nomes) == n) names(cores) <- nomes
+  cores
+}
+
+anova2_tema_ocean <- function(tema = "minimal", base_size = 12) {
+  tema_base <- switch(
+    as.character(tema %||% "minimal"),
+    classic = ggplot2::theme_classic(base_size = base_size),
+    bw = ggplot2::theme_bw(base_size = base_size),
+    gray = ggplot2::theme_gray(base_size = base_size),
+    light = ggplot2::theme_light(base_size = base_size),
+    ggplot2::theme_minimal(base_size = base_size)
+  )
+  tema_base + ggplot2::theme(
+    plot.title = ggplot2::element_text(
+      colour = "#0F3B5F", face = "bold", size = base_size
+    ),
+    plot.subtitle = ggplot2::element_text(colour = "#2E7D8F"),
+    axis.title = ggplot2::element_text(colour = "#0F3B5F"),
+    axis.text = ggplot2::element_text(colour = "#0F3B5F"),
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major.x = ggplot2::element_blank(),
+    panel.grid.major.y = ggplot2::element_line(colour = "#E6EDF2"),
+    legend.position = "bottom",
+    legend.title = ggplot2::element_text(colour = "#0F3B5F", face = "bold")
+  )
+}
+
+anova2_rotulo_media <- function(x, dig = 2L) {
+  ifelse(
+    is.na(x), "-",
+    formatC(as.numeric(x), format = "f", digits = dig, decimal.mark = ",")
+  )
+}
+
+anova2_grafico_interacao_celulas <- function(
+    celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+    nivel_confianca = 0.95, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
+    tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+  d <- celulas
+  d$fator_a <- factor(d$fator_a, levels = niveis_a)
+  d$fator_b <- factor(d$fator_b, levels = niveis_b)
+  cores <- anova2_paleta_ocean(length(niveis_b), niveis_b)
+  formas <- stats::setNames(rep(c(16, 15, 17, 18, 8, 3), length.out = length(niveis_b)),
+                            niveis_b)
+
+  ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = fator_a, y = media, colour = fator_b, shape = fator_b,
+      group = fator_b
+    )
+  ) +
+    ggplot2::geom_line(linewidth = 1.05) +
+    ggplot2::geom_point(size = 3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
+      width = 0.12, linewidth = 0.75
+    ) +
+    ggplot2::scale_colour_manual(values = cores) +
+    ggplot2::scale_shape_manual(values = formas) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.06, 0.12))) +
+    anova2_tema_ocean(tema) +
+    ggplot2::labs(
+      title = titulo %||% sprintf("Perfis de médias: %s × %s", fator_a, fator_b),
+      subtitle = sprintf(
+        "Médias observadas por célula; hastes = IC %.0f%%",
+        100 * nivel_confianca
+      ),
+      x = rotulo_x %||% fator_a,
+      y = rotulo_y %||% resposta,
+      colour = fator_b,
+      shape = fator_b
+    )
+}
+
+anova2_grafico_combinacoes_celulas <- function(
+    celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+    nivel_confianca = 0.95, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
+    tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+  d <- celulas
+  d$fator_a <- factor(d$fator_a, levels = niveis_a)
+  d$fator_b <- factor(d$fator_b, levels = niveis_b)
+  d$rotulo_media <- anova2_rotulo_media(d$media)
+  cores <- anova2_paleta_ocean(length(niveis_b), niveis_b)
+  posicao <- ggplot2::position_dodge(width = 0.78)
+
+  ggplot2::ggplot(
+    d,
+    ggplot2::aes(x = fator_a, y = media, fill = fator_b, group = fator_b)
+  ) +
+    ggplot2::geom_col(
+      position = posicao, width = 0.68, colour = "white", linewidth = 0.3
+    ) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
+      position = posicao, width = 0.13, linewidth = 0.7, colour = "#0F3B5F"
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = rotulo_media),
+      position = posicao, vjust = -0.55, size = 3, colour = "#0F3B5F"
+    ) +
+    ggplot2::scale_fill_manual(values = cores) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.04, 0.18))) +
+    ggplot2::expand_limits(y = 0) +
+    anova2_tema_ocean(tema) +
+    ggplot2::labs(
+      title = titulo %||% sprintf("Médias das combinações: %s × %s", fator_a, fator_b),
+      subtitle = sprintf(
+        "Valores sobre as barras; hastes = IC %.0f%%",
+        100 * nivel_confianca
+      ),
+      x = rotulo_x %||% fator_a,
+      y = rotulo_y %||% resposta,
+      fill = fator_b
+    )
+}
+
 calcular_anova_dois_fatores <- function(df, dep_var, fator_a, fator_b,
                                          nivel_confianca = 0.95) {
   mensagem <- anova2_validar_entrada(df, dep_var, fator_a, fator_b)
@@ -235,34 +366,20 @@ relatar_anova_dois_fatores <- function(r) r$narrativa
 
 grafico_anova_dois_fatores <- function(r, titulo = NULL, rotulo_x = NULL,
                                        rotulo_y = NULL, tema = "minimal") {
-  if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
-  d <- r$celulas
-  d$fator_a <- factor(d$fator_a, levels = r$niveis_a)
-  d$fator_b <- factor(d$fator_b, levels = r$niveis_b)
-  tema_fun <- switch(
-    as.character(tema %||% "minimal"),
-    classic = ggplot2::theme_classic(base_size = 12),
-    bw = ggplot2::theme_bw(base_size = 12),
-    gray = ggplot2::theme_gray(base_size = 12),
-    light = ggplot2::theme_light(base_size = 12),
-    ggplot2::theme_minimal(base_size = 12)
+  anova2_grafico_interacao_celulas(
+    r$celulas, r$fator_a, r$fator_b, r$dep_var, r$niveis_a, r$niveis_b,
+    nivel_confianca = r$nivel_confianca, titulo = titulo,
+    rotulo_x = rotulo_x, rotulo_y = rotulo_y, tema = tema
   )
-  ggplot2::ggplot(d, ggplot2::aes(x = fator_a, y = media, color = fator_b,
-                                  group = fator_b)) +
-    ggplot2::geom_line(linewidth = 0.9) +
-    ggplot2::geom_point(size = 3) +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
-                           width = 0.10, linewidth = 0.7) +
-    ggplot2::scale_color_manual(values = rep(c("#0F3B5F", "#2E7D8F", "#E89B3C", "#E76F51"),
-                                              length.out = length(r$niveis_b))) +
-    tema_fun +
-    ggplot2::labs(
-      title = titulo %||% sprintf("Interação entre %s e %s", r$fator_a, r$fator_b),
-      subtitle = sprintf("Médias por célula; hastes = IC %.0f%%", 100 * r$nivel_confianca),
-      x = rotulo_x %||% r$fator_a,
-      y = rotulo_y %||% r$dep_var,
-      color = r$fator_b
-    )
+}
+
+grafico_combinacoes_anova_dois_fatores <- function(
+    r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL, tema = "minimal") {
+  anova2_grafico_combinacoes_celulas(
+    r$celulas, r$fator_a, r$fator_b, r$dep_var, r$niveis_a, r$niveis_b,
+    nivel_confianca = r$nivel_confianca, titulo = titulo,
+    rotulo_x = rotulo_x, rotulo_y = rotulo_y, tema = tema
+  )
 }
 
 grafico_diagnosticos_anova_dois_fatores <- function(r, tipo = c("residuos", "qq"),

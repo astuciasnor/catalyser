@@ -141,8 +141,8 @@ catalyser_moda <- function(x) {
 
 #' Conferir uma base reconstruida contra a fotografia exportada
 #'
-#' O script `R/01_base_compartilhada.R` reconstroi a base a partir da planilha
-#' bruta. A CatalyseR tambem exportou uma fotografia do que estava na tela. Esta
+#' O script `R/02_tratar.R` do projeto exportado reconstroi a base a partir da
+#' planilha bruta. A CatalyseR tambem exportou uma fotografia do que estava na tela. Esta
 #' funcao compara as duas e diz, em portugues, se o projeto reproduz o que voce
 #' viu.
 #'
@@ -945,6 +945,134 @@ catalyser_anova <- function(dados, p) {
   )
 }
 
+# Helpers gráficos da ANOVA fatorial. Mantêm a identidade Ocean Gradient sem
+# acrescentar dependências: a composição em dois painéis é feita pela interface,
+# enquanto o replay preserva cada gráfico como um objeto ggplot independente.
+anova2_paleta_ocean <- function(n, nomes = NULL) {
+  n <- max(1L, as.integer(n))
+  base <- c("#2E7D8F", "#E76F51", "#0F3B5F", "#E89B3C", "#62B6B7")
+  cores <- if (n <= length(base)) base[seq_len(n)] else
+    grDevices::colorRampPalette(base)(n)
+  if (!is.null(nomes) && length(nomes) == n) names(cores) <- nomes
+  cores
+}
+
+anova2_tema_ocean <- function(tema = "minimal", base_size = 12) {
+  tema_base <- switch(
+    as.character(catalyser_ou(tema, "minimal")),
+    classic = ggplot2::theme_classic(base_size = base_size),
+    bw = ggplot2::theme_bw(base_size = base_size),
+    gray = ggplot2::theme_gray(base_size = base_size),
+    light = ggplot2::theme_light(base_size = base_size),
+    ggplot2::theme_minimal(base_size = base_size)
+  )
+  tema_base + ggplot2::theme(
+    plot.title = ggplot2::element_text(
+      colour = "#0F3B5F", face = "bold", size = base_size
+    ),
+    plot.subtitle = ggplot2::element_text(colour = "#2E7D8F"),
+    axis.title = ggplot2::element_text(colour = "#0F3B5F"),
+    axis.text = ggplot2::element_text(colour = "#0F3B5F"),
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major.x = ggplot2::element_blank(),
+    panel.grid.major.y = ggplot2::element_line(colour = "#E6EDF2"),
+    legend.position = "bottom",
+    legend.title = ggplot2::element_text(colour = "#0F3B5F", face = "bold")
+  )
+}
+
+anova2_rotulo_media <- function(x, dig = 2L) {
+  ifelse(
+    is.na(x), "-",
+    formatC(as.numeric(x), format = "f", digits = dig, decimal.mark = ",")
+  )
+}
+
+anova2_grafico_interacao_celulas <- function(
+    celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+    nivel_confianca = 0.95, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
+    tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+  d <- celulas
+  d$fator_a <- factor(d$fator_a, levels = niveis_a)
+  d$fator_b <- factor(d$fator_b, levels = niveis_b)
+  cores <- anova2_paleta_ocean(length(niveis_b), niveis_b)
+  formas <- stats::setNames(rep(c(16, 15, 17, 18, 8, 3), length.out = length(niveis_b)),
+                            niveis_b)
+
+  ggplot2::ggplot(
+    d,
+    ggplot2::aes(
+      x = fator_a, y = media, colour = fator_b, shape = fator_b,
+      group = fator_b
+    )
+  ) +
+    ggplot2::geom_line(linewidth = 1.05) +
+    ggplot2::geom_point(size = 3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
+      width = 0.12, linewidth = 0.75
+    ) +
+    ggplot2::scale_colour_manual(values = cores) +
+    ggplot2::scale_shape_manual(values = formas) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.06, 0.12))) +
+    anova2_tema_ocean(tema) +
+    ggplot2::labs(
+      title = titulo,
+      subtitle = sprintf(
+        "Médias observadas por célula; hastes = IC %.0f%%",
+        100 * nivel_confianca
+      ),
+      x = rotulo_x,
+      y = rotulo_y,
+      colour = fator_b,
+      shape = fator_b
+    )
+}
+
+anova2_grafico_combinacoes_celulas <- function(
+    celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+    nivel_confianca = 0.95, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
+    tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE)) return(NULL)
+  d <- celulas
+  d$fator_a <- factor(d$fator_a, levels = niveis_a)
+  d$fator_b <- factor(d$fator_b, levels = niveis_b)
+  d$rotulo_media <- anova2_rotulo_media(d$media)
+  cores <- anova2_paleta_ocean(length(niveis_b), niveis_b)
+  posicao <- ggplot2::position_dodge(width = 0.78)
+
+  ggplot2::ggplot(
+    d,
+    ggplot2::aes(x = fator_a, y = media, fill = fator_b, group = fator_b)
+  ) +
+    ggplot2::geom_col(
+      position = posicao, width = 0.68, colour = "white", linewidth = 0.3
+    ) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
+      position = posicao, width = 0.13, linewidth = 0.7, colour = "#0F3B5F"
+    ) +
+    ggplot2::geom_text(
+      ggplot2::aes(label = rotulo_media),
+      position = posicao, vjust = -0.55, size = 3, colour = "#0F3B5F"
+    ) +
+    ggplot2::scale_fill_manual(values = cores) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.04, 0.18))) +
+    ggplot2::expand_limits(y = 0) +
+    anova2_tema_ocean(tema) +
+    ggplot2::labs(
+      title = titulo,
+      subtitle = sprintf(
+        "Valores sobre as barras; hastes = IC %.0f%%",
+        100 * nivel_confianca
+      ),
+      x = rotulo_x,
+      y = rotulo_y,
+      fill = fator_b
+    )
+}
+
 #' ANOVA de dois fatores com interação
 #'
 #' Ajusta um modelo fatorial (`resposta ~ fator_a * fator_b`) e devolve os
@@ -956,8 +1084,8 @@ catalyser_anova <- function(dados, p) {
 #' @param p Lista com `resposta`, `fator_a` e `fator_b`; aceita ainda
 #'   `nivel_confianca`, `titulo_grafico`, `rotulo_x`, `rotulo_y` e `tema`.
 #' @return Lista com narrativa, médias por célula, tabela da ANOVA, tamanhos de
-#'   efeito, Tukey da interação, gráfico, pressupostos, diagnósticos, console e
-#'   o objeto `aov` em `objeto`.
+#'   efeito, Tukey da interação, gráfico de perfis, gráfico das combinações,
+#'   pressupostos, diagnósticos, console e o objeto `aov` em `objeto`.
 #' @export
 catalyser_anova_dois_fatores <- function(dados, p) {
   resposta <- as.character(catalyser_ou(p$resposta, ""))[[1]]
@@ -1094,28 +1222,28 @@ catalyser_anova_dois_fatores <- function(dados, p) {
     if (!length(x) || !nzchar(trimws(x[[1]]))) padrao else x[[1]]
   }
   grafico <- NULL
+  grafico_combinacoes <- NULL
   if (requireNamespace("ggplot2", quietly = TRUE)) {
-    gd <- celulas
-    gd$fator_a <- factor(gd$fator_a, levels = niveis_a)
-    gd$fator_b <- factor(gd$fator_b, levels = niveis_b)
-    grafico <- ggplot2::ggplot(gd, ggplot2::aes(x = fator_a, y = media,
-                                                color = fator_b, group = fator_b)) +
-      ggplot2::geom_line(linewidth = 0.9) + ggplot2::geom_point(size = 3) +
-      ggplot2::geom_errorbar(ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
-                             width = 0.1, linewidth = 0.7) +
-      ggplot2::scale_color_manual(values = rep(c("#0F3B5F", "#2E7D8F", "#E89B3C", "#E76F51"),
-                                                length.out = length(niveis_b))) +
-      switch(texto_ou(p$tema, "minimal"),
-             classic = ggplot2::theme_classic(base_size = 12),
-             bw = ggplot2::theme_bw(base_size = 12),
-             gray = ggplot2::theme_gray(base_size = 12),
-             light = ggplot2::theme_light(base_size = 12),
-             ggplot2::theme_minimal(base_size = 12)) +
-      ggplot2::labs(title = texto_ou(p$titulo_grafico,
-                                     sprintf("Interação entre %s e %s", fator_a, fator_b)),
-                    subtitle = sprintf("Médias por célula; hastes = IC %.0f%%", 100 * conf),
-                    x = texto_ou(p$rotulo_x, fator_a), y = texto_ou(p$rotulo_y, resposta),
-                    color = fator_b)
+    titulo_interacao <- texto_ou(
+      p$titulo_grafico,
+      sprintf("Perfis de médias: %s × %s", fator_a, fator_b)
+    )
+    rotulo_x_grafico <- texto_ou(p$rotulo_x, fator_a)
+    rotulo_y_grafico <- texto_ou(p$rotulo_y, resposta)
+    tema_grafico <- texto_ou(p$tema, "minimal")
+    grafico <- anova2_grafico_interacao_celulas(
+      celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+      nivel_confianca = conf, titulo = titulo_interacao,
+      rotulo_x = rotulo_x_grafico, rotulo_y = rotulo_y_grafico,
+      tema = tema_grafico
+    )
+    grafico_combinacoes <- anova2_grafico_combinacoes_celulas(
+      celulas, fator_a, fator_b, resposta, niveis_a, niveis_b,
+      nivel_confianca = conf,
+      titulo = sprintf("Médias das combinações: %s × %s", fator_a, fator_b),
+      rotulo_x = rotulo_x_grafico, rotulo_y = rotulo_y_grafico,
+      tema = tema_grafico
+    )
   }
 
   p_int <- p_efeitos[[3]]
@@ -1148,7 +1276,8 @@ catalyser_anova_dois_fatores <- function(dados, p) {
     check.names = FALSE, stringsAsFactors = FALSE
   )
   list(narrativa = narrativa, celulas = celulas, tabela = tabela, efeito = efeito,
-       comparacoes = comparacoes, grafico = grafico, pressupostos = pressupostos,
+       comparacoes = comparacoes, grafico = grafico,
+       grafico_combinacoes = grafico_combinacoes, pressupostos = pressupostos,
        diagnosticos = diagnosticos, console = console, objeto = modelo,
        dados = d, resposta = resposta, fator_a = fator_a, fator_b = fator_b,
        nivel_confianca = conf, residuos = residuos, ajustados = ajustados,

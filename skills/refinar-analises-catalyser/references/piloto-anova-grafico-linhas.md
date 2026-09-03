@@ -152,8 +152,19 @@ Mudança estrutural do exportador feita no mesmo ciclo:
 - o QMD não usa mais `sys.source()` em ambiente oculto: chama
   `catalyser_executar()` direto sobre a base construída no chunk anterior.
 
-Ao mexer no exportador, conferir `exportacao_codigo_base_compartilhada()`,
-`exportacao_bloco_base_analise()` e `exportacao_leiame_projeto()`.
+Ao mexer no exportador, conferir `exportacao_codigo_importar()`,
+`exportacao_codigo_tratar()`, `exportacao_bloco_base_analise()` e
+`exportacao_leiame_projeto()`.
+
+### Fase A (set/2026) — árvore do projeto-modelo
+
+O exportador passou a seguir a árvore de `D:\Claude\eapa\EAPACaderno/`.
+Os nomes acima mudaram: `R/01_base_compartilhada.R` virou **`R/01_importar.R` +
+`R/02_tratar.R`** (o 02 chama o 01); `R/02_execucao_*.R` virou
+**`R/04_analisar_NN_<tipo>.R`** (sem `rodar_tudo.R`: o Render já refaz tudo); o `relatorio.qmd` e
+o `custom-reference.docx` foram para **`relatorios/`**; a planilha para
+**`dados/brutos/`** e as fotografias para **`dados/processados/`**; caminhos com
+`here()`. Spec: "Árvore do Projeto R exportado" em `MODULO_COMUNICACAO_RESULTADOS.md`.
 
 ## Terceiro ciclo — saída da ANOVA (aprovada)
 

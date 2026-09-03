@@ -40,6 +40,8 @@ semestre.
   teste reduzido dos refinamentos de seleção, execução e QMD pedagógico.
 - [Roteiro V16 — ANOVA e dois valores de Y](ROTEIRO_TESTE_V16_ANOVA_E_DOIS_Y.md):
   pipeline dos dois pilotos, com benchmarks e replay externo.
+- [Homologação da ANOVA de dois fatores no Windows em 15/08/2026](HOMOLOGACAO_ANOVA_DOIS_FATORES_WINDOWS_2026-08-15.md):
+  cálculo, replay e Word aprovados; divergências de importação e apresentação.
 - [Revisão pré-main da V16](REVISAO_PRE_MAIN_V16_2026-07-27.md):
   evidências automáticas e decisão de integração da versão 0.1.4.
 

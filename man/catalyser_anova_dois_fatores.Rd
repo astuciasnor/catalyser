@@ -14,8 +14,8 @@ catalyser_anova_dois_fatores(dados, p)
 }
 \value{
 Lista com narrativa, médias por célula, tabela da ANOVA, tamanhos de
-efeito, Tukey da interação, gráfico, pressupostos, diagnósticos, console e
-o objeto \code{aov} em \code{objeto}.
+efeito, Tukey da interação, gráfico de perfis, gráfico das combinações,
+pressupostos, diagnósticos, console e o objeto \code{aov} em \code{objeto}.
 }
 \description{
 Ajusta um modelo fatorial (\code{resposta ~ fator_a * fator_b}) e devolve os

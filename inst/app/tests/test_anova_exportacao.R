@@ -246,11 +246,11 @@ argumentos <- list(
 )
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
-qmd <- readLines(file.path(projeto, "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
-scripts <- list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$", full.names = TRUE)
+qmd <- readLines(file.path(projeto, "relatorios", "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
+scripts <- list.files(file.path(projeto, "R"), pattern = "^04_analisar_.*\\.R$", full.names = TRUE)
 script_anova <- readLines(scripts[[1]], warn = FALSE, encoding = "UTF-8")
 base_compartilhada <- readLines(
-  file.path(projeto, "R", "01_base_compartilhada.R"), warn = FALSE, encoding = "UTF-8"
+  file.path(projeto, "R", "02_tratar.R"), warn = FALSE, encoding = "UTF-8"
 )
 scripts_texto <- lapply(
   scripts,
@@ -262,11 +262,12 @@ scripts_texto <- lapply(
 rotulos <- trimws(sub("^#\\|\\s*label:", "", grep("^#\\|\\s*label:", qmd, value = TRUE)))
 stopifnot(
   # Labels dizem a intenção científica, não o número interno da execução.
-  "anova-profundidade-m-codigo" %in% rotulos,
+  "anova-profundidade-m-analise" %in% rotulos,
   "anova-profundidade-m-modelo" %in% rotulos,
   "anova-profundidade-m-tukey" %in% rotulos,
   "anova-profundidade-m-resumo-grupos" %in% rotulos,
-  "anova-profundidade-m-replay" %in% rotulos,
+  "anova-profundidade-m-resultado" %in% rotulos,
+  !any(grepl("-codigo$|-replay$", rotulos)),
   # Nenhum label sobrou com sublinhado ou com o ID cru como raiz.
   !any(grepl("_", rotulos, fixed = TRUE)),
   !any(grepl("^codigo-execucao", rotulos)),
@@ -280,25 +281,33 @@ stopifnot(
 
 stopifnot(
   length(scripts) == 3L,
-  # Um único script constrói a Base Compartilhada; os antigos 00/02 e os 03 saíram.
-  file.exists(file.path(projeto, "R", "01_base_compartilhada.R")),
-  # A pasta R/ tem apenas 01_base_compartilhada.R e os 02_execucao_*.R.
-  # Os antigos 00_funcoes_projeto.R e 03_<base derivada>.R nao existem mais.
-  length(list.files(file.path(projeto, "R"), pattern = "^0[03]_.*\\.R$")) == 0L,
+  # A árvore é a do projeto-modelo: 01 importar, 02 tratar, 04 analisar.
+  file.exists(file.path(projeto, "R", "01_importar.R")),
+  file.exists(file.path(projeto, "R", "02_tratar.R")),
+  !file.exists(file.path(projeto, "R", "rodar_tudo.R")),
+  !file.exists(file.path(projeto, "R", "01_base_compartilhada.R")),
+  # Sem 00, 03 nem 05; sem os antigos 02_execucao_*.R.
+  length(list.files(file.path(projeto, "R"), pattern = "^0[035]_.*\\.R$")) == 0L,
+  length(list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$")) == 0L,
   length(list.files(file.path(projeto, "R"), pattern = "^01_.*\\.R$")) == 1L,
   # E o console nao aparece em nenhum chunk do relatorio.
   !any(grepl("[['console']]", qmd, fixed = TRUE)),
   !any(grepl("-console", qmd, fixed = TRUE)),
   any(grepl("catalyser_conferir_base(", base_compartilhada, fixed = TRUE)),
-  # O QMD chama esse script uma única vez.
-  sum(grepl("source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
-            qmd, fixed = TRUE)) == 1L,
+  # O QMD chama o script 02 uma única vez.
+  sum(grepl('source(here("R", "02_tratar.R"), local = TRUE)', qmd, fixed = TRUE)) == 1L,
   # E constrói a base derivada da ANOVA no chunk da própria análise.
   any(grepl("#| label: anova-profundidade-m-base", qmd, fixed = TRUE)),
   any(grepl("base_anova_profundidade_especie <- dados", qmd, fixed = TRUE)),
   any(grepl("dados_da_analise <- base_anova_profundidade_especie", qmd, fixed = TRUE)),
-  # O replay usa a base do chunk; o sys.source opaco saiu do relatório.
-  any(grepl("catalyser_executar(analises_registradas[[", qmd, fixed = TRUE)),
+  # A apresentação refaz a análise com os parâmetros por extenso, sem metadados.
+  any(grepl("anova_profundidade_m <- catalyser_executar(", qmd, fixed = TRUE)),
+  any(grepl('tipo = "anova_um_fator"', qmd, fixed = TRUE)),
+  any(grepl('resposta = "profundidade_m"', qmd, fixed = TRUE)),
+  any(grepl('catalyser_mostrar(anova_profundidade_m[["tabela"]])', qmd, fixed = TRUE)),
+  !any(grepl("analises_registradas", qmd, fixed = TRUE)),
+  # A ANOVA tem código validado: o chunk da análise roda em silêncio.
+  any(grepl("#| output: false", qmd, fixed = TRUE)),
   # As funcoes vem do pacote instalado, nao mais de um arquivo copiado.
   any(grepl("library(catalyser)", qmd, fixed = TRUE)),
   !file.exists(file.path(projeto, "R", "00_funcoes_projeto.R")),
@@ -323,9 +332,9 @@ stopifnot(
   any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
   any(grepl("### Resumo por grupo", qmd, fixed = TRUE)),
   any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
-  # O comentário separa método (para estudo) de mecanismo editorial.
-  any(grepl("Método: o código abaixo fica explícito", qmd, fixed = TRUE)),
-  any(grepl("Mecanismo editorial", qmd, fixed = TRUE)),
+  # Os comentários separam a análise passo a passo da apresentação.
+  any(grepl("A análise, passo a passo", qmd, fixed = TRUE)),
+  any(grepl("Apresentação: a mesma análise", qmd, fixed = TRUE)),
   any(grepl("Profundidade de captura entre espécies", qmd, fixed = TRUE)),
   # As duas execuções gráficas continuam separadas no relatório.
   any(grepl("Comprimento das corvinas por observação", qmd, fixed = TRUE)),

@@ -87,6 +87,60 @@ ANOVA e Gráfico de Linhas são os pilotos atuais. Desde a versão 0.1.5:
 
 Não generalizar essa humanização para outras análises sem testes equivalentes.
 
+## Árvore do Projeto R exportado (Fase A, set/2026)
+
+Desde a Fase A, o Projeto R exportado segue a árvore do **projeto-modelo** do
+ecossistema (`D:\Claude\eapa\EAPACaderno/`), para que quem sai da
+IDE reconheça o caminho a pé:
+
+```
+projeto_<nome>/
+├── projeto_analise.Rproj
+├── README.md                      na voz do projeto-modelo
+├── dados/
+│   ├── brutos/<planilha>.xlsx     a planilha importada na IDE
+│   └── processados/               dados_analise.rds (fotografia) + base_compartilhada.xlsx
+├── R/
+│   ├── 01_importar.R              planilha -> dados_brutos
+│   ├── 02_tratar.R                chama o 01; estrutural + trilha + conferência -> dados_analise
+│   └── 04_analisar_NN_<tipo>.R    um por execução (três partes)
+├── relatorios/
+│   ├── relatorio.qmd              caminhos com here(); chama o 02
+│   └── custom-reference.docx
+└── metadados/                     inalterado
+```
+
+Decisões: caminhos com `here()` (o `.Rproj` é a raiz); scripts encadeados por
+`source()` em vez de arquivos intermediários, para o *Render* funcionar sozinho;
+sem `03_explorar.R`, `05_graficos.R`, `rodar_tudo.R` nem `resultados/` (o Render
+já refaz tudo; tabelas e figuras nascem no Word). O `here` entrou em `Suggests`
+do DESCRIPTION.
+
+## Relatório orgânico (Fase B, set/2026)
+
+Decisão do autor: no projeto exportado, **a análise mora dentro do `relatorio.qmd`**,
+como ele sempre usou o Quarto. (Diverge do projeto-modelo, onde scripts gravam em
+`resultados/` e o relatório só lê. Divergência deliberada: o modelo ensina a
+separação; o projeto exportado mostra a análise inteira num documento.)
+
+Cada análise aparece em três chunks, todos `echo: false`:
+
+- `<raiz>-base` — o salto de `dados_analise` até a base derivada (`dados_da_analise`);
+- `<raiz>-analise` — o código passo a passo (`exportacao_codigo_estudo()`). Para os
+  tipos com código validado (`exportacao_tipos_com_codigo_vivo`: ANOVA de um e dois
+  fatores, gráfico de linhas) roda com `output: false`; para os demais fica
+  `eval: false`, só leitura, até ganharem o mesmo tratamento;
+- `<raiz>-resultado` — `catalyser_executar()` com `tipo`, `titulo` e `parametros`
+  **escritos por extenso** (`exportacao_lista_r()`), sem ler
+  `metadados/registro_execucoes.rds`. O objeto leva o nome da análise
+  (`anova_profundidade_m`, `linhas_captura`), e os chunks de componente chamam
+  `catalyser_mostrar(anova_profundidade_m[["tabela"]])`, cada um com uma linha de
+  comentário dizendo o que mostra (`[[ ]]` e não `$`, para o R não completar
+  `grafico` como `grafico_combinacoes`).
+
+Os scripts `04_analisar_*.R` seguem lendo a configuração de `metadados/` na
+PARTE 3; o `.qmd` não depende mais dessa pasta.
+
 ## Arquivos principais
 
 - `inst/app/modules/mod_comunicacao.R`;

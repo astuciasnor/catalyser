@@ -152,8 +152,16 @@ mod_anova_dois_fatores_server <- function(id, data_rv, import_info) {
         anova2_titulo_secao("Médias por célula"),
         tableOutput(ns("celulas_table")),
         hr(),
-        anova2_titulo_secao("Gráfico de interação"),
-        plotOutput(ns("interacao_plot"), height = "430px")
+        anova2_titulo_secao("Leitura visual da interação"),
+        helpText(
+          "Os dois gráficos usam as mesmas médias por célula e intervalos de confiança. O perfil de linhas é a leitura principal; as barras ajudam a comparar as combinações.",
+          style = "font-size: 0.82rem;"
+        ),
+        layout_columns(
+          col_widths = c(6, 6),
+          plotOutput(ns("interacao_plot"), height = "400px"),
+          plotOutput(ns("combinacoes_plot"), height = "400px")
+        )
       )
     })
 
@@ -167,6 +175,16 @@ mod_anova_dois_fatores_server <- function(id, data_rv, import_info) {
       grafico_anova_dois_fatores(
         r,
         titulo = if (nzchar(input$custom_title %||% "")) input$custom_title else NULL,
+        rotulo_x = if (nzchar(input$custom_label_x %||% "")) input$custom_label_x else NULL,
+        rotulo_y = if (nzchar(input$custom_label_y %||% "")) input$custom_label_y else NULL,
+        tema = input$graph_theme %||% "minimal"
+      )
+    })
+
+    output$combinacoes_plot <- renderPlot({
+      r <- result_rv(); req(r)
+      grafico_combinacoes_anova_dois_fatores(
+        r,
         rotulo_x = if (nzchar(input$custom_label_x %||% "")) input$custom_label_x else NULL,
         rotulo_y = if (nzchar(input$custom_label_y %||% "")) input$custom_label_y else NULL,
         tema = input$graph_theme %||% "minimal"
@@ -241,7 +259,8 @@ mod_anova_dois_fatores_server <- function(id, data_rv, import_info) {
           rotulo_y = input$custom_label_y %||% ""
         ),
         saidas_disponiveis = c("narrativa", "celulas", "tabela", "efeito",
-                               "comparacoes", "grafico", "pressupostos", "diagnosticos"),
+                               "comparacoes", "grafico", "grafico_combinacoes",
+                               "pressupostos", "diagnosticos"),
         resultado_resumo = list(
           n = as.integer(r$n), excluidos = as.integer(r$excluidos),
           gl_a = as.integer(r$df_a), gl_b = as.integer(r$df_b),

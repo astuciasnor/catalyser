@@ -96,7 +96,7 @@ ui <- page_navbar(
   id = "main_navbar",
   window_title = "CatalyseR",
   title = div(
-    style = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 10px !important; padding: 2px 10px !important; width: 100% !important; height: 100% !important;",
+    style = "display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 7px !important; padding: 2px 6px !important; width: 100% !important; height: 100% !important;",
     tags$a(
       href = "https://www.r-project.org/",
       target = "_blank",
@@ -114,6 +114,16 @@ ui <- page_navbar(
       target = "_blank",
       style = "display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;",
       tags$img(src = "ufpa_logo.png", height = "76px", style = "opacity: 0.95; object-fit: contain;")
+    ),
+    tags$a(
+      id = "sobre-custom-btn",
+      href = "#",
+      title = "Sobre a CatalyseR",
+      `aria-label` = "Abrir Sobre a CatalyseR",
+      onclick = "var el = document.querySelector(\"a[data-value='Sobre']\"); if(el) el.click(); return false;",
+      style = "display: flex; flex-direction: column; align-items: center; justify-content: center; width: 56px; min-width: 56px; height: 76px; text-decoration: none; color: #1d4ed8 !important; padding: 3px; transition: all 0.2s ease; cursor: pointer;",
+      tags$i(class = "fas fa-university", style = "font-size: 1.7rem; color: #1d4ed8; margin-bottom: 3px;"),
+      span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.72rem; line-height: 1;")
     )
   ),
   theme = bs_theme(
@@ -296,9 +306,10 @@ ui <- page_navbar(
       .navbar-nav > li:nth-child(14) .nav-link i, .navbar-nav > li:nth-child(14) .dropdown-toggle i { color: #3b82f6 !important; } /* Ajuda -> azul */
       .navbar-nav > li:nth-child(15) .nav-link i, .navbar-nav > li:nth-child(15) .dropdown-toggle i { color: #1d4ed8 !important; } /* Sobre -> azul institucional */
       
-      /* Estilos para o botão 'Sobre' personalizado na barrinha da direita */
+      /* Botão Sobre na terceira faixa, dimensionado como as logos. */
       #sobre-custom-btn {
         transition: all 0.2s ease;
+        flex: 0 0 56px !important;
       }
       #sobre-custom-btn:hover {
         background-color: rgba(13, 110, 253, 0.08) !important;
@@ -1050,24 +1061,11 @@ ui <- page_navbar(
     )
   ),
   
-  # 13. Slogan na Barra da Direita (alinhado na Coluna 3)
+  # 13. Identidade CatalyseR na primeira faixa
   nav_item(
     div(
       class = "navbar-slogan-container",
-      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 15px; width: 100%;",
-      # Botão personalizado "Sobre"
-      tags$a(
-        id = "sobre-custom-btn",
-        href = "#",
-        onclick = "var el = document.querySelector(\"a[data-value='Sobre']\"); if(el) el.click(); return false;",
-        style = "display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: #1d4ed8 !important; padding: 4px 8px; transition: all 0.2s ease; cursor: pointer;",
-        tags$i(class = "fas fa-university", style = "font-size: 1.6rem; color: #1d4ed8; margin-bottom: 2px;"),
-        span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.76rem; line-height: 1.05;")
-      ),
-      # Linha divisória vertical
-      div(
-        style = "width: 1px; height: 42px; background-color: rgba(13, 110, 253, 0.25); margin-left: 2px; margin-right: 2px;"
-      ),
+      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%;",
       # Logo do CatalyseR (nova identidade "CatalyseR Studio")
       tags$img(
         src = "catalyser_logo2.png",

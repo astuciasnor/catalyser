@@ -44,6 +44,7 @@ Imports:
     vistributions,
     EAPADados (>= 0.1.10)
 Suggests:
+    here,
     knitr,
     geobr,
     sf,

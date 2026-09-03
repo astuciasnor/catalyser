@@ -26,9 +26,20 @@ estado_registro <- list(
     fator_b = "remocao_semanal"
   ),
   saidas_disponiveis = c("narrativa", "celulas", "tabela", "efeito",
-                         "comparacoes", "grafico", "pressupostos", "diagnosticos")
+                         "comparacoes", "grafico", "grafico_combinacoes",
+                         "pressupostos", "diagnosticos")
 )
-stopifnot(isTRUE(execucoes_validar_estado(estado_registro)))
+stopifnot(
+  isTRUE(execucoes_validar_estado(estado_registro)),
+  identical(
+    unname(execucoes_rotulos_saidas[["grafico_combinacoes"]]),
+    "Gráfico das combinações"
+  ),
+  identical(
+    exportacao_sufixo_componente("anova_dois_fatores", "grafico_combinacoes"),
+    "combinacoes"
+  )
+)
 
 resultado <- calcular_anova_dois_fatores(
   salvelino,
@@ -40,6 +51,8 @@ resultado <- calcular_anova_dois_fatores(
 tabela <- arrumar_tabela_anova_dois_fatores(resultado)
 celulas <- arrumar_celulas_anova_dois_fatores(resultado)
 pressupostos <- arrumar_pressupostos_anova_dois_fatores(resultado)
+grafico_interacao <- grafico_anova_dois_fatores(resultado)
+grafico_combinacoes <- grafico_combinacoes_anova_dois_fatores(resultado)
 
 stopifnot(
   resultado$n == 30L,
@@ -51,6 +64,14 @@ stopifnot(
   grepl("remocao_semanal", tabela[["Fonte de variação"]][2], fixed = TRUE),
   nrow(celulas) == 4L,
   all(c("Pressuposto", "Estatística", "p-valor") %in% names(pressupostos)),
+  inherits(grafico_interacao, "ggplot"),
+  inherits(grafico_combinacoes, "ggplot"),
+  grepl("IC 95%", grafico_interacao$labels$subtitle, fixed = TRUE),
+  grepl("IC 95%", grafico_combinacoes$labels$subtitle, fixed = TRUE),
+  is.null(grafico_interacao$scales$get_scales("y")$limits),
+  is.null(grafico_combinacoes$scales$get_scales("y")$limits),
+  identical(grafico_interacao$labels$colour, "remocao_semanal"),
+  identical(grafico_interacao$labels$shape, "remocao_semanal"),
   grepl("desequilibrado", resultado$narrativa, fixed = TRUE),
   grepl("remocao_semanal", resultado$narrativa, fixed = TRUE),
   is.character(resultado$console),
@@ -80,6 +101,10 @@ stopifnot(
   nrow(replay$efeito) == 3L,
   is.data.frame(replay$tabela),
   nrow(replay$tabela) == 5L,
+  inherits(replay$grafico, "ggplot"),
+  inherits(replay$grafico_combinacoes, "ggplot"),
+  grepl("IC 95%", replay$grafico$labels$subtitle, fixed = TRUE),
+  grepl("IC 95%", replay$grafico_combinacoes$labels$subtitle, fixed = TRUE),
   inherits(replay$objeto, "aov")
 )
 

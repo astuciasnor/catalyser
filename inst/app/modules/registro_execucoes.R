@@ -13,6 +13,7 @@ execucoes_rotulos_saidas <- c(
   efeito = "Tamanhos de efeito",
   comparacoes = "Comparações múltiplas",
   grafico = "Gráfico",
+  grafico_combinacoes = "Gráfico das combinações",
   pressupostos = "Pressupostos",
   diagnosticos = "Diagnósticos",
   console = "Console"

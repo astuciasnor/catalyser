@@ -15,6 +15,35 @@ exportacao_dput_texto <- function(x) {
   paste(capture.output(dput(x)), collapse = "\n")
 }
 
+# Escreve uma lista de parâmetros como código R legível, um item por linha,
+# com listas aninhadas recuadas. É o que aparece no chunk de apresentação do
+# relatório: os parâmetros exatamente como foram escolhidos na tela.
+exportacao_lista_r <- function(x, recuo = 0L) {
+  espaco <- strrep(" ", recuo)
+  if (!is.list(x) || is.data.frame(x) || !length(x)) {
+    valor <- paste(capture.output(dput(x)), collapse = " ")
+    return(gsub("\\s+", " ", valor))
+  }
+  nomes <- names(x) %||% rep("", length(x))
+  itens <- vapply(seq_along(x), function(i) {
+    valor <- exportacao_lista_r(x[[i]], recuo + 2L)
+    if (nzchar(nomes[[i]])) {
+      sprintf("%s  %s = %s", espaco, nomes[[i]], valor)
+    } else {
+      sprintf("%s  %s", espaco, valor)
+    }
+  }, character(1))
+  paste0("list(\n", paste(itens, collapse = ",\n"), "\n", espaco, ")")
+}
+
+# Nome de objeto R a partir da raiz do chunk: `anova-profundidade-m` vira
+# `anova_profundidade_m`. É o objeto que guarda o resultado de uma análise.
+exportacao_nome_resultado <- function(raiz) {
+  nome <- gsub("-", "_", raiz, fixed = TRUE)
+  if (!grepl("^[A-Za-z]", nome)) nome <- paste0("resultado_", nome)
+  nome
+}
+
 exportacao_validar_manifesto <- function(manifesto, exigir_word = FALSE) {
   mensagens <- character()
   if (!is.list(manifesto) || !length(manifesto$execucoes %||% list())) {
@@ -49,10 +78,13 @@ exportacao_validar_manifesto <- function(manifesto, exigir_word = FALSE) {
   list(ok = !length(mensagens), mensagens = mensagens)
 }
 
-# ---- Script único da Base Compartilhada -------------------------------------
-# O relatório não constrói a Base Compartilhada: ele chama este script com
-# source(). O script percorre planilha bruta -> operações estruturais -> trilha
-# de tratamentos e deixa `dados_analise` na memória.
+# ---- Scripts de preparo: 01_importar.R e 02_tratar.R -------------------------
+# O Projeto R exportado segue a árvore do projeto-modelo do ecossistema EAPA
+# (`EAPACaderno/`): scripts numerados em R/, caminhos com here(),
+# relatório em relatorios/. O script 01 lê a planilha e deixa `dados_brutos`
+# na memória; o 02 chama o 01, aplica operações estruturais e a trilha de
+# tratamentos, confere contra a fotografia e deixa `dados_analise`. O relatório
+# e os scripts 04 chamam apenas o 02.
 
 exportacao_nome_planilha <- function(import_info = list()) {
   origem <- if (identical(import_info$source, "package")) {
@@ -73,30 +105,51 @@ exportacao_aba_planilha <- function(import_info = list()) {
   if (!nzchar(aba)) "dados" else substr(aba, 1, 31)
 }
 
-# Passo 1: da planilha ao data.frame bruto.
-exportacao_bloco_planilha <- function(import_info = list()) {
-  planilha <- exportacao_nome_planilha(import_info)
-  aba <- exportacao_aba_planilha(import_info)
+# Aviso padrão de dependência, no mesmo tom nos três scripts.
+exportacao_bloco_pacote_catalyser <- function() {
   c(
-    "# -----------------------------------------------------------------------",
-    "# 1. Planilha bruta",
-    "# -----------------------------------------------------------------------",
-    "# A CatalyseR exportou os dados de entrada como planilha para que o projeto",
-    "# comece onde a sua análise realmente começou. Troque o caminho abaixo se",
-    "# quiser apontar para a sua própria planilha.",
-    sprintf("caminho_planilha <- file.path('dados', '%s')", planilha),
-    sprintf("aba_planilha <- '%s'", aba),
-    "",
-    "if (!requireNamespace('readxl', quietly = TRUE)) {",
+    "# As funções da CatalyseR vêm do pacote catalyser. Digite ?catalyser_anova",
+    "# no console para ver a ajuda de qualquer uma delas.",
+    "if (!requireNamespace(\"catalyser\", quietly = TRUE)) {",
     "  stop(",
-    "    \"Instale o pacote readxl para ler a planilha: install.packages('readxl')\",",
+    "    \"Este projeto usa o pacote catalyser. Para instalar:\\n\",",
+    "    \"  remotes::install_github('astuciasnor/catalyser')\",",
     "    call. = FALSE",
     "  )",
     "}",
-    "dados_brutos <- as.data.frame(",
-    "  readxl::read_excel(caminho_planilha, sheet = aba_planilha)",
-    ")",
-    ""
+    "library(catalyser)"
+  )
+}
+
+# Script 01: da planilha ao data.frame bruto, sem mexer em nada.
+exportacao_codigo_importar <- function(import_info = list()) {
+  planilha <- exportacao_nome_planilha(import_info)
+  aba <- exportacao_aba_planilha(import_info)
+  c(
+    "# 01 - Importar a planilha bruta ------------------------------------------",
+    "#",
+    "# O que este script faz: lê a planilha que a CatalyseR exportou junto com o",
+    "# projeto (a mesma que você importou na IDE) e deixa `dados_brutos` na",
+    "# memória, do jeito que veio.",
+    "#",
+    "# O que ele NÃO faz: tratar nada. Isso é papel do script 02, que aplica a",
+    "# Trilha de Preparo registrada na CatalyseR.",
+    "#",
+    "# A planilha em dados/brutos/ é somente-leitura. Se quiser rodar o projeto",
+    "# com outra planilha de mesma estrutura, troque o caminho abaixo.",
+    "#",
+    "# Gerado pela CatalyseR. Pode ser lido, executado e adaptado livremente.",
+    "",
+    "library(here)      # monta caminhos a partir da raiz do projeto (onde está o .Rproj)",
+    "library(readxl)",
+    "",
+    sprintf("caminho_planilha <- here(\"dados\", \"brutos\", \"%s\")", planilha),
+    sprintf("aba_planilha <- \"%s\"", aba),
+    "",
+    "dados_brutos <- as.data.frame(read_excel(caminho_planilha, sheet = aba_planilha))",
+    "",
+    "message(\"01_importar: \", nrow(dados_brutos), \" linhas e \", ncol(dados_brutos),",
+    "        \" colunas importadas de \", basename(caminho_planilha), \".\")"
   )
 }
 
@@ -126,7 +179,7 @@ exportacao_bloco_estrutural <- function(base_externa = NULL) {
     "# Houve mudança estrutural promovida na CatalyseR (Pivotar/Separar ou",
     "# Criar e Editar Variáveis e Níveis). Para o projeto reproduzir exatamente a base que você",
     "# viu na tela, o script carrega a fotografia materializada na exportação.",
-    "base_resolvida <- as.data.frame(readRDS(file.path('dados', 'base_resolvida.rds')))",
+    "base_resolvida <- as.data.frame(readRDS(here(\"dados\", \"processados\", \"base_resolvida.rds\")))",
     "",
     "# Código registrado da operação estrutural, para estudo. Ele parte da",
     "# planilha; se houver mais de um bloco, execute um de cada vez.",
@@ -164,35 +217,31 @@ exportacao_bloco_trilha <- function(pipeline, reg = tratamentos) {
   c(linhas, "dados_analise <- dados", "")
 }
 
-exportacao_codigo_base_compartilhada <- function(pipeline, base_externa = NULL,
-                                                 import_info = list(),
-                                                 reg = tratamentos) {
+# Script 02: da planilha bruta à Base Compartilhada (`dados_analise`).
+exportacao_codigo_tratar <- function(pipeline, base_externa = NULL,
+                                     reg = tratamentos) {
   c(
-    "# =======================================================================",
-    "# Base Compartilhada do projeto",
-    "# -----------------------------------------------------------------------",
-    "# Este é o ÚNICO arquivo responsável por produzir `dados_analise`.",
-    "# O relatório apenas o executa com source(); todas as bases derivadas",
-    "# nascem do objeto que ele deixa na memória.",
+    "# 02 - Tratar os dados ------------------------------------------------------",
     "#",
-    "# Percurso: planilha bruta -> operações estruturais -> trilha de",
-    "# tratamentos -> conferência contra a fotografia exportada.",
+    "# Aqui a planilha vira a Base Compartilhada (`dados_analise`), exatamente",
+    "# como aconteceu na CatalyseR: primeiro as operações estruturais, depois a",
+    "# Trilha de Preparo, na ordem lógica registrada. No fim, o resultado é",
+    "# conferido contra a fotografia que a IDE exportou.",
+    "#",
+    "# Este é o ÚNICO arquivo que produz `dados_analise`. O relatório e os",
+    "# scripts 04 apenas o chamam com source().",
     "#",
     "# Gerado pela CatalyseR. Pode ser lido, executado e adaptado livremente.",
-    "# =======================================================================",
     "",
-    "# As funcoes usadas aqui vem do pacote catalyser. Digite ?catalyser_anova",
-    "# no console para ver a ajuda de qualquer uma delas.",
-    "if (!requireNamespace('catalyser', quietly = TRUE)) {",
-    "  stop(",
-    "    'Este projeto usa o pacote catalyser. Para instalar:\\n',",
-    "    '  remotes::install_github(\"astuciasnor/catalyser\")',",
-    "    call. = FALSE",
-    "  )",
-    "}",
-    "library(catalyser)",
+    "library(here)",
+    exportacao_bloco_pacote_catalyser(),
     "",
-    exportacao_bloco_planilha(import_info),
+    "# -----------------------------------------------------------------------",
+    "# 1. Planilha bruta",
+    "# -----------------------------------------------------------------------",
+    "# A planilha entra pelo script 01, que deixa `dados_brutos` na memória.",
+    "source(here(\"R\", \"01_importar.R\"), local = TRUE)",
+    "",
     exportacao_bloco_estrutural(base_externa),
     exportacao_bloco_trilha(pipeline, reg),
     "# -----------------------------------------------------------------------",
@@ -201,25 +250,31 @@ exportacao_codigo_base_compartilhada <- function(pipeline, base_externa = NULL,
     "# A CatalyseR também exportou uma fotografia de `dados_analise`. A função",
     "# abaixo compara a base reconstruída com ela e avisa se algo divergir.",
     "#",
-    "# Para olhar a base tratada fora do R, abra 'dados/base_compartilhada.xlsx'.",
+    "# Para olhar a base tratada fora do R, abra dados/processados/base_compartilhada.xlsx.",
     "catalyser_conferir_base(",
     "  dados_analise,",
-    "  file.path('dados', 'dados_analise.rds'),",
-    "  rotulo = 'Base Compartilhada'",
+    "  here(\"dados\", \"processados\", \"dados_analise.rds\"),",
+    "  rotulo = \"Base Compartilhada\"",
     ")"
   )
 }
 
 # ---- Nomes dos arquivos de análise -------------------------------------------
-# O aluno lê a pasta R/ antes de abrir qualquer coisa. Os nomes precisam dizer
-# a ordem e o que cada arquivo faz, sem IDs internos:
+# O aluno lê a pasta R/ antes de abrir qualquer coisa. Os nomes seguem o
+# projeto-modelo (01 importar, 02 tratar, 04 analisar) e dizem a ordem e o que
+# cada arquivo faz, sem IDs internos:
 #
-#   01_base_compartilhada.R
-#   02_execucao_01_anova_um_fator.R
-#   02_execucao_02_grafico_de_linhas_01.R
-#   02_execucao_03_grafico_de_linhas_02.R
+#   01_importar.R
+#   02_tratar.R
+#   04_analisar_01_anova_um_fator.R
+#   04_analisar_02_grafico_de_linhas_01.R
+#   04_analisar_03_grafico_de_linhas_02.R
 #
-# O sufixo numérico do tipo só aparece quando a mesma análise se repete.
+# Não há 03 (explorar), 05 (gráficos) nem rodar_tudo.R: a exploração foi feita
+# na IDE, os gráficos nascem dentro de cada análise e o Render do relatório já
+# refaz tudo sozinho (o rodar_tudo.R só faz sentido na Fase B, quando os
+# scripts passarem a gravar em resultados/). O sufixo numérico do tipo só
+# aparece quando a mesma análise se repete.
 
 exportacao_tipo_legivel <- function(tipo) {
   legiveis <- c(
@@ -245,7 +300,7 @@ exportacao_tipo_legivel <- function(tipo) {
 exportacao_arquivo_execucao <- function(execucao, indice, sufixo_tipo = NULL) {
   tipo <- exportacao_tipo_legivel(execucao$tipo)
   if (!is.null(sufixo_tipo)) tipo <- sprintf("%s_%02d", tipo, as.integer(sufixo_tipo))
-  sprintf("R/02_execucao_%02d_%s.R", as.integer(indice), tipo)
+  sprintf("R/04_analisar_%02d_%s.R", as.integer(indice), tipo)
 }
 
 #' Resolve os nomes de todas as execuções de uma vez
@@ -290,19 +345,19 @@ exportacao_codigo_execucao <- function(execucao, indice, registro_bases,
   }
   carregar <- if (identical(execucao$base_tipo, "derivada") && !is.null(base)) {
     c(
-      "# A Base Compartilhada é reconstruída pelo seu script dedicado.",
-      "source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
+      "# A Base Compartilhada é reconstruída pelo script 02 (que chama o 01).",
+      "source(here(\"R\", \"02_tratar.R\"), local = TRUE)",
       "",
       sprintf("# Base derivada: um salto a partir de dados_analise. Esta é a mesma"),
-      sprintf("# receita do chunk '%s-base' do relatorio.qmd.", raiz_chunk),
+      sprintf("# receita do chunk '%s-base' de relatorios/relatorio.qmd.", raiz_chunk),
       strsplit(bases_codigo(base, incluir_print = FALSE), "\n", fixed = TRUE)[[1]],
       "",
       sprintf("dados <- %s", base$nome_r)
     )
   } else if (identical(execucao$base_id, "dados_analise") || identical(execucao$base_tipo, "compartilhada")) {
     c(
-      "# A Base Compartilhada é reconstruída pelo seu script dedicado.",
-      "source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
+      "# A Base Compartilhada é reconstruída pelo script 02 (que chama o 01).",
+      "source(here(\"R\", \"02_tratar.R\"), local = TRUE)",
       "dados <- dados_analise"
     )
   } else {
@@ -329,16 +384,8 @@ exportacao_codigo_execucao <- function(execucao, indice, registro_bases,
     "#   PARTE 3 - refazer o resultado do relatório (parte técnica)",
     paste0("# ", strrep("=", 75)),
     "",
-    "# As funcoes desta analise vem do pacote catalyser. Para ver a ajuda de",
-    "# qualquer uma delas, digite no console: ?catalyser_executar",
-    "if (!requireNamespace('catalyser', quietly = TRUE)) {",
-    "  stop(",
-    "    'Este projeto usa o pacote catalyser. Para instalar:\\n',",
-    "    '  remotes::install_github(\"astuciasnor/catalyser\")',",
-    "    call. = FALSE",
-    "  )",
-    "}",
-    "library(catalyser)",
+    "library(here)",
+    exportacao_bloco_pacote_catalyser(),
     "",
     paste0("# ", regua),
     "# PARTE 1 - PREPARAR OS DADOS DESTA ANÁLISE",
@@ -363,7 +410,7 @@ exportacao_codigo_execucao <- function(execucao, indice, registro_bases,
     "# abaixo a reexecuta e devolve as tabelas e figuras já formatadas, do jeito",
     "# que aparecem no relatório. O resultado é o mesmo da PARTE 2.",
     "",
-    "registro_execucoes <- readRDS(file.path('metadados', 'registro_execucoes.rds'))",
+    "registro_execucoes <- readRDS(here(\"metadados\", \"registro_execucoes.rds\"))",
     sprintf("configuracao <- registro_execucoes[[%s]]", exportacao_dput_texto(execucao$id)),
     "",
     sprintf("%s <- catalyser_executar(configuracao, dados)", variavel),
@@ -416,15 +463,15 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
   carregar <- if (identical(execucao$base_tipo, "derivada")) {
     c(
       "# Antes de rodar este bloco, construa a base desta análise:",
-      "#   1. source(file.path('R', '01_base_compartilhada.R'))",
-      sprintf("#   2. a receita de '%s' (chunk '%s-base' do relatorio.qmd)",
+      "#   1. source(here(\"R\", \"02_tratar.R\"))",
+      sprintf("#   2. a receita de '%s' (chunk '%s-base' de relatorios/relatorio.qmd)",
               execucao$base_objeto, exportacao_raiz_chunk(execucao)),
       sprintf("dados <- %s", execucao$base_objeto)
     )
   } else if (identical(execucao$base_tipo, "compartilhada") ||
              identical(execucao$base_id, "dados_analise")) {
     c(
-      "source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
+      "source(here(\"R\", \"02_tratar.R\"), local = TRUE)",
       "dados <- dados_analise"
     )
   } else {
@@ -746,7 +793,8 @@ exportacao_sufixo_componente <- function(tipo, componente) {
   especificos <- if (identical(tipo, "anova_um_fator")) {
     c(tabela = "modelo", comparacoes = "tukey", descritivos = "resumo-grupos")
   } else if (identical(tipo, "anova_dois_fatores")) {
-    c(tabela = "modelo", celulas = "celulas", efeito = "efeitos", comparacoes = "tukey")
+    c(tabela = "modelo", celulas = "celulas", efeito = "efeitos",
+      comparacoes = "tukey", grafico_combinacoes = "combinacoes")
   } else {
     c(comparacoes = "comparacoes", descritivos = "resumo-grupos")
   }
@@ -795,6 +843,21 @@ exportacao_raizes_chunk <- function(execucoes) {
   stats::setNames(raizes, ids)
 }
 
+# Uma linha de comentário por componente, para o chunk dizer o que mostra.
+exportacao_comentario_componente <- function(componente, rotulo) {
+  frases <- c(
+    narrativa = "O texto em português, pronto para o relatório.",
+    descritivos = "Resumo por grupo: n, média e desvio padrão.",
+    tabela = "A tabela do modelo ajustado.",
+    comparacoes = "Comparações par a par: quem difere de quem.",
+    grafico = "O gráfico, como apareceu na CatalyseR.",
+    pressupostos = "Os testes de pressupostos do modelo.",
+    diagnosticos = "Os gráficos de diagnóstico dos resíduos."
+  )
+  if (componente %in% names(frases)) return(paste0("# ", frases[[componente]]))
+  sprintf("# %s desta análise, como na CatalyseR.", rotulo)
+}
+
 exportacao_bloco_componente <- function(variavel, execucao_id, componente,
                                         raiz_chunk = NULL, tipo = NULL) {
   rotulo <- comunicacao_rotulos_saidas[[componente]] %||% componente
@@ -803,13 +866,15 @@ exportacao_bloco_componente <- function(variavel, execucao_id, componente,
   } else {
     paste0(raiz_chunk, "-", exportacao_sufixo_componente(tipo, componente))
   }
+  # [[ ]] em vez de $: o $ do R completa nomes pela metade, e `grafico`
+  # poderia virar `grafico_combinacoes` sem ninguém perceber.
   expressao <- if (identical(componente, "console")) {
     sprintf(
-      "cat('```text\\n', paste(%s[['console']], collapse = '\\n'), '\\n```\\n')",
+      "cat('```text\\n', paste(%s[[\"console\"]], collapse = '\\n'), '\\n```\\n')",
       variavel
     )
   } else {
-    sprintf("catalyser_mostrar(%s[['%s']])", variavel, componente)
+    sprintf("catalyser_mostrar(%s[[\"%s\"]])", variavel, componente)
   }
   c(
     sprintf("### %s", rotulo),
@@ -818,7 +883,68 @@ exportacao_bloco_componente <- function(variavel, execucao_id, componente,
     sprintf("#| label: %s", id_chunk),
     "#| echo: false",
     "#| results: asis",
+    exportacao_comentario_componente(componente, rotulo),
     expressao,
+    "```",
+    ""
+  )
+}
+
+# Chunk de apresentação: a análise refeita pela função da CatalyseR, com os
+# parâmetros escritos por extenso. É o que alimenta as tabelas, os gráficos e
+# a narrativa do Word, e não depende de nenhum arquivo de metadados.
+exportacao_bloco_apresentacao <- function(item, raiz, variavel) {
+  configuracao <- list(
+    tipo = item$tipo,
+    titulo = item$titulo,
+    parametros = item$parametros %||% list()
+  )
+  lista <- strsplit(exportacao_lista_r(configuracao, 0L), "\n", fixed = TRUE)[[1]]
+  lista[length(lista)] <- paste0(lista[length(lista)], ",")
+  c(
+    "<!-- Apresentação: a mesma análise, agora pela função da CatalyseR, que",
+    "     devolve narrativa, tabelas e gráficos já formatados para o Word. Os",
+    "     parâmetros abaixo são exatamente os que você escolheu na tela. -->",
+    "```{r}",
+    sprintf("#| label: %s-resultado", raiz),
+    "#| include: false",
+    sprintf("%s <- catalyser_executar(", variavel),
+    paste0("  ", lista),
+    "  dados_da_analise",
+    ")",
+    "```",
+    ""
+  )
+}
+
+# Tipos cujo código de estudo já foi humanizado e testado de ponta a ponta.
+# Só esses rodam de verdade no relatório; os demais ficam como código para
+# leitura (eval: false), até ganharem o mesmo tratamento.
+exportacao_tipos_com_codigo_vivo <- c("anova_um_fator", "anova_dois_fatores", "grafico_linhas")
+
+# Chunk da análise passo a passo: o código que o aluno escreveria no RStudio.
+exportacao_bloco_analise <- function(item, raiz) {
+  vivo <- as.character(item$tipo %||% "") %in% exportacao_tipos_com_codigo_vivo
+  codigo_estudo <- exportacao_codigo_estudo(item, incluir_carregamento = FALSE)
+  c(
+    if (vivo) c(
+      "<!-- A análise, passo a passo: é o que você escreveria no RStudio para",
+      "     fazer esta análise sem a CatalyseR. Roda de verdade, mas não imprime",
+      "     nada no Word (output: false); as saídas formatadas vêm do bloco",
+      "     seguinte. Para ver os objetos crus, rode este chunk no RStudio. -->"
+    ) else c(
+      "<!-- A análise, passo a passo: é o que você escreveria no RStudio para",
+      "     fazer esta análise sem a CatalyseR. Este tipo de análise ainda não",
+      "     tem o código passo a passo validado, então o chunk fica só para",
+      "     leitura (eval: false); as saídas vêm do bloco seguinte. -->"
+    ),
+    "```{r}",
+    sprintf("#| label: %s-analise", raiz),
+    "#| echo: false",
+    if (vivo) "#| output: false" else "#| eval: false",
+    "dados <- dados_da_analise",
+    "",
+    codigo_estudo,
     "```",
     ""
   )
@@ -877,40 +1003,41 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
     "",
     "<!--",
     "  Este primeiro bloco só prepara o terreno; ele não faz nenhuma análise.",
-    "  São três linhas, e cada uma carrega uma coisa:",
+    "  Cada linha carrega uma coisa:",
     "",
-    "    1. o pacote catalyser, que traz as funções de análise;",
-    "    2. a configuração congelada de cada análise, guardada quando você",
-    "       clicou em 'Adicionar aos resultados' na CatalyseR;",
+    "    1. o pacote here, que monta os caminhos a partir da raiz do projeto;",
+    "    2. o pacote catalyser, que traz as funções de análise;",
     "    3. a lista das bases usadas, para a tabela da seção seguinte.",
     "",
     "  Ele roda escondido (include: false) porque é preparação, não resultado.",
+    "  Daqui em diante, cada análise aparece em três blocos: a base que ela usa,",
+    "  a análise passo a passo e a apresentação (tabelas, gráficos, narrativa).",
     "-->",
     "```{r}",
     "#| label: configuracao",
     "#| include: false",
-    "# 1. Pacote com as funções de análise (?catalyser_anova mostra a ajuda).",
-    "library(catalyser)",
+    "# 1. Caminhos a partir da raiz do projeto (onde está o .Rproj).",
+    "library(here)",
     "",
-    "# 2. Configuração de cada análise, do jeito que foi registrada na CatalyseR.",
-    "analises_registradas <- readRDS(file.path('metadados', 'registro_execucoes.rds'))",
+    "# 2. Pacote com as funções de análise (?catalyser_anova mostra a ajuda).",
+    "library(catalyser)",
     "",
     "# 3. Lista das bases do projeto, para a tabela de Preparação dos dados.",
     "bases_projeto <- utils::read.csv(",
-    "  file.path('metadados', 'bases.csv'),",
+    "  here(\"metadados\", \"bases.csv\"),",
     "  check.names = FALSE",
     ")",
     "```",
     "",
     "# Preparação dos dados",
     "",
-    "A Base Compartilhada é construída por um script dedicado, `R/01_base_compartilhada.R`, que parte da planilha bruta exportada com o projeto, aplica as operações estruturais e a trilha de tratamentos e confere o resultado contra a fotografia registrada na CatalyseR. Este relatório apenas o executa: nenhuma transformação compartilhada acontece dentro do `.qmd`.",
+    "A Base Compartilhada é construída pelos scripts `R/01_importar.R` (lê a planilha bruta exportada com o projeto) e `R/02_tratar.R` (aplica as operações estruturais e a trilha de tratamentos e confere o resultado contra a fotografia registrada na CatalyseR). Este relatório apenas executa o script 02, que chama o 01: nenhuma transformação compartilhada acontece dentro do `.qmd`.",
     "",
     "```{r}",
     "#| label: base-compartilhada",
     "#| include: false",
     "# Único ponto de entrada dos dados: o script deixa `dados_analise` na memória.",
-    "source(file.path('R', '01_base_compartilhada.R'), local = TRUE)",
+    "source(here(\"R\", \"02_tratar.R\"), local = TRUE)",
     "```",
     "",
     "As bases derivadas nascem diretamente de `dados_analise`, em um único salto, e cada análise constrói a sua no chunk que a antecede.",
@@ -941,10 +1068,11 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
   }
   raizes <- exportacao_raizes_chunk(manifesto$execucoes %||% list())
   for (item in incluidas) {
-    variavel <- exportacao_nome_seguro(paste0("resultado_", item$id), "resultado_execucao")
     raiz <- if (item$id %in% names(raizes)) unname(raizes[[item$id]]) else
       exportacao_slug_chunk(item$id, "analise")
-    codigo_estudo <- exportacao_codigo_estudo(item, incluir_carregamento = FALSE)
+    # O objeto do resultado leva o nome da análise (`anova_profundidade_m`),
+    # não o ID interno da execução.
+    variavel <- exportacao_nome_resultado(raiz)
     linhas <- c(
       linhas,
       paste0("## ", item$titulo),
@@ -953,26 +1081,8 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
       sprintf("**Execução registrada:** `%s`", item$id),
       "",
       exportacao_bloco_base_analise(item, raiz, registro_bases),
-      "<!-- Método: o código abaixo fica explícito no QMD para estudo e pode ser",
-      "     copiado para o console. Não entra no Word. -->",
-      "```{r}",
-      sprintf("#| label: %s-codigo", raiz),
-      "#| eval: false",
-      "#| include: false",
-      "dados <- dados_da_analise",
-      "",
-      codigo_estudo,
-      "```",
-      "",
-      "<!-- Mecanismo editorial: reexecuta a configuração congelada sobre a base",
-      "     construída acima, para alimentar as saídas escolhidas no manifesto. -->",
-      "```{r}",
-      sprintf("#| label: %s-replay", raiz),
-      "#| include: false",
-      sprintf("%s <- catalyser_executar(analises_registradas[[%s]], dados_da_analise)",
-              variavel, exportacao_dput_texto(item$id)),
-      "```",
-      ""
+      exportacao_bloco_analise(item, raiz),
+      exportacao_bloco_apresentacao(item, raiz, variavel)
     )
     for (componente in item$saidas_word) {
       linhas <- c(
@@ -1069,44 +1179,100 @@ exportacao_salvar_planilha <- function(df, caminho, aba = "dados") {
 #' Explica o percurso dos dados em uma leitura: onde a base compartilhada nasce,
 #' onde cada base derivada é construída e o que o relatório faz.
 exportacao_leiame_projeto <- function(nome_projeto, import_info = list()) {
+  planilha <- exportacao_nome_planilha(import_info)
   c(
     paste0("# ", nome_projeto), "",
-    "Projeto de análise gerado pela CatalyseR.", "",
-    "## Os arquivos de `dados/`", "",
-    sprintf("- `%s` — a planilha bruta, **ponto de entrada** de tudo.",
-            exportacao_nome_planilha(import_info)),
+    "Projeto de análise gerado pela CatalyseR. Ele tem a mesma estrutura do",
+    "EAPACaderno, o projeto-modelo do ecossistema EAPA: planilha bruta entra, scripts numerados",
+    "fazem o trabalho, um relatório em Word sai. A diferença é que aqui a análise",
+    "já foi feita: você a montou na CatalyseR, e o projeto a refaz em código, para",
+    "você ler, rodar e adaptar.", "",
+    "## A estrutura", "",
+    "```",
+    paste0(nome_projeto, "/"),
+    "│",
+    "├── projeto_analise.Rproj     abra o projeto por aqui (define a raiz para o here)",
+    "├── README.md                 este arquivo",
+    "│",
+    "├── dados/",
+    sprintf("│   ├── brutos/%s", planilha),
+    "│   │                         a planilha que você importou na CatalyseR. SOMENTE LEITURA",
+    "│   └── processados/",
+    "│       ├── dados_analise.rds        fotografia da base tratada, só para conferência",
+    "│       └── base_compartilhada.xlsx  a mesma base, para abrir no Excel",
+    "│",
+    "├── R/                        todo o código, na ordem dos números",
+    "│   ├── 01_importar.R         lê a planilha, sem mexer em nada",
+    "│   ├── 02_tratar.R           operações estruturais + Trilha de Preparo -> dados_analise",
+    "│   └── 04_analisar_*.R       um script por análise registrada",
+    "│",
+    "├── relatorios/",
+    "│   ├── relatorio.qmd         o relatório; chama o script 02 e refaz cada análise",
+    "│   ├── custom-reference.docx modelo de página do Word",
+    "│   └── relatorio.docx        o relatório pronto (gerado)",
+    "│",
+    "└── metadados/                memória técnica da exportação (não precisa abrir)",
+    "```", "",
+    "Não há `03_explorar.R`, `05_graficos.R` nem `rodar_tudo.R`: a exploração",
+    "foi feita na CatalyseR, os gráficos nascem dentro de cada análise e o",
+    "*Render* do relatório já refaz tudo sozinho.", "",
+    "## Como rodar", "",
+    "1. Abra `projeto_analise.Rproj` no RStudio. Isso define a raiz do projeto,",
+    "   que é o que o `here()` usa para montar os caminhos.",
+    "2. Se faltar algum pacote, instale uma vez:",
+    "   `install.packages(c(\"here\", \"readxl\"))` e",
+    "   `remotes::install_github(\"astuciasnor/catalyser\")`.",
+    "3. Abra `relatorios/relatorio.qmd` e clique em **Render**. O relatório chama",
+    "   o script 02 (que chama o 01) e refaz cada análise; o Word sai em",
+    "   `relatorios/relatorio.docx`.",
+    "4. Para estudar uma análise isolada, rode o `R/04_analisar_*.R`",
+    "   correspondente, do início ao fim.", "",
+    "Antes de renderizar, reinicie o R (Ctrl+Shift+F10). Se o relatório sai com",
+    "a memória limpa, a análise é reprodutível.", "",
+    "## O caminho dos dados", "",
+    sprintf("1. A planilha bruta, em `dados/brutos/%s`.", planilha),
+    "2. `R/01_importar.R` lê a planilha e deixa `dados_brutos` na memória.",
+    "3. `R/02_tratar.R` chama o 01, aplica as operações estruturais e a trilha",
+    "   de tratamentos, confere o resultado contra a fotografia e deixa",
+    "   `dados_analise`. É **o único** arquivo que produz a Base Compartilhada.",
+    "4. `relatorios/relatorio.qmd` chama o script 02 uma única vez e, a partir",
+    "   dali, refaz cada análise em três chunks: a base (`...-base`), a análise",
+    "   passo a passo (`...-analise`) e a apresentação (`...-resultado`).",
+    "5. `R/04_analisar_*.R`: um script por execução, para estudar ou rodar uma",
+    "   análise isolada fora do Quarto. Cada um tem três partes: preparar os",
+    "   dados, a análise em si (o código que vale ler) e refazer o resultado do",
+    "   relatório.", "",
+    "As bases derivadas nascem diretamente de `dados_analise`, em um único salto:",
+    "não existem ramos de ramos. Não há cópia delas em disco: a receita está no",
+    "código.", "",
+    "## Os arquivos de `dados/processados/`", "",
     "- `dados_analise.rds` — fotografia da Base Compartilhada, usada **só para",
     "  conferência**: o projeto compara o que reconstruiu com o que você viu.",
     "- `base_compartilhada.xlsx` — a base já tratada, para abrir no Excel ou",
     "  enviar a quem não usa R. É entrega, não fonte do relatório.",
     "- `base_resolvida.rds` — aparece apenas se houve mudança estrutural",
     "  promovida (Pivotar/Separar ou Criar e Editar Variáveis e Níveis).", "",
-    "Não há cópia das bases derivadas: elas são um salto reproduzível a partir",
-    "de `dados_analise`, e a receita aparece no código.", "",
-    "## O caminho dos dados", "",
-    "1. A planilha bruta.",
-    "2. `R/01_base_compartilhada.R` — **o único** arquivo que constrói a Base",
-    "   Compartilhada (`dados_analise`). Lê a planilha, aplica as operações",
-    "   estruturais e a trilha de tratamentos e confere o resultado contra a",
-    "   fotografia.",
-    "3. `relatorio.qmd` — chama aquele script uma única vez e, a partir dali,",
-    "   cada análise constrói a sua base derivada no chunk `...-base`.",
-    "4. `R/02_execucao_*.R` — um script por execução, para estudar ou rodar uma análise",
-    "   isolada fora do Quarto. Ele reconstrói o que precisa: a Base",
-    "   Compartilhada e, quando for o caso, a receita da base derivada.", "",
-    "As bases derivadas nascem diretamente de `dados_analise`, em um único salto:",
-    "não existem ramos de ramos.", "",
-    "## Como usar", "",
-    "1. Abra `projeto_analise.Rproj` no RStudio.",
-    "2. Rode `R/01_base_compartilhada.R` e leia a mensagem de conferência.",
-    "3. Abra `relatorio.qmd`: cada análise traz um chunk `...-codigo` com o",
-    "   código R essencial, pronto para copiar para o console.",
-    "4. Os chunks de código usam `eval: false` e `include: false`; os de base",
-    "   derivada rodam com `echo: false`. O método fica visível no fonte e o",
-    "   Word, limpo.",
-    "5. Clique em **Render** para gerar o Word.",
-    "6. O projeto preserva todas as execuções registradas; o relatório mostra",
-    "   somente as escolhas do manifesto editorial.", "",
+    "## O relatório", "",
+    "Abra `relatorios/relatorio.qmd`. A análise mora dentro dele, e cada uma",
+    "aparece em três chunks:", "",
+    "- `...-base`: o salto da Base Compartilhada até a base desta análise;",
+    "- `...-analise`: a análise passo a passo, o código que você escreveria no",
+    "  RStudio (`aov`, `TukeyHSD`, `ggplot`...). Ela roda de verdade, mas não",
+    "  imprime no Word (`output: false`). Rode o chunk no RStudio",
+    "  (Ctrl+Shift+Enter) e a saída aparece no console, como sempre;",
+    "- `...-resultado`: a mesma análise pela função da CatalyseR, com os",
+    "  parâmetros escritos por extenso. É ela que alimenta as tabelas, os",
+    "  gráficos e a narrativa do Word.", "",
+    "Todos os chunks usam `echo: false`: o código fica visível no fonte e o",
+    "Word sai limpo. O projeto preserva todas as execuções registradas; o",
+    "relatório mostra somente as escolhas do manifesto editorial.", "",
+    "## Relação com o EAPACaderno", "",
+    "Quem conhece o EAPACaderno (o projeto-modelo do ecossistema) reconhece tudo aqui: `here()`, scripts",
+    "numerados, dados brutos intocáveis, Word no mesmo modelo de página. Duas",
+    "diferenças, de propósito: os scripts se encadeiam com `source()` em vez de",
+    "gravar arquivos intermediários, para que o *Render* funcione sozinho; e as",
+    "funções de análise vêm do pacote `catalyser`, para que o resultado seja",
+    "idêntico ao que você viu na tela.", "",
     "## A pasta `metadados/`", "",
     "Essa pasta guarda a memória técnica da exportação: origem dos dados, receitas",
     "das bases, execuções registradas, escolhas do relatório e informações da sessão R.",
@@ -1137,48 +1303,60 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     stop("O diretório temporário do projeto já existe; gere a exportação novamente.", call. = FALSE)
   }
   dir.create(projeto, recursive = TRUE, showWarnings = FALSE)
-  dirs <- file.path(projeto, c("dados", "R", "metadados", "resultados"))
+  # A árvore é a do projeto-modelo do ecossistema EAPA: dados/ (brutos e
+  # processados), R/, relatorios/ e, só aqui, metadados/.
+  dirs <- file.path(projeto, c(
+    file.path("dados", "brutos"), file.path("dados", "processados"),
+    "R", "relatorios", "metadados"
+  ))
   vapply(dirs, dir.create, logical(1), recursive = TRUE, showWarnings = FALSE)
 
-  # A pasta `dados/` é deliberadamente enxuta. No caso comum ela tem três
-  # arquivos, cada um com um papel distinto:
+  # A pasta `dados/` é deliberadamente enxuta:
   #
-  #   1. a planilha bruta   -> ponto de entrada do script da Base Compartilhada;
-  #   2. dados_analise.rds  -> fotografia, usada apenas para conferência;
-  #   3. base_compartilhada.xlsx -> entrega, para uso fora do R.
+  #   brutos/      a planilha bruta -> ponto de entrada do script 01;
+  #   processados/ dados_analise.rds -> fotografia, usada apenas para conferência;
+  #                base_compartilhada.xlsx -> entrega, para uso fora do R.
   #
   # Nada de cópias redundantes: o que o projeto sabe reconstruir, ele reconstrói.
   exportacao_salvar_planilha(
     dados_brutos,
-    file.path(projeto, "dados", exportacao_nome_planilha(import_info)),
+    file.path(projeto, "dados", "brutos", exportacao_nome_planilha(import_info)),
     aba = exportacao_aba_planilha(import_info)
   )
-  exportacao_salvar_dataframe(dados_analise, file.path(projeto, "dados", "dados_analise.rds"))
+  exportacao_salvar_dataframe(
+    dados_analise, file.path(projeto, "dados", "processados", "dados_analise.rds")
+  )
   exportacao_salvar_planilha(
     dados_analise,
-    file.path(projeto, "dados", "base_compartilhada.xlsx"),
+    file.path(projeto, "dados", "processados", "base_compartilhada.xlsx"),
     aba = "dados_analise"
   )
   # A fotografia pós-estrutural só é necessária quando houve Pivotar/Organizar
   # promovido: é o único trecho que o script não consegue reconstruir sozinho.
   if (nzchar(trimws(as.character(base_externa$codigo %||% "")))) {
-    exportacao_salvar_dataframe(base_resolvida, file.path(projeto, "dados", "base_resolvida.rds"))
+    exportacao_salvar_dataframe(
+      base_resolvida, file.path(projeto, "dados", "processados", "base_resolvida.rds")
+    )
   }
 
-  # As funções de análise não viajam mais como arquivo: vêm do pacote catalyser,
-  # documentadas e com ajuda em português. O projeto ficou 42 KB mais leve e o
-  # aluno ganhou `?catalyser_anova`.
+  # As funções de análise não viajam como arquivo: vêm do pacote catalyser,
+  # documentadas e com ajuda em português (`?catalyser_anova`). O modelo de
+  # página do Word vai junto com o relatório, como no projeto-modelo.
   template_word <- file.path(templates_dir, "custom-reference.docx")
   if (!file.exists(template_word)) {
     stop("O template Word do exportador não foi encontrado.", call. = FALSE)
   }
-  file.copy(template_word, file.path(projeto, "custom-reference.docx"), overwrite = TRUE)
+  file.copy(template_word, file.path(projeto, "relatorios", "custom-reference.docx"), overwrite = TRUE)
 
-  # Um único script constrói a Base Compartilhada. O relatório e os scripts de
-  # execução apenas o chamam.
+  # Dois scripts de preparo: 01 lê a planilha; 02 chama o 01 e constrói a Base
+  # Compartilhada. O relatório e os scripts 04 chamam apenas o 02.
   writeLines(
-    exportacao_codigo_base_compartilhada(pipeline, base_externa, import_info),
-    file.path(projeto, "R", "01_base_compartilhada.R"), useBytes = TRUE
+    exportacao_codigo_importar(import_info),
+    file.path(projeto, "R", "01_importar.R"), useBytes = TRUE
+  )
+  writeLines(
+    exportacao_codigo_tratar(pipeline, base_externa),
+    file.path(projeto, "R", "02_tratar.R"), useBytes = TRUE
   )
 
   # As bases derivadas não têm script próprio nem fotografia em disco: são um
@@ -1227,7 +1405,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   titulo <- paste("Relatório de análise —", nome_projeto)
   writeLines(
     exportacao_gerar_qmd(manifesto, titulo, registro_bases = registro_bases),
-    file.path(projeto, "relatorio.qmd"), useBytes = TRUE
+    file.path(projeto, "relatorios", "relatorio.qmd"), useBytes = TRUE
   )
   writeLines(
     c(
@@ -1241,7 +1419,6 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     file.path(projeto, "README.md"), useBytes = TRUE
   )
   writeLines(capture.output(utils::sessionInfo()), file.path(projeto, "metadados", "sessionInfo.txt"))
-  file.create(file.path(projeto, "resultados", ".gitkeep"))
   projeto
 }
 
@@ -1272,11 +1449,17 @@ exportacao_renderizar_word <- function(file, ...) {
   setwd(projeto)
   saida <- system2(
     quarto,
-    c("render", "relatorio.qmd", "--to", "docx", "--output", "relatorio.docx"),
+    c("render", file.path("relatorios", "relatorio.qmd"), "--to", "docx",
+      "--output", "relatorio.docx"),
     stdout = TRUE, stderr = TRUE
   )
   status <- attr(saida, "status") %||% 0L
-  gerado <- file.path(projeto, "relatorio.docx")
+  # O Quarto grava a saída ao lado do .qmd; versões antigas gravavam na pasta
+  # de trabalho. Aceitamos os dois lugares.
+  gerado <- file.path(projeto, "relatorios", "relatorio.docx")
+  if (!file.exists(gerado) && file.exists(file.path(projeto, "relatorio.docx"))) {
+    gerado <- file.path(projeto, "relatorio.docx")
+  }
   if (!identical(as.integer(status), 0L) || !file.exists(gerado)) {
     stop(
       paste("O Quarto não conseguiu gerar o Word.", paste(saida, collapse = "\n")),
