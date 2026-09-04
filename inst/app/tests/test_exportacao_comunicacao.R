@@ -56,7 +56,7 @@ codigo_t <- exportacao_codigo_estudo(list(
 ))
 stopifnot(
   any(grepl("dados <- base_regressao", codigo_regressao, fixed = TRUE)),
-  any(grepl("02_tratar.R", codigo_regressao, fixed = TRUE)),
+  any(grepl("`tratar`", codigo_regressao, fixed = TRUE)),
   any(grepl("stats::lm", codigo_regressao, fixed = TRUE)),
   any(grepl("stats::t.test", codigo_t, fixed = TRUE)),
   any(grepl("var.equal = FALSE", codigo_t, fixed = TRUE))
@@ -207,31 +207,22 @@ argumentos <- list(
 )
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
-arquivos_execucao <- list.files(file.path(projeto, "R"), pattern = "^04_analisar_.*\\.R$", full.names = TRUE)
-qmd <- readLines(file.path(projeto, "relatorios", "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
+caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
 leiame <- readLines(file.path(projeto, "README.md"), warn = FALSE, encoding = "UTF-8")
-
-importar <- readLines(file.path(projeto, "R", "01_importar.R"), warn = FALSE, encoding = "UTF-8")
-tratar <- readLines(file.path(projeto, "R", "02_tratar.R"), warn = FALSE, encoding = "UTF-8")
 
 stopifnot(
   dir.exists(projeto),
-  length(arquivos_execucao) == 3L,
-  # A árvore é a do projeto-modelo: 01 importar, 02 tratar, 04 analisar.
-  # Sem rodar_tudo.R: o Render do relatório já refaz tudo (fica para a Fase B).
-  file.exists(file.path(projeto, "R", "01_importar.R")),
-  file.exists(file.path(projeto, "R", "02_tratar.R")),
-  !file.exists(file.path(projeto, "R", "rodar_tudo.R")),
-  !file.exists(file.path(projeto, "R", "01_base_compartilhada.R")),
-  length(list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$")) == 0L,
-  # As bases derivadas não têm script próprio: a receita vive no QMD.
-  length(list.files(file.path(projeto, "R"), pattern = "^0[35]_.*\\.R$")) == 0L,
-  # Sem resultados/ na Fase A: tabelas e figuras nascem dentro do Word.
+  # Fase C: a árvore é a do EAPACaderno. Sem R/ (a análise mora no relatório),
+  # sem resultados/ (tabelas e figuras nascem no Word), com imagens/ vazia.
+  !dir.exists(file.path(projeto, "R")),
   !dir.exists(file.path(projeto, "resultados")),
+  dir.exists(file.path(projeto, "imagens")),
   file.exists(file.path(projeto, "metadados", "manifesto_editorial.rds")),
-  any(grepl("R/04_analisar_*.R", leiame, fixed = TRUE)),
+  any(grepl("chunk `importar`", leiame, fixed = TRUE)),
   any(grepl("clique em **Render**", leiame, fixed = TRUE)),
   !any(grepl("02_execucao", leiame, fixed = TRUE)),
+  !any(grepl("04_analisar", leiame, fixed = TRUE)),
   any(grepl("A pasta `metadados/`", leiame, fixed = TRUE)),
   any(grepl("não precisa ser aberta nem", leiame, fixed = TRUE)),
   # O modelo de página do Word fica ao lado do relatório, como no projeto-modelo.
@@ -244,28 +235,33 @@ stopifnot(
   any(grepl("ggplot2::ggplot", qmd, fixed = TRUE)),
   any(grepl("summary(dados[variaveis])", qmd, fixed = TRUE)),
   # Relatório orgânico: o gráfico de linhas (código validado) roda de verdade,
-  # em silêncio; a descritiva ainda fica só para leitura.
+  # em silêncio; a descritiva ainda fica só para leitura. Os chunks importar e
+  # tratar também rodam em silêncio (output: false).
   sum(grepl("#| eval: false", qmd, fixed = TRUE)) == 1L,
-  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 1L,
+  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 3L,
   any(grepl("#| label: linhas-captura-analise", qmd, fixed = TRUE)),
   any(grepl("#| label: linhas-captura-resultado", qmd, fixed = TRUE)),
   any(grepl("A análise, passo a passo", qmd, fixed = TRUE)),
   any(grepl("Apresentação: a mesma análise", qmd, fixed = TRUE)),
-  sum(grepl("#| include: false", qmd, fixed = TRUE)) >= 4L,
+  any(grepl("**Pergunta:** como 'captura' se comporta ao longo de 'ano'?", qmd, fixed = TRUE)),
+  sum(grepl("#| include: false", qmd, fixed = TRUE)) >= 3L,
   !any(grepl("## Captura por esforço", qmd, fixed = TRUE))
 )
 
-# --- 01 lê a planilha; 02 chama o 01 e percorre trilha -> conferência ---------
+# --- Os chunks importar e tratar levam a planilha até a conferência -----------
 stopifnot(
-  any(grepl("read_excel(caminho_planilha, sheet = aba_planilha)", importar, fixed = TRUE)),
-  any(grepl('here("dados", "brutos", "captura_teste.xlsx")', importar, fixed = TRUE)),
-  any(grepl('source(here("R", "01_importar.R"), local = TRUE)', tratar, fixed = TRUE)),
-  any(grepl("dados_analise <- dados", tratar, fixed = TRUE)),
-  any(grepl("catalyser_conferir_base(", tratar, fixed = TRUE)),
-  any(grepl('here("dados", "processados", "dados_analise.rds")', tratar, fixed = TRUE)),
-  any(grepl("trat_moda <- catalyser_moda", tratar, fixed = TRUE)),
+  any(grepl("#| label: importar", qmd, fixed = TRUE)),
+  any(grepl("#| label: tratar", qmd, fixed = TRUE)),
+  any(grepl("read_excel(caminho_planilha, sheet = aba_planilha)", qmd, fixed = TRUE)),
+  any(grepl('here("dados", "brutos", "captura_teste.xlsx")', qmd, fixed = TRUE)),
+  any(grepl("dados_analise <- dados", qmd, fixed = TRUE)),
+  any(grepl("catalyser_conferir_base(", qmd, fixed = TRUE)),
+  any(grepl('here("dados", "processados", "dados_analise.rds")', qmd, fixed = TRUE)),
+  any(grepl("trat_moda <- catalyser_moda", qmd, fixed = TRUE)),
   # Sem operação estrutural promovida, a base resolvida é a própria planilha.
-  any(grepl("base_resolvida <- dados_brutos", tratar, fixed = TRUE))
+  any(grepl("base_resolvida <- dados_brutos", qmd, fixed = TRUE)),
+  # Nada é lido de scripts: o preparo está inteiro no documento.
+  !any(grepl("source(", qmd, fixed = TRUE))
 )
 
 # --- A pasta dados/ é enxuta: brutos/ com a planilha, processados/ com dois ----
@@ -285,11 +281,10 @@ stopifnot(
   !any(grepl("base_compartilhada.xlsx", qmd, fixed = TRUE))
 )
 
-# --- O QMD chama o script 02 uma vez e constrói cada base derivada em chunk ----
+# --- O QMD constrói cada base derivada no chunk da própria análise -------------
 stopifnot(
-  sum(grepl('source(here("R", "02_tratar.R"), local = TRUE)', qmd, fixed = TRUE)) == 1L,
   any(grepl("library(here)", qmd, fixed = TRUE)),
-  any(grepl("#| label: base-compartilhada", qmd, fixed = TRUE)),
+  any(grepl("library(readxl)", qmd, fixed = TRUE)),
   any(grepl("#| label: descritiva-captura-base", qmd, fixed = TRUE)),
   any(grepl("dados_da_analise <- dados_analise", qmd, fixed = TRUE)),
   # A apresentação escreve os parâmetros por extenso; nada de metadados no QMD.
@@ -301,39 +296,25 @@ stopifnot(
   !any(grepl("registro_execucoes.rds", qmd, fixed = TRUE)),
   # As funcoes vem do pacote instalado, nao mais de um arquivo copiado.
   any(grepl("library(catalyser)", qmd, fixed = TRUE)),
-  !file.exists(file.path(projeto, "R", "00_funcoes_projeto.R")),
   # O replay opaco por sys.source saiu do relatório.
   !any(grepl("sys.source(", qmd, fixed = TRUE))
 )
 
-# --- O script de execução da base derivada não repete a receita ----------------
-script_derivada <- readLines(
-  grep("regressao_linear", arquivos_execucao, value = TRUE)[[1]],
-  warn = FALSE, encoding = "UTF-8"
-)
-stopifnot(
-  # Sem fotografia em disco: o script reconstrói o que precisa.
-  !any(grepl("base_regressao.rds", script_derivada, fixed = TRUE)),
-  any(grepl('source(here("R", "02_tratar.R"), local = TRUE)',
-            script_derivada, fixed = TRUE)),
-  any(grepl("base_regressao <- dados", script_derivada, fixed = TRUE)),
-  any(grepl("dados <- base_regressao", script_derivada, fixed = TRUE)),
-  # A receita vem do mesmo gerador do chunk do relatório.
-  any(grepl("mesma", script_derivada, fixed = TRUE))
-)
-
-# Todos os scripts são preservados e devem executar, inclusive o que não entra no
-# Word. A saída é capturada para verificar que a Base Compartilhada reconstruída
-# a partir da planilha bate com a fotografia exportada.
+# O relatório roda inteiro fora do Quarto: knitr::purl() extrai os chunks na
+# ordem, como um aluno que os executa um a um no RStudio. A saída é capturada
+# para verificar que a Base Compartilhada reconstruída a partir da planilha
+# bate com a fotografia exportada.
+codigo_relatorio <- tempfile("relatorio_", fileext = ".R")
+knitr::purl(caminho_qmd, output = codigo_relatorio, quiet = TRUE)
 anterior <- getwd()
 setwd(projeto)
-saida_scripts <- utils::capture.output(
-  for (arquivo in arquivos_execucao) sys.source(arquivo, envir = new.env(parent = globalenv()))
+saida_relatorio <- utils::capture.output(
+  sys.source(codigo_relatorio, envir = new.env(parent = globalenv()))
 )
 setwd(anterior)
 stopifnot(
-  any(grepl("idêntica à fotografia", saida_scripts, fixed = TRUE)),
-  !any(grepl("divergiu da fotografia", saida_scripts, fixed = TRUE))
+  any(grepl("idêntica à fotografia", saida_relatorio, fixed = TRUE)),
+  !any(grepl("divergiu da fotografia", saida_relatorio, fixed = TRUE))
 )
 
 zip_saida <- file.path(raiz, "projeto.zip")

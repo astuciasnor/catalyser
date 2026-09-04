@@ -22,7 +22,7 @@ catalyser_conferir_base(
 (invisivel nos dois casos). Nunca interrompe o relatorio.
 }
 \description{
-O script \verb{R/02_tratar.R} do projeto exportado reconstroi a base a partir da
+O chunk \verb{tratar} do \verb{relatorio.qmd} exportado reconstroi a base a partir da
 planilha bruta. A CatalyseR tambem exportou uma fotografia do que estava na tela. Esta
 funcao compara as duas e diz, em portugues, se o projeto reproduz o que voce
 viu.

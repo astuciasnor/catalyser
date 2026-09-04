@@ -91,7 +91,8 @@ Não generalizar essa humanização para outras análises sem testes equivalente
 
 Desde a Fase A, o Projeto R exportado segue a árvore do **projeto-modelo** do
 ecossistema (`D:\Claude\eapa\EAPACaderno/`), para que quem sai da
-IDE reconheça o caminho a pé:
+IDE reconheça o caminho a pé. (A árvore abaixo é a da Fase A; a Fase C, mais
+adiante, removeu `R/` e levou o preparo para dentro do `.qmd`.)
 
 ```
 projeto_<nome>/
@@ -138,8 +139,44 @@ Cada análise aparece em três chunks, todos `echo: false`:
   comentário dizendo o que mostra (`[[ ]]` e não `$`, para o R não completar
   `grafico` como `grafico_combinacoes`).
 
-Os scripts `04_analisar_*.R` seguem lendo a configuração de `metadados/` na
-PARTE 3; o `.qmd` não depende mais dessa pasta.
+O `.qmd` não depende da pasta `metadados/` para as análises; ela fica para a
+CatalyseR reabrir o projeto.
+
+## Fase C (set/2026): planilha + qmd + metadados
+
+O preparo também foi para dentro do relatório, e a pasta `R/` deixou de existir
+no projeto exportado. A árvore final é a do EAPACaderno:
+
+```
+projeto_<nome>/
+├── projeto_analise.Rproj
+├── README.md
+├── dados/brutos/<planilha>.xlsx          entrada
+├── dados/processados/                    dados_analise.rds (fotografia) + base_compartilhada.xlsx
+├── imagens/                              vazia, para fotos e esquemas
+├── relatorios/relatorio.qmd              O PROJETO
+├── relatorios/custom-reference.docx
+└── metadados/                            memória da exportação (IDE)
+```
+
+No `relatorio.qmd`, a seção "Preparação dos dados" tem dois chunks gerados por
+`exportacao_chunk_importar()` e `exportacao_chunk_tratar()` (ambos
+`output: false`): `importar` lê a planilha com `readxl` e deixa `dados_brutos`;
+`tratar` aplica `exportacao_bloco_estrutural()` + `exportacao_bloco_trilha()`
+e confere com `catalyser_conferir_base()`. É a Seção 0 do relatório, a Trilha
+de Preparo virando texto e código. Cada análise abre com **Pergunta:**
+(`exportacao_pergunta()`), a base e a execução.
+
+Saíram do gerador: `exportacao_codigo_importar/tratar`, `exportacao_arquivo(s)_execucao`,
+`exportacao_codigo_execucao`, `exportacao_bloco_pacote_catalyser`. Os testes
+rodam o relatório inteiro fora do Quarto com `knitr::purl()` + `sys.source()`,
+como um aluno que executa os chunks um a um, e conferem a mensagem "idêntica à
+fotografia".
+
+**Decisão em aberto:** o projeto exportado não tem `R/funcoes.R` porque suas
+funções vêm do pacote `catalyser`. Se, na Etapa 4, o código humanizado passar a
+usar `fmt()`, `formatar_p()` e `flextable_ocean()` como o EAPACaderno, o
+`R/funcoes.R` volta.
 
 ## Arquivos principais
 

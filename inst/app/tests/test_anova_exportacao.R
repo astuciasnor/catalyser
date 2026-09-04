@@ -246,18 +246,8 @@ argumentos <- list(
 )
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
-qmd <- readLines(file.path(projeto, "relatorios", "relatorio.qmd"), warn = FALSE, encoding = "UTF-8")
-scripts <- list.files(file.path(projeto, "R"), pattern = "^04_analisar_.*\\.R$", full.names = TRUE)
-script_anova <- readLines(scripts[[1]], warn = FALSE, encoding = "UTF-8")
-base_compartilhada <- readLines(
-  file.path(projeto, "R", "02_tratar.R"), warn = FALSE, encoding = "UTF-8"
-)
-scripts_texto <- lapply(
-  scripts,
-  readLines,
-  warn = FALSE,
-  encoding = "UTF-8"
-)
+caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
 
 rotulos <- trimws(sub("^#\\|\\s*label:", "", grep("^#\\|\\s*label:", qmd, value = TRUE)))
 stopifnot(
@@ -280,22 +270,17 @@ stopifnot(
 )
 
 stopifnot(
-  length(scripts) == 3L,
-  # A árvore é a do projeto-modelo: 01 importar, 02 tratar, 04 analisar.
-  file.exists(file.path(projeto, "R", "01_importar.R")),
-  file.exists(file.path(projeto, "R", "02_tratar.R")),
-  !file.exists(file.path(projeto, "R", "rodar_tudo.R")),
-  !file.exists(file.path(projeto, "R", "01_base_compartilhada.R")),
-  # Sem 00, 03 nem 05; sem os antigos 02_execucao_*.R.
-  length(list.files(file.path(projeto, "R"), pattern = "^0[035]_.*\\.R$")) == 0L,
-  length(list.files(file.path(projeto, "R"), pattern = "^02_execucao_.*\\.R$")) == 0L,
-  length(list.files(file.path(projeto, "R"), pattern = "^01_.*\\.R$")) == 1L,
+  # Fase C: sem R/, a análise inteira mora no relatório.
+  !dir.exists(file.path(projeto, "R")),
+  dir.exists(file.path(projeto, "imagens")),
   # E o console nao aparece em nenhum chunk do relatorio.
   !any(grepl("[['console']]", qmd, fixed = TRUE)),
   !any(grepl("-console", qmd, fixed = TRUE)),
-  any(grepl("catalyser_conferir_base(", base_compartilhada, fixed = TRUE)),
-  # O QMD chama o script 02 uma única vez.
-  sum(grepl('source(here("R", "02_tratar.R"), local = TRUE)', qmd, fixed = TRUE)) == 1L,
+  # O preparo está nos chunks importar e tratar, com a conferência no fim.
+  any(grepl("#| label: importar", qmd, fixed = TRUE)),
+  any(grepl("#| label: tratar", qmd, fixed = TRUE)),
+  any(grepl("catalyser_conferir_base(", qmd, fixed = TRUE)),
+  !any(grepl("source(", qmd, fixed = TRUE)),
   # E constrói a base derivada da ANOVA no chunk da própria análise.
   any(grepl("#| label: anova-profundidade-m-base", qmd, fixed = TRUE)),
   any(grepl("base_anova_profundidade_especie <- dados", qmd, fixed = TRUE)),
@@ -310,23 +295,9 @@ stopifnot(
   any(grepl("#| output: false", qmd, fixed = TRUE)),
   # As funcoes vem do pacote instalado, nao mais de um arquivo copiado.
   any(grepl("library(catalyser)", qmd, fixed = TRUE)),
-  !file.exists(file.path(projeto, "R", "00_funcoes_projeto.R")),
   !any(grepl("sys.source(", qmd, fixed = TRUE)),
-  all(vapply(scripts_texto, function(x)
-    any(grepl("registro_execucoes.rds", x, fixed = TRUE)), logical(1))),
-  all(vapply(scripts_texto, function(x)
-    !any(grepl("execucao <- structure(", x, fixed = TRUE)), logical(1))),
-  any(grepl("base_anova_profundidade_especie", script_anova, fixed = TRUE)),
-  # O script conta a historia em tres partes nomeadas.
-  any(grepl("PARTE 1 - PREPARAR OS DADOS DESTA ANÁLISE", script_anova, fixed = TRUE)),
-  any(grepl("PARTE 2 - A ANÁLISE", script_anova, fixed = TRUE)),
-  any(grepl("PARTE 3 - REFAZER O RESULTADO DO RELATÓRIO", script_anova, fixed = TRUE)),
-  any(grepl("# Pergunta   :", script_anova, fixed = TRUE)),
-  any(grepl("library(catalyser)", script_anova, fixed = TRUE)),
-  any(grepl("variavel_resposta <-", script_anova, fixed = TRUE)),
-  any(grepl("registro_execucoes.rds", script_anova, fixed = TRUE)),
-  !any(grepl("execucao <- structure(", script_anova, fixed = TRUE)),
-  any(grepl("catalyser_executar(configuracao, dados)", script_anova, fixed = TRUE)),
+  # Cada análise abre com a pergunta que responde.
+  any(grepl("**Pergunta:** a média de 'profundidade_m' difere entre os grupos de 'especie'?", qmd, fixed = TRUE)),
   any(grepl("stats::aov(formula_anova, data = dados_anova)", qmd, fixed = TRUE)),
   any(grepl("variavel_resposta <-", qmd, fixed = TRUE)),
   any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
@@ -345,15 +316,25 @@ stopifnot(
   any(grepl("peso_g", qmd, fixed = TRUE))
 )
 
-# Todos os scripts numerados executam fora da CatalyseR.
+# O relatório roda inteiro fora do Quarto: knitr::purl() extrai os chunks na
+# ordem, como um aluno que os executa um a um. No fim, os três resultados
+# (a ANOVA e os dois gráficos) estão na memória e a base bateu com a fotografia.
+codigo_relatorio <- tempfile("relatorio_anova_", fileext = ".R")
+knitr::purl(caminho_qmd, output = codigo_relatorio, quiet = TRUE)
 anterior <- getwd()
 setwd(projeto)
-for (arquivo in scripts) {
-  ambiente_script <- new.env(parent = globalenv())
-  sys.source(arquivo, envir = ambiente_script)
-  stopifnot(length(ls(ambiente_script, pattern = "^resultado_execucao_")) == 1L)
-}
+ambiente_relatorio <- new.env(parent = globalenv())
+saida_relatorio <- utils::capture.output(
+  sys.source(codigo_relatorio, envir = ambiente_relatorio)
+)
 setwd(anterior)
+stopifnot(
+  any(grepl("idêntica à fotografia", saida_relatorio, fixed = TRUE)),
+  exists("anova_profundidade_m", envir = ambiente_relatorio, inherits = FALSE),
+  exists("linhas_comprimento_cm", envir = ambiente_relatorio, inherits = FALSE),
+  exists("linhas_peso_g", envir = ambiente_relatorio, inherits = FALSE),
+  inherits(get("anova_profundidade_m", envir = ambiente_relatorio), "resultado_catalyser")
+)
 
 zip_saida <- file.path(raiz, "projeto_anova.zip")
 do.call(exportacao_empacotar_projeto, c(list(file = zip_saida), argumentos))
