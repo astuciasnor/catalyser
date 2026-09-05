@@ -248,15 +248,22 @@ argumentos <- list(
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
 caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
 qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
+script <- readLines(file.path(projeto, "R", "analise.R"), warn = FALSE, encoding = "UTF-8")
 
 rotulos <- trimws(sub("^#\\|\\s*label:", "", grep("^#\\|\\s*label:", qmd, value = TRUE)))
+trechos <- sub("^## ---- (.+) ----$", "\\1", grep("^## ---- ", script, value = TRUE))
 stopifnot(
   # Labels dizem a intenção científica, não o número interno da execução.
-  "anova-profundidade-m-analise" %in% rotulos,
+  # A ANOVA tem código validado: base, análise e resultado viram um chunk só,
+  # feito de três trechos do script.
+  "anova-profundidade-m" %in% rotulos,
   "anova-profundidade-m-modelo" %in% rotulos,
   "anova-profundidade-m-tukey" %in% rotulos,
   "anova-profundidade-m-resumo-grupos" %in% rotulos,
-  "anova-profundidade-m-resultado" %in% rotulos,
+  all(c("anova-profundidade-m-base", "anova-profundidade-m-analise",
+        "anova-profundidade-m-resultado") %in% trechos),
+  any(grepl("# fonte: anova-profundidade-m-base, anova-profundidade-m-analise, anova-profundidade-m-resultado", qmd, fixed = TRUE)),
+  !any(duplicated(trechos)),
   !any(grepl("-codigo$|-replay$", rotulos)),
   # Nenhum label sobrou com sublinhado ou com o ID cru como raiz.
   !any(grepl("_", rotulos, fixed = TRUE)),
@@ -270,8 +277,9 @@ stopifnot(
 )
 
 stopifnot(
-  # Fase C: sem R/, a análise inteira mora no relatório.
-  !dir.exists(file.path(projeto, "R")),
+  # Fase D: o par script + relatório, como no EAPACaderno.
+  file.exists(file.path(projeto, "R", "analise.R")),
+  file.exists(file.path(projeto, "R", "funcoes.R")),
   dir.exists(file.path(projeto, "imagens")),
   # E o console nao aparece em nenhum chunk do relatorio.
   !any(grepl("[['console']]", qmd, fixed = TRUE)),
@@ -280,9 +288,9 @@ stopifnot(
   any(grepl("#| label: importar", qmd, fixed = TRUE)),
   any(grepl("#| label: tratar", qmd, fixed = TRUE)),
   any(grepl("catalyser_conferir_base(", qmd, fixed = TRUE)),
-  !any(grepl("source(", qmd, fixed = TRUE)),
+  all(grepl("funcoes.R", grep("source(", qmd, fixed = TRUE, value = TRUE), fixed = TRUE)),
   # E constrói a base derivada da ANOVA no chunk da própria análise.
-  any(grepl("#| label: anova-profundidade-m-base", qmd, fixed = TRUE)),
+  any(grepl("#| label: anova-profundidade-m", qmd, fixed = TRUE)),
   any(grepl("base_anova_profundidade_especie <- dados", qmd, fixed = TRUE)),
   any(grepl("dados_da_analise <- base_anova_profundidade_especie", qmd, fixed = TRUE)),
   # A apresentação refaz a análise com os parâmetros por extenso, sem metadados.
@@ -303,9 +311,12 @@ stopifnot(
   any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
   any(grepl("### Resumo por grupo", qmd, fixed = TRUE)),
   any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
-  # Os comentários separam a análise passo a passo da apresentação.
-  any(grepl("A análise, passo a passo", qmd, fixed = TRUE)),
-  any(grepl("Apresentação: a mesma análise", qmd, fixed = TRUE)),
+  # Os comentários que explicam a análise passo a passo e a apresentação
+  # moram no script; o relatório recebe só o código.
+  any(grepl("a análise passo a passo", script, fixed = TRUE)),
+  any(grepl("agora pela função da CatalyseR", script, fixed = TRUE)),
+  any(grepl("# 4. Ajustar a ANOVA de um fator.", script, fixed = TRUE)),
+  !any(grepl("# 4. Ajustar a ANOVA de um fator.", qmd, fixed = TRUE)),
   any(grepl("Profundidade de captura entre espécies", qmd, fixed = TRUE)),
   # As duas execuções gráficas continuam separadas no relatório.
   any(grepl("Comprimento das corvinas por observação", qmd, fixed = TRUE)),
@@ -340,13 +351,4 @@ zip_saida <- file.path(raiz, "projeto_anova.zip")
 do.call(exportacao_empacotar_projeto, c(list(file = zip_saida), argumentos))
 stopifnot(file.exists(zip_saida), file.info(zip_saida)$size > 0)
 
-if (nzchar(unname(Sys.which("quarto")))) {
-  word_saida <- file.path(raiz, "relatorio_anova.docx")
-  do.call(exportacao_renderizar_word, c(list(file = word_saida), argumentos))
-  stopifnot(file.exists(word_saida), file.info(word_saida)$size > 0)
-  cat("[OK] Word da ANOVA renderizado pelo Quarto.\n")
-} else {
-  cat("[AVISO] Quarto CLI ausente: renderização do Word não verificada.\n")
-}
-
-cat("OK: ANOVA reproduzida no Projeto R, no QMD pedagógico e no Word integrado\n")
+cat("OK: ANOVA reproduzida no Projeto R, no script comentado e no relatório\n")

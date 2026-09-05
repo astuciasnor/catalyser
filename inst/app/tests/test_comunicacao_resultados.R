@@ -6,8 +6,10 @@ html_comunicacao <- htmltools::renderTags(
 ids_ui_preservados <- c(
   "contador", "esboco", "manifesto_texto", "introducao", "metodos",
   "discussao", "conclusao", "fila", "acoes_fila", "bases_projeto",
-  "resumo_saida", "formato", "acoes_exportacao"
+  "resumo_saida", "acoes_exportacao"
 )
+# Fase D: o rádio de formato saiu com o Word; a única saída é o Projeto R.
+stopifnot(!grepl('id="teste_comunicacao-formato"', html_comunicacao, fixed = TRUE))
 stopifnot(
   grepl('id="teste_comunicacao-comunicacao_subabas"',
         html_comunicacao, fixed = TRUE),

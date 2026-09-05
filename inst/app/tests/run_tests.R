@@ -246,9 +246,9 @@ if (identical(q$estado, "ok")) {
     "      terminais abertos DEPOIS da instalacao."
   ))
   lacunas[[length(lacunas) + 1L]] <- list(
-    o_que = "Render do relatório em Word",
+    o_que = "Render do relatório (Word/HTML) no RStudio",
     porque = "o Quarto existe no disco mas não está no PATH nem em QUARTO_PATH",
-    onde = "test_anova_exportacao.R e test_exportacao_comunicacao.R pulam essa etapa",
+    onde = "nenhum teste depende do Quarto; só o Render do Projeto R exportado",
     solucao = sprintf("defina QUARTO_PATH=%s e reabra o terminal", q$caminho)
   )
 } else {
@@ -257,9 +257,9 @@ if (identical(q$estado, "ok")) {
   cat("    Solução          : instale de https://quarto.org/docs/get-started/\n")
   cat("                       e reabra o terminal depois de instalar.\n")
   lacunas[[length(lacunas) + 1L]] <- list(
-    o_que = "Render do relatório em Word",
+    o_que = "Render do relatório (Word/HTML) no RStudio",
     porque = "o Quarto CLI não foi encontrado em lugar nenhum",
-    onde = "test_anova_exportacao.R e test_exportacao_comunicacao.R pulam essa etapa",
+    onde = "nenhum teste depende do Quarto; só o Render do Projeto R exportado",
     solucao = "instale o Quarto (https://quarto.org/docs/get-started/) e reabra o terminal"
   )
 }

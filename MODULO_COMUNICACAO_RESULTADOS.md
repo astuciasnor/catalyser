@@ -48,10 +48,9 @@ preservando a proveniência.
 
 ### 4. Saída planejada
 
-Mostra a conferência antes da exportação e oferece downloads separados:
-
-- relatório Word `.docx`;
-- Projeto R `.zip`.
+Mostra a conferência antes da exportação e oferece um download só: o
+Projeto R `.zip`. (Até a Fase D havia também o Word `.docx`, renderizado pela
+IDE; saiu de propósito — ver "Fase D" abaixo.)
 
 ## Estado editorial
 
@@ -69,11 +68,12 @@ Resultados, modelos e dados continuam fora desse estado.
 Antes de exportar, o sistema verifica se bases e execuções ainda correspondem
 às revisões usadas. Uma dependência desatualizada bloqueia a geração.
 
-O Word recebe apenas o conteúdo editorial escolhido. O Projeto R recebe todas
-as execuções registradas, bases, receitas, scripts e metadados.
+O relatório do Projeto R recebe apenas o conteúdo editorial escolhido (os
+campos internos ainda se chamam `incluir_word`/`saidas_word`). O Projeto R
+recebe todas as execuções registradas, bases, receitas, script e metadados.
 
-Sem Quarto, o Word não pode ser renderizado, mas o Projeto R continua sendo a
-saída reproduzível.
+A IDE não precisa do Quarto: o Word e o caderno HTML nascem no RStudio do
+pesquisador, no Render.
 
 ## Código humano
 
@@ -173,17 +173,71 @@ rodam o relatório inteiro fora do Quarto com `knitr::purl()` + `sys.source()`,
 como um aluno que executa os chunks um a um, e conferem a mensagem "idêntica à
 fotografia".
 
-**Decisão em aberto:** o projeto exportado não tem `R/funcoes.R` porque suas
-funções vêm do pacote `catalyser`. Se, na Etapa 4, o código humanizado passar a
-usar `fmt()`, `formatar_p()` e `flextable_ocean()` como o EAPACaderno, o
-`R/funcoes.R` volta.
+## Fase D (set/2026): o par script + relatório, e sem Word na IDE
+
+Duas decisões do autor:
+
+1. **A CatalyseR não gera mais o Word.** Só o Projeto R. O Word e o caderno
+   HTML nascem no RStudio, quando o pesquisador clica em Render — é aí que ele
+   vê de onde cada tabela e cada frase saem. Saíram `exportacao_renderizar_word()`,
+   o botão "Baixar Relatório Word" e o rádio de formato; a seleção editorial
+   continua, com o rótulo "no relatório".
+2. **O projeto exportado é o par do EAPACaderno.** O código mora em
+   `R/analise.R`, comentado passo a passo, em trechos `## ---- nome ----`; o
+   `relatorios/relatorio.qmd` recebe só as linhas de código, e a primeira linha
+   de cada chunk diz de quais trechos ele vem (`# fonte: ...`). A ligação é o
+   `R/funcoes.R` (template `inst/app/templates/funcoes.R`, o mesmo código da
+   seção 5 do `funcoes.R` do EAPACaderno): `atualizar_codigo()` copia o código
+   do script para os chunks; `conferir_codigo()` roda no chunk `codigo-do-script`
+   e para o Render se o relatório estiver atrasado. O exportador gera o script,
+   gera o `.qmd` com as cascas e chama o **mesmo** `atualizar_codigo()`.
+
+Árvore:
+
+```
+projeto_<nome>/
+├── projeto_analise.Rproj
+├── README.md                       na voz do EAPACaderno, com "Onde o código mora"
+├── dados/brutos, dados/processados
+├── R/analise.R                     O CÓDIGO, comentado (trechos ## ---- nome ----)
+├── R/funcoes.R                     atualizar_codigo(), conferir_codigo()
+├── imagens/
+├── relatorios/relatorio.qmd        texto + código limpo (chunks com # fonte:)
+├── relatorios/custom-reference.docx
+├── relatorios/ocean.scss           o caderno HTML, igual ao EAPACaderno
+└── metadados/
+```
+
+Trechos do script, na ordem: `instalar`, `pacotes`, `importar`, `tratar`,
+`bases-projeto` e, por execução incluída, `<raiz>-base`, `<raiz>-analise`,
+`<raiz>-resultado` e `<raiz>-<componente>`. Todo comentário que explica R
+(o "# 1. Declarar as variáveis..." da ANOVA, o "O QUE CONFERIR" do importar)
+mora no script. No `.qmd`, os três trechos de cada análise viram **um chunk**
+`<raiz>` (`output: false`) para os tipos com código validado; para os demais,
+`<raiz>` reúne base + resultado e um `<raiz>-analise` à parte fica `eval: false`.
+Os chunks de componente (`### Título` + `results: asis`) ficam separados.
+
+A camada didática do `.qmd` são comentários HTML (`<!-- -->`, que não saem em
+nenhuma saída) sobre **programação literária**, não sobre R: o que cada opção
+`#|` faz, por que um chunk de trabalho não aparece no Word, como uma cerca
+`when-format="html"` faz um trecho existir só no caderno. YAML igual ao do
+EAPACaderno (docx + html, `echo: false` global e `echo: true` no HTML, código
+dobrado, índice à esquerda). Seções: Introdução, Material e métodos (Os dados,
+Preparo, Análise dos dados), Resultados, Discussão, Conclusão — as globais
+vazias viram um lembrete em comentário.
+
+Os testes conferem o par: `R/analise.R` com marcadores, chunks do `.qmd` sem
+comentário além do `# fonte:` (exceto os dois de manutenção),
+`conferir_codigo()` acusando um script editado e `atualizar_codigo()` trazendo
+a mudança sem os comentários, e o `purl + sys.source` rodando o relatório
+inteiro. Nenhum teste depende mais do Quarto.
 
 ## Arquivos principais
 
 - `inst/app/modules/mod_comunicacao.R`;
 - `inst/app/modules/registro_comunicacao.R`;
 - `inst/app/modules/exportacao_comunicacao.R`;
-- `inst/app/templates/funcoes_projeto_integrado.R`;
+- `inst/app/templates/funcoes.R`, `ocean.scss`, `custom-reference.docx`;
 - `inst/app/tests/test_comunicacao_resultados.R`;
 - `inst/app/tests/test_exportacao_comunicacao.R`;
 - `inst/app/tests/test_anova_exportacao.R`.

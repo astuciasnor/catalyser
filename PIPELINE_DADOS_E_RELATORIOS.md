@@ -16,11 +16,11 @@ Importar
   → configurar e executar
   → adicionar ou atualizar um resultado
   → organizar a Comunicação
-  → exportar Word e Projeto R
+  → exportar o Projeto R (o Word nasce no RStudio, no Render)
 ```
 
 Esse percurso foi homologado dentro da CatalyseR e fora dela, no RStudio, com
-renderização do QMD para Word.
+renderização do QMD para Word e HTML.
 
 ## 1. Base Compartilhada
 
@@ -98,34 +98,32 @@ O estúdio possui quatro sub-abas:
 3. Bases do projeto;
 4. Saída planejada.
 
-O Word segue a seleção editorial. O Projeto R preserva todas as execuções
-registradas, inclusive as retiradas do Word. Dependências desatualizadas
-bloqueiam a exportação até novo cálculo.
+O relatório do Projeto R segue a seleção editorial. O Projeto R preserva todas
+as execuções registradas, inclusive as retiradas do relatório. Dependências
+desatualizadas bloqueiam a exportação até novo cálculo. Desde a Fase D
+(set/2026) a IDE não gera o Word: o pesquisador o renderiza no RStudio.
 
 ## 6. Projeto R
 
-O projeto exportado contém, em essência:
+O projeto exportado (Fase D, set/2026) é o par do EAPACaderno:
 
 ```text
-relatorio.qmd
-custom-reference.docx
-dados/
-R/
-metadados/
-resultados/
+projeto_<nome>/
+├── R/analise.R                 o código, comentado, em trechos ## ---- nome ----
+├── R/funcoes.R                 atualizar_codigo() e conferir_codigo()
+├── relatorios/relatorio.qmd    o texto, com o código limpo (# fonte: em cada chunk)
+├── relatorios/custom-reference.docx, ocean.scss
+├── dados/brutos, dados/processados
+├── imagens/
+└── metadados/
 ```
 
-Os scripts são ordenados por dependência:
-
-1. importação;
-2. mudanças estruturais;
-3. Trilha compartilhada;
-4. receitas das Bases Derivadas;
-5. execuções analíticas.
-
-`metadados/registro_execucoes.rds` preserva a configuração técnica. Na versão
-0.1.5, ANOVA e Gráfico de Linhas usam `exportacao_codigo_estudo()` para mostrar
-o método principal em código humano tanto nos scripts numerados quanto no QMD.
+Os trechos do script seguem a ordem do relatório: `instalar`, `pacotes`,
+`importar`, `tratar`, `bases-projeto` e, por análise, `-base`, `-analise`,
+`-resultado` e um por componente. ANOVA (um e dois fatores) e Gráfico de Linhas
+usam `exportacao_codigo_estudo()` para mostrar o método em código humano; os
+demais tipos ficam `eval: false` no relatório até ganharem o mesmo tratamento.
+Detalhes em `MODULO_COMUNICACAO_RESULTADOS.md`, seção "Fase D".
 
 ## 7. Cobertura do replay integrado
 

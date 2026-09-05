@@ -238,8 +238,13 @@ catalyser_completos <- function(dados, colunas) {
 
 #' Formatar uma tabela no tema visual da CatalyseR
 #'
-#' Aplica a identidade Ocean Gradient a um data.frame, para que a tabela saia no
-#' Word com a mesma cara das demais.
+#' Aplica a identidade Ocean Gradient a um data.frame: cabecalho azul-marinho
+#' com letras brancas, sem grade interna, primeira coluna a esquerda. E o mesmo
+#' tema de `flextable_ocean()`, no EAPADados e no EAPACaderno, para que a tabela
+#' saia igual no livro, no caderno do pesquisador e no Word exportado pela IDE.
+#'
+#' A fonte e Times New Roman porque e a fonte do modelo de pagina do Word
+#' (`custom-reference.docx`): assim a tabela nao destoa do corpo do texto.
 #'
 #' @param x Um data.frame ou matriz.
 #' @return Um objeto `flextable`, ou uma tabela `knitr::kable` se o pacote
@@ -251,15 +256,16 @@ catalyser_tabela_ocean <- function(x) {
     return(knitr::kable(x, digits = 3))
   }
   ft <- flextable::flextable(x)
-  ft <- flextable::theme_vanilla(ft)
-  ft <- flextable::bg(ft, bg = "#0F3B5F", part = "header")
+  ft <- flextable::theme_booktabs(ft)                          # linha so em cima e embaixo
+  ft <- flextable::bg(ft, bg = "#0F3B5F", part = "header")     # cabecalho azul-marinho (NAVY)
   ft <- flextable::color(ft, color = "white", part = "header")
   ft <- flextable::bold(ft, bold = TRUE, part = "header")
-  ft <- flextable::bg(ft, bg = "#EAF4F4", part = "body")
-  ft <- flextable::font(ft, fontname = "Calibri", part = "all")
-  ft <- flextable::align(ft, align = "center", part = "all")
-  ft <- flextable::autofit(ft)
-  flextable::set_table_properties(ft, layout = "autofit")
+  ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
+  ft <- flextable::fontsize(ft, size = 10, part = "all")
+  ft <- flextable::align(ft, align = "center", part = "all")   # tudo centralizado ...
+  ft <- flextable::align(ft, j = 1, align = "left", part = "all")  # ... menos a primeira coluna
+  ft <- flextable::padding(ft, padding = 4, part = "all")
+  flextable::autofit(ft)
 }
 
 #' Exibir um componente de resultado no formato certo

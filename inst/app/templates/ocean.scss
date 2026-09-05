@@ -1,0 +1,119 @@
+/*
+  ocean.scss — o tema do caderno HTML, na identidade visual do ecossistema
+  EAPA (Ocean Gradient). Entra no YAML como  theme: [cosmo, ocean.scss]:
+  o cosmo dá a base, e este arquivo troca cores e fontes. É o mesmo arquivo
+  do EAPACaderno, o projeto-modelo do ecossistema.
+
+  NAVY #0F3B5F · TEAL #2E7D8F · SEAFOAM #62B6B7 · AMBER #E89B3C · CORAL #E76F51
+  Tipografia: Cambria nos títulos, Calibri no corpo (com reservas para quem
+  não tem as fontes).
+*/
+
+/*-- scss:defaults --*/
+
+$navy:    #0F3B5F;
+$teal:    #2E7D8F;
+$seafoam: #62B6B7;
+$amber:   #E89B3C;
+$coral:   #E76F51;
+
+$primary:    $navy;
+$link-color: $teal;
+
+$font-family-sans-serif: "Calibri", "Segoe UI", system-ui, -apple-system, sans-serif;
+$headings-font-family:   "Cambria", Georgia, "Times New Roman", serif;
+$font-size-base: 1.05rem;
+
+$code-block-bg:      #F3F7F8;     // fundo dos blocos de código: quase branco, com um toque de mar
+$code-block-border-left: $seafoam;
+$code-color:         $navy;       // código inline
+
+$callout-color-note: $teal;
+$callout-color-tip:  $seafoam;
+
+$toc-color: $teal;
+$toc-active-border: $navy;
+
+// Quanto o índice sobe.
+//
+// O bloco do título (faixa azul + subtítulo) fica FORA da grade de conteúdo
+// do Quarto, então o índice nasceria abaixo de tudo isso. Este recuo o traz
+// para o alto. É o único número a mexer se o seu cabeçalho ficar bem maior
+// (aumente) ou menor (diminua).
+$toc-subida: 12rem;
+
+/*-- scss:rules --*/
+
+h1, h2, h3, h4 {
+  color: $navy;
+}
+
+h1 {
+  border-bottom: 2px solid $seafoam;
+  padding-bottom: 0.25rem;
+  margin-top: 2.5rem;
+}
+
+// A faixa do título (title-block-banner) já vem navy pelo YAML; aqui só o
+// subtítulo e a descrição ganham um tom mais claro.
+.quarto-title-banner .subtitle,
+.quarto-title-banner .description {
+  color: $seafoam;
+}
+
+// O índice sobe para o alto da página e acompanha a rolagem. Só em telas
+// largas: no celular ele volta ao fluxo normal, acima do texto.
+// Os três seletores cobrem os dois lados: o Quarto usa uma caixa para o índice
+// à direita (#quarto-margin-sidebar) e outra para o da esquerda
+// (#quarto-sidebar-toc-left). Assim, trocar `toc-location` no YAML basta.
+@media screen and (min-width: 992px) {
+  #quarto-margin-sidebar,
+  #quarto-sidebar-toc-left,
+  .sidebar.toc-left {
+    margin-top: -$toc-subida;
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+}
+
+nav#TOC {
+  margin-top: 0;
+}
+
+#TOC h2, #TOC .toc-title, .sidebar-title {
+  color: $navy;
+  font-family: $headings-font-family;
+  font-size: 1.05rem;
+  margin-top: 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid $seafoam;
+}
+
+// Resumo: caixa discreta, como num artigo
+.abstract {
+  border-left: 4px solid $seafoam;
+  padding: 0.5rem 1rem;
+  background: #F3F7F8;
+}
+
+// O botão "Código" de cada chunk, na cor da marca
+details > summary {
+  color: $teal;
+  font-weight: 600;
+}
+
+// Legendas de figuras e tabelas
+.figure-caption, .table-caption, figcaption, caption {
+  color: #444;
+  font-size: 0.92em;
+  font-style: italic;
+}
+
+// Tabelas exploratórias (df-print: kable) e tabelas markdown
+table.table, table {
+  font-size: 0.92em;
+}
+thead {
+  border-bottom: 2px solid $navy;
+}

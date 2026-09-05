@@ -1,8 +1,9 @@
 # Comunicação de Resultados — estúdio editorial e exportador integrado
 # ---------------------------------------------------------------------------
 # Consome as execuções registradas na Fase 3C. A Fase 3D organiza a seleção
-# editorial; na Fase 3E, o Word obedece ao manifesto e o Projeto R preserva
-# todas as execuções registradas.
+# editorial; o relatório do Projeto R obedece ao manifesto e o Projeto R
+# preserva todas as execuções registradas. Desde a Fase D (set/2026) a
+# CatalyseR não gera o Word: só o Projeto R, e o Word nasce no RStudio.
 
 library(shiny)
 library(bslib)
@@ -24,7 +25,7 @@ mod_comunicacao_ui <- function(id) {
         ),
         p(
           style = "color:#495057; font-size:0.9rem; margin:0;",
-          "Organize o que foi executado e escolha o que aparecerá no Word. ",
+          "Organize o que foi executado e escolha o que aparecerá no relatório do Projeto R. ",
           strong("O Projeto R preservará todas as execuções registradas.")
         )
       ),
@@ -96,14 +97,14 @@ mod_comunicacao_ui <- function(id) {
           h5("Seleção editorial e ordem dos resultados", class = "mb-1"),
           p(
             class = "small text-muted mb-3",
-            "Abra uma execução por vez, escolha o conteúdo do Word e use as setas para definir a ordem do relatório."
+            "Abra uma execução por vez, escolha o conteúdo do relatório e use as setas para definir a ordem."
           ),
           uiOutput(ns("acoes_fila")),
           uiOutput(ns("fila")),
           div(
             class = "alert alert-light border small mt-3 mb-0",
             icon("circle-info"), " ",
-            "Desmarcar “Incluir esta execução no Word” não apaga a execução: ",
+            "Desmarcar “Incluir esta execução no relatório” não apaga a execução: ",
             "ela permanece preservada no Projeto R."
           )
         )
@@ -131,7 +132,7 @@ mod_comunicacao_ui <- function(id) {
               strong("Percurso preservado. "),
               "Cada execução mantém a referência à base utilizada. ",
               "O Projeto R leva todas as bases e execuções registradas, ",
-              "inclusive as que não forem incluídas no Word."
+              "inclusive as que não forem incluídas no relatório."
             )
           )
         )
@@ -151,23 +152,18 @@ mod_comunicacao_ui <- function(id) {
               card_header("Conferência antes da exportação"),
               card_body(
                 style = "padding:12px 15px;",
-                uiOutput(ns("resumo_saida")),
-                radioButtons(
-                  ns("formato"), "Formato principal:",
-                  choices = c("Word (.docx) — tema Ocean" = "docx"),
-                  selected = "docx"
-                )
+                uiOutput(ns("resumo_saida"))
               )
             ),
             card(
               fill = FALSE,
               class = "mb-0",
-              card_header("Arquivos do projeto"),
+              card_header("Projeto R"),
               card_body(
                 style = "padding:12px 15px;",
                 p(
                   class = "small text-muted",
-                  "Baixe o documento final ou o projeto reproduzível para continuar no RStudio."
+                  "Baixe o projeto reproduzível e continue no RStudio: o Word e o caderno HTML nascem lá, no Render."
                 ),
                 uiOutput(ns("acoes_exportacao"))
               )
@@ -294,7 +290,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       ))
       span(
         class = "badge text-bg-info",
-        sprintf("%d no Word / %d no Projeto R", selecionadas, length(estado$ordem))
+        sprintf("%d no relatório / %d no Projeto R", selecionadas, length(estado$ordem))
       )
     })
 
@@ -346,16 +342,16 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
             ),
             checkboxInput(
               session$ns(id_controle("incluir", execucao_id)),
-              "Incluir esta execução no Word", value = isTRUE(item$incluir_word)
+              "Incluir esta execução no relatório", value = isTRUE(item$incluir_word)
             ),
             checkboxGroupInput(
               session$ns(id_controle("saidas", execucao_id)),
-              "Conteúdo do Word:", choices = choices,
+              "Conteúdo no relatório:", choices = choices,
               selected = item$saidas_selecionadas, inline = TRUE
             ),
             if (isTRUE(item$incluir_word) && !length(item$saidas_selecionadas))
               div(class = "small text-warning mb-2", icon("triangle-exclamation"),
-                  " Escolha ao menos um conteúdo ou retire esta execução do Word."),
+                  " Escolha ao menos um conteúdo ou retire esta execução do relatório."),
             div(
               class = "d-flex gap-2 flex-wrap",
               actionButton(
@@ -391,7 +387,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         class = "d-flex gap-2 flex-wrap mb-3",
         actionButton(session$ns("incluir_todas"), "Incluir todas", icon = icon("check-double"),
                      class = "btn-sm btn-outline-success"),
-        actionButton(session$ns("excluir_todas"), "Nenhuma no Word", icon = icon("eye-slash"),
+        actionButton(session$ns("excluir_todas"), "Nenhuma no relatório", icon = icon("eye-slash"),
                      class = "btn-sm btn-outline-secondary")
       )
     })
@@ -490,7 +486,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
           tags$li(
             strong("Resultados"),
             if (!length(incluidas))
-              tags$div(class = "text-warning", "Nenhuma execução selecionada para o Word.")
+              tags$div(class = "text-warning", "Nenhuma execução selecionada para o relatório.")
             else tags$ol(lapply(incluidas, function(item) {
               tags$li(
                 item$titulo, " ", tags$code(item$base_objeto), br(),
@@ -512,7 +508,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       linhas <- c(
         "# Manifesto editorial — Comunicação de Resultados",
         sprintf("# Projeto R preserva: %d execução(ões)", plano$total_execucoes),
-        sprintf("# Relatório Word inclui: %d execução(ões)", plano$total_word),
+        sprintf("# Relatório inclui: %d execução(ões)", plano$total_word),
         ""
       )
       for (i in seq_along(plano$execucoes)) {
@@ -520,7 +516,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         linhas <- c(
           linhas,
           sprintf("%d. %s [%s]", i, item$titulo, item$base_objeto),
-          sprintf("   Word: %s", if (item$incluir_word) "sim" else "não"),
+          sprintf("   Relatório: %s", if (item$incluir_word) "sim" else "não"),
           sprintf(
             "   Conteúdo: %s",
             if (length(item$saidas_word)) paste(item$saidas_word, collapse = ", ") else "nenhum"
@@ -544,7 +540,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       ))
       tagList(
         div(class = "alert alert-info py-2 small",
-            strong(plano$total_word), " execução(ões) no Word; ",
+            strong(plano$total_word), " execução(ões) no relatório; ",
             strong(plano$total_execucoes), " preservada(s) no Projeto R."),
         if (pendentes > 0L)
           div(class = "alert alert-warning py-2 small", icon("triangle-exclamation"),
@@ -554,17 +550,16 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
               " Todas as dependências estão atualizadas."),
         if (sem_conteudo > 0L)
           div(class = "alert alert-warning py-2 small", icon("triangle-exclamation"),
-              " ", sem_conteudo, " seção(ões) do Word ainda não têm conteúdo selecionado."),
+              " ", sem_conteudo, " seção(ões) do relatório ainda não têm conteúdo selecionado."),
         div(class = "small text-muted mb-2",
-            "O Word segue a seleção editorial; o Projeto R preserva todas as execuções registradas.")
+            "O relatório segue a seleção editorial; o Projeto R preserva todas as execuções registradas.")
       )
     })
 
     output$acoes_exportacao <- renderUI({
       plano <- manifesto()
       valida_projeto <- exportacao_validar_manifesto(plano, exigir_word = FALSE)
-      valida_word <- exportacao_validar_manifesto(plano, exigir_word = TRUE)
-      quarto_ok <- nzchar(unname(Sys.which("quarto")))
+      valida_relatorio <- exportacao_validar_manifesto(plano, exigir_word = TRUE)
 
       if (!valida_projeto$ok) {
         return(div(
@@ -574,27 +569,14 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       }
 
       tagList(
-        if (valida_word$ok && quarto_ok) {
-          downloadButton(
-            session$ns("baixar_word"), "Baixar Relatório Word (.docx)",
-            class = "btn-success w-100 mb-2"
-          )
-        } else {
-          tags$button(
-            type = "button", class = "btn btn-outline-secondary w-100 mb-2",
-            disabled = "disabled", icon("file-word"),
-            " Word indisponível"
-          )
-        },
         downloadButton(
           session$ns("baixar_projeto"), "Baixar Projeto R (.zip)",
           class = "btn-primary w-100"
         ),
-        if (!valida_word$ok)
-          div(class = "small text-warning mt-2", paste(valida_word$mensagens, collapse = " ")),
-        if (valida_word$ok && !quarto_ok)
+        if (!valida_relatorio$ok)
           div(class = "small text-warning mt-2",
-              "O Projeto R pode ser baixado, mas o Quarto CLI é necessário para gerar o Word.")
+              paste(valida_relatorio$mensagens, collapse = " "),
+              " O projeto sai mesmo assim; o relatório fica sem essa parte.")
       )
     })
 
@@ -604,15 +586,6 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       },
       content = function(file) {
         do.call(exportacao_empacotar_projeto, c(list(file = file), argumentos_exportacao()))
-      }
-    )
-
-    output$baixar_word <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_", nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        do.call(exportacao_renderizar_word, c(list(file = file), argumentos_exportacao()))
       }
     )
 

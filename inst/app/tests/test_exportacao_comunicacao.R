@@ -4,11 +4,12 @@ source("app.R", local = TRUE)
 # codigo-fonte - assim o teste roda antes e depois de instalar.
 source(file.path("tests", "carregar_catalyser.R"), chdir = FALSE)
 
-bloco_console <- exportacao_bloco_componente(
+bloco_console <- exportacao_trecho_componente(
   "resultado_execucao_0001", "execucao_0001", "console"
 )
 stopifnot(any(grepl("```text", bloco_console, fixed = TRUE)))
 stopifnot(any(grepl("collapse = '\\n'", bloco_console, fixed = TRUE)))
+stopifnot(any(grepl("## ---- execucao-0001-console ----", bloco_console, fixed = TRUE)))
 
 criar_execucao_exportacao <- function(id, tipo, titulo, parametros, saidas,
                                       base_id = "dados_analise",
@@ -208,44 +209,74 @@ argumentos <- list(
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
 caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+caminho_script <- file.path(projeto, "R", "analise.R")
 qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
+script <- readLines(caminho_script, warn = FALSE, encoding = "UTF-8")
 leiame <- readLines(file.path(projeto, "README.md"), warn = FALSE, encoding = "UTF-8")
 
 stopifnot(
   dir.exists(projeto),
-  # Fase C: a árvore é a do EAPACaderno. Sem R/ (a análise mora no relatório),
-  # sem resultados/ (tabelas e figuras nascem no Word), com imagens/ vazia.
-  !dir.exists(file.path(projeto, "R")),
+  # Fase D: a árvore é a do EAPACaderno, com o par R/analise.R + relatorio.qmd.
+  # Sem resultados/ (tabelas e figuras nascem no Render), com imagens/ vazia.
+  file.exists(caminho_script),
+  file.exists(file.path(projeto, "R", "funcoes.R")),
+  identical(sort(list.files(file.path(projeto, "R"))), c("analise.R", "funcoes.R")),
   !dir.exists(file.path(projeto, "resultados")),
   dir.exists(file.path(projeto, "imagens")),
   file.exists(file.path(projeto, "metadados", "manifesto_editorial.rds")),
   any(grepl("chunk `importar`", leiame, fixed = TRUE)),
   any(grepl("clique em **Render**", leiame, fixed = TRUE)),
+  any(grepl("Onde o código mora", leiame, fixed = TRUE)),
   !any(grepl("02_execucao", leiame, fixed = TRUE)),
   !any(grepl("04_analisar", leiame, fixed = TRUE)),
   any(grepl("A pasta `metadados/`", leiame, fixed = TRUE)),
   any(grepl("não precisa ser aberta nem", leiame, fixed = TRUE)),
-  # O modelo de página do Word fica ao lado do relatório, como no projeto-modelo.
+  # O modelo de página do Word e o tema do HTML ficam ao lado do relatório.
   file.exists(file.path(projeto, "relatorios", "custom-reference.docx")),
+  file.exists(file.path(projeto, "relatorios", "ocean.scss")),
   !file.exists(file.path(projeto, "custom-reference.docx")),
   !file.exists(file.path(projeto, "relatorio.qmd")),
   any(grepl("Captura ao longo dos anos", qmd, fixed = TRUE)),
   any(grepl("Resumo da captura", qmd, fixed = TRUE)),
-  any(grepl("Código R essencial desta execução", qmd, fixed = TRUE)),
   any(grepl("ggplot2::ggplot", qmd, fixed = TRUE)),
   any(grepl("summary(dados[variaveis])", qmd, fixed = TRUE)),
-  # Relatório orgânico: o gráfico de linhas (código validado) roda de verdade,
-  # em silêncio; a descritiva ainda fica só para leitura. Os chunks importar e
-  # tratar também rodam em silêncio (output: false).
-  sum(grepl("#| eval: false", qmd, fixed = TRUE)) == 1L,
-  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 3L,
-  any(grepl("#| label: linhas-captura-analise", qmd, fixed = TRUE)),
-  any(grepl("#| label: linhas-captura-resultado", qmd, fixed = TRUE)),
-  any(grepl("A análise, passo a passo", qmd, fixed = TRUE)),
-  any(grepl("Apresentação: a mesma análise", qmd, fixed = TRUE)),
+  # O gráfico de linhas (código validado) roda de verdade, em silêncio, num
+  # chunk só (base + análise + resultado); a descritiva ainda fica só para
+  # leitura, num chunk -analise à parte. eval: false também em `atualizar` e
+  # `instalar`; output: false em importar, tratar e nos dois chunks de análise.
+  sum(grepl("#| eval: false", qmd, fixed = TRUE)) == 3L,
+  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 4L,
+  any(grepl("#| label: linhas-captura", qmd, fixed = TRUE)),
+  any(grepl("# fonte: linhas-captura-base, linhas-captura-analise, linhas-captura-resultado", qmd, fixed = TRUE)),
+  any(grepl("# fonte: descritiva-captura-base, descritiva-captura-resultado", qmd, fixed = TRUE)),
+  any(grepl("#| label: descritiva-captura-analise", qmd, fixed = TRUE)),
   any(grepl("**Pergunta:** como 'captura' se comporta ao longo de 'ano'?", qmd, fixed = TRUE)),
   sum(grepl("#| include: false", qmd, fixed = TRUE)) >= 3L,
-  !any(grepl("## Captura por esforço", qmd, fixed = TRUE))
+  !any(grepl("## Captura por esforço", qmd, fixed = TRUE)),
+  # A camada didática do .qmd fala de programação literária, não de R.
+  any(grepl("GUIA DE LEITURA DESTE ARQUIVO", qmd, fixed = TRUE)),
+  any(grepl("when-format=\"html\"", qmd, fixed = TRUE)),
+  # Os comentários que explicam o código moram no script.
+  any(grepl("## ---- linhas-captura-analise ----", script, fixed = TRUE)),
+  any(grepl("passo a passo", script, fixed = TRUE)),
+  any(grepl("## ---- fim-do-codigo ----", script, fixed = TRUE))
+)
+
+# --- Os chunks do relatório só têm código: a única linha "#" é a "# fonte:" ---
+dentro <- FALSE
+comentarios_no_qmd <- character()
+for (linha in qmd) {
+  if (grepl("^```\\{r\\}", linha)) { dentro <- TRUE; next }
+  if (dentro && grepl("^```\\s*$", linha)) { dentro <- FALSE; next }
+  if (dentro && grepl("^\\s*#", linha) && !grepl("^#\\|", linha) && !grepl("^# fonte:", linha)) {
+    comentarios_no_qmd <- c(comentarios_no_qmd, linha)
+  }
+}
+# Só os dois chunks de manutenção (codigo-do-script e atualizar) explicam a si
+# mesmos com comentários; todos os outros vêm limpos do script.
+stopifnot(
+  all(grepl("Conferência|Editou R/analise.R|novo, sem os comentários|está em R/analise.R", comentarios_no_qmd)),
+  length(comentarios_no_qmd) == 4L
 )
 
 # --- Os chunks importar e tratar levam a planilha até a conferência -----------
@@ -260,8 +291,41 @@ stopifnot(
   any(grepl("trat_moda <- catalyser_moda", qmd, fixed = TRUE)),
   # Sem operação estrutural promovida, a base resolvida é a própria planilha.
   any(grepl("base_resolvida <- dados_brutos", qmd, fixed = TRUE)),
-  # Nada é lido de scripts: o preparo está inteiro no documento.
-  !any(grepl("source(", qmd, fixed = TRUE))
+  # O único source() do relatório é o do funcoes.R que liga os dois arquivos.
+  all(grepl("funcoes.R", grep("source(", qmd, fixed = TRUE, value = TRUE), fixed = TRUE)),
+  # O script tem os mesmos trechos, com os comentários.
+  any(grepl("## ---- importar ----", script, fixed = TRUE)),
+  any(grepl("## ---- tratar ----", script, fixed = TRUE)),
+  any(grepl("O QUE CONFERIR", script, fixed = TRUE))
+)
+
+# --- O relatório está em dia com o script, pelo mesmo conferir_codigo() -------
+ligacao <- new.env(parent = baseenv())
+sys.source(file.path(projeto, "R", "funcoes.R"), envir = ligacao)
+stopifnot(isTRUE(ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)))
+# Editar o script sem atualizar o relatório é o que a conferência pega.
+script_mudado <- sub("str(dados_brutos)", "str(dados_brutos); nrow(dados_brutos)", script, fixed = TRUE)
+caminho_mudado <- tempfile(fileext = ".R")
+writeLines(script_mudado, caminho_mudado, useBytes = TRUE)
+erro_conferencia <- tryCatch(
+  ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_mudado),
+  error = function(e) conditionMessage(e)
+)
+stopifnot(
+  is.character(erro_conferencia),
+  grepl("# fonte: importar", erro_conferencia, fixed = TRUE),
+  grepl("Rode o chunk `atualizar`", erro_conferencia, fixed = TRUE)
+)
+# E atualizar_codigo() traz a mudança, sem os comentários.
+qmd_copia <- tempfile(fileext = ".qmd")
+file.copy(caminho_qmd, qmd_copia)
+mudados <- suppressMessages(ligacao$atualizar_codigo(qmd = qmd_copia, script = caminho_mudado))
+qmd_atualizado <- readLines(qmd_copia, warn = FALSE, encoding = "UTF-8")
+stopifnot(
+  identical(mudados, "# fonte: importar"),
+  any(grepl("nrow(dados_brutos)", qmd_atualizado, fixed = TRUE)),
+  !any(grepl("O QUE CONFERIR", qmd_atualizado, fixed = TRUE)),
+  isTRUE(ligacao$conferir_codigo(qmd = qmd_copia, script = caminho_mudado))
 )
 
 # --- A pasta dados/ é enxuta: brutos/ com a planilha, processados/ com dois ----
@@ -285,7 +349,8 @@ stopifnot(
 stopifnot(
   any(grepl("library(here)", qmd, fixed = TRUE)),
   any(grepl("library(readxl)", qmd, fixed = TRUE)),
-  any(grepl("#| label: descritiva-captura-base", qmd, fixed = TRUE)),
+  any(grepl("#| label: descritiva-captura", qmd, fixed = TRUE)),
+  any(grepl("## ---- descritiva-captura-base ----", script, fixed = TRUE)),
   any(grepl("dados_da_analise <- dados_analise", qmd, fixed = TRUE)),
   # A apresentação escreve os parâmetros por extenso; nada de metadados no QMD.
   any(grepl("linhas_captura <- catalyser_executar(", qmd, fixed = TRUE)),
@@ -319,15 +384,10 @@ stopifnot(
 
 zip_saida <- file.path(raiz, "projeto.zip")
 do.call(exportacao_empacotar_projeto, c(list(file = zip_saida), argumentos))
-stopifnot(file.exists(zip_saida), file.info(zip_saida)$size > 0)
+stopifnot(
+  file.exists(zip_saida), file.info(zip_saida)$size > 0,
+  # A CatalyseR não gera mais o Word: o Render é do pesquisador, no RStudio.
+  !exists("exportacao_renderizar_word")
+)
 
-if (nzchar(unname(Sys.which("quarto")))) {
-  word_saida <- file.path(raiz, "relatorio.docx")
-  do.call(exportacao_renderizar_word, c(list(file = word_saida), argumentos))
-  stopifnot(file.exists(word_saida), file.info(word_saida)$size > 0)
-  cat("[OK] Word do projeto renderizado pelo Quarto.\n")
-} else {
-  cat("[AVISO] Quarto CLI ausente: o render do Word NÃO foi verificado.\n")
-}
-
-cat("OK: Fase 3E exporta Word seletivo e preserva todas as execuções no Projeto R\n")
+cat("OK: o Projeto R sai como par script + relatório e preserva todas as execuções\n")

@@ -152,10 +152,14 @@ Mudança estrutural do exportador feita no mesmo ciclo:
 - o QMD não usa mais `sys.source()` em ambiente oculto: chama
   `catalyser_executar()` direto sobre a base construída no chunk anterior.
 
-Ao mexer no exportador, conferir `exportacao_chunk_importar()`,
-`exportacao_chunk_tratar()`, `exportacao_bloco_base_analise()`,
-`exportacao_bloco_analise()`, `exportacao_bloco_apresentacao()` e
-`exportacao_leiame_projeto()`.
+Ao mexer no exportador, conferir `exportacao_trecho_importar()`,
+`exportacao_trecho_tratar()`, `exportacao_trecho_base()`,
+`exportacao_trecho_analise()`, `exportacao_trecho_resultado()`,
+`exportacao_trecho_componente()`, `exportacao_gerar_script()`,
+`exportacao_gerar_qmd()` e `exportacao_leiame_projeto()`. (**Fase D, set/2026:**
+cada uma dessas funções devolve um *trecho* de `R/analise.R`, com marcador
+`## ---- nome ----` e comentários; o `relatorio.qmd` recebe só o código, via
+`atualizar_codigo()` do template `funcoes.R`. A CatalyseR não gera mais o Word.)
 
 ### Fase A (set/2026) — árvore do projeto-modelo
 

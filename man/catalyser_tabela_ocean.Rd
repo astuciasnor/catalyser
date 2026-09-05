@@ -14,6 +14,13 @@ Um objeto \code{flextable}, ou uma tabela \code{knitr::kable} se o pacote
 flextable nao estiver instalado.
 }
 \description{
-Aplica a identidade Ocean Gradient a um data.frame, para que a tabela saia no
-Word com a mesma cara das demais.
+Aplica a identidade Ocean Gradient a um data.frame: cabecalho azul-marinho
+com letras brancas, sem grade interna, primeira coluna a esquerda. E o mesmo
+tema de \code{flextable_ocean()}, no EAPADados e no EAPACaderno, para que a
+tabela saia igual no livro, no caderno do pesquisador e no Word exportado
+pela IDE.
+}
+\details{
+A fonte e Times New Roman porque e a fonte do modelo de pagina do Word
+(\code{custom-reference.docx}): assim a tabela nao destoa do corpo do texto.
 }
