@@ -45,9 +45,17 @@ trechos_do_script <- function(script = here::here("R", "analise.R")) {
   nomes <- sub(marcador, "\\1", linhas[inicios])
   fins  <- c(inicios[-1] - 1L, length(linhas))   # cada trecho vai até o marcador seguinte
 
+  repetidos <- unique(nomes[duplicated(nomes)])
+  if (length(repetidos)) {
+    stop("Marcador repetido em ", basename(script), ": ",
+         paste(repetidos, collapse = ", "), call. = FALSE)
+  }
+
+  # Saem as LINHAS de comentário (as que começam com #). Um comentário no fim
+  # de uma linha de código, como em library(readxl)  # planilhas, fica.
   trechos <- Map(function(a, b) {
     codigo <- if (b > a) linhas[(a + 1L):b] else character()
-    codigo <- codigo[!grepl("^\\s*#", codigo)]                    # fora os comentários
+    codigo <- codigo[!grepl("^\\s*#", codigo)]                    # fora as linhas de comentário
     vazias <- !nzchar(trimws(codigo))
     codigo[cumsum(!vazias) > 0 & rev(cumsum(rev(!vazias))) > 0]   # fora as pontas em branco
   }, inicios, fins)
@@ -75,26 +83,37 @@ corpo_do_chunk <- function(linha_fonte, trechos) {
 
 # chunks_do_relatorio() ---------------------------------------------------
 #
-# O que faz: localiza no relatório os chunks que começam com "# fonte:" e
-#            devolve, para cada um, onde o corpo começa e termina.
+# O que faz: localiza os chunks R do relatório e devolve, para cada um, o
+#            rótulo, a linha "# fonte:" (NA se não tiver) e onde o corpo
+#            começa e termina.
 #
 chunks_do_relatorio <- function(linhas) {
 
   abre <- grep("^```\\{r\\}\\s*$", linhas)
 
-  chunks <- lapply(abre, function(a) {
+  lapply(abre, function(a) {
     i <- a + 1L
-    while (i <= length(linhas) && grepl("^#\\|", linhas[i])) i <- i + 1L   # pula as opções
+    rotulo <- NA
+    while (i <= length(linhas) && grepl("^#\\|", linhas[i])) {          # as opções
+      if (grepl("^#\\|\\s*label:", linhas[i])) {
+        rotulo <- trimws(sub("^#\\|\\s*label:", "", linhas[i]))
+      }
+      i <- i + 1L
+    }
     f <- i
     while (f <= length(linhas) && !grepl("^```\\s*$", linhas[f])) f <- f + 1L
     corpo    <- if (f > i) linhas[i:(f - 1L)] else character()
     primeira <- corpo[nzchar(trimws(corpo))][1]
     fonte    <- if (!is.na(primeira) && grepl("^#\\s*fonte:", primeira)) primeira else NA
-    list(ini = i, fim = f - 1L, fecha = f, fonte = fonte)
+    list(rotulo = rotulo, ini = i, fim = f - 1L, fecha = f, fonte = fonte)
   })
-
-  Filter(function(ch) !is.na(ch$fonte), chunks)
 }
+
+# Os chunks que o script alimenta: os que têm a linha "# fonte:".
+chunks_com_fonte <- function(chunks) Filter(function(ch) !is.na(ch$fonte), chunks)
+
+# Os dois chunks de manutenção têm código próprio, de propósito.
+chunks_de_manutencao <- c("codigo-do-script", "atualizar")
 
 # atualizar_codigo() ------------------------------------------------------
 #
@@ -113,7 +132,7 @@ atualizar_codigo <- function(qmd    = here::here("relatorios", "relatorio.qmd"),
 
   linhas  <- readLines(qmd, encoding = "UTF-8", warn = FALSE)
   trechos <- trechos_do_script(script)
-  chunks  <- chunks_do_relatorio(linhas)
+  chunks  <- chunks_com_fonte(chunks_do_relatorio(linhas))
   mudados <- character()
 
   # De trás para a frente, para que trocar um corpo não desloque os índices
@@ -143,17 +162,28 @@ atualizar_codigo <- function(qmd    = here::here("relatorios", "relatorio.qmd"),
 #
 # O que faz: verifica se o relatório está em dia com o script. Roda no
 #            começo do Render, para o relatório nunca sair com código
-#            diferente do que está no script.
+#            diferente do que está no script. Também avisa se algum chunk
+#            R ficou sem a linha "# fonte:", porque esse fica fora da
+#            conferência (o aviso vai para o log do Render).
 #
 conferir_codigo <- function(qmd    = here::here("relatorios", "relatorio.qmd"),
                             script = here::here("R", "analise.R")) {
 
   linhas  <- readLines(qmd, encoding = "UTF-8", warn = FALSE)
   trechos <- trechos_do_script(script)
+  chunks  <- chunks_do_relatorio(linhas)
+
+  soltos <- vapply(Filter(function(ch) is.na(ch$fonte), chunks), `[[`, "", "rotulo")
+  soltos <- setdiff(soltos[!is.na(soltos)], chunks_de_manutencao)
+  if (length(soltos)) {
+    cat("Aviso: chunk(s) sem '# fonte:' ficam fora da conferência com ",
+        basename(script), ": ", paste(soltos, collapse = ", "), "\n",
+        sep = "", file = stderr())
+  }
 
   atrasados <- Filter(function(ch) {
     !identical(linhas[ch$ini:ch$fim], corpo_do_chunk(ch$fonte, trechos))
-  }, chunks_do_relatorio(linhas))
+  }, chunks_com_fonte(chunks))
 
   if (length(atrasados)) {
     stop(

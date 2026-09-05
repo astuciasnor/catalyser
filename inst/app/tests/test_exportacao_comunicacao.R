@@ -327,6 +327,29 @@ stopifnot(
   !any(grepl("O QUE CONFERIR", qmd_atualizado, fixed = TRUE)),
   isTRUE(ligacao$conferir_codigo(qmd = qmd_copia, script = caminho_mudado))
 )
+# Um marcador repetido no script é rejeitado, e um chunk sem "# fonte:" é
+# avisado (no stderr), sem parar o Render.
+script_repetido <- c(script, "## ---- importar ----", "x <- 1")
+caminho_repetido <- tempfile(fileext = ".R")
+writeLines(script_repetido, caminho_repetido, useBytes = TRUE)
+erro_repetido <- tryCatch(
+  ligacao$trechos_do_script(caminho_repetido),
+  error = function(e) conditionMessage(e)
+)
+qmd_solto <- c(qmd, "", "```{r}", "#| label: rascunho", "y <- 2", "```")
+caminho_solto <- tempfile(fileext = ".qmd")
+writeLines(qmd_solto, caminho_solto, useBytes = TRUE)
+aviso_solto <- utils::capture.output(
+  ok_solto <- ligacao$conferir_codigo(qmd = caminho_solto, script = caminho_script),
+  type = "message"
+)
+stopifnot(
+  grepl("Marcador repetido", erro_repetido, fixed = TRUE),
+  grepl("importar", erro_repetido, fixed = TRUE),
+  isTRUE(ok_solto),
+  any(grepl("rascunho", aviso_solto, fixed = TRUE)),
+  !any(grepl("codigo-do-script|atualizar", aviso_solto))
+)
 
 # --- A pasta dados/ é enxuta: brutos/ com a planilha, processados/ com dois ----
 stopifnot(
