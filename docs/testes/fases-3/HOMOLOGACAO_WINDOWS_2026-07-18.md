@@ -9,7 +9,7 @@
   mostrou muito lento para a homologação interativa.
 - Próxima execução: repetir a Fase 3B/3B.1 na VM `Zorin 18.1 Core`, hospedada no
   mesmo Windows 11. O Zorin apresentou desempenho consideravelmente melhor.
-- A pasta `D:\Claude\eapa\transferencia-vm` foi compartilhada com o nome
+- A pasta `D:\Claude\EAPA-Ecossistema\APOIO\transferencia-vm` (à época, na raiz) foi compartilhada com o nome
   `CatalyseR_Compartilhado`; clipboard, transferência de arquivos e arrastar/soltar
   foram ativados em ambas as direções para a sessão da VM.
 - Motivo da estratégia: manter host, VM, roteiro e registros no mesmo computador,

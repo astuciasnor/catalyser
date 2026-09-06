@@ -163,7 +163,7 @@ cada uma dessas funções devolve um *trecho* de `R/analise.R`, com marcador
 
 ### Fase A (set/2026) — árvore do projeto-modelo
 
-O exportador passou a seguir a árvore de `D:\Claude\eapa\EAPACaderno/`.
+O exportador passou a seguir a árvore de `D:\Claude\EAPA-Ecossistema\EAPACaderno/`.
 Os nomes acima mudaram: `R/01_base_compartilhada.R` virou **`R/01_importar.R` +
 `R/02_tratar.R`** (o 02 chama o 01); `R/02_execucao_*.R` virou
 **`R/04_analisar_NN_<tipo>.R`** (sem `rodar_tudo.R`: o Render já refaz tudo); o `relatorio.qmd` e

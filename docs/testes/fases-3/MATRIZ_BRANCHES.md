@@ -72,7 +72,7 @@ Se o Windows de teste for a mesma máquina e não se desejar fazer push ainda, �
 possível clonar diretamente a pasta local:
 
 ```powershell
-git clone D:\Claude\eapa\catalyser D:\Testes\catalyser-fases
+git clone D:\Claude\EAPA-Ecossistema\catalyser D:\Testes\catalyser-fases
 ```
 
 Nesse clone local, as branches aparecem como referências de `origin`, cujo

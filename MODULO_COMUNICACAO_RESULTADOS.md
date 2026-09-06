@@ -90,7 +90,7 @@ Não generalizar essa humanização para outras análises sem testes equivalente
 ## Árvore do Projeto R exportado (Fase A, set/2026)
 
 Desde a Fase A, o Projeto R exportado segue a árvore do **projeto-modelo** do
-ecossistema (`D:\Claude\eapa\EAPACaderno/`), para que quem sai da
+ecossistema (`D:\Claude\EAPA-Ecossistema\EAPACaderno/`), para que quem sai da
 IDE reconheça o caminho a pé. (A árvore abaixo é a da Fase A; a Fase C, mais
 adiante, removeu `R/` e levou o preparo para dentro do `.qmd`.)
 

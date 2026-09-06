@@ -14,7 +14,7 @@
 ## 0. Antes de começar
 
 ```powershell
-Set-Location D:\Claude\eapa\catalyser
+Set-Location D:\Claude\EAPA-Ecossistema\catalyser
 $R = "C:\R\R-4.6.1\bin\Rscript.exe"
 & $R inst/app/tests/run_tests.R
 & $R -e "fs <- list.files('inst/app', pattern='[.]R$', recursive=TRUE, full.names=TRUE); invisible(lapply(fs, parse)); cat(length(fs), 'arquivos R aprovados\n')"

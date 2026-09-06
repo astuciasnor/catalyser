@@ -237,7 +237,7 @@ roxygen + `.rda`). Sugestões de escopo:
 descreve o ecossistema EAPA (contexto amazônico, colunas *tidy*, tipos, faixas
 plausíveis, a análise-alvo e o formato de saída `.csv`/`.xlsx`), para gerar dados
 sintéticos realistas ou orientar a busca de dados reais. Padronizar num arquivo
-(`../../../documentacao/PROMPT_DADOS_EAPA.md`) reutilizável por análise.
+(`../../../APOIO/documentacao/PROMPT_DADOS_EAPA.md`) reutilizável por análise.
 
 ---
 

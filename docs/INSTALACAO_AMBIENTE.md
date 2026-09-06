@@ -142,10 +142,10 @@ em ordem de custo:
    Enterprise ou Education** — não existe no Home — mais virtualização ativada
    no BIOS, 4 GB de RAM e 2 núcleos.
 
-   Na raiz do projeto:
+   Na pasta-mãe do ecossistema (`D:\Claude\EAPA-Ecossistema`):
 
    ```powershell
-   .\scripts\verificar-sandbox.ps1     # diz se dá, e o que falta
+   .\APOIO\scripts\verificar-sandbox.ps1     # diz se dá, e o que falta
    ```
 
    Se faltar apenas ativar o recurso, num PowerShell **como Administrador**:
@@ -154,7 +154,7 @@ em ordem de custo:
    Enable-WindowsOptionalFeature -FeatureName "Containers-DisposableClientVM" -All -Online
    ```
 
-   Depois reinicie e clique duas vezes em **`sandbox-catalyser.wsb`**. Ele abre
+   Depois reinicie e clique duas vezes em **`APOIO\sandbox-catalyser.wsb`**. Ele abre
    o Sandbox já com duas pastas na Área de Trabalho: `transferencia`
    (somente leitura, com o ZIP do pacote) e `saida` (leitura e escrita, o único
    lugar cujo conteúdo sobrevive ao fechar a janela).
@@ -166,13 +166,13 @@ em ordem de custo:
 3. **Limpar a máquina real.** Só se não houver alternativa: você perde a
    biblioteca de pacotes, o histórico e as configurações do RStudio.
 
-Para o terceiro caso existe `scripts/limpar-ambiente-r.ps1`. Ele é
+Para o terceiro caso existe `APOIO/scripts/limpar-ambiente-r.ps1`. Ele é
 **seguro por padrão**: sem argumentos, apenas mostra o que faria.
 
 ```powershell
-.\scripts\limpar-ambiente-r.ps1                    # simulação
-.\scripts\limpar-ambiente-r.ps1 -Confirmar         # executa
-.\scripts\limpar-ambiente-r.ps1 -Confirmar -IncluirRegistro   # + chaves R-core
+.\APOIO\scripts\limpar-ambiente-r.ps1                    # simulação
+.\APOIO\scripts\limpar-ambiente-r.ps1 -Confirmar         # executa
+.\APOIO\scripts\limpar-ambiente-r.ps1 -Confirmar -IncluirRegistro   # + chaves R-core
 ```
 
 Antes de apagar qualquer coisa ele grava um inventário — lista de pacotes

@@ -146,7 +146,7 @@ alternância de Y revelar defeito. Não reescrever esse módulo antecipadamente.
 Executar antes de editar:
 
 ```powershell
-Set-Location D:\Claude\eapa\catalyser
+Set-Location D:\Claude\EAPA-Ecossistema\catalyser
 git status --short
 git branch --show-current
 git rev-parse HEAD

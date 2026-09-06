@@ -6,8 +6,8 @@ projeto, conforme `DECISOES_PEDAGOGICAS_E_REFINAMENTO.md` §10.
 
 ## O ciclo, em uma linha
 
-Duplo clique em **`scripts/rodar-testes-catalyser.bat`** (pasta `scripts/` de
-`D:\Claude\eapa`),
+Duplo clique em **`APOIO/scripts/rodar-testes-catalyser.bat`** (pasta `APOIO/scripts/` de
+`D:\Claude\EAPA-Ecossistema`),
 escolha o modo, espere. Depois é só dizer "rodei".
 
 O `.bat` grava dois arquivos:
@@ -32,9 +32,9 @@ está sempre no topo.
 Também funciona sem menu, útil para atalhos:
 
 ```powershell
-.\scripts\rodar-testes-catalyser.bat 1
-.\scripts\rodar-testes-catalyser.bat 2
-.\scripts\rodar-testes-catalyser.bat 3
+.\APOIO\scripts\rodar-testes-catalyser.bat 1
+.\APOIO\scripts\rodar-testes-catalyser.bat 2
+.\APOIO\scripts\rodar-testes-catalyser.bat 3
 ```
 
 ## Pelo terminal, se preferir
@@ -46,7 +46,7 @@ Da pasta `catalyser`:
 ```
 
 O `run_tests.R` se localiza sozinho, então a pasta de onde você chama não
-importa — mas o destino do log importa: precisa cair em `D:\Claude\eapa\`, que
+importa — mas o destino do log importa: precisa cair em `D:\Claude\EAPA-Ecossistema\`, que
 é a pasta compartilhada.
 
 ## Pelo RStudio
@@ -57,7 +57,7 @@ Com `catalyser.Rproj` aberto, no Console:
 saida <- system2("C:/R/R-4.6.1/bin/Rscript.exe",
                  "inst/app/tests/run_tests.R",
                  stdout = TRUE, stderr = TRUE)
-writeLines(saida, "D:/Claude/eapa/saida-testes.txt")
+writeLines(saida, "D:/Claude/EAPA-Ecossistema/saida-testes.txt")
 cat(saida, sep = "\n")
 ```
 
@@ -69,7 +69,7 @@ separado, e o `sink()` não captura a saída desses filhos — você ficaria sem
 Antes de commitar, feche o ciclo com build e check:
 
 ```bash
-cd D:/Claude/eapa
+cd D:/Claude/EAPA-Ecossistema
 "C:/R/R-4.6.1/bin/R.exe" CMD build catalyser > saida-check.txt 2>&1
 "C:/R/R-4.6.1/bin/R.exe" CMD check --no-manual catalyser_0.1.6.tar.gz >> saida-check.txt 2>&1
 ```
