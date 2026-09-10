@@ -1,0 +1,6 @@
+project:
+  type: default
+  render:
+    - relatorios/relatorio.qmd
+  post-render:
+    - R/gerar_word.R

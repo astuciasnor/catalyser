@@ -77,13 +77,30 @@ mod_comunicacao_ui <- function(id) {
             card(
               fill = FALSE,
               class = "mb-0",
-              card_header("Seções globais do documento"),
+              card_header("Identificação e textos do documento"),
               card_body(
                 style = "padding:12px 15px;",
+                p(class = "small text-muted",
+                  "Preencha o que já souber. Os textos entram no relatório exportado e podem ser completados depois, no RStudio."),
+                h6("Identificação do relatório"),
+                textInput(ns("titulo_documento"), "Título:", value = "",
+                          placeholder = "Ex.: Resposta aos tratamentos avaliados"),
+                helpText("Apresente o assunto e a comparação do estudo. Se deixar em branco, será usado o título automático."),
+                textInput(ns("subtitulo_documento"), "Subtítulo (opcional):", value = "",
+                          placeholder = "Ex.: ANOVA de um fator"),
+                helpText("Complemente o título com o local, o período ou o tipo de análise. Deixe em branco para não incluir subtítulo."),
+                textAreaInput(ns("autores_documento"), "Autores (um por linha):", rows = 3),
+                helpText("Digite o nome de cada autor em uma linha, na ordem em que deve aparecer. As afiliações podem ser preenchidas no projeto exportado."),
+                tags$hr(),
+                h6("Textos do relatório"),
                 textAreaInput(ns("introducao"), "Introdução (opcional):", rows = 3),
+                helpText("Apresente o contexto e a pergunta do estudo. Termine com o objetivo, por exemplo: comparar o comprimento do bico entre espécies de pinguins."),
                 textAreaInput(ns("metodos"), "Métodos gerais (opcional):", rows = 3),
+                helpText("Descreva onde, quando e como os dados foram obtidos, a unidade amostral, os grupos e o número de observações. Na ANOVA de um fator, o relatório já traz a descrição dos testes estatísticos; complete aqui os detalhes do seu estudo."),
                 textAreaInput(ns("discussao"), "Discussão (opcional):", rows = 3),
-                textAreaInput(ns("conclusao"), "Conclusão (opcional):", rows = 2)
+                helpText("Explique o que as diferenças significam para o estudo, compare com a literatura e comente as limitações. Considere o tamanho do efeito junto com o p-valor."),
+                textAreaInput(ns("conclusao"), "Conclusão (opcional):", rows = 2),
+                helpText("Responda ao objetivo em poucas frases, sem trazer resultados novos. Diga o que os dados permitem concluir e o que ainda permanece incerto.")
               )
             )
           )
@@ -198,7 +215,9 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       observeEvent(projeto_rv(), {
         geracao_projeto_rv(geracao_projeto_rv() + 1L)
         estado_editorial_rv(comunicacao_estado_vazio())
-        for (campo in c("introducao", "metodos", "discussao", "conclusao"))
+        for (campo in c("titulo_documento", "subtitulo_documento"))
+          updateTextInput(session, campo, value = "")
+        for (campo in c("autores_documento", "introducao", "metodos", "discussao", "conclusao"))
           updateTextAreaInput(session, campo, value = "")
       }, ignoreInit = TRUE)
     }
@@ -427,6 +446,9 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
 
     secoes_globais <- reactive({
       list(
+        titulo = input$titulo_documento %||% "",
+        subtitulo = input$subtitulo_documento %||% "",
+        autores = input$autores_documento %||% "",
         introducao = input$introducao %||% "",
         metodos = input$metodos %||% "",
         discussao = input$discussao %||% "",
@@ -585,8 +607,26 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         paste0("projeto_", nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
       },
       content = function(file) {
-        do.call(exportacao_empacotar_projeto, c(list(file = file), argumentos_exportacao()))
-      }
+        tryCatch({
+          withProgress(message = "Gerando Projeto R", value = 0.5, {
+            do.call(exportacao_empacotar_projeto, c(list(file = file), argumentos_exportacao()))
+          })
+        }, error = function(e) {
+          detalhe <- conditionMessage(e)
+          if (!nzchar(trimws(detalhe)))
+            detalhe <- "Confira os dados e atualize a análise antes de tentar novamente."
+          message("Falha ao gerar Projeto R: ", detalhe)
+          showModal(modalDialog(
+            title = "Não foi possível gerar o Projeto R",
+            tags$p("A geração foi interrompida antes de concluir o arquivo ZIP."),
+            tags$p(detalhe),
+            easyClose = TRUE, footer = modalButton("Fechar")
+          ))
+          # Interrompe o download sem entregar um ZIP vazio ou incompleto.
+          req(FALSE)
+        })
+      },
+      contentType = "application/zip"
     )
 
     invisible(list(

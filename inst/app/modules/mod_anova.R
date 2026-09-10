@@ -305,7 +305,11 @@ mod_anova_server <- function(id, data_rv, import_info) {
         if (!is.na(r$efeito_aviso)) div(class = "alert alert-light border py-2 small", r$efeito_aviso),
         hr(),
         anova_titulo_secao("Gráfico principal"),
-        plotOutput(ns("fit_plot"), height = "440px")
+        plotOutput(ns("fit_plot"), height = "440px"),
+        anova_titulo_secao("Boxplot exploratório"),
+        plotOutput(ns("box_plot"), height = "380px"),
+        anova_titulo_secao("Pontos com intervalo de confiança"),
+        plotOutput(ns("pontos_plot"), height = "380px")
       )
     })
 
@@ -336,6 +340,16 @@ mod_anova_server <- function(id, data_rv, import_info) {
     })
 
     output$fit_plot <- renderPlot({ grafico_principal() })
+
+    output$box_plot <- renderPlot({
+      r <- result_rv(); req(r)
+      grafico_boxplot_anova(r, tema = input$graph_theme %||% "minimal")
+    })
+
+    output$pontos_plot <- renderPlot({
+      r <- result_rv(); req(r)
+      grafico_pontos_anova(r, tema = input$graph_theme %||% "minimal")
+    })
 
     # ---- 2. Comparações -------------------------------------------------------
     output$tukey_ui <- renderUI({

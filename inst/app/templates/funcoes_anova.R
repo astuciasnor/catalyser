@@ -709,6 +709,68 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", color = "#0F3B5F"))
 }
 
+# Boxplot exploratório: a distribuição da resposta em cada grupo, com as
+# observações por cima. Espelha a figura de Exploração do relatório.
+grafico_boxplot_anova <- function(r, tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE))
+    stop("O pacote ggplot2 é necessário para o boxplot da ANOVA.", call. = FALSE)
+  ggplot2::ggplot(r$dados, ggplot2::aes(x = fator, y = resposta)) +
+    ggplot2::geom_boxplot(width = 0.5, outlier.shape = NA, colour = "grey50") +
+    ggplot2::geom_jitter(width = 0.1, height = 0, size = 1.6, alpha = 0.55,
+                         colour = "#0F3B5F") +
+    anova_tema(tema) +
+    ggplot2::labs(
+      title = sprintf("Exploratório: %s por %s", r$dep_var, r$ind_var),
+      subtitle = "Cada ponto é uma observação; a caixa resume a distribuição do grupo",
+      x = r$ind_var, y = r$dep_var
+    ) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", color = "#0F3B5F"))
+}
+
+# Pontos com IC: cada observação em torno da média, com o IC e as letras de
+# Tukey. Espelha a segunda figura dos Resultados do relatório.
+grafico_pontos_anova <- function(r, tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE))
+    stop("O pacote ggplot2 é necessário para o gráfico de pontos da ANOVA.", call. = FALSE)
+  nivel <- r$nivel_confianca %||% 0.95
+  resumo <- r$descritivos_df
+  resumo$fator <- factor(resumo$Grupo, levels = levels(r$dados$fator))
+  cores <- rep(anova_cores_ocean, length.out = nlevels(r$dados$fator))
+  ggplot2::ggplot() +
+    ggplot2::geom_jitter(
+      data = r$dados,
+      ggplot2::aes(x = fator, y = resposta, colour = fator),
+      width = 0.12, height = 0, size = 1.6, alpha = 0.45, show.legend = FALSE
+    ) +
+    ggplot2::geom_errorbar(
+      data = resumo,
+      ggplot2::aes(x = fator, ymin = IC_Inferior, ymax = IC_Superior),
+      width = 0.16, linewidth = 0.8, color = "#0F3B5F"
+    ) +
+    ggplot2::geom_point(
+      data = resumo,
+      ggplot2::aes(x = fator, y = Media),
+      size = 3, shape = 21, fill = "white", stroke = 1, color = "#0F3B5F"
+    ) +
+    ggplot2::geom_text(
+      data = resumo,
+      ggplot2::aes(x = fator, y = IC_Superior, label = Letras),
+      vjust = -0.7, fontface = "bold", size = 4.6, color = "#0F3B5F"
+    ) +
+    ggplot2::scale_colour_manual(values = cores) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
+    anova_tema(tema) +
+    ggplot2::labs(
+      title = sprintf("%s por %s", r$dep_var, r$ind_var),
+      subtitle = sprintf(
+        "Pontos = observações; ponto branco = média; hastes = IC %.0f%%; letras = Tukey",
+        100 * nivel
+      ),
+      x = r$ind_var, y = r$dep_var
+    ) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", color = "#0F3B5F"))
+}
+
 #' Gráficos de diagnóstico dos resíduos
 grafico_diagnosticos_anova <- function(r, tipo = c("residuos", "qq"), tema = "minimal") {
   tipo <- match.arg(tipo)

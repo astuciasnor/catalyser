@@ -2446,7 +2446,12 @@ RCatalyst::run_ide()</pre>
       csv_sep = if (!is.null(input$csv_sep)) input$csv_sep else ",",
       csv_dec = if (!is.null(input$csv_dec)) input$csv_dec else ".",
       csv_header = if (!is.null(input$csv_header)) input$csv_header else TRUE,
-      package_dataset = input$package_dataset
+      package_dataset = input$package_dataset,
+      preparo_importacao = list(
+        colunas = selected_cols_rv(), tipos = col_types_rv(),
+        recodificacoes = col_recodes_rv(), filtros_niveis = level_filters_rv(),
+        filtros_faixas = range_filters_rv(), renomes = col_renames_rv()
+      )
     )
   })
 
@@ -4442,6 +4447,8 @@ RCatalyst::run_ide()</pre>
         "title: \"Relatório de Análises Consolidadas\"",
         "author: \"IDE CatalyseR - CatalyseR\"",
         sprintf("date: \"%s\"", format(Sys.Date(), "%d/%m/%Y")),
+        "editor_options:",
+        "  chunk_output_type: console",
         "format:",
         "  html:",
         "    theme: cosmo",

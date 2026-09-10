@@ -1,0 +1,494 @@
+---
+title: {{TITULO_YAML}}
+subtitle: {{SUBTITULO_YAML}}
+{{AUTORES_YAML}}
+date: today
+date-format: "D [de] MMMM [de] YYYY"
+lang: pt-BR
+abstract: |
+  Comparou-se {{RESPOSTA}} entre os grupos de {{FATOR}} por análise de variância
+  de um fator, seguida do teste de Tukey. Este é o texto de resumo; ajuste-o ao
+  seu estudo.
+# Obras citadas no texto por meio de [@chave].
+bibliography: referencias.bib
+# Estilo das citações e da lista de referências (ABNT).
+csl: abnt.csl
+# Precisa de outro estilo de revista? Baixe o arquivo .csl em
+# https://www.zotero.org/styles, coloque-o na pasta relatorios/ e troque o
+# nome do arquivo na linha acima.
+crossref:
+  # Separa o número da tabela ou figura de sua legenda, conforme a ABNT.
+  title-delim: " - "
+format:
+  # 1. HTML (saída principal): caderno com código recolhido, exploração e diagnóstico.
+  html:
+    theme: [cosmo, ocean.scss]
+    title-block-banner: "#0F3B5F"
+    title-block-banner-color: "white"
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    toc-title: "Neste caderno"
+    number-sections: true
+    embed-resources: true
+    echo: true
+    code-fold: true
+    code-summary: "Código"
+    code-tools: true
+    code-copy: true
+    df-print: kable
+    fig-width: 5.2
+    fig-height: 3.2
+    fig-align: center
+    smooth-scroll: true
+  # 2. Word (atualizado junto com o HTML): relatório para o leitor, somente com texto, tabelas e figuras.
+  docx:
+    reference-doc: custom-reference.docx
+    toc: false
+    number-sections: true
+    fig-width: 4.9
+    fig-height: 3.0
+    fig-dpi: 300
+    fig-align: center
+execute:
+  # No Word, apresenta os resultados sem exibir o código.
+  echo: false
+  warning: false
+  message: false
+editor_options:
+  chunk_output_type: console
+---
+
+# Introdução
+
+<!-- inicio-introducao -->
+Este relatório compara {{RESPOSTA}} entre os grupos definidos por {{FATOR}}. A
+pergunta é simples: a média de {{RESPOSTA}} difere entre os grupos? Para
+responder, usamos uma análise de variância de um fator, seguida da comparação
+entre pares pelo teste de Tukey. Ajuste este texto ao contexto do seu estudo.
+<!-- fim-introducao -->
+
+::::: {.content-visible when-format="html"}
+
+::: callout-tip
+## Como usar este caderno
+
+O código deste `relatorio.qmd` é editável e produz as tabelas e figuras.
+O arquivo `R/analise.R` é uma cópia comentada para estudo, sem sincronização
+automática. O README orienta como gerar o Word e o HTML.
+:::
+
+:::::
+
+# Material e métodos
+
+## Obtenção e preparo dos dados
+
+<!-- inicio-metodos -->
+<!-- fim-metodos -->
+
+Os dados têm uma linha por observação. O fator {{FATOR}} entra como agrupamento,
+que a análise de variância compara, e {{RESPOSTA}} entra como resposta numérica.
+{{DESCRICAO_PREPARO}}
+Foram utilizados os casos com resposta e grupo preenchidos.
+
+```{r}
+#| label: instalar
+#| include: false
+#| eval: false
+pacotes <- c(
+  "here", "readxl", "dplyr", "tidyr", "ggplot2",
+  "car", "multcompView", "effectsize", "flextable", "stringr"
+)
+
+faltando <- pacotes[!pacotes %in% rownames(installed.packages())]
+
+if (length(faltando)) {
+  install.packages(faltando)
+}
+```
+
+```{r}
+#| label: pacotes
+#| include: false
+library(here)
+library(readxl)        # leitura da planilha
+library(dplyr)         # manipulação de dados
+library(tidyr)         # reorganização de dados
+library(ggplot2)       # gráficos
+library(car)           # teste de Levene
+library(multcompView)  # letras dos grupos após o Tukey
+library(effectsize)    # tamanho de efeito (eta² e omega²)
+library(flextable)     # tabelas para o Word
+
+source(here("R", "funcoes.R"))
+
+options(digits = 3)
+nivel_confianca <- {{NIVEL_CONFIANCA}}
+```
+
+```{r}
+#| label: importar-e-conferir
+#| output: false
+arquivo <- here("dados", "brutos", {{PLANILHA_R}})
+
+excel_sheets(arquivo)
+
+dados_brutos <- read_excel(arquivo, sheet = {{ABA_R}})
+
+glimpse(dados_brutos)
+```
+
+```{r}
+#| label: preparo
+#| output: false
+{{PREPARO}}
+
+# A análise usa apenas observações com resposta e grupo preenchidos.
+n_preparadas <- nrow(dados)
+dados <- dados |>
+  mutate(
+    {{FATOR_R}} = factor({{FATOR_R}}),
+    {{RESPOSTA_R}} = as.numeric(as.character({{RESPOSTA_R}}))
+  ) |>
+  tidyr::drop_na({{FATOR_R}}, {{RESPOSTA_R}}) |>
+  droplevels()
+n_excluidas <- n_preparadas - nrow(dados)
+
+glimpse(dados)
+summary(dados)
+
+count(dados, {{FATOR_R}})
+```
+
+::::: {.content-visible when-format="html"}
+
+## Exploração {.unnumbered}
+
+::: callout-tip
+## Como ler esta seção
+
+Antes de comunicar os resultados, olhamos os grupos: quantas observações, onde
+está o centro de cada um e quão espalhados estão. Cada resumo e cada gráfico
+aqui é o rascunho do teste. Esta seção aparece somente neste caderno HTML.
+:::
+
+```{r}
+#| label: explora-resumo
+resumir_grupo(dados, {{RESPOSTA_R}}, {{FATOR_R}}, conf = nivel_confianca)
+```
+
+```{r}
+#| label: explora-boxplot
+ggplot(dados, aes(x = {{FATOR_R}}, y = {{RESPOSTA_R}})) +
+  geom_boxplot(width = 0.5, outlier.shape = NA, colour = "grey50") +
+  geom_jitter(width = 0.1, height = 0, size = 1.5, alpha = 0.5) +
+  labs(
+    x = {{ROTULO_X_R}},
+    y = {{ROTULO_Y_R}},
+    title = "Exploração dos grupos"
+  ) +
+  tema_projeto()
+```
+
+:::::
+
+## Análise estatística
+
+A comparação entre os grupos usou análise de variância de um fator, seguida do
+teste de Tukey, realizados com as funções de base do R [@rcore2025]. A
+homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car`
+[@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk; ambos
+completados pelos gráficos de diagnóstico. As letras de contraste do teste de
+Tukey foram obtidas com o pacote `multcompView` [@graves2026], e as figuras
+foram construídas com o `ggplot2` [@wickham2016]. Adotou-se 5 % de significância
+[@zar2010].
+
+```{r}
+#| label: analise
+#| output: false
+modelo <- aov({{RESPOSTA_R}} ~ {{FATOR_R}}, data = dados)
+tabela_anova <- anova(modelo)
+tabela_anova
+
+residuos <- residuals(modelo)
+teste_normalidade <- if (length(residuos) >= 3 && length(residuos) <= 5000 && sd(residuos) > 0) {
+  shapiro.test(residuos)
+} else {
+  list(statistic = c(W = NA_real_), p.value = NA_real_)
+}
+teste_levene <- leveneTest({{RESPOSTA_R}} ~ {{FATOR_R}}, data = dados)
+
+teste_normalidade
+teste_levene
+
+tukey <- TukeyHSD(modelo, conf.level = nivel_confianca)
+tukey
+
+# A matriz identifica os pares sem confundir hífens nos nomes dos grupos.
+grupo_nomes <- levels(dados${{FATOR_R}})
+pares <- combn(grupo_nomes, 2)
+p_pares <- matrix(1, length(grupo_nomes), length(grupo_nomes),
+                  dimnames = list(grupo_nomes, grupo_nomes))
+p_ajustados <- tukey[[1]][paste(pares[2, ], pares[1, ], sep = "-"), "p adj"]
+p_pares[cbind(pares[1, ], pares[2, ])] <- p_ajustados
+p_pares[cbind(pares[2, ], pares[1, ])] <- p_ajustados
+ordem <- names(sort(tapply(dados${{RESPOSTA_R}}, dados${{FATOR_R}}, mean), decreasing = TRUE))
+letras <- multcompView::multcompLetters(p_pares[ordem, ordem])$Letters
+
+resumo <- resumir_grupo(dados, {{RESPOSTA_R}}, {{FATOR_R}}, conf = nivel_confianca) |>
+  mutate(letra = letras[as.character({{FATOR_R}})]) |>
+  arrange({{FATOR_R}})
+
+resumo
+
+f_valor   <- fmt(tabela_anova$`F value`[1])
+gl_trat   <- tabela_anova$Df[1]
+gl_res    <- tabela_anova$Df[2]
+p_anova   <- formatar_p(tabela_anova$`Pr(>F)`[1], no_texto = TRUE)
+p_shapiro <- formatar_p(teste_normalidade$p.value, no_texto = TRUE)
+p_levene  <- formatar_p(teste_levene$`Pr(>F)`[1], no_texto = TRUE)
+
+frase_anova <- if (is.na(tabela_anova$`Pr(>F)`[1]))
+  "A ANOVA não forneceu um p-valor válido para comparar as médias de {{RESPOSTA}} entre os grupos" else
+  if (tabela_anova$`Pr(>F)`[1] < 0.05)
+    "Houve evidência de diferença na média de {{RESPOSTA}} entre os grupos" else
+    "Não houve evidência de diferença na média de {{RESPOSTA}} entre os grupos"
+
+efeito_eta   <- eta_squared(modelo)
+efeito_omega <- omega_squared(modelo)
+eta2   <- fmt(efeito_eta$Eta2[1])
+omega2 <- fmt(efeito_omega$Omega2[1])
+
+eta_val <- efeito_eta$Eta2[1]
+classe_efeito <- if (is.na(eta_val)) "indeterminado" else
+  if (eta_val < 0.06) "pequeno" else if (eta_val < 0.14) "médio" else "grande"
+
+normal_ok <- !is.na(teste_normalidade$p.value) && teste_normalidade$p.value >= 0.05
+levene_ok <- !is.na(teste_levene$`Pr(>F)`[1]) && teste_levene$`Pr(>F)`[1] >= 0.05
+frase_normalidade <- if (is.na(teste_normalidade$p.value))
+  "o teste de normalidade não foi calculado; use o gráfico Q-Q" else if (normal_ok)
+  "não houve evidência para rejeitar a normalidade dos resíduos" else
+  "houve evidência de afastamento da normalidade dos resíduos"
+frase_levene <- if (is.na(teste_levene$`Pr(>F)`[1]))
+  "o teste de Levene não forneceu um p-valor válido" else if (levene_ok)
+  "não houve evidência para rejeitar a igualdade das variâncias entre os grupos" else
+  "houve evidência de variâncias diferentes entre os grupos"
+```
+
+::::: {.content-visible when-format="html"}
+
+## Testes dos pressupostos {.unnumbered}
+
+::: callout-note
+## Shapiro-Wilk (normalidade dos resíduos)
+
+H0: os resíduos seguem distribuição normal.
+
+H1: os resíduos se afastam da normalidade.
+
+Estatística W = `r fmt(teste_normalidade$statistic)`; `r p_shapiro`.
+O resultado indica que `r frase_normalidade`. O Shapiro-Wilk requer de 3 a
+5.000 resíduos com variação; fora dessa condição, o teste fica indisponível.
+:::
+
+::: callout-note
+## Levene (homogeneidade das variâncias)
+
+H0: as variâncias são iguais entre os grupos.
+
+H1: ao menos um grupo tem variância diferente.
+
+Estatística F(`r teste_levene$Df[1]`, `r teste_levene$Df[2]`) = `r fmt(teste_levene[["F value"]][1])`; `r p_levene`.
+O resultado indica que `r frase_levene`.
+:::
+
+Com p maior ou igual a 0,05, não há evidência para rejeitar o pressuposto pelo
+teste. Isso não prova que ele seja verdadeiro. Com p menor que 0,05, rejeitamos
+a hipótese nula do teste a esse nível de significância. Leia os resultados
+junto com os gráficos e com o delineamento do estudo: a independência das
+observações depende de como os dados foram obtidos.
+
+## Diagnóstico do modelo {.unnumbered}
+
+::: callout-tip
+## Como avaliar os gráficos de diagnóstico
+
+**Resíduos versus valores ajustados:** observe se os resíduos ficam
+distribuídos em torno de zero, com uma dispersão vertical parecida entre os
+grupos. Na ANOVA de um fator, é esperado que apareçam faixas verticais, pois
+cada grupo tem uma média ajustada. Faixas com alturas muito diferentes sugerem
+variâncias desiguais. Pontos muito afastados merecem conferência, mas não
+devem ser excluídos automaticamente.
+
+**Gráfico quantil-quantil (Q-Q):** observe se os pontos acompanham
+aproximadamente a reta de referência. Pequenos desvios são esperados.
+Curvaturas acentuadas ou afastamentos nas extremidades sugerem que os resíduos
+se afastam da normalidade. Avalie a intensidade e o padrão desses desvios
+junto com o teste de Shapiro-Wilk.
+
+Leia os dois gráficos em conjunto com os testes. A desigualdade de variâncias
+merece atenção especial quando os grupos têm tamanhos diferentes. A
+independência das observações depende do delineamento e da coleta; esses
+gráficos não conseguem confirmá-la.
+:::
+
+```{r}
+#| label: diagnostico-variancia
+plot(modelo, which = 1)
+```
+
+```{r}
+#| label: diagnostico-normalidade
+plot(modelo, which = 2)
+```
+
+:::::
+
+# Resultados
+
+Após o preparo, havia `r n_preparadas` observações. A análise utilizou
+`r nrow(dados)` casos completos em `r nlevels(dados${{FATOR_R}})` grupos;
+`r n_excluidas` observações foram excluídas por ausência de resposta ou grupo.
+
+## Descrição dos dados
+
+A @tbl-resumo traz as médias por grupo, com o intervalo de confiança de {{IC_PERCENTUAL}} % e
+as letras do teste de Tukey.
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "{{RESPOSTA}} por {{FATOR}}: n, média, desvio padrão (DP), erro padrão (EP), intervalo de confiança de {{IC_PERCENTUAL}} % e grupos do teste de Tukey."
+resumo |>
+  mutate(
+    `IC {{IC_PERCENTUAL}} %` = paste0(fmt(ic_inf, 1), " a ", fmt(ic_sup, 1)),
+    across(c(media, dp, ep), ~ fmt(.x, 1))
+  ) |>
+  select(
+    {{FATOR_R}} = {{FATOR_R}},
+    n,
+    `Média` = media,
+    DP = dp,
+    EP = ep,
+    `IC {{IC_PERCENTUAL}} %`,
+    Tukey = letra
+  ) |>
+  flextable_ocean()
+```
+
+## Análise de variância
+
+`r frase_anova`
+(F(`r gl_trat`, `r gl_res`) = `r f_valor`; `r p_anova`). O tamanho de efeito foi
+`r classe_efeito` pela convenção de Cohen (η² = `r eta2`; ω² = `r omega2`), uma
+referência estatística e não biológica: é a fração da variação de {{RESPOSTA}}
+associada a {{FATOR}}, e ω² corrige o viés do η² em amostras pequenas.
+
+Quanto aos pressupostos, `r frase_levene` (`r p_levene`) e `r frase_normalidade`
+(`r p_shapiro`). A avaliação considera os testes, os gráficos de diagnóstico e o
+delineamento. Diferenças de variância exigem atenção quando os tamanhos dos
+grupos são desiguais. Com amostras grandes, o Shapiro-Wilk pode detectar
+afastamentos pequenos; a importância desses desvios precisa ser avaliada nos
+gráficos. Se os diagnósticos indicarem problemas, reavalie a adequação do modelo
+antes de concluir a comparação.
+
+A @tbl-anova resume a análise de variância. A @fig-barras mostra a média de cada
+grupo com as letras do teste de Tukey, e a
+@fig-grupos acrescenta as observações individuais em torno da média, para não
+perder de vista a dispersão que as barras escondem.
+
+```{r}
+#| label: tbl-anova
+#| tbl-cap: "Análise de variância de {{RESPOSTA}} em função de {{FATOR}}."
+tabela_anova |>
+  as.data.frame() |>
+  mutate(
+    Fonte = c({{FATOR_STRING}}, "Resíduo"),
+    GL = Df,
+    SQ = fmt(`Sum Sq`, 1),
+    QM = fmt(`Mean Sq`, 1),
+    F = fmt(`F value`),
+    p = formatar_p(`Pr(>F)`)
+  ) |>
+  select(Fonte, GL, SQ, QM, F, p) |>
+  mutate(across(c(F, p), ~ ifelse(is.na(.x) | .x == "-", "", .x))) |>
+  flextable_ocean()
+```
+
+```{r}
+#| label: fig-barras
+#| fig-cap: "{{RESPOSTA}} por {{FATOR}}: a barra é a média de cada grupo, a barra de erro é o intervalo de confiança de {{IC_PERCENTUAL}} % e as letras indicam os grupos do teste de Tukey."
+ggplot(resumo, aes(x = {{FATOR_R}}, y = media, fill = {{FATOR_R}})) +
+  geom_col(width = 0.7) +
+  geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup), width = 0.2, linewidth = 0.6) +
+  geom_text(aes(y = ic_sup, label = letra), vjust = -0.6, size = 4) +
+  scale_fill_manual(values = cores_tratamento, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    x = {{ROTULO_X_R}},
+    y = {{ROTULO_Y_R}},
+    title = {{TITULO_GRAFICO_R}}
+  ) +
+  tema_projeto()
+```
+
+```{r}
+#| label: fig-grupos
+#| fig-cap: "{{RESPOSTA}} por {{FATOR}}: cada ponto é uma observação, o ponto branco é a média, a barra é o intervalo de confiança de {{IC_PERCENTUAL}} % e as letras indicam os grupos do teste de Tukey."
+ggplot() +
+  geom_jitter(
+    data = dados,
+    aes(x = {{FATOR_R}}, y = {{RESPOSTA_R}}, colour = {{FATOR_R}}),
+    width = 0.12, height = 0, size = 1.5, alpha = 0.4
+  ) +
+  geom_errorbar(
+    data = resumo,
+    aes(x = {{FATOR_R}}, ymin = ic_inf, ymax = ic_sup),
+    width = 0.2, linewidth = 0.6
+  ) +
+  geom_point(
+    data = resumo,
+    aes(x = {{FATOR_R}}, y = media),
+    size = 3, shape = 21, fill = "white", stroke = 1
+  ) +
+  geom_text(
+    data = resumo,
+    aes(x = {{FATOR_R}}, y = ic_sup, label = letra),
+    vjust = -0.8, size = 4
+  ) +
+  scale_colour_manual(values = cores_tratamento, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+  labs(
+    x = {{ROTULO_X_R}},
+    y = {{ROTULO_Y_R}},
+    title = {{TITULO_GRAFICO_R}}
+  ) +
+  tema_projeto()
+```
+
+# Discussão
+
+<!-- inicio-discussao -->
+Comente aqui o que o resultado significa no contexto do seu estudo: quais grupos
+se separam, o tamanho das diferenças e a leitura à luz do fenômeno investigado.
+O teste descreve as diferenças entre os grupos; a atribuição de causa depende
+do delineamento e de como os dados foram obtidos.
+
+Vale olhar o tamanho de efeito ao lado do p-valor: o p expressa a
+compatibilidade dos dados com a hipótese nula, e o tamanho de efeito descreve
+a magnitude da associação. A importância prática depende do contexto do estudo.
+Dois estudos podem ter o mesmo p e efeitos bem diferentes.
+<!-- fim-discussao -->
+
+# Conclusão
+
+<!-- inicio-conclusao -->
+Responda ao objetivo em poucas frases, considerando a magnitude das
+diferenças, a incerteza e os limites do delineamento. Não acrescente resultados
+que não tenham sido apresentados.
+<!-- fim-conclusao -->
+
+# Referências {.unnumbered}
+
+::: {#refs}
+:::
