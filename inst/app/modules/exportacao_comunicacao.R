@@ -24,6 +24,26 @@ exportacao_nome_seguro <- function(x, padrao = "analise") {
   if (!nzchar(x)) padrao else x
 }
 
+# Nome curto independente do título: no máximo duas palavras.
+exportacao_nome_curto <- function(x, padrao = "analise") {
+  nome <- exportacao_nome_seguro(x, padrao)
+  palavras <- strsplit(nome, "_", fixed = TRUE)[[1]]
+  nome <- paste(head(palavras[nzchar(palavras)], 2L), collapse = "_")
+  # Nomes reservados do Windows não podem identificar pastas.
+  if (toupper(nome) %in% c("CON", "PRN", "AUX", "NUL", paste0("COM", 1:9), paste0("LPT", 1:9)))
+    nome <- paste0(nome, "_analise")
+  nome
+}
+
+exportacao_sugerir_nome_projeto <- function(info = list()) {
+  origem <- if (identical(info$source, "package")) info$package_dataset else {
+    aba <- as.character(info$excel_sheet %||% "")
+    if (nzchar(aba) && !grepl("^[0-9]+$", aba)) sub("^[0-9]+[ ._-]*", "", aba)
+    else tools::file_path_sans_ext(basename(info$file_name %||% "analise"))
+  }
+  exportacao_nome_curto(origem)
+}
+
 exportacao_dput_texto <- function(x) {
   paste(capture.output(dput(x)), collapse = "\n")
 }
@@ -1798,7 +1818,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
   }
 
-  nome_projeto <- paste0("projeto_", exportacao_nome_seguro(nome_projeto, "analise"))
+  nome_projeto <- exportacao_nome_curto(nome_projeto)
   projeto <- file.path(destino, nome_projeto)
   if (dir.exists(projeto)) {
     stop("O diretório temporário do projeto já existe; gere a exportação novamente.", call. = FALSE)
@@ -1941,14 +1961,16 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       "Version: 1.0", "RestoreWorkspace: No", "SaveWorkspace: No",
       "AlwaysSaveHistory: No", "Encoding: UTF-8"
     ),
-    file.path(projeto, if (exportacao_anova_simples(manifesto))
-      "projeto.Rproj" else "projeto_analise.Rproj"), useBytes = TRUE
+    file.path(projeto, paste0(nome_projeto, ".Rproj")), useBytes = TRUE
   )
   leiame <- if (exportacao_anova_simples(manifesto)) {
     exportacao_modelo_anova("README.md", manifesto, import_info, templates_dir, pipeline, registro_bases, base_externa)
   } else {
     exportacao_leiame_projeto(nome_projeto, import_info)
   }
+  leiame <- gsub("projeto_analise.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
+  leiame <- gsub("projeto.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
+  leiame <- sub("^projeto/$", paste0(nome_projeto, "/"), leiame)
   writeLines(leiame, file.path(projeto, "README.md"), useBytes = TRUE)
   if (!exportacao_anova_simples(manifesto)) {
     writeLines(capture.output(utils::sessionInfo()), file.path(projeto, "metadados", "sessionInfo.txt"))

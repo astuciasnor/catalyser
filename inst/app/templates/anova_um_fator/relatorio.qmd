@@ -155,6 +155,14 @@ dados <- dados |>
   droplevels()
 n_excluidas <- n_preparadas - nrow(dados)
 
+# Mantém a paleta Ocean; amplia as cores quando há mais grupos na análise.
+n_grupos <- nlevels(dados${{FATOR_R}})
+cores_grupos <- if (n_grupos <= length(cores_tratamento)) {
+  cores_tratamento[seq_len(n_grupos)]
+} else {
+  grDevices::colorRampPalette(cores_tratamento)(n_grupos)
+}
+
 glimpse(dados)
 summary(dados)
 
@@ -422,7 +430,7 @@ ggplot(resumo, aes(x = {{FATOR_R}}, y = media, fill = {{FATOR_R}})) +
   geom_col(width = 0.7) +
   geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup), width = 0.2, linewidth = 0.6) +
   geom_text(aes(y = ic_sup, label = letra), vjust = -0.6, size = 4) +
-  scale_fill_manual(values = cores_tratamento, guide = "none") +
+  scale_fill_manual(values = cores_grupos, guide = "none") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
   labs(
     x = {{ROTULO_X_R}},
@@ -456,7 +464,7 @@ ggplot() +
     aes(x = {{FATOR_R}}, y = ic_sup, label = letra),
     vjust = -0.8, size = 4
   ) +
-  scale_colour_manual(values = cores_tratamento, guide = "none") +
+  scale_colour_manual(values = cores_grupos, guide = "none") +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
   labs(
     x = {{ROTULO_X_R}},

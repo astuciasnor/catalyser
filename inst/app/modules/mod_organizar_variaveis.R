@@ -13,7 +13,7 @@ organizar_variaveis_codigo <- function(renomear = character(0),
                                        tipos = list(),
                                        recodes = list(),
                                        selecionar = NULL) {
-  esc <- function(s) gsub("\\", "\\\\", s, fixed = TRUE)
+  esc <- function(s) encodeString(as.character(s), quote = '"')
   linhas <- c(
     "# Organização de variáveis — gerada pela CatalyseR",
     "# A entrada desta etapa é a Base Compartilhada ativa.",
@@ -49,14 +49,14 @@ organizar_variaveis_codigo <- function(renomear = character(0),
       mapa <- recodes[[coluna]]
       pares <- vapply(seq_along(mapa), function(i) {
         sprintf(
-          '      "%s" = "%s"',
+          '      %s = %s',
           esc(names(mapa)[[i]]),
           esc(unname(mapa[[i]]))
         )
       }, character(1))
       linhas <- c(
         linhas,
-        sprintf("    %s = dplyr::recode(%s,", arrumar_bt(coluna), arrumar_bt(coluna)),
+        sprintf("    %s = dplyr::recode(as.character(%s),", arrumar_bt(coluna), arrumar_bt(coluna)),
         paste(pares, collapse = ",\n"),
         sprintf("    )%s", if (ci < length(colunas)) "," else "")
       )
@@ -69,9 +69,11 @@ organizar_variaveis_codigo <- function(renomear = character(0),
     pares <- vapply(seq_along(colunas), function(i) {
       coluna <- colunas[[i]]
       funcao <- arrumar_tipo_fun[[tipos[[coluna]]]]
+      entrada <- arrumar_bt(coluna)
+      if (tipos[[coluna]] %in% c("numero", "inteiro")) entrada <- sprintf("as.character(%s)", entrada)
       sprintf(
         "    %s = %s(%s)%s",
-        arrumar_bt(coluna), funcao, arrumar_bt(coluna),
+        arrumar_bt(coluna), funcao, entrada,
         if (i < length(colunas)) "," else ""
       )
     }, character(1))
@@ -101,8 +103,24 @@ organizar_variaveis_codigo <- function(renomear = character(0),
   paste(c(linhas, "", "print(dados_organizados)"), collapse = "\n")
 }
 
-mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem = FALSE) {
+mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem = FALSE, somente_controles = FALSE) {
   ns <- NS(id)
+
+  if (isTRUE(somente_controles)) return(tagList(
+    p(class = "small text-muted", "Organize as variáveis e confira a prévia antes de adicionar a etapa."),
+    div(class = "d-grid gap-2",
+      actionButton(ns("abrir_renomear"), "Renomear variáveis", icon = icon("i-cursor"), class = "btn-outline-primary"),
+      actionButton(ns("abrir_tipar"), "Definir tipos", icon = icon("sliders"), class = "btn-outline-primary"),
+      actionButton(ns("abrir_recodificar"), "Recodificar categorias", icon = icon("tags"), class = "btn-outline-primary"),
+      actionButton(ns("abrir_selecionar"), "Selecionar variáveis", icon = icon("list-check"), class = "btn-outline-primary")
+    ),
+    helpText("Selecionar também permite retirar colunas. Cada ajuste confirmado aparece na prévia; adicione a etapa quando terminar."),
+    uiOutput(ns("resumo_acoes")),
+    div(class = "d-grid gap-2 mt-3",
+      actionButton(ns("usar_base"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary"),
+      actionButton(ns("limpar"), "Descartar ajustes pendentes", icon = icon("rotate-left"), class = "btn-outline-secondary")
+    )
+  ))
 
   arrumacao_ui <- layout_columns(
     col_widths = c(3, 7, 2),
@@ -349,7 +367,7 @@ mod_organizar_variaveis_checagem_ui <- function(id) {
   mod_organizar_variaveis_ui(id, somente_checagem = TRUE)
 }
 
-mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
+mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa = NULL) {
   moduleServer(id, function(input, output, session) {
     base_data <- reactive({
       req(data_rv())
@@ -405,9 +423,10 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       for (coluna in names(recodes)) {
         if (!coluna %in% names(dados)) next
         mapa <- recodes[[coluna]]
-        valores <- as.character(dados[[coluna]])
+        originais <- as.character(dados[[coluna]])
+        valores <- originais
         for (original in names(mapa)) {
-          valores[!is.na(valores) & valores == original] <- unname(mapa[[original]])
+          valores[!is.na(originais) & originais == original] <- unname(mapa[[original]])
         }
         dados[[coluna]] <- valores
       }
@@ -886,6 +905,13 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
         )
         return(invisible(FALSE))
       }
+      if (is.function(on_etapa)) {
+        on_etapa(list(tipo = "organizar", ativa = TRUE, params = list(
+          renomear = renomear_rv(), tipos = tipos_rv(), recodes = recodes_rv(),
+          selecionar = selecionar_rv()
+        )))
+        return(invisible(TRUE))
+      }
       if (is.function(on_usar)) {
         on_usar(
           resultado_final(),
@@ -904,10 +930,7 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL) {
       adicionar_trilha()
     })
 
-    invisible(list(
-      resultado = resultado_final,
-      codigo = codigo_rv,
-      alterada = tem_alteracoes
-    ))
+    list(resultado = resultado_final, alterada = tem_alteracoes,
+         previa = resultado_final, pendente = tem_alteracoes, codigo = codigo_rv)
   })
 }

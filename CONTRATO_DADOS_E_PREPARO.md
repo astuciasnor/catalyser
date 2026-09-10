@@ -109,3 +109,26 @@ Toda alteração fica numa **receita reproduzível**. Assim a CatalyseR não só
 escolhida. A planilha precisa chegar organizada o suficiente para se entender o
 significado de linhas, colunas e células; o preparo estatístico mais avançado é papel das
 trilhas.
+
+
+## Refinamentos de 10 de setembro de 2026
+
+O menu **Preparar Dados** tem quatro opções, nesta ordem: **Importar Dados**,
+**Reestruturar Planilha**, **Preparar Base Compartilhada** e **Preparar Bases Derivadas**.
+Reestruturar Planilha reúne **Empilhar**, **Alargar** e **Separar Colunas**.
+
+Na base compartilhada, as ações estão agrupadas em **Variáveis e categorias**,
+**Cálculos e transformações** e **Limpeza**. Edições de variáveis, cálculos e limpeza
+entram na mesma sequência de **Etapas do Preparo**. A tabela e seu download mostram
+os dados que alimentam as análises; ajustes ainda não adicionados são identificados
+como prévia. As reestruturações da planilha permanecem na origem da sequência.
+
+Cada derivada nasce diretamente da compartilhada. O seletor superior e o registro
+identificam a mesma base; **Recalcular**, **Finalizar Preparo** e **Reabrir Preparo**
+ficam reunidos. Mudanças na origem ou nas etapas sinalizam a necessidade de recálculo.
+Filtros, resumos e contingência continuam específicos de cada derivada.
+
+Em Comunicação, **Nome curto do projeto** aceita uma ou duas palavras, com sublinhado,
+sem acentos. A sugestão usa a aba do Excel ou o conjunto de dados. Pasta, arquivo
+`.Rproj`, ZIP e README usam esse nome, independentemente do título do relatório.
+Exemplo: `leite_tuberculo/leite_tuberculo.Rproj`.

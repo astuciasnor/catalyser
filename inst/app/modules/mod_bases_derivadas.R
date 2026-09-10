@@ -10,162 +10,68 @@ library(DT)
 
 mod_bases_derivadas_ui <- function(id) {
   ns <- NS(id)
-  estilo_botao_acao <- paste(
-    "font-size:0.74rem;",
-    "white-space:nowrap;",
-    "padding-left:0.15rem;",
-    "padding-right:0.15rem;",
-    "min-width:0;",
-    "width:100%;"
-  )
   tagList(
-    tabsetPanel(
-      id = ns("bases_derivadas_subabas"),
-      tabPanel(
-        title = "Criação e gestão da base",
-        layout_columns(
-          col_widths = c(3, 7, 2),
-          fill = FALSE,
-          fillable = FALSE,
-          card(
-            fill = FALSE,
-            card_header("Criar base derivada"),
-            card_body(
-              fill = FALSE,
-              fillable = FALSE,
-              textInput(ns("nome_amigavel"), "Nome amigável:",
-                        placeholder = "Ex.: Dados anuais para gráficos"),
-              selectInput(ns("finalidade"), "Finalidade:", choices = bases_finalidades),
-              textInput(ns("nome_r"), "Nome no código R:", value = "base_derivada"),
-              textAreaInput(ns("descricao"), "Descrição (opcional):", rows = 3,
-                            placeholder = "Explique por que esta preparação é específica."),
-              div(class = "alert alert-info", style = "font-size:0.82rem; padding:9px 11px;",
-                  icon("diagram-project"),
-                  " Toda base derivada nasce diretamente da Base Compartilhada (dados_analise). Ramos de ramos não são permitidos."),
-              actionButton(ns("criar"), "Criar base derivada", icon = icon("plus"),
-                           class = "btn-primary w-100")
-            ),
-          ),
-          navset_card_tab(
-            height = "auto",
-            wrapper = function(...) card_body(
-              ...,
-              fill = FALSE,
-              fillable = FALSE,
-              min_height = "5rem"
-            ),
-            nav_panel("Registro de Bases", icon = icon("list"),
-                      DTOutput(ns("tabela"))),
-            nav_panel("Prévia da base selecionada", icon = icon("table"),
-                      DTOutput(ns("preview"))),
-            nav_panel("Código do ramo", icon = icon("code"),
-                      tags$pre(
-                        style = "white-space:pre-wrap; font-size:0.82rem;",
-                        verbatimTextOutput(ns("codigo"))
-                      ))
-          ),
-          card(
-            fill = FALSE,
-            card_header("Ações"),
-            card_body(
-              fill = FALSE,
-              fillable = FALSE,
-              style = "padding-left:0.25rem; padding-right:0.25rem;",
-              div(
-                class = "d-grid gap-2",
-                actionButton(ns("renomear"), "Renomear / editar descrição",
-                             icon = icon("pen"), class = "btn-outline-primary",
-                             style = estilo_botao_acao),
-                actionButton(ns("recalcular"), "Recalcular esta base",
-                             icon = icon("arrows-rotate"), class = "btn-primary",
-                             style = estilo_botao_acao),
-                actionButton(ns("finalizar"), "Finalizar preparo",
-                             icon = icon("circle-check"), class = "btn-success",
-                             style = estilo_botao_acao),
-                actionButton(ns("reabrir"), "Reabrir como rascunho",
-                             icon = icon("rotate-left"), class = "btn-outline-secondary",
-                             style = estilo_botao_acao)
-              ),
-              div(
-                class = "d-grid mt-3 pt-3 border-top",
-                actionButton(ns("excluir"), "Excluir base derivada",
-                             icon = icon("trash"), class = "btn-outline-danger",
-                             style = estilo_botao_acao)
-              ),
-              helpText("Selecione uma linha no Registro de Bases. A Base Compartilhada (dados_analise) nunca pode ser excluída aqui.")
-            )
-          )
+    tags$style(HTML(".derivadas-estudio{display:grid;grid-template-columns:minmax(280px,330px) minmax(0,1fr);gap:16px;align-items:start}.derivadas-estudio>*{min-width:0}.derivadas-estudio .card{height:auto}.derivadas-estudio pre{white-space:pre-wrap;overflow-wrap:anywhere}.derivadas-acoes .btn{white-space:normal}.derivadas-estudio .btn-outline-primary,.preparo-estudio .btn-outline-primary{background:#fff;color:#0F3B5F;border-color:#2E7D8F}.derivadas-estudio .btn-outline-secondary,.preparo-estudio .btn-outline-secondary{background:#fff;color:#455560;border-color:#85959e}.derivadas-acoes .btn-outline-secondary{background:#fff;color:#455560}.derivadas-estudio .btn-outline-danger{background:#fff;color:#a52b38}.derivadas-estudio .btn:hover,.preparo-estudio .btn:hover{filter:brightness(.95)}@media(max-width:900px){.derivadas-estudio{grid-template-columns:1fr}}")),
+    h4("Preparar Bases Derivadas", class = "mb-1"),
+    p(class = "small text-muted mb-3", "Cada base derivada nasce diretamente da Base Compartilhada. O preparo afeta somente a base selecionada."),
+    card(fill = FALSE,
+      card_body(fill = FALSE, fillable = FALSE,
+        div(class = "row g-3 align-items-end",
+          div(class = "col-12 col-lg-5", selectInput(ns("base_escolhida"), "Base derivada:", choices = NULL)),
+          div(class = "col-12 col-lg-7 derivadas-acoes d-flex gap-2 flex-wrap pb-3",
+            actionButton(ns("recalcular"), "Recalcular", icon = icon("arrows-rotate"), class = "btn-primary"),
+            actionButton(ns("finalizar"), "Finalizar Preparo", icon = icon("circle-check"), class = "btn-success"),
+            actionButton(ns("reabrir"), "Reabrir Preparo", icon = icon("rotate-left"), class = "btn-outline-secondary"))
         ),
-        card(
-          fill = FALSE,
-          card_header("Base selecionada"),
-          card_body(fill = FALSE, fillable = FALSE, uiOutput(ns("detalhes")))
+        tags$details(class = "border-top pt-2",
+          tags$summary("Criar uma base derivada"),
+          div(class = "row g-3 mt-1",
+            div(class = "col-12 col-lg-4", textInput(ns("nome_amigavel"), "Nome da base:", placeholder = "Ex.: Biometria por espécie"),
+                selectInput(ns("finalidade"), "Finalidade:", bases_finalidades)),
+            div(class = "col-12 col-lg-4", textInput(ns("nome_r"), "Nome no código R:", "base_derivada"),
+                helpText("Ex.: base_biometria_especie. A origem será sempre a Base Compartilhada.")),
+            div(class = "col-12 col-lg-4", textAreaInput(ns("descricao"), "Descrição (opcional):", rows = 2),
+                actionButton(ns("criar"), "Criar base derivada", icon = icon("plus"), class = "btn-primary"))
+          )
+        )
+      )
+    ),
+    uiOutput(ns("base_ativa_receita")),
+    uiOutput(ns("editor_base")),
+    div(class = "derivadas-estudio mt-3",
+      card(fill = FALSE, card_header("Adicionar etapa do preparo"),
+        card_body(fill = FALSE, fillable = FALSE,
+          tags$fieldset(id = ns("controles_receita"), disabled = "disabled", style = "border:0;padding:0;min-width:0",
+            selectInput(ns("grupo_acoes"), "Grupo de ações:", c("Cálculos e transformações" = "calculos", "Limpeza" = "limpeza", "Recortes e resumos" = "recortes")),
+            selectInput(ns("ramo_tipo"), "Ação:", choices = c("Calcular variável" = "calcular", "Reescalar unidades" = "reescalar", "Padronizar valores" = "padronizar", "Criar classes" = "binning", "Dicotomizar (0/1)" = "dicotomizar")),
+            uiOutput(ns("parametros_etapa")),
+            actionButton(ns("adicionar_etapa"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary w-100")
+          )
         )
       ),
-      tabPanel(
-        title = "Receita da base",
-        uiOutput(ns("base_ativa_receita")),
-        card(
-          fill = FALSE,
-          card_header("Receita específica da base selecionada"),
-          card_body(
-            fill = FALSE,
-            fillable = FALSE,
-            uiOutput(ns("editor_base")),
-            tags$fieldset(
-              id = ns("controles_receita"),
-              disabled = "disabled",
-              style = "border:0; padding:0; margin:0; min-width:0;",
-              layout_columns(
-                col_widths = c(5, 7),
-                fill = FALSE,
-                fillable = FALSE,
-                div(
-                  selectInput(
-                    ns("ramo_tipo"), "Tratamento a adicionar:",
-                    choices = c(
-                      "Dados faltantes (NA)" = "tratar_na",
-                      "Dicotomizar (0/1)" = "dicotomizar",
-                      "Padronizar / Escalar" = "padronizar",
-                      "Classes de tamanho (binning)" = "binning",
-                      "Remover duplicatas" = "remover_duplicatas",
-                      "Padronizar texto" = "padronizar_texto",
-                      "Calcular variável" = "calcular",
-                      "Reescalar (prefixo SI)" = "reescalar",
-                      "Filtrar linhas" = "filtrar",
-                      "Agrupar / Sumarizar" = "agrupar_sumarizar",
-                      "Tabela de Contingência" = "contingencia"
-                    )
-                  ),
-                  uiOutput(ns("parametros_etapa")),
-                  actionButton(ns("adicionar_etapa"), "Adicionar à receita do ramo",
-                               icon = icon("plus"), class = "btn-primary w-100")
-                ),
-                div(
-                  uiOutput(ns("receita_ramo")),
-                  uiOutput(ns("seletor_etapa")),
-                  div(
-                    class = "d-flex gap-2 flex-wrap",
-                    actionButton(ns("etapa_subir"), "Subir", icon = icon("arrow-up"),
-                                 class = "btn-outline-secondary btn-sm"),
-                    actionButton(ns("etapa_descer"), "Descer", icon = icon("arrow-down"),
-                                 class = "btn-outline-secondary btn-sm"),
-                    actionButton(ns("etapa_alternar"), "Ativar/Desativar", icon = icon("power-off"),
-                                 class = "btn-outline-secondary btn-sm"),
-                    actionButton(ns("etapa_remover"), "Remover", icon = icon("trash"),
-                                 class = "btn-outline-danger btn-sm"),
-                    actionButton(ns("etapas_limpar"), "Limpar receita", icon = icon("broom"),
-                                 class = "btn-outline-danger btn-sm")
-                  ),
-                  div(class = "alert alert-info mt-3 mb-0",
-                      style = "font-size:0.82rem; padding:8px 10px;",
-                      icon("circle-info"),
-                      " Editar a receita marca apenas este ramo como desatualizado. Use Recalcular esta base quando terminar.")
-                )
-              )
-            ),
-          )
-        )
+      navset_card_tab(height = "auto",
+          wrapper = function(...) card_body(..., fill = FALSE, fillable = FALSE, min_height = "5rem"), id = ns("bases_derivadas_subabas"),
+        nav_panel("Dados preparados", value = "Receita da base", icon = icon("table"),
+          card_body(fill = FALSE, fillable = FALSE, DTOutput(ns("preview"), fill = FALSE))),
+        nav_panel("Etapas do Preparo", value = "etapas", icon = icon("list-ol"),
+          card_body(fill = FALSE, fillable = FALSE,
+            uiOutput(ns("receita_ramo")), uiOutput(ns("seletor_etapa")),
+            div(class = "d-flex gap-2 flex-wrap",
+              actionButton(ns("etapa_subir"), "Subir", icon = icon("arrow-up"), class = "btn-outline-secondary"),
+              actionButton(ns("etapa_descer"), "Descer", icon = icon("arrow-down"), class = "btn-outline-secondary"),
+              actionButton(ns("etapa_alternar"), "Ativar / desativar", class = "btn-outline-secondary"),
+              actionButton(ns("etapa_remover"), "Remover", class = "btn-outline-danger"),
+              actionButton(ns("etapas_limpar"), "Limpar etapas", class = "btn-outline-danger")),
+            helpText("Recalcule a base após alterar as etapas. Finalize o preparo para disponibilizá-la nas análises."))),
+        nav_panel("Código R", value = "codigo", icon = icon("code"),
+          card_body(fill = FALSE, fillable = FALSE, tags$pre(verbatimTextOutput(ns("codigo"))))),
+        nav_panel("Gerenciar Bases", value = "Criação e gestão da base", icon = icon("list"),
+          card_body(fill = FALSE, fillable = FALSE,
+            DTOutput(ns("tabela"), fill = FALSE),
+            uiOutput(ns("detalhes")),
+            div(class = "d-flex gap-2 flex-wrap mt-3",
+              actionButton(ns("renomear"), "Editar nome e descrição", icon = icon("pen"), class = "btn-outline-primary"),
+              actionButton(ns("excluir"), "Excluir base derivada", icon = icon("trash"), class = "btn-outline-danger"))))
       )
     )
   )
@@ -183,6 +89,28 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     caches <- reactive({ cache_bases_rv() %||% list() })
     revisao_atual <- reactive({
       if (is.function(revisao_origem_rv)) as.integer(revisao_origem_rv()) else 1L
+    })
+
+    observe({
+      bases <- registros()
+      escolhas <- if (length(bases)) stats::setNames(
+        vapply(bases, `[[`, character(1), "id"),
+        vapply(bases, `[[`, character(1), "nome_amigavel")) else character()
+      atual <- id_selecionada_rv()
+      if (!length(atual) || !atual %in% escolhas) atual <- unname(head(escolhas, 1L))
+      id_selecionada_rv(if (length(atual)) atual else NULL)
+      updateSelectInput(session, "base_escolhida", choices = escolhas, selected = atual)
+    })
+    observeEvent(input$base_escolhida, {
+      if (input$base_escolhida %in% vapply(registros(), `[[`, character(1), "id"))
+        id_selecionada_rv(input$base_escolhida)
+    })
+    observeEvent(input$grupo_acoes, {
+      escolhas <- switch(input$grupo_acoes,
+        limpeza = c("Tratar dados faltantes" = "tratar_na", "Remover duplicatas" = "remover_duplicatas", "Padronizar texto" = "padronizar_texto"),
+        recortes = c("Filtrar linhas" = "filtrar", "Agrupar e sumarizar" = "agrupar_sumarizar", "Construir contingência" = "contingencia"),
+        c("Calcular variável" = "calcular", "Reescalar unidades" = "reescalar", "Padronizar valores" = "padronizar", "Criar classes" = "binning", "Dicotomizar (0/1)" = "dicotomizar"))
+      updateSelectInput(session, "ramo_tipo", choices = escolhas, selected = unname(escolhas[[1]]))
     })
 
     proximo_id <- function() {
@@ -220,6 +148,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         descricao = input$descricao, revisao_origem = revisao
       )
       registro_bases_rv(bases_adicionar(registros(), nova))
+      id_selecionada_rv(nova$id)
+      updateSelectInput(session, "base_escolhida", selected = nova$id)
       updateTextInput(session, "nome_amigavel", value = "")
       updateTextInput(session, "nome_r", value = "base_derivada")
       updateTextAreaInput(session, "descricao", value = "")
@@ -259,7 +189,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           "  function aplicar() {",
           "    var controles = document.getElementById('%s');",
           "    if (controles) controles.disabled = desabilitar;",
-          "    var seletores = ['%s', '%s'];",
+          "    var seletores = ['%s', '%s', '%s'];",
           "    seletores.forEach(function(id) {",
           "      var seletor = document.getElementById(id);",
           "      if (seletor && seletor.selectize) {",
@@ -273,37 +203,14 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           "  window.setTimeout(aplicar, 100);",
           "})();"
         ),
-        if (is.null(base)) "true" else "false",
+        if (is.null(base) || !identical(base$estado, "rascunho")) "true" else "false",
         ns("controles_receita"),
         ns("ramo_tipo"),
+        ns("grupo_acoes"),
         ns("etapa_selecionada")
       )))
 
-      if (is.null(base)) return(tagList(alternar_controles))
-
-      tagList(
-        div(
-          class = "d-flex flex-wrap gap-2 align-items-stretch mb-3",
-          div(
-            class = "alert alert-info mb-0 flex-grow-1",
-            style = "font-size:0.9rem; padding:9px 12px;",
-            icon("diagram-project"),
-            strong(" Base ativa: "),
-            base$nome_amigavel,
-            " — ",
-            tags$code(base$nome_r)
-          ),
-          div(
-            class = "d-grid",
-            actionButton(
-              ns("recalcular_receita"), "Recalcular a Base",
-              icon = icon("arrows-rotate"),
-              class = "btn-primary h-100"
-            )
-          )
-        ),
-        alternar_controles
-      )
+      tagList(alternar_controles)
     })
 
     cache_selecionado <- reactive({
@@ -322,7 +229,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         return(list(todas = names(raiz), numericas = trat_cols_num(raiz),
                     texto = names(raiz)[vapply(raiz, function(x)
                       is.character(x) || is.factor(x), logical(1))], df = raiz,
-                    fonte = "dados_analise"))
+                    fonte = "Base Compartilhada"))
       entrada <- cache_selecionado()
       if (identical(bases_estado_cache(base, entrada, revisao_atual()), "Atualizada") &&
           !is.null(entrada$df)) {
@@ -330,7 +237,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         return(list(todas = names(df), numericas = trat_cols_num(df),
                     texto = names(df)[vapply(df, function(x)
                       is.character(x) || is.factor(x), logical(1))], df = df,
-                    fonte = "cache atualizado"))
+                    fonte = "último cálculo desta base"))
       }
       etapas <- Filter(function(et) isTRUE(et$ativa), base$etapas %||% list())
       criadas_num <- vapply(Filter(function(et)
@@ -345,7 +252,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         texto = unique(c(names(raiz)[vapply(raiz, function(x)
           is.character(x) || is.factor(x), logical(1))], criadas_cat[nzchar(criadas_cat)])),
         df = raiz,
-        fonte = "nomes previstos; recalcule para atualizar valores e tipos"
+        fonte = "recalcule a base para atualizar valores e tipos"
       )
     })
 
@@ -364,22 +271,29 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     output$editor_base <- renderUI({
       base <- base_selecionada()
       if (is.null(base))
-        return(div(class = "alert alert-secondary", "Selecione uma base no Registro de Bases para editar sua receita."))
+        return(div(class = "alert alert-secondary", "Crie ou escolha uma base derivada acima para iniciar o preparo."))
       info <- colunas_editor()
+      situacao <- bases_estado_cache(base, cache_selecionado(), revisao_atual())
       tagList(
         div(class = "d-flex justify-content-between align-items-center mb-2",
             div(strong(base$nome_amigavel), " ", tags$code(base$nome_r)),
             tags$span(class = paste("badge", if (identical(base$estado, "rascunho"))
-              "bg-warning text-dark" else "bg-success"), base$estado)),
+              "bg-warning text-dark" else "bg-success"), paste(base$estado, situacao, sep = " · "))),
+        if (identical(situacao, "Desatualizada"))
+          div(class = "alert alert-warning mb-2",
+              "A base compartilhada ou as etapas mudaram. A tabela mostra a última versão calculada. Clique em Recalcular para atualizar esta base."),
+        if (identical(situacao, "Com erro"))
+          div(class = "alert alert-danger mb-2",
+              "O recálculo encontrou um erro: ", paste(unlist(cache_selecionado()$erros), collapse = "; ")),
         if (!identical(base$estado, "rascunho"))
           div(class = "alert alert-warning mb-2", style = "font-size:0.82rem; padding:8px 10px;",
-              "Esta base está pronta. Clique em Reabrir como rascunho antes de alterar a receita."),
+              "Esta base está pronta. Clique em Reabrir Preparo para alterar suas etapas."),
         if (identical(base$estado, "rascunho") && length(base$etapas %||% list()) &&
             !identical(bases_estado_cache(base, cache_selecionado(), revisao_atual()), "Atualizada"))
           div(class = "alert alert-warning mb-2", style = "font-size:0.82rem; padding:8px 10px;",
               "Recalcule esta receita antes de adicionar outra etapa. Ordenar, desativar ou remover continua permitido."),
         div(style = "font-size:0.78rem; color:#666;",
-            sprintf("Colunas do formulário: %s. Nenhum replay é executado ao abrir o editor.", info$fonte))
+            sprintf("Referência para os campos: %s.", info$fonte))
       )
     })
 
@@ -426,7 +340,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
                 numericInput(ns("ramo_dic_limiar"), "Limiar:", value = 0)
               ) else
               selectizeInput(ns("ramo_dic_niveis"), "Níveis que viram 1:",
-                             choices = niveis_coluna(col, info), multiple = TRUE),
+                             choices = niveis_coluna(col, info), multiple = TRUE,
+                             selected = intersect(isolate(input$ramo_fil_niveis) %||% character(), niveis_coluna(col, info))),
             textInput(ns("ramo_dic_nome"), "Nome da variável 0/1:",
                       value = isolate(input$ramo_dic_nome) %||% paste0(col, "_bin"))
           )
@@ -488,7 +403,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           )
         },
         filtrar = {
-          col <- valor_selecionado("ramo_fil_col", todas)
+          col <- input$ramo_fil_col
+          if (is.null(col) || !col %in% todas) col <- head(todas, 1L)
           origem <- input$ramo_fil_origem %||% if (col %in% numericas) "numerica" else "categorica"
           tagList(
             selectInput(ns("ramo_fil_col"), "Coluna:", choices = todas, selected = col),
@@ -498,11 +414,12 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
             if (identical(origem, "numerica"))
               layout_columns(
                 selectInput(ns("ramo_fil_op"), "Operador:",
-                            c(">=", ">", "<=", "<", "==", "!="), selected = ">="),
-                numericInput(ns("ramo_fil_valor"), "Valor:", value = 0)
+                            c(">=", ">", "<=", "<", "==", "!="), selected = isolate(input$ramo_fil_op) %||% ">="),
+                numericInput(ns("ramo_fil_valor"), "Valor:", value = isolate(input$ramo_fil_valor) %||% 0)
               ) else
               selectizeInput(ns("ramo_fil_niveis"), "Níveis a manter:",
-                             choices = niveis_coluna(col, info), multiple = TRUE)
+                             choices = niveis_coluna(col, info), multiple = TRUE,
+                             selected = intersect(isolate(input$ramo_fil_niveis) %||% character(), niveis_coluna(col, info)))
           )
         },
         agrupar_sumarizar = tagList(
@@ -674,7 +591,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           else
             "Atualizar o agrupamento existente"
         } else {
-          "Adicionar à receita do ramo"
+          "Adicionar etapa do preparo"
         },
         icon = if (atualizar) icon("arrows-rotate") else icon("plus")
       )
@@ -793,10 +710,10 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     })
 
     output$preview <- renderDT({
-      validate(need(!is.null(base_selecionada()), "Selecione uma base no registro."))
+      validate(need(!is.null(base_selecionada()), "Crie ou escolha uma base derivada acima."))
       entrada <- cache_selecionado()
       validate(need(!is.null(entrada),
-                    "Esta base ainda não foi calculada. Clique em Recalcular esta base."))
+                    "Esta base ainda não foi calculada. Clique em Recalcular."))
       validate(need(!is.null(entrada$df),
                     "O último recálculo não produziu uma tabela válida."))
       previa <- head(entrada$df, 300)
@@ -812,7 +729,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
 
     output$codigo <- renderText({
       base <- base_selecionada()
-      if (is.null(base)) return("# Selecione uma base no registro.")
+      if (is.null(base)) return("# Crie ou escolha uma base derivada acima.")
       bases_codigo(base)
     })
 

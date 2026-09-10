@@ -83,6 +83,10 @@ mod_comunicacao_ui <- function(id) {
                 p(class = "small text-muted",
                   "Preencha o que já souber. Os textos entram no relatório exportado e podem ser completados depois, no RStudio."),
                 h6("Identificação do relatório"),
+                textInput(ns("nome_curto_projeto"), "Nome curto do projeto:", value = "",
+                          placeholder = "Ex.: leite_tuberculo"),
+                helpText("Use uma ou duas palavras. Espaços viram underline e acentos são retirados. A sugestão usa a aba do Excel, quando disponível; escolha um nome que represente seu estudo."),
+                uiOutput(ns("previa_nome_projeto")),
                 textInput(ns("titulo_documento"), "Título:", value = "",
                           placeholder = "Ex.: Resposta aos tratamentos avaliados"),
                 helpText("Apresente o assunto e a comparação do estudo. Se deixar em branco, será usado o título automático."),
@@ -215,7 +219,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
       observeEvent(projeto_rv(), {
         geracao_projeto_rv(geracao_projeto_rv() + 1L)
         estado_editorial_rv(comunicacao_estado_vazio())
-        for (campo in c("titulo_documento", "subtitulo_documento"))
+        for (campo in c("nome_curto_projeto", "titulo_documento", "subtitulo_documento"))
           updateTextInput(session, campo, value = "")
         for (campo in c("autores_documento", "introducao", "metodos", "discussao", "conclusao"))
           updateTextAreaInput(session, campo, value = "")
@@ -468,13 +472,19 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
     }
 
     nome_projeto <- reactive({
-      info <- import_info() %||% list()
-      nome <- if (identical(info$source, "package")) {
-        info$package_dataset
-      } else {
-        tools::file_path_sans_ext(basename(info$file_name %||% "analise"))
-      }
-      exportacao_nome_seguro(nome, "analise")
+      digitado <- trimws(input$nome_curto_projeto %||% "")
+      if (nzchar(digitado)) exportacao_nome_curto(digitado)
+      else exportacao_sugerir_nome_projeto(import_info() %||% list())
+    })
+
+    output$previa_nome_projeto <- renderUI({
+      tagList(
+        p(class = "small text-muted", "Pasta: ", tags$code(paste0(nome_projeto(), "/")),
+          " · Abrir no RStudio: ", tags$code(paste0(nome_projeto(), ".Rproj"))),
+        if (nzchar(trimws(input$nome_curto_projeto %||% "")) &&
+            length(strsplit(exportacao_nome_seguro(input$nome_curto_projeto), "_", fixed = TRUE)[[1]]) > 2L)
+          p(class = "small text-warning", "O nome será reduzido às duas primeiras palavras. Confira a prévia acima.")
+      )
     })
 
     argumentos_exportacao <- reactive({
@@ -604,7 +614,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
 
     output$baixar_projeto <- downloadHandler(
       filename = function() {
-        paste0("projeto_", nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
+        paste0(nome_projeto(), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
       },
       content = function(file) {
         tryCatch({

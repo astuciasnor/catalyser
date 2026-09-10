@@ -335,6 +335,7 @@ testes <- c(
   "test_menu_preparando_dados.R",
   "test_pivotar_organizar.R",
   "test_organizar_variaveis.R",
+  "test_exportacao_preparo.R",
   "test_registro_execucoes.R",
   "test_execucao_explicita.R",
   "test_estados_execucao.R",

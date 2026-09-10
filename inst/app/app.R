@@ -41,6 +41,7 @@ source("modules/exportacao_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_registrar_execucao.R", encoding = "UTF-8")
 source("modules/mod_execucao_explicita.R", encoding = "UTF-8")
 source("modules/mod_tratar.R", encoding = "UTF-8")
+source("modules/mod_preparar_compartilhada.R", encoding = "UTF-8")
 source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_correlacao.R", encoding = "UTF-8")
@@ -491,10 +492,10 @@ ui <- page_navbar(
   
   # 1. Preparando Dados
   nav_menu(
-    title = HTML("Preparando<br>Dados"),
+    title = HTML("Preparar<br>Dados"),
     icon = icon("database"),
     nav_panel(
-      title = "Importação e Visualização",
+      title = "Importar Dados",
       icon = icon("file-import"),
       layout_columns(
         col_widths = c(1, 1, 1),
@@ -544,7 +545,7 @@ ui <- page_navbar(
                 style = "font-size:0.8rem; padding:8px 10px;",
                 icon("arrow-right"),
                 " Depois de carregar, use ",
-                strong("Criar e Editar Variáveis e Níveis"),
+                strong("Preparar Base Compartilhada"),
                 " para selecionar, renomear, tipar ou recodificar."
               )
             )
@@ -598,42 +599,31 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "Pivotar e Separar Dados",
+      title = "Reestruturar Planilha",
       icon = icon("layer-group"),
       tabsetPanel(
         id = "pivotar_separar_subabas",
         tabPanel(
-          "Empilhar Dados — pivot_longer()",
+          "Empilhar",
           mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
         ),
         tabPanel(
-          "Alargar Dados — pivot_wider()",
+          "Alargar",
           mod_arrumar_ui("arrumar_wider", modo_fixo = "alargar")
         ),
         tabPanel(
-          "Separar Dados em Colunas",
+          "Separar Colunas",
           mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
         )
       )
     ),
     nav_panel(
-      title = "Criar e Editar Variáveis e Níveis",
+      title = "Preparar Base Compartilhada",
       icon = icon("list-check"),
-      mod_organizar_variaveis_ui(
-        "organizar_variaveis",
-        criacao_ui = mod_calcular_ui("calcular")
-      )
+      mod_preparar_compartilhada_ui("preparar_compartilhada")
     ),
     nav_panel(
-      title = "Adicionar Tratamentos à Base",
-      icon = icon("timeline"),
-      mod_tratar_ui(
-        "tratar",
-        checagem_ui = mod_organizar_variaveis_checagem_ui("organizar_variaveis")
-      )
-    ),
-    nav_panel(
-      title = "Bases Derivadas",
+      title = "Preparar Bases Derivadas",
       icon = icon("diagram-project"),
       mod_bases_derivadas_ui("bases_derivadas")
     )
@@ -862,7 +852,7 @@ ui <- page_navbar(
             class = "alert alert-light border py-2 small",
             "A base escolhida vale para Duas variáveis e para Base tidy de contingência. ",
             "Bases tidy usam a coluna n como frequência. Se a base derivada não aparecer ",
-            "em Base utilizada, volte a Bases Derivadas, clique em Recalcular esta base ",
+            "em Base utilizada, volte a Preparar Bases Derivadas, clique em Recalcular esta base ",
             "e depois em Finalizar preparo."
           ),
           mod_nonparametric_ui("np_qui", "quiquadrado")
@@ -1109,8 +1099,8 @@ server <- function(input, output, session) {
         <div class='alert alert-info'><b>Pergunta que decide:</b> todas as análises deveriam receber esta mudança? Se sim, ela pertence à Base Compartilhada. Se servir apenas a uma finalidade, crie uma Base Derivada.</div>
         <ol>
           <li>Importe e organize os dados que serão comuns ao projeto.</li>
-          <li>Use <b>Adicionar Tratamentos à Base</b> para registrar os tratamentos compartilhados.</li>
-          <li>Abra <b>Preparando Dados → Bases Derivadas</b> para criar preparos específicos.</li>
+          <li>Use <b>Preparar Base Compartilhada</b> para registrar os tratamentos compartilhados.</li>
+          <li>Abra <b>Preparar Dados → Preparar Bases Derivadas</b> para criar preparos específicos.</li>
           <li>Ordene a receita, recalcule a base e confira a prévia e o código R.</li>
           <li>Finalize o preparo e escolha a base apropriada no módulo de análise.</li>
         </ol>
@@ -2364,6 +2354,8 @@ RCatalyst::run_ide()</pre>
       path <- input$file_upload$datapath
       ext <- tolower(tools::file_ext(input$file_upload$name))
       
+      # A escolha da aba pode chegar depois do arquivo; aguarde sem emitir erro.
+      if (ext %in% c("xlsx", "xls")) req(input$excel_sheet, nzchar(input$excel_sheet))
       tryCatch({
         if (ext == "csv") {
           df <- read.csv(path, 
@@ -2374,8 +2366,7 @@ RCatalyst::run_ide()</pre>
                          check.names = FALSE)
           raw_data(df)
         } else if (ext %in% c("xlsx", "xls")) {
-          req(input$excel_sheet, nzchar(input$excel_sheet))
-          req(input$excel_sheet %in% excel_sheets(path))   # só lê uma aba válida
+          if (!input$excel_sheet %in% excel_sheets(path)) return()
           df <- as.data.frame(read_excel(path, sheet = input$excel_sheet))
           raw_data(df)
         }
@@ -2457,7 +2448,7 @@ RCatalyst::run_ide()</pre>
 
   # ============================================================================
   # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
-  # Adicionar Tratamentos à Base é a camada MAIS EXTERNA do dataset ativo. Resolução:
+  # Preparar Base Compartilhada é a camada MAIS EXTERNA do dataset ativo. Resolução:
   #   importados (current_data)
   #     -> Pivotar/Separar/Criar e Editar promovem via dataset_ativo_rv -> base_resolvida
   #     -> replay(base_resolvida, pipeline_rv)                     -> dados_analise
@@ -2667,19 +2658,24 @@ RCatalyst::run_ide()</pre>
     modo_fixo = "separar", on_usar = adicionar_mudanca_compartilhada
   )
   # Selecionar, renomear, tipar e recodificar ficam centralizados neste módulo.
-  # Ele lê a base resolvida para poder suceder uma promoção de Empilhar/Separar.
-  mod_organizar_variaveis_server(
-    "organizar_variaveis", base_resolvida,
-    on_usar = adicionar_mudanca_compartilhada
+  # Ele lê o resultado do preparo para permitir renomear também variáveis calculadas.
+  organizacao_compartilhada <- mod_organizar_variaveis_server(
+    "organizar_variaveis", dados_analise,
+    on_etapa = function(etapa) {
+      if (length(replay_res()$erros)) {
+        showNotification("Corrija as etapas com erro antes de adicionar ajustes.", type = "error")
+        return(invisible(FALSE))
+      }
+      pipeline_rv(c(pipeline_rv(), list(etapa)))
+      showNotification("Etapa de variáveis adicionada à Base Compartilhada.", type = "message")
+    }
   )
-  # Criação de Variáveis ocupa a primeira sub-aba de Criar e Editar Variáveis e Níveis.
-  mod_calcular_server(
-    "calcular", base_resolvida, import_info,
-    on_usar = adicionar_mudanca_compartilhada
+  preparo_compartilhado <- mod_preparar_compartilhada_server(
+    "preparar_compartilhada", dados_analise, replay_res, pipeline_rv,
+    base_externa_rv, organizacao_compartilhada
   )
-  # Adicionar Tratamentos à Base (Fase 2): edita o pipeline GLOBAL; é a camada mais externa
-  # do dados_analise, automática (sem "Usar nas análises").
-  mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info, base_externa_rv)
+  mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info,
+                   base_externa_rv, grupo_rv = preparo_compartilhado$grupo)
   # Fases 3A/3B: cadastro, receita e replay lazy de ramos em estrela. Na 3B.3,
   # os módulos prioritários consomem os caches por meio dos seletores acima.
   bases_derivadas <- mod_bases_derivadas_server(
@@ -2809,7 +2805,7 @@ RCatalyst::run_ide()</pre>
       used_analyses$aep <- TRUE
     } else if (tab == "Amostrando uma AS (Sistemática)") {
       used_analyses$as <- TRUE
-    } else if (tab == "Bases Derivadas" &&
+    } else if (tab == "Preparar Bases Derivadas" &&
                identical(subaba_bases, "Receita da base") &&
                identical(tipo_receita, "contingencia")) {
       used_analyses$contingency <- TRUE
@@ -2880,7 +2876,7 @@ RCatalyst::run_ide()</pre>
         used_analyses$aep <- TRUE
       } else if (tab == "Amostrando uma AS (Sistemática)") {
         used_analyses$as <- TRUE
-      } else if (tab == "Bases Derivadas" &&
+      } else if (tab == "Preparar Bases Derivadas" &&
                  identical(subaba_bases, "Receita da base") &&
                  identical(tipo_receita, "contingencia")) {
         used_analyses$contingency <- TRUE

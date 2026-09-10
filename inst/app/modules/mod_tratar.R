@@ -10,15 +10,10 @@ library(shiny)
 library(bslib)
 library(DT)
 
-mod_tratar_ui <- function(id, checagem_ui = NULL) {
+mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
   ns <- NS(id)
-  conteudo_tratamentos <- layout_columns(
-      col_widths = c(1, 1, 1),
-      style = "grid-template-columns: 3.4fr 6.1fr 2.5fr !important;",
-
-      div(
-        card(
-          card_header("1. Adicionar tratamento"),
+  controles <- card(
+          card_header("Adicionar etapa do preparo"),
           card_body(
             style = "padding: 12px 15px;",
             tags$style(HTML(sprintf(
@@ -28,7 +23,7 @@ mod_tratar_ui <- function(id, checagem_ui = NULL) {
             div(
               id = ns("tipo_wrapper"),
               selectizeInput(
-                ns("tipo"), "Tipo de tratamento:",
+                ns("tipo"), "Ação:",
                 choices = c(
                   "Dados faltantes (NA)"          = "tratar_na",
                   "Dicotomizar (0/1)"             = "dicotomizar",
@@ -126,10 +121,43 @@ mod_tratar_ui <- function(id, checagem_ui = NULL) {
               helpText("Reescreve a própria coluna (uniformiza nomes).")
             ),
 
-            actionButton(ns("add_etapa"), "Adicionar à Trilha da Base Compartilhada",
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'calcular'", ns("tipo")),
+              textInput(ns("calc_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"),
+              radioButtons(ns("calc_modo"), "Como calcular:", c("Guiado" = "guiado", "Expressão R" = "livre"), inline = TRUE),
+              conditionalPanel(condition = sprintf("input['%s'] == 'guiado'", ns("calc_modo")),
+                selectInput(ns("calc_funcao"), "Função:", calc_funcoes_choices),
+                selectInput(ns("calc_a"), "Variável A:", NULL),
+                selectInput(ns("calc_op"), "Operação:", calc_ops_choices),
+                radioButtons(ns("calc_b_tipo"), "Combinar com:", c("Número" = "numero", "Variável" = "coluna"), inline = TRUE),
+                conditionalPanel(condition = sprintf("input['%s'] == 'numero'", ns("calc_b_tipo")), numericInput(ns("calc_b_num"), "Número:", 1)),
+                conditionalPanel(condition = sprintf("input['%s'] == 'coluna'", ns("calc_b_tipo")), selectInput(ns("calc_b_col"), "Variável B:", NULL))
+              ),
+              conditionalPanel(condition = sprintf("input['%s'] == 'livre'", ns("calc_modo")),
+                textInput(ns("calc_expr"), "Expressão:", placeholder = "peso_g / comprimento_cm")),
+              verbatimTextOutput(ns("calc_formula"))
+            ),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'reescalar'", ns("tipo")),
+              selectInput(ns("re_col"), "Variável numérica:", NULL),
+              radioButtons(ns("re_modo"), "Prefixo:", c("Automático" = "auto", "Escolher" = "manual"), inline = TRUE),
+              conditionalPanel(condition = sprintf("input['%s'] == 'manual'", ns("re_modo")),
+                selectInput(ns("re_prefixo"), "Prefixo:", calc_prefixo_choices(), selected = "k")),
+              textInput(ns("re_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"),
+              textOutput(ns("re_exemplo"))
+            ),
+            actionButton(ns("add_etapa"), "Adicionar etapa do preparo",
                          icon = icon("plus"), class = "btn-primary w-100 mt-2")
           )
-        ),
+        )
+  if (isTRUE(somente_controles)) return(controles)
+
+  conteudo_tratamentos <- layout_columns(
+      col_widths = c(1, 1, 1),
+      style = "grid-template-columns: 3.4fr 6.1fr 2.5fr !important;",
+
+      div(
+        controles,
 
         card(
           card_header("2. Tratamentos adicionados"),
@@ -220,13 +248,42 @@ mod_tratar_ui <- function(id, checagem_ui = NULL) {
   )
 }
 
-mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, base_externa_rv = NULL) {
+mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, base_externa_rv = NULL, grupo_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
     base_data <- reactive({ req(base_rv()); base_rv() })
     resultado <- replay_rv
     df_res    <- reactive({ resultado()$df })
+
+    if (is.function(grupo_rv)) observeEvent(grupo_rv(), {
+      escolhas <- if (identical(grupo_rv(), "limpeza")) c(
+        "Tratar dados faltantes" = "tratar_na", "Remover duplicatas" = "remover_duplicatas", "Padronizar texto" = "padronizar_texto"
+      ) else c(
+        "Calcular variável" = "calcular", "Reescalar unidades" = "reescalar",
+        "Padronizar valores" = "padronizar", "Criar classes" = "binning", "Dicotomizar (0/1)" = "dicotomizar"
+      )
+      updateSelectizeInput(session, "tipo", choices = escolhas, selected = unname(escolhas[[1]]))
+    }, ignoreNULL = FALSE)
+    expr_calculo <- reactive({
+      if (identical(input$calc_modo, "livre")) input$calc_expr %||% ""
+      else calc_montar_expr(input$calc_funcao %||% "nenhuma", input$calc_a %||% "",
+                           input$calc_op %||% "nenhum", input$calc_b_tipo %||% "numero",
+                           input$calc_b_col %||% "", input$calc_b_num %||% 1)
+    })
+    prefixo <- reactive({
+      if (identical(input$re_modo, "manual")) input$re_prefixo %||% ""
+      else { req(input$re_col %in% names(df_res())); calc_prefixo_auto(df_res()[[input$re_col]]) }
+    })
+    output$calc_formula <- renderText(expr_calculo())
+    output$re_exemplo <- renderText({ sprintf("Os valores serão divididos por %s; uma nova coluna será criada.", calc_num_txt(calc_fator(prefixo()))) })
+    observeEvent(resultado(), {
+      num <- trat_cols_num(df_res())
+      for (id in c("calc_a", "calc_b_col", "re_col")) {
+        atual <- isolate(input[[id]])
+        updateSelectInput(session, id, choices = num, selected = if (length(atual) == 1L && atual %in% num) atual else head(num, 1L))
+      }
+    })
 
     # Base externa (resultado promovido do Arrumar): rotulo do 1o no + script na Secao 0.
     base_ext <- reactive({ if (is.function(base_externa_rv)) base_externa_rv() else NULL })
@@ -281,7 +338,14 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
     }, ignoreInit = TRUE)
     observeEvent(input$add_etapa, {
       df <- df_res(); tipo <- input$tipo
+      req(tipo %in% names(tratamentos))
+      if (length(resultado()$erros)) {
+        showNotification("Corrija ou desative as etapas com erro antes de adicionar outra.", type = "error")
+        return()
+      }
       params <- switch(tipo,
+        calcular = list(nome = trimws(input$calc_nome %||% ""), expr = expr_calculo()),
+        reescalar = list(coluna = input$re_col, simbolo = prefixo(), nome = trimws(input$re_nome %||% "")),
         tratar_na = list(coluna = input$na_col, metodo = input$na_metodo, valor = input$na_valor),
         dicotomizar = list(coluna = input$dic_col, origem = input$dic_origem,
                            operador = input$dic_op, limiar = input$dic_limiar,

@@ -112,7 +112,29 @@ trat_contingencia_codigo <- function(p) {
 # REGISTRO DE TRATAMENTOS
 # =============================================================================
 
+# A edição de variáveis também é uma etapa: pode suceder cálculos e limpeza.
+trat_organizar_codigo <- function(p) {
+  linhas <- strsplit(organizar_variaveis_codigo(p$renomear, p$tipos, p$recodes, p$selecionar), "\n", fixed = TRUE)[[1]]
+  linhas[trimws(linhas) == "print(dados_organizados)"] <- "dados <- dados_organizados"
+  linhas
+}
+
+trat_organizar_aplicar <- function(df, p) {
+  ambiente <- new.env(parent = baseenv())
+  ambiente$dados <- df
+  eval(parse(text = trat_organizar_codigo(p)), envir = ambiente)
+  as.data.frame(ambiente$dados)
+}
+
 tratamentos <- list(
+  organizar = list(
+    rotulo = function(p) "Organizar variáveis e categorias",
+    validar = function(df, p) {
+      tryCatch({ trat_organizar_aplicar(df, p); NULL }, error = function(e) conditionMessage(e))
+    },
+    aplicar = trat_organizar_aplicar,
+    codigo = trat_organizar_codigo
+  ),
 
   tratar_na = list(
     rotulo = function(p) {
