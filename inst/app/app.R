@@ -144,7 +144,10 @@ ui <- page_navbar(
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         padding-top: 0.2rem;
         padding-bottom: 0.2rem;
-        position: relative !important;
+        position: sticky !important;
+        top: 0;
+        z-index: 1020;
+        background-color: #f8f9fa;
       }
       .navbar > .container-fluid {
         display: grid !important;
@@ -515,7 +518,7 @@ ui <- page_navbar(
                 fileInput("file_upload", "Escolha o arquivo (.csv, .xlsx, .xls):",
                           accept = c(".csv", ".xlsx", ".xls")),
                 conditionalPanel(
-                  condition = "input.file_upload != null && input.file_upload.name.toLowerCase().endsWith('.csv')",
+                  condition = "output.arquivo_csv == 'sim'",
                   checkboxInput("csv_header", "Cabeçalho na primeira linha", TRUE),
                   radioButtons("csv_sep", "Separador de Coluna:",
                                choices = c("Vírgula (,)" = ",",
@@ -525,7 +528,8 @@ ui <- page_navbar(
                   radioButtons("csv_dec", "Separador de Decimal:",
                                choices = c("Ponto (.)" = ".",
                                            "Vírgula (,)" = ","),
-                               selected = ".")
+                               selected = "."),
+                  helpText("Confira a prévia: se tudo ficar em uma coluna, troque o separador de coluna. Para valores como 12,5, escolha decimal Vírgula.")
                 ),
                 uiOutput("excel_sheet_selector")
               ),
@@ -569,10 +573,19 @@ ui <- page_navbar(
               style = "padding: 10px 15px;",
               verbatimTextOutput("data_summary_text")
             )
+          ),
+          nav_panel(
+            title = "Código R",
+            icon = icon("code"),
+            card_body(fill = FALSE, fillable = FALSE,
+              p(class = "small text-muted", "Esta leitura acompanha o arquivo, a aba e os separadores escolhidos. Guarde o arquivo original junto ao script ou ajuste o caminho. Os tratamentos posteriores aparecem no código da base preparada."),
+              verbatimTextOutput("codigo_importacao"),
+              div(downloadButton("baixar_codigo_importacao", "Baixar importação (.R)", class = "btn-outline-primary"))
+            )
           )
         ),
         
-        # COLUNA 3: STATUS DO DATASET & EXPORTAÇÃO
+        # COLUNA 3: CONFERÊNCIA DA ENTRADA
         div(
           card(
             card_header("Status do Dataset"),
@@ -587,13 +600,6 @@ ui <- page_navbar(
                 tags$li("Pacote R 'EAPADados'")
               )
             )
-          ),
-          card(
-            card_header("Exportar Projeto Consolidado"),
-            card_body(
-              style = "padding: 12px 15px;",
-              uiOutput("export_project_options_ui")
-            )
           )
         )
       )
@@ -601,6 +607,9 @@ ui <- page_navbar(
     nav_panel(
       title = "Reestruturar Planilha",
       icon = icon("layer-group"),
+      div(class = "mb-0",
+        h4("Reestruturar Planilha", class = "mb-1"),
+        p(class = "small text-muted mb-0", "Empilhe, alargue ou separe colunas. Confira a prévia antes de adicionar a mudança à Base Compartilhada.")),
       tabsetPanel(
         id = "pivotar_separar_subabas",
         tabPanel(
@@ -1116,7 +1125,7 @@ server <- function(input, output, session) {
         <ol>
           <li><b>Importação de Dados:</b> Carregue e prepare seus dados no menu <b>Preparando Dados</b>. Certifique-se de ajustar a tipagem das colunas se necessário.</li>
           <li><b>Análise Exploratória e Modelagem:</b> Acesse os menus de análise (como <i>Estatística Descritiva</i>, <i>Histogramas</i>, <i>Boxplot</i> ou <i>Regressão Linear</i>) e defina suas variáveis e opções estéticas.</li>
-          <li><b>Exportação Consolidada:</b> Volte ao painel de importação de dados e use a seção <i>Exportar Projeto Consolidado</i> para gerar o pacote ZIP com todos os seus scripts e relatórios.</li>
+          <li><b>Projeto R:</b> Abra o menu <i>Comunicação de Resultados</i> para reunir as análises e exportar o projeto.</li>
         </ol>
       ")
     ),
@@ -1782,6 +1791,16 @@ RCatalyst::run_ide()</pre>
       val <- input[[input_id]]
       if (length(val) == 1L && !is.na(val) &&
           !identical(val, types[[col_name]])) {
+        if (identical(val, "Date")) {
+          erro <- tryCatch({ preparo_converter_data(df[[col_name]]); NULL }, error = conditionMessage)
+          if (!is.null(erro)) {
+            showNotification(paste(col_name, "—", erro), id = paste0("data_", sanitize_id(col_name)),
+                             type = "error", duration = NULL)
+            updateSelectInput(session, input_id, selected = types[[col_name]])
+            next
+          }
+        }
+        removeNotification(paste0("data_", sanitize_id(col_name)))
         types[[col_name]] <- val
         updated <- TRUE
       }
@@ -1837,11 +1856,13 @@ RCatalyst::run_ide()</pre>
           } else if (target_type == "logical") {
             as.logical(df[[col_name]])
           } else if (target_type == "Date") {
-            as.Date(as.character(df[[col_name]]))
+            preparo_converter_data(df[[col_name]])
           } else {
             df[[col_name]]
           }
         }, error = function(e) {
+          if (identical(target_type, "Date"))
+            validate(need(FALSE, paste(col_name, "—", conditionMessage(e))))
           df[[col_name]]
         })
       }
@@ -2249,7 +2270,7 @@ RCatalyst::run_ide()</pre>
         div(
           class = "alert alert-success",
           style = "padding: 10px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 12px; font-weight: 500;",
-          icon("circle-check"), " Dataset pronto para análise!"
+          icon("circle-check"), " Arquivo carregado — confira a prévia."
         ),
         tags$table(class = "table table-sm table-borderless", style = "margin-bottom: 0; font-size: 0.85rem;",
           tags$tbody(
@@ -2331,6 +2352,13 @@ RCatalyst::run_ide()</pre>
   })
   
   # Gera seletor de sheets dinâmico se for planilha Excel
+  # O upload chega ao servidor; usar sua confirmação também funciona após trocar o arquivo.
+  output$arquivo_csv <- renderText({
+    if (!is.null(input$file_upload) &&
+        identical(tolower(tools::file_ext(input$file_upload$name)), "csv")) "sim" else "nao"
+  })
+  outputOptions(output, "arquivo_csv", suspendWhenHidden = FALSE)
+
   output$excel_sheet_selector <- renderUI({
     req(input$file_upload)
     ext <- tolower(tools::file_ext(input$file_upload$name))
@@ -2338,8 +2366,8 @@ RCatalyst::run_ide()</pre>
       sheets <- excel_sheets(input$file_upload$datapath)
       # Cria opções formatadas mostrando o índice (Ex: "3 - regressao")
       sheet_choices <- setNames(sheets, paste0(1:length(sheets), " - ", sheets))
-      # Tenta selecionar a Sheet 3 por padrão (índice 3), se disponível
-      selected_sheet <- if (length(sheets) >= 3) sheets[3] else sheets[1]
+      # Um arquivo enviado começa pela primeira aba; o pesquisador pode trocá-la.
+      selected_sheet <- sheets[1]
       selectizeInput("excel_sheet", "Selecione a Aba (Sheet):", choices = sheet_choices, selected = selected_sheet,
         options = list(placeholder = "Digite ou escolha a aba...", openOnFocus = TRUE))
     } else {
@@ -2365,14 +2393,19 @@ RCatalyst::run_ide()</pre>
                          stringsAsFactors = FALSE,
                          check.names = FALSE)
           raw_data(df)
+          removeNotification("erro_leitura")
         } else if (ext %in% c("xlsx", "xls")) {
           if (!input$excel_sheet %in% excel_sheets(path)) return()
           df <- as.data.frame(read_excel(path, sheet = input$excel_sheet))
           raw_data(df)
+          removeNotification("erro_leitura")
         }
       }, error = function(e) {
-        showNotification(paste("Erro ao ler o arquivo:", e$message), type = "error")
-        # NÃO zera raw_data: mantém o último dataset válido para não travar a tela
+        showNotification(paste("Não foi possível ler este arquivo.",
+          if (ext == "csv") "Confira o separador de coluna e o decimal.", e$message),
+          type = "error", duration = NULL, id = "erro_leitura")
+        # Não apresentar os dados do arquivo anterior como se fossem os novos.
+        raw_data(NULL)
       })
       
     } else if (input$data_source == "package") {
@@ -2401,7 +2434,7 @@ RCatalyst::run_ide()</pre>
   # Vamos pré-carregar ele por padrão se nenhum arquivo for carregado
   observe({
     default_excel_path <- "dados/datasets-projetos.xlsx"
-    if (is.null(raw_data()) && file.exists(default_excel_path)) {
+    if (is.null(raw_data()) && is.null(input$file_upload) && file.exists(default_excel_path)) {
       tryCatch({
         sheets <- excel_sheets(default_excel_path)
         # Prefere a sheet 3 como padrão
@@ -2418,7 +2451,8 @@ RCatalyst::run_ide()</pre>
   output$data_preview_table <- renderDT({
     df <- current_data()
     req(df)
-    datatable(df, options = list(pageLength = 10, scrollX = TRUE))
+    datatable(df, rownames = FALSE, options = list(pageLength = 10, scrollX = TRUE,
+      language = preparo_idioma_tabela(ncol(df))))
   })
   
   # Exibe o sumário dos dados
@@ -2440,11 +2474,23 @@ RCatalyst::run_ide()</pre>
       package_dataset = input$package_dataset,
       preparo_importacao = list(
         colunas = selected_cols_rv(), tipos = col_types_rv(),
+        colunas_originais = names(raw_data()),
+        classes_originais = lapply(raw_data(), function(x) class(x)[[1]]),
         recodificacoes = col_recodes_rv(), filtros_niveis = level_filters_rv(),
         filtros_faixas = range_filters_rv(), renomes = col_renames_rv()
       )
     )
   })
+
+  codigo_importacao <- reactive({
+    req(raw_data())
+    preparo_codigo_importacao(import_info())
+  })
+  output$codigo_importacao <- renderText(codigo_importacao())
+  output$baixar_codigo_importacao <- downloadHandler(
+    filename = function() "importar_dados.R",
+    content = function(file) writeLines(codigo_importacao(), file, useBytes = TRUE)
+  )
 
   # ============================================================================
   # DATASET ATIVO PARA AS ANÁLISES  (Fase 2)
@@ -2501,7 +2547,9 @@ RCatalyst::run_ide()</pre>
     dataset_ativo_rv(list(df = df, fonte = fonte))
     base_externa_rv(
       if (!is.null(codigo_final) && nzchar(codigo_final)) {
-        list(fonte = fonte, codigo = codigo_final)
+        list(fonte = fonte, codigo = codigo_final,
+          codigo_sequencial = if (!is.null(attr(codigo, "etapas")))
+            c(if (isTRUE(acumular_codigo)) anterior$codigo_sequencial, attr(codigo, "etapas")) else NULL)
       } else {
         NULL
       }
@@ -2647,15 +2695,15 @@ RCatalyst::run_ide()</pre>
   # podem ser encadeadas sem retornar silenciosamente aos dados importados.
   mod_arrumar_server(
     "arrumar_emp", base_resolvida, import_info,
-    modo_fixo = "empilhar", on_usar = adicionar_mudanca_compartilhada
+    modo_fixo = "empilhar", on_usar = adicionar_mudanca_compartilhada, base_externa_rv = base_externa_rv
   )
   mod_arrumar_server(
     "arrumar_wider", base_resolvida, import_info,
-    modo_fixo = "alargar", on_usar = adicionar_mudanca_compartilhada
+    modo_fixo = "alargar", on_usar = adicionar_mudanca_compartilhada, base_externa_rv = base_externa_rv
   )
   mod_arrumar_server(
     "arrumar_sep", base_resolvida, import_info,
-    modo_fixo = "separar", on_usar = adicionar_mudanca_compartilhada
+    modo_fixo = "separar", on_usar = adicionar_mudanca_compartilhada, base_externa_rv = base_externa_rv
   )
   # Selecionar, renomear, tipar e recodificar ficam centralizados neste módulo.
   # Ele lê o resultado do preparo para permitir renomear também variáveis calculadas.
@@ -2672,7 +2720,7 @@ RCatalyst::run_ide()</pre>
   )
   preparo_compartilhado <- mod_preparar_compartilhada_server(
     "preparar_compartilhada", dados_analise, replay_res, pipeline_rv,
-    base_externa_rv, organizacao_compartilhada
+    base_externa_rv, organizacao_compartilhada, import_info = import_info
   )
   mod_tratar_server("tratar", base_resolvida, replay_res, pipeline_rv, import_info,
                    base_externa_rv, grupo_rv = preparo_compartilhado$grupo)
@@ -2680,7 +2728,7 @@ RCatalyst::run_ide()</pre>
   # os módulos prioritários consomem os caches por meio dos seletores acima.
   bases_derivadas <- mod_bases_derivadas_server(
     "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
-    revisao_dados_analise_rv
+    revisao_dados_analise_rv, codigo_compartilhada_rv = preparo_compartilhado$codigo
   )
   anova_resultado <- mod_anova_server("anova", seletor_anova$dados, import_info)
   anova2_resultado <- mod_anova_dois_fatores_server("anova2", seletor_anova2$dados, import_info)
@@ -4580,31 +4628,6 @@ RCatalyst::run_ide()</pre>
     }
   )
 
-  # Fase 3E: o exportador consolidado antigo inferia uso apenas pela visita a
-  # uma aba. Ele permanece no código durante a migração incremental, mas deixa
-  # de ser oferecido. A fonte de verdade agora é o registro explícito exibido
-  # em Comunicação de Resultados.
-  output$export_project_options_ui <- renderUI({
-    tagList(
-      div(
-        class = "alert alert-info py-2 small",
-        icon("route"),
-        " A exportação integrada agora é organizada em Comunicação de Resultados."
-      ),
-      actionButton(
-        "ir_comunicacao_resultados", "Abrir Comunicação de Resultados",
-        icon = icon("file-export"), class = "btn-primary w-100"
-      ),
-      helpText(
-        "Somente execuções adicionadas explicitamente aos resultados entram no novo projeto.",
-        style = "font-size:0.78rem; margin-top:8px;"
-      )
-    )
-  })
-
-  observeEvent(input$ir_comunicacao_resultados, {
-    bslib::nav_select("main_navbar", selected = "Projeto de Comunicação", session = session)
-  })
 }
 
 # Inicializa o app

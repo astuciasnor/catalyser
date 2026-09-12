@@ -1,0 +1,78 @@
+Sys.setlocale("LC_ALL", "English_United States.utf8")
+source("app.R", encoding="UTF-8")
+# A origem muda ao promover: os downloads devem continuar reproduzíveis.
+wide <- as.data.frame(readxl::read_excel("dados/Treino-Transformacoes.xlsx",sheet="desembarques_largo"))
+info <- reactiveVal(list(source="local",file_name=normalizePath("dados/Treino-Transformacoes.xlsx",winslash="/"),excel_sheet="desembarques_largo"))
+entrada <- reactiveVal(wide); externa <- reactiveVal(NULL)
+promover <- function(df, fonte, codigo) {
+ anterior <- isolate(externa())
+ externa(list(codigo=as.character(codigo), codigo_sequencial=c(anterior$codigo_sequencial,attr(codigo,"etapas"))))
+ entrada(df)
+}
+conferir <- function(codigo, esperado) {
+ env <- new.env(parent=globalenv()); eval(parse(text=codigo),env)
+ stopifnot(isTRUE(all.equal(as.list(env$dados_arrumados),as.list(esperado),check.attributes=FALSE)))
+}
+testServer(mod_arrumar_server,args=list(data_rv=entrada,import_info=info,modo_fixo="empilhar",on_usar=promover,base_externa_rv=externa),{
+ session$flushReact()
+ session$setInputs(cols_medida=names(wide)[-1],metodo="delim",delim_comum=" - ",
+   novas_cols="ano, medida",values_to="captura_t",como_numero=TRUE,aplicar=1)
+ antes <- dados_saida();stopifnot(nrow(antes)==12,ncol(antes)==4)
+ conferir(codigo_saida(),antes)
+ x <- readxl::read_excel(output$baixar_dados);stopifnot(nrow(x)==12)
+ session$setInputs(usar_analises=1);session$flushReact()
+ stopifnot(is.null(resultado_rv()),nrow(dados_saida())==12,grepl("Downloads disponíveis",output$status_indicador$html))
+ conferir(paste(readLines(output$baixar_script,encoding="UTF-8"),collapse="\n"),antes)
+ stopifnot(nrow(readxl::read_excel(output$baixar_dados))==12)
+ session$setInputs(usar_analises=2);stopifnot(length(externa()$codigo_sequencial)>0,nrow(entrada())==12)
+})
+cat("PASSOU: empilhar mantém Excel e script executável após incorporar.\n")
+testServer(mod_arrumar_server,args=list(data_rv=entrada,import_info=info,modo_fixo="alargar",on_usar=promover,base_externa_rv=externa),{
+ session$flushReact();session$setInputs(wider_names2="ano",wider_values="captura_t",aplicar=1)
+ antes<-dados_saida();stopifnot(nrow(antes)==4,ncol(antes)==5)
+ conferir(codigo_saida(),antes)
+ session$setInputs(usar_analises=1);session$flushReact()
+ conferir(paste(readLines(output$baixar_script,encoding="UTF-8"),collapse="\n"),antes)
+ stopifnot(ncol(readxl::read_excel(output$baixar_dados))==5)
+ # Uma origem diferente deve limpar a exportação antiga.
+ entrada(wide);session$flushReact();stopifnot(is.null(dados_saida()))
+})
+cat("PASSOU: alargar executa depois de empilhar no script; troca de origem limpa saída antiga.\n")
+info(list(source="local",file_name=normalizePath("dados/Treino-Transformacoes.xlsx",winslash="/"),excel_sheet="biometria"))
+biom <- as.data.frame(readxl::read_excel(isolate(info())$file_name,sheet="biometria"))
+entrada(biom);externa(NULL)
+testServer(mod_arrumar_server,args=list(data_rv=entrada,import_info=info,modo_fixo="separar",on_usar=promover,base_externa_rv=externa),{
+ session$flushReact()
+ session$setInputs(col_separar="amostra",metodo="delim",delim_comum="_",
+   novas_cols="local_amostra, periodo",manter_original=TRUE,aplicar=1)
+ antes<-dados_saida();conferir(codigo_saida(),antes)
+ session$setInputs(usar_analises=1);session$flushReact()
+ stopifnot(nrow(readxl::read_excel(output$baixar_dados))==71,ncol(dados_saida())==12)
+ conferir(paste(readLines(output$baixar_script,encoding="UTF-8"),collapse="\n"),antes)
+})
+cat("PASSOU: separar mantém 71 × 12 e código reproduzível após incorporar.\n")
+# Duas derivadas independentes, saída desde a importação, seleção e bloqueio de download obsoleto.
+pipeline <- list(list(tipo="remover_duplicatas",params=list(colunas=NULL),ativa=TRUE),list(tipo="reescalar",params=list(coluna="peso_g",simbolo="k",nome="massa_kg"),ativa=TRUE))
+comp <- replay_pipeline(biom,pipeline)$df
+reg <- reactiveVal(list());cache<-reactiveVal(list());rev<-reactiveVal(1L)
+base_info<-isolate(info()); origem_codigo<-reactive(preparo_codigo_completo(base_info,pipeline))
+testServer(mod_bases_derivadas_server,args=list(dados_analise_rv=reactive(comp),registro_bases_rv=reg,cache_bases_rv=cache,revisao_origem_rv=rev,codigo_compartilhada_rv=origem_codigo),{
+ session$flushReact()
+ session$setInputs(nome_amigavel="Pesos acima de 100 g",nome_r="base_pesos100",finalidade="geral",descricao="",criar=1)
+ stopifnot(base_selecionada()$id=="derivada_01")
+ session$setInputs(ramo_tipo="filtrar",ramo_fil_col="peso_g",ramo_fil_origem="numerica",ramo_fil_op=">",ramo_fil_valor=100,adicionar_etapa=1)
+ session$setInputs(recalcular=1);stopifnot(nrow(cache_selecionado()$df)==43)
+ session$setInputs(finalizar=1)
+ x<-readxl::read_excel(output$baixar_base);stopifnot(nrow(x)==43,ncol(x)==11)
+ env<-new.env(parent=globalenv());invisible(capture.output(eval(parse(text=readLines(output$baixar_codigo,encoding="UTF-8")),env)))
+ stopifnot(isTRUE(all.equal(as.list(env$base_pesos100),as.list(cache_selecionado()$df))))
+ session$setInputs(nome_amigavel="Completa",nome_r="base_completa",criar=2)
+ stopifnot(base_selecionada()$id=="derivada_02")
+ session$setInputs(ramo_tipo="tratar_na",ramo_na_col="peso_g",ramo_na_metodo="remover",adicionar_etapa=2,recalcular=2)
+ session$setInputs(ramo_na_col="comprimento_cm",adicionar_etapa=3,recalcular=3)
+ stopifnot(nrow(cache_selecionado()$df)==58)
+ session$setInputs(base_escolhida="derivada_01");stopifnot(nrow(cache_selecionado()$df)==43)
+ rev(2L);session$flushReact();stopifnot(inherits(try(exigir_atualizada(),silent=TRUE),"try-error"))
+})
+cat("PASSOU: derivadas 43/58, ID sequencial, Excel, script completo e bloqueio de saída desatualizada.\n")
+cat("VERIFICACAO_CONCLUIDA\n")

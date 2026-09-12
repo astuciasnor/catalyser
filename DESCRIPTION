@@ -1,7 +1,7 @@
 Package: catalyser
 Type: Package
 Title: CatalyseR: IDE Científica para Análise de Dados em R
-Version: 0.1.7
+Version: 0.1.8
 Author: Evaldo Silva [aut, cre]
 Maintainer: Evaldo Silva <astuciasnor@gmail.com>
 Authors@R: c(
@@ -23,6 +23,7 @@ Imports:
     DT,
     readxl,
     readr,
+    lubridate,
     markdown,
     zip,
     writexl,
@@ -55,8 +56,7 @@ Suggests:
     multcompView,
     tsibble,
     feasts,
-    fabletools,
-    lubridate
+    fabletools
 Remotes:
     astuciasnor/EAPADados
 Depends: R (>= 4.3.0)

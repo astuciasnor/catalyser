@@ -90,8 +90,8 @@ glimpse(dados_brutos)
 # ----------------------------------------------------------------------------|
 ## ---- tratar ----
 
-# Deixa a base pronta para a análise: o fator {{FATOR}} como agrupamento e a
-# resposta {{RESPOSTA}} como número.
+# Reproduz o preparo confirmado e recebe a base escolhida para esta ANOVA.
+# A resposta {{RESPOSTA}} já deve ser numérica, como na IDE.
 
 # Observações sem a resposta viram NA e ficam de fora do teste, que usa apenas
 # os casos completos. A planilha original nunca é alterada.
@@ -99,11 +99,15 @@ glimpse(dados_brutos)
 {{PREPARO}}
 
 # A análise usa apenas observações com resposta e grupo preenchidos.
+# Guarda a base preparada antes da exclusão de casos incompletos da ANOVA.
+base_da_anova <- dados
+if (!is.numeric(dados${{RESPOSTA_R}})) {
+  stop("A resposta precisa ser numérica. Confira a tipagem no preparo antes da ANOVA.")
+}
 n_preparadas <- nrow(dados)
 dados <- dados |>
   mutate(
-    {{FATOR_R}} = factor({{FATOR_R}}),
-    {{RESPOSTA_R}} = as.numeric(as.character({{RESPOSTA_R}}))
+    {{FATOR_R}} = factor({{FATOR_R}})
   ) |>
   tidyr::drop_na({{FATOR_R}}, {{RESPOSTA_R}}) |>
   droplevels()
@@ -227,6 +231,13 @@ p_anova   <- formatar_p(tabela_anova$`Pr(>F)`[1], no_texto = TRUE)
 p_shapiro <- formatar_p(teste_normalidade$p.value, no_texto = TRUE)
 p_levene  <- formatar_p(teste_levene$`Pr(>F)`[1], no_texto = TRUE)
 
+# A conclusão acompanha o teste, sem afirmar diferença quando ela não apareceu.
+frase_anova <- if (is.na(tabela_anova$`Pr(>F)`[1]))
+  "A ANOVA não forneceu um p-valor válido para comparar as médias de {{RESPOSTA}} entre os grupos" else
+  if (tabela_anova$`Pr(>F)`[1] < 0.05)
+    "Houve evidência de diferença na média de {{RESPOSTA}} entre os grupos" else
+    "Não houve evidência de diferença na média de {{RESPOSTA}} entre os grupos"
+
 # Tamanho de efeito: a fração da variação de {{RESPOSTA}} associada a {{FATOR}}.
 # omega² corrige o viés do eta² em amostras pequenas.
 efeito_eta   <- eta_squared(modelo)
@@ -234,10 +245,12 @@ efeito_omega <- omega_squared(modelo)
 eta2   <- fmt(efeito_eta$Eta2[1])
 omega2 <- fmt(efeito_omega$Omega2[1])
 
-# Leitura do tamanho de efeito pela convenção de Cohen (η²): até 0,06 pequeno,
-# até 0,14 médio, acima disso grande. É referência estatística, não biológica.
+# Leitura do efeito pela convenção de Cohen (η²): abaixo de 0,01 muito pequeno,
+# abaixo de 0,06 pequeno, abaixo de 0,14 médio e, a partir daí, grande.
+# É referência estatística, não biológica, como na tela da CatalyseR.
 eta_val <- efeito_eta$Eta2[1]
 classe_efeito <- if (is.na(eta_val)) "indeterminado" else
+  if (eta_val < 0.01) "muito pequeno" else
   if (eta_val < 0.06) "pequeno" else if (eta_val < 0.14) "médio" else "grande"
 
 # Frases dos pressupostos, escritas conforme o resultado de cada teste, para o
@@ -270,6 +283,15 @@ plot(modelo, which = 1)
 # descola é sinal de assimetria ou de valor extremo.
 
 plot(modelo, which = 2)
+
+# ----------------------------------------------------------------------------|
+## ---- diagnostico-influencia ----
+
+# Distância de Cook: observações com maior influência sobre o modelo.
+# O QUE CONFERIR: picos que merecem revisão do registro e do contexto da coleta.
+# Um ponto influente não deve ser excluído automaticamente.
+
+plot(modelo, which = 4)
 
 # ----------------------------------------------------------------------------|
 ## ---- tbl-resumo ----

@@ -65,6 +65,7 @@ organizar_variaveis_codigo <- function(renomear = character(0),
   }
 
   if (length(tipos)) {
+    if ("data" %in% unlist(tipos)) linhas <- c(linhas, "", preparo_codigo_data())
     colunas <- names(tipos)
     pares <- vapply(seq_along(colunas), function(i) {
       coluna <- colunas[[i]]
@@ -117,7 +118,7 @@ mod_organizar_variaveis_ui <- function(id, criacao_ui = NULL, somente_checagem =
     helpText("Selecionar também permite retirar colunas. Cada ajuste confirmado aparece na prévia; adicione a etapa quando terminar."),
     uiOutput(ns("resumo_acoes")),
     div(class = "d-grid gap-2 mt-3",
-      actionButton(ns("usar_base"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary"),
+      actionButton(ns("usar_base"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary preparo-adicionar", disabled = "disabled"),
       actionButton(ns("limpar"), "Descartar ajustes pendentes", icon = icon("rotate-left"), class = "btn-outline-secondary")
     )
   ))
@@ -588,7 +589,7 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
       selecionar_rv(NULL)
       removeModal()
       showNotification(
-        if (any(mudou)) sprintf("%d variável(is) renomeada(s).", sum(mudou))
+        if (any(mudou)) sprintf("%d nome(s) ajustado(s) na prévia. Clique em Adicionar etapa do preparo para salvar a mudança.", sum(mudou))
         else "Nenhum nome foi alterado.",
         type = "message"
       )
@@ -606,6 +607,12 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
         helpText(
           "O tipo atual já vem selecionado. Altere somente o que for necessário para a análise."
         ),
+        tags$details(class = "small mb-3",
+          tags$summary("Como escrever as datas?"),
+          p("Use dia-mês-ano ou ano-mês-dia: 12/09/2026, 12-09-2026, 2026/09/12 ou 2026-09-12. Também são aceitos pontos (12.09.2026) e dia/mês sem zero à esquerda (1/9/2026). Prefira ano com quatro dígitos. O R exibe ano-mês-dia. A ordem mês-dia-ano não é utilizada."),
+          p("Datas formatadas como Data no Excel também são aceitas. Deixe em branco as datas não informadas. Se houver uma data inválida, corrija a planilha e importe novamente; isso reinicia o preparo."),
+          p("No R, a função é ", tags$code("catalyser::converter_datas()"),
+            ". Consulte exemplos com ", tags$code("?catalyser::converter_datas"), ".")),
         div(
           style = "max-height:430px; overflow-y:auto; padding-right:6px;",
           lapply(seq_along(colunas), function(i) {
@@ -647,6 +654,13 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
       for (i in seq_along(colunas)) {
         escolhido <- input[[paste0("tipo_", i)]]
         if (is.null(escolhido)) next
+        if (identical(escolhido, "data")) {
+          erro <- tryCatch({ preparo_converter_data(dados[[colunas[[i]]]]); NULL }, error = conditionMessage)
+          if (!is.null(erro)) {
+            showNotification(paste(colunas[[i]], "—", erro), type = "error", duration = NULL)
+            return()
+          }
+        }
         natural <- arrumar_detectar_tipo(dados[[colunas[[i]]]])
         if (!identical(escolhido, natural)) novos[[colunas[[i]]]] <- escolhido
       }
@@ -861,11 +875,16 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
         if (length(tipos_rv())) sprintf("%d tipo(s)", length(tipos_rv())),
         if (!is.null(selecionar_rv())) sprintf("%d variável(is) mantida(s)", length(selecionar_rv()))
       )
-      if (!length(itens)) return(NULL)
-      tags$ul(
-        style = "font-size:0.78rem; padding-left:18px; margin:8px 0;",
-        lapply(itens, tags$li)
-      )
+      estado <- tags$script(HTML(sprintf(
+        "(function(){function aplicar(){var el=document.getElementById('%s');if(el){el.disabled=%s;el.setAttribute('aria-disabled','%s');}}aplicar();window.setTimeout(aplicar,0);})();",
+        session$ns("usar_base"), if (length(itens)) "false" else "true",
+        if (length(itens)) "false" else "true")))
+      if (!length(itens)) return(tagList(estado,
+        p(class = "small text-muted mb-2", role = "status", "Nenhum ajuste pendente.")))
+      tagList(estado, div(class = "alert alert-info mt-2 mb-2", role = "status",
+        strong("Mudança pendente"),
+        tags$ul(style = "font-size:0.88rem; padding-left:18px; margin:8px 0;", lapply(itens, tags$li)),
+        "Adicione a etapa para incorporar estes ajustes à base em preparo."))
     })
 
     output$resumo_acoes_final <- renderUI({
@@ -906,10 +925,12 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
         return(invisible(FALSE))
       }
       if (is.function(on_etapa)) {
-        on_etapa(list(tipo = "organizar", ativa = TRUE, params = list(
+        aceito <- on_etapa(list(tipo = "organizar", ativa = TRUE, params = list(
           renomear = renomear_rv(), tipos = tipos_rv(), recodes = recodes_rv(),
           selecionar = selecionar_rv()
         )))
+        if (identical(aceito, FALSE)) return(invisible(FALSE))
+        limpar_estado()
         return(invisible(TRUE))
       }
       if (is.function(on_usar)) {

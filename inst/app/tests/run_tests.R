@@ -336,6 +336,9 @@ testes <- c(
   "test_pivotar_organizar.R",
   "test_organizar_variaveis.R",
   "test_exportacao_preparo.R",
+  "test_preparo_comunicacao_completo.R",
+  "test_preparo_csv_datas.R",
+  "test_feedback_preparo_5.R",
   "test_registro_execucoes.R",
   "test_execucao_explicita.R",
   "test_estados_execucao.R",
@@ -346,6 +349,7 @@ testes <- c(
   "test_anova_integrada.R",
   "test_anova_dois_fatores.R",
   "test_anova_exportacao.R",
+  "test_anova_preparo_projeto.R",
   "test_grafico_linhas_troca_y.R"
 )
 

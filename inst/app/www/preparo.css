@@ -1,0 +1,151 @@
+/* EspaÃ§o de preparo: listas legÃ­veis e painÃ©is sem recorte de seletores. */
+.preparo-estudio .card, .preparo-estudio .card-body,
+.derivadas-fluxo .card, .derivadas-fluxo .card-body {overflow:visible; min-height:0; height:auto;}
+.derivadas-estudio {display:grid;grid-template-columns:minmax(320px,380px) minmax(0,1fr);gap:24px;align-items:start;}
+.derivadas-estudio > *, .derivadas-fluxo .tab-pane {min-width:0;}
+.derivadas-fluxo pre, .preparo-estudio pre {white-space:pre-wrap;overflow-wrap:anywhere;}
+.derivadas-fluxo .btn, .preparo-estudio .btn {white-space:normal;}
+.derivadas-fluxo .nav-tabs {gap:4px;flex-wrap:wrap;}
+.derivadas-fluxo .nav-tabs .nav-link {font-size:.94rem;padding:12px 14px;}
+.derivadas-fluxo .nav-tabs .active {font-weight:700;border-bottom:3px solid #2E7D8F;}
+.preparo-estudio .btn-outline-primary, .derivadas-fluxo .btn-outline-primary {background:#fff;color:#0F3B5F;border-color:#2E7D8F;}
+.preparo-estudio .btn-outline-secondary, .derivadas-fluxo .btn-outline-secondary {background:#fff;color:#455560;border-color:#85959e;}
+.preparo-estudio .btn-outline-danger, .derivadas-fluxo .btn-outline-danger {background:#fff;color:#a52b38;border-color:#a52b38;}
+.selectize-dropdown .option {white-space:normal;overflow-wrap:anywhere;padding:8px 12px;}
+.selectize-dropdown-content {max-height:min(420px,55vh);}
+.preparo-origem {background:#0F3B5F;color:white;border-radius:8px;padding:12px 16px;font-size:1rem;}
+.preparo-etapas {padding-left:28px;margin:12px 0;}
+.preparo-etapas li {background:#eaf2f3;border-left:4px solid #2E7D8F;border-radius:6px;padding:10px 12px;margin:8px 0;font-size:.95rem;color:#0F3B5F;}
+.preparo-etapas .inativa {background:#f1f2f3;border-color:#85959e;color:#59666e;}
+.derivadas-fluxo .shiny-input-container, .preparo-estudio .shiny-input-container {max-width:100%;width:100%;}
+@media(max-width:1000px){.derivadas-estudio {grid-template-columns:1fr;} .derivadas-fluxo .nav-tabs .nav-link{padding:10px;}}
+
+.preparo-estudio .dataTables_length select, .derivadas-fluxo .dataTables_length select {min-width:76px;}
+
+/* Mensagens e tabelas precisam reservar altura mesmo antes de haver dados. */
+.derivadas-fluxo .shiny-output-error {position:static;display:block;min-height:2.5rem;white-space:normal;}
+.derivadas-fluxo .shiny-html-output, .preparo-estudio .shiny-html-output {min-width:0;}
+.derivadas-fluxo .preparo-origem, .derivadas-fluxo .alert, .preparo-estudio .alert {line-height:1.5;overflow-wrap:anywhere;}
+.preparo-estudio .preparo-etapas li {font-size:1rem;line-height:1.5;}
+.derivadas-fluxo details {margin:12px 0;}
+.derivadas-fluxo details summary {cursor:pointer;padding:8px 0;}
+.derivadas-fluxo dt, .derivadas-fluxo dd {overflow-wrap:anywhere;}
+
+/* Acabamento da lista e estados dos controles de variáveis. */
+.preparo-etapas-finas li {padding:6px 10px;margin:6px 0;border-left-width:3px;font-size:1rem;line-height:1.4;}
+.preparo-estudio .preparo-adicionar:disabled, .derivadas-fluxo .preparo-adicionar:disabled {background:#e0e4e7;border-color:#aab4bc;color:#53616d;opacity:1;cursor:default;}
+.preparo-somente-leitura {border:0;padding:0;min-width:0;}
+.preparo-somente-leitura .btn:disabled {opacity:.65;}
+
+.arrumar-incorporar:disabled {background:#59656d !important;border-color:#59656d !important;color:#fff !important;opacity:1;cursor:default;}
+
+/* Reestruturação: escolhas, parâmetros e resultado em uma mesma tela. */
+.arrumar-estudio {display:grid;grid-template-columns:minmax(580px,1fr) minmax(480px,1fr);grid-template-rows:auto auto min-content 1fr;gap:0 18px;align-items:start;margin-top:6px;}
+.arrumar-estudio > div {min-width:0;display:block;}
+.arrumar-estudio > .tabbable {display:contents;}
+.arrumar-estudio > .tabbable > .nav {grid-column:2;grid-row:2;margin:0;padding:8px 10px 0;background:#fff;border-radius:10px 10px 0 0;}
+.arrumar-estudio > .tabbable > .nav .nav-link {padding:8px 12px;font-size:.9rem;}
+.arrumar-estudio > .tabbable > .arrumar-controles {grid-column:1;grid-row:1/5;display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+.arrumar-controles > div {min-width:0;}
+.arrumar-estudio > .tabbable > .tab-content {grid-column:2;grid-row:3;background:#fff;border-radius:0 0 10px 10px;box-shadow:0 2px 12px #00000008;min-height:64px;min-width:0;}
+.arrumar-estudio > .tabbable > .arrumar-exportar {grid-column:2;grid-row:4;min-width:0;margin-top:12px;}
+.arrumar-estudio .card {margin-bottom:12px;min-height:0;}
+.arrumar-estudio .card-body {padding:12px 15px;display:block;}
+.arrumar-estudio .shiny-input-container {width:100%;max-width:100%;margin-bottom:12px;}
+/* Seletores: listas acima dos cartões, nomes completos e rolagem própria. */
+.arrumar-controles .card, .arrumar-controles .card-body {overflow:visible;}
+.arrumar-controles .selectize-control {font-size:.95rem;}
+.arrumar-controles .selectize-input {min-height:38px !important;padding:8px 30px 8px 10px !important;font-size:.95rem !important;line-height:1.45;border-color:#aabcc8;border-radius:6px;}
+.arrumar-controles .selectize-input input {font-size:.95rem !important;}
+.arrumar-controles .selectize-input.focus {border-color:#2E7D8F;box-shadow:0 0 0 3px #2e7d8f26;}
+.arrumar-controles .selectize-input .item {max-width:100%;white-space:normal;overflow-wrap:anywhere;}
+.arrumar-controles .selectize-control.multi .selectize-input > .item {background:#e7f2f3;color:#0F3B5F;border:1px solid #b6d5d9;border-radius:4px;}
+.arrumar-controles .selectize-dropdown {z-index:1100;background:#fff;color:#0F3B5F;border:1px solid #8daab7;border-radius:6px;box-shadow:0 6px 18px #0f3b5f26;font-size:.95rem;line-height:1.45;}
+.arrumar-controles .selectize-dropdown-content {max-height:min(280px,40vh);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:auto;scrollbar-color:#7998a5 #edf2f5;}
+.arrumar-controles .selectize-dropdown .option {padding:9px 12px;white-space:normal;overflow-wrap:anywhere;cursor:pointer;border-bottom:1px solid #edf2f5;}
+.arrumar-controles .selectize-dropdown .active {background:#dceef0;color:#0F3B5F;}
+.arrumar-controles .selectize-dropdown .selected {font-weight:600;}
+.arrumar-controles .selectize-dropdown .highlight {background:#ffe3a6;color:#0F3B5F;}
+.arrumar-controles .selectize-dropdown {height:auto !important;bottom:auto;}
+.arrumar-controles .selectize-dropdown.arrumar-dropdown-acima {top:auto !important;bottom:100% !important;}
+.arrumar-estudio .help-block {display:block;font-size:.85rem;line-height:1.4;margin-top:6px;}
+.arrumar-estudio details {font-size:.9rem;margin:10px 0;}
+.arrumar-estudio summary {cursor:pointer;color:#2E7D8F;}
+.arrumar-estudio pre {max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem;margin-bottom:0;}
+.arrumar-estudio .arrumar-codigo {overflow:visible;}
+.arrumar-estudio .shiny-output-error {position:static !important;height:auto !important;display:block;min-height:2rem;}
+.arrumar-estudio > .arrumar-downloads {grid-column:2;grid-row:1;display:flex;gap:10px;margin:0 0 10px;flex-wrap:wrap;}
+.arrumar-downloads .btn {width:auto !important;flex:1 1 180px;}
+.arrumar-estudio .btn-outline-primary,.arrumar-estudio .btn-outline-secondary {background:#fff;color:#0F3B5F;border-color:#2E7D8F;white-space:normal;}
+.arrumar-estudio .dataTables_length select {min-width:65px;}
+.arrumar-estudio table.dataTable tbody td {padding:5px 8px;}
+.arrumar-exportar .arrumar-incorporar {margin-top:8px;}
+@media(max-width:1150px){
+  .arrumar-estudio {grid-template-columns:minmax(0,1fr);grid-template-rows:auto;}
+  .arrumar-estudio > .tabbable > .arrumar-controles {grid-column:1;grid-row:1;}
+  .arrumar-estudio > .arrumar-downloads {grid-column:1;grid-row:2;}
+  .arrumar-estudio > .tabbable > .nav {grid-column:1;grid-row:3;}
+  .arrumar-estudio > .tabbable > .tab-content {grid-column:1;grid-row:4;}
+  .arrumar-estudio > .tabbable > .arrumar-exportar {grid-column:1;grid-row:5;}
+}
+@media(max-width:650px){.arrumar-estudio > .tabbable > .arrumar-controles {grid-template-columns:1fr;} .arrumar-estudio > .tabbable > .nav {margin-left:0;}}
+
+/* Saídas ao lado da conferência final, sem empurrar os botões para o rodapé. */
+.derivadas-finalizacao {display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,300px);gap:16px;align-items:start;}
+.preparo-downloads {display:flex;flex-direction:column;gap:16px;align-items:flex-start;}
+.derivadas-finalizacao-nota {grid-column:1/-1;}
+@media(max-width:1200px){.derivadas-finalizacao{grid-template-columns:1fr;}.preparo-downloads{flex-direction:row;flex-wrap:wrap;}}
+
+#codigo_importacao {white-space:pre-wrap;overflow-wrap:anywhere;}
+#baixar_codigo_importacao {background:#fff;color:#0F3B5F;border-color:#2E7D8F;}
+
+/* Compartilhada: dados e código ocupam a largura; os controles ficam nas etapas. */
+.compartilhada-painel {display:block;min-width:0;}
+.compartilhada-painel .nav-tabs .nav-link {padding:9px 12px;}
+.compartilhada-etapas {display:grid;grid-template-columns:minmax(230px,.7fr) minmax(320px,1fr) minmax(420px,1.35fr);gap:24px;align-items:start;}
+.compartilhada-etapas > * {min-width:0;}
+.compartilhada-escolhas {border-right:1px solid #dbe5e8;padding-right:16px;}
+.compartilhada-parametros .d-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+.compartilhada-parametros .help-block {display:block;margin-top:8px;}
+.compartilhada-cabecalho .btn-outline-primary,
+.compartilhada-cabecalho .btn-outline-secondary {background:#fff;color:#0F3B5F;border-color:#2E7D8F;}
+.compartilhada-lista-etapas {max-height:320px;overflow-y:auto;}
+.compartilhada-trilha .preparo-etapas li {padding:6px 10px;margin:5px 0;}
+.compartilhada-trilha .btn {padding:6px 10px;}
+@media(max-width:1100px){
+  .compartilhada-etapas {grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr);gap:16px;}
+  .compartilhada-trilha {grid-column:1/-1;}
+}
+@media(max-width:650px){
+  .compartilhada-etapas {grid-template-columns:1fr;}
+  .compartilhada-escolhas {border-right:0;padding-right:0;}
+  .compartilhada-parametros .d-grid {grid-template-columns:1fr;}
+}
+
+/* Derivadas: aproveitar a largura sem reduzir o tamanho dos textos. */
+.derivadas-cabecalho {margin-bottom:12px;}
+.derivadas-identificacao {display:grid;grid-template-columns:minmax(260px,380px) minmax(0,1fr);gap:20px;align-items:center;}
+.derivadas-identificacao .shiny-input-container {margin-bottom:0 !important;}
+.derivadas-identificacao > .shiny-html-output,
+.derivadas-formulario > .shiny-html-output {display:block;}
+.derivadas-identificacao .alert {margin-top:6px;margin-bottom:4px !important;}
+.derivadas-fluxo .nav-tabs .nav-link {padding:9px 12px;}
+.derivadas-edicao {display:grid;grid-template-columns:minmax(470px,1fr) minmax(380px,1fr);gap:24px;align-items:start;}
+.derivadas-edicao > *, .derivadas-formulario > * {min-width:0;}
+.derivadas-formulario {display:grid;grid-template-columns:minmax(180px,.85fr) minmax(240px,1.15fr);column-gap:20px;row-gap:8px;align-items:start;}
+.derivadas-escolhas {padding-right:16px;border-right:1px solid #dbe5e8;}
+.derivadas-adicionar {grid-column:1/-1;}
+.derivadas-lista-etapas {max-height:250px;overflow-y:auto;}
+.derivadas-trilha .preparo-etapas {margin-top:4px;}
+.derivadas-trilha .preparo-etapas li {padding:6px 10px;margin:5px 0;}
+.derivadas-ordem .btn {padding:6px 10px;}
+.derivadas-fluxo [id$="-ajustes_finais"] .d-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+.derivadas-finalizacao dt, .derivadas-finalizacao dd {margin-bottom:.35rem;}
+@media(max-width:1100px){
+  .derivadas-identificacao, .derivadas-edicao {grid-template-columns:1fr;gap:12px;}
+}
+@media(max-width:600px){
+  .derivadas-formulario {grid-template-columns:1fr;}
+  .derivadas-escolhas {padding-right:0;border-right:0;}
+  .derivadas-fluxo [id$="-ajustes_finais"] .d-grid {grid-template-columns:1fr;}
+}

@@ -82,16 +82,21 @@ As letras indicam comparações entre grupos, não uma classificação biológic
 Grupos que compartilham uma letra não tiveram diferença detectada pelo Tukey.
 Leia o tamanho de efeito e os pressupostos junto com o contexto da coleta.
 
-As edições de nomes, tipos e categorias são reproduzidas em R quando o código
-registrado recompõe a base usada na análise. Outras reorganizações, como
-empilhar tabelas, usam a cópia preparada em `dados/processados/base_resolvida.rds`.
-O relatório informa quando usa essa cópia e mantém o registro das operações
-como comentários no preparo. A planilha Excel original permanece em `dados/brutos/`.
+O preparo refaz, na ordem, as escolhas da importação, as reestruturações
+(separar, empilhar ou alargar), os tratamentos da base compartilhada e o preparo
+da base derivada escolhida. Etapas desativadas não executam. A derivada parte
+da compartilhada, sem repetir seus tratamentos.
 
-A cópia preparada é anterior à trilha de tratamentos: os tratamentos e o preparo
-da base derivada continuam sendo aplicados pelo código, uma única vez. Alterar o
-Excel original não atualiza essa cópia; para refazer a reorganização, adapte o
-código registrado no preparo ou gere um novo projeto pela CatalyseR.
+No código, `base_compartilhada` guarda o preparo comum e `base_da_anova` guarda
+a base escolhida antes da exclusão dos casos incompletos. `dados` contém os
+casos completos usados no teste. O relatório informa quantas linhas ficaram de
+fora; a resposta mantém o tipo numérico definido no preparo.
+
+Somente registros antigos sem sequência executável podem precisar de
+`dados/processados/base_resolvida.rds`. Nesse caso, o relatório informa a
+limitação e preserva as operações antigas como comentários. Essa cópia é
+anterior aos tratamentos; alterar a planilha original não a atualiza.
+{{DESCRICAO_PREPARO}}
 
 Não é necessário salvar e importar novamente os dados para baixar o projeto.
 O exportador continua conferindo se a análise recebe os mesmos dados da IDE.

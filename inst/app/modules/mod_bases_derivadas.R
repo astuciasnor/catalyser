@@ -10,75 +10,82 @@ library(DT)
 
 mod_bases_derivadas_ui <- function(id) {
   ns <- NS(id)
-  tagList(
-    tags$style(HTML(".derivadas-estudio{display:grid;grid-template-columns:minmax(280px,330px) minmax(0,1fr);gap:16px;align-items:start}.derivadas-estudio>*{min-width:0}.derivadas-estudio .card{height:auto}.derivadas-estudio pre{white-space:pre-wrap;overflow-wrap:anywhere}.derivadas-acoes .btn{white-space:normal}.derivadas-estudio .btn-outline-primary,.preparo-estudio .btn-outline-primary{background:#fff;color:#0F3B5F;border-color:#2E7D8F}.derivadas-estudio .btn-outline-secondary,.preparo-estudio .btn-outline-secondary{background:#fff;color:#455560;border-color:#85959e}.derivadas-acoes .btn-outline-secondary{background:#fff;color:#455560}.derivadas-estudio .btn-outline-danger{background:#fff;color:#a52b38}.derivadas-estudio .btn:hover,.preparo-estudio .btn:hover{filter:brightness(.95)}@media(max-width:900px){.derivadas-estudio{grid-template-columns:1fr}}")),
+  div(class = "derivadas-fluxo",
+    tags$link(rel = "stylesheet", href = "preparo.css"),
     h4("Preparar Bases Derivadas", class = "mb-1"),
-    p(class = "small text-muted mb-3", "Cada base derivada nasce diretamente da Base Compartilhada. O preparo afeta somente a base selecionada."),
-    card(fill = FALSE,
-      card_body(fill = FALSE, fillable = FALSE,
-        div(class = "row g-3 align-items-end",
-          div(class = "col-12 col-lg-5", selectInput(ns("base_escolhida"), "Base derivada:", choices = NULL)),
-          div(class = "col-12 col-lg-7 derivadas-acoes d-flex gap-2 flex-wrap pb-3",
-            actionButton(ns("recalcular"), "Recalcular", icon = icon("arrows-rotate"), class = "btn-primary"),
-            actionButton(ns("finalizar"), "Finalizar Preparo", icon = icon("circle-check"), class = "btn-success"),
-            actionButton(ns("reabrir"), "Reabrir Preparo", icon = icon("rotate-left"), class = "btn-outline-secondary"))
-        ),
-        tags$details(class = "border-top pt-2",
-          tags$summary("Criar uma base derivada"),
-          div(class = "row g-3 mt-1",
-            div(class = "col-12 col-lg-4", textInput(ns("nome_amigavel"), "Nome da base:", placeholder = "Ex.: Biometria por espécie"),
-                selectInput(ns("finalidade"), "Finalidade:", bases_finalidades)),
-            div(class = "col-12 col-lg-4", textInput(ns("nome_r"), "Nome no código R:", "base_derivada"),
-                helpText("Ex.: base_biometria_especie. A origem será sempre a Base Compartilhada.")),
-            div(class = "col-12 col-lg-4", textAreaInput(ns("descricao"), "Descrição (opcional):", rows = 2),
-                actionButton(ns("criar"), "Criar base derivada", icon = icon("plus"), class = "btn-primary"))
-          )
-        )
-      )
-    ),
-    uiOutput(ns("base_ativa_receita")),
-    uiOutput(ns("editor_base")),
-    div(class = "derivadas-estudio mt-3",
-      card(fill = FALSE, card_header("Adicionar etapa do preparo"),
-        card_body(fill = FALSE, fillable = FALSE,
-          tags$fieldset(id = ns("controles_receita"), disabled = "disabled", style = "border:0;padding:0;min-width:0",
-            selectInput(ns("grupo_acoes"), "Grupo de ações:", c("Cálculos e transformações" = "calculos", "Limpeza" = "limpeza", "Recortes e resumos" = "recortes")),
-            selectInput(ns("ramo_tipo"), "Ação:", choices = c("Calcular variável" = "calcular", "Reescalar unidades" = "reescalar", "Padronizar valores" = "padronizar", "Criar classes" = "binning", "Dicotomizar (0/1)" = "dicotomizar")),
+    p(class = "small text-muted mb-2", "Uma base derivada parte da Base Compartilhada para uma análise específica. Seus ajustes não alteram a base de origem."),
+    conditionalPanel(condition = sprintf("output['%s'] == 'sim'", ns("tem_bases")),
+    card(fill = FALSE, class = "derivadas-cabecalho", card_body(fill = FALSE, fillable = FALSE,
+      div(class = "derivadas-identificacao",
+      selectizeInput(ns("base_escolhida"), "Base derivada:", choices = NULL, width = "100%",
+        options = list(dropdownParent = "body")),
+      uiOutput(ns("editor_base"))), uiOutput(ns("base_ativa_receita"))))),
+    navset_card_tab(height = "auto", id = ns("bases_derivadas_subabas"),
+      wrapper = function(...) card_body(..., fill = FALSE, fillable = FALSE),
+      nav_panel("1. Criar e gerenciar", value = "Criação e gestão da base", icon = icon("folder-open"),
+        div(class = "derivadas-estudio",
+          div(h5("Criar uma base derivada"),
+            textInput(ns("nome_amigavel"), "Nome da base:", placeholder = "Ex.: Pesos acima de 100 g"),
+            selectInput(ns("finalidade"), "Finalidade:", bases_finalidades),
+            textInput(ns("nome_r"), "Nome no código R:", "base_derivada"),
+            textAreaInput(ns("descricao"), "Descrição (opcional):", rows = 2),
+            actionButton(ns("criar"), "Criar e preparar", icon = icon("plus"), class = "btn-primary")),
+          div(uiOutput(ns("origem_compartilhada")),
+            tags$details(tags$summary("Conferir dados da Base Compartilhada"), DTOutput(ns("preview_compartilhada"), fill = FALSE)),
+            uiOutput(ns("gestao_vazia")), DTOutput(ns("tabela"), fill = FALSE),
+            conditionalPanel(condition = sprintf("output['%s'] == 'sim'", ns("tem_bases")),
+            div(class = "d-flex gap-2 flex-wrap mt-3",
+              actionButton(ns("renomear"), "Editar nome e descrição", icon = icon("pen"), class = "btn-outline-primary"),
+              actionButton(ns("excluir"), "Excluir base derivada", icon = icon("trash"), class = "btn-outline-danger")))))),
+      nav_panel("2. Adicionar preparo", value = "etapas", icon = icon("list-ol"),
+        div(class = "derivadas-edicao",
+          div(tags$fieldset(id = ns("controles_receita"), class = "derivadas-formulario", disabled = "disabled", style = "border:0;padding:0;min-width:0",
+            div(class = "derivadas-escolhas",
+            selectizeInput(ns("grupo_acoes"), "Grupo de ações:",
+              c("Limpeza" = "limpeza", "Recortes e resumos" = "recortes", "Cálculos e transformações" = "calculos"),
+              options = list(dropdownParent = "body")),
+            selectizeInput(ns("ramo_tipo"), "Ação:", choices = c("Tratar dados faltantes" = "tratar_na"),
+              options = list(dropdownParent = "body"))),
             uiOutput(ns("parametros_etapa")),
-            actionButton(ns("adicionar_etapa"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary w-100")
-          )
-        )
-      ),
-      navset_card_tab(height = "auto",
-          wrapper = function(...) card_body(..., fill = FALSE, fillable = FALSE, min_height = "5rem"), id = ns("bases_derivadas_subabas"),
-        nav_panel("Dados preparados", value = "Receita da base", icon = icon("table"),
-          card_body(fill = FALSE, fillable = FALSE, DTOutput(ns("preview"), fill = FALSE))),
-        nav_panel("Etapas do Preparo", value = "etapas", icon = icon("list-ol"),
-          card_body(fill = FALSE, fillable = FALSE,
-            uiOutput(ns("receita_ramo")), uiOutput(ns("seletor_etapa")),
-            div(class = "d-flex gap-2 flex-wrap",
+            div(class = "derivadas-adicionar", actionButton(ns("adicionar_etapa"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary"))),
+            helpText("Adicione a etapa e clique em Recalcular. Confira o resultado em Dados preparados.")),
+          div(class = "derivadas-trilha",
+            div(class = "d-flex justify-content-between align-items-center gap-2 mb-2",
+              h5("Etapas do Preparo", class = "mb-0"),
+              actionButton(ns("recalcular"), "Recalcular", icon = icon("arrows-rotate"), class = "btn-primary")),
+            div(class = "derivadas-lista-etapas", uiOutput(ns("receita_ramo"))), uiOutput(ns("seletor_etapa")),
+            div(class = "d-flex gap-2 flex-wrap derivadas-ordem",
               actionButton(ns("etapa_subir"), "Subir", icon = icon("arrow-up"), class = "btn-outline-secondary"),
               actionButton(ns("etapa_descer"), "Descer", icon = icon("arrow-down"), class = "btn-outline-secondary"),
               actionButton(ns("etapa_alternar"), "Ativar / desativar", class = "btn-outline-secondary"),
               actionButton(ns("etapa_remover"), "Remover", class = "btn-outline-danger"),
               actionButton(ns("etapas_limpar"), "Limpar etapas", class = "btn-outline-danger")),
-            helpText("Recalcule a base após alterar as etapas. Finalize o preparo para disponibilizá-la nas análises."))),
-        nav_panel("Código R", value = "codigo", icon = icon("code"),
-          card_body(fill = FALSE, fillable = FALSE, tags$pre(verbatimTextOutput(ns("codigo"))))),
-        nav_panel("Gerenciar Bases", value = "Criação e gestão da base", icon = icon("list"),
-          card_body(fill = FALSE, fillable = FALSE,
-            DTOutput(ns("tabela"), fill = FALSE),
-            uiOutput(ns("detalhes")),
-            div(class = "d-flex gap-2 flex-wrap mt-3",
-              actionButton(ns("renomear"), "Editar nome e descrição", icon = icon("pen"), class = "btn-outline-primary"),
-              actionButton(ns("excluir"), "Excluir base derivada", icon = icon("trash"), class = "btn-outline-danger"))))
-      )
-    )
+            helpText("Desativar preserva a etapa sem executá-la. Remover retira a etapa.")))),
+      nav_panel("3. Finalizar/reabrir", value = "finalizar", icon = icon("circle-check"),
+        div(class = "derivadas-estudio",
+          div(h5("Variáveis e categorias"),
+            uiOutput(ns("ajustes_finais"))),
+          div(class = "derivadas-finalizacao",
+        div(
+        div(class = "d-flex gap-2 flex-wrap mb-3",
+          actionButton(ns("finalizar"), "Finalizar Preparo", icon = icon("circle-check"), class = "btn-success"),
+          actionButton(ns("reabrir"), "Reabrir Preparo", icon = icon("rotate-left"), class = "btn-outline-secondary")),
+        uiOutput(ns("detalhes"))),
+        div(class = "preparo-downloads",
+          downloadButton(ns("baixar_base"), "Baixar base (.xlsx)", class = "btn-outline-primary"),
+          downloadButton(ns("baixar_codigo"), "Baixar sequência completa (.R)", class = "btn-outline-secondary")),
+        p(class = "small text-muted mt-3 derivadas-finalizacao-nota", "Finalize após conferir os dados. Para mudar as etapas, reabra o preparo. Os downloads usam somente resultados atualizados.")))),
+      nav_panel("4. Dados preparados", value = "Receita da base", icon = icon("table"),
+        DTOutput(ns("preview"), fill = FALSE), uiOutput(ns("dimensoes"))),
+      nav_panel("5. Código R", value = "codigo", icon = icon("code"),
+        p(class = "small text-muted", "Da importação à base selecionada: reestruturação, preparo compartilhado e etapas desta derivada. O arquivo original deve estar junto ao script; ajuste o caminho se necessário."),
+        tags$pre(verbatimTextOutput(ns("codigo")))))
   )
 }
 
 mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
-                                       cache_bases_rv, revisao_origem_rv = NULL) {
+                                       cache_bases_rv, revisao_origem_rv = NULL,
+                                       codigo_compartilhada_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     contador <- reactiveVal(1L)
@@ -87,6 +94,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     dados_raiz <- reactive({ req(dados_analise_rv()); as.data.frame(dados_analise_rv()) })
     registros <- reactive({ registro_bases_rv() %||% list() })
     caches <- reactive({ cache_bases_rv() %||% list() })
+    output$tem_bases <- renderText(if (length(registros())) "sim" else "nao")
+    outputOptions(output, "tem_bases", suspendWhenHidden = FALSE)
     revisao_atual <- reactive({
       if (is.function(revisao_origem_rv)) as.integer(revisao_origem_rv()) else 1L
     })
@@ -117,7 +126,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       usados <- vapply(registros(), `[[`, character(1), "id")
       repeat {
         n <- contador(); contador(n + 1L)
-        id_novo <- sprintf("base_%04d", n)
+        id_novo <- sprintf("derivada_%02d", n)
         if (!(id_novo %in% usados)) return(id_novo)
       }
     }
@@ -153,6 +162,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       updateTextInput(session, "nome_amigavel", value = "")
       updateTextInput(session, "nome_r", value = "base_derivada")
       updateTextAreaInput(session, "descricao", value = "")
+      bslib::nav_select("bases_derivadas_subabas", "etapas", session = session)
       showNotification(sprintf("Base '%s' criada como rascunho.", nova$nome_r),
                        type = "message", duration = 5)
     })
@@ -160,11 +170,19 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     # A tabela lê somente metadados do cache. Não executa replay de nenhum ramo.
     tabela_atual <- reactive({ bases_tabela(registros(), caches(), revisao_atual()) })
 
+    output$gestao_vazia <- renderUI({
+      if (!nrow(tabela_atual())) p(class = "alert alert-info mt-3", "Nenhuma derivada criada. Use o formulário ao lado para criar a primeira.")
+    })
+    output$preview_compartilhada <- renderDT({
+      d <- dados_raiz()
+      datatable(d, rownames = FALSE, options = list(scrollX = TRUE, pageLength = 10,
+        language = preparo_idioma_tabela(ncol(d))))
+    })
     output$tabela <- renderDT({
       tab <- tabela_atual()
-      validate(need(nrow(tab) > 0, "Nenhuma base derivada criada. A Base Compartilhada (dados_analise) continua disponível."))
+      if (!nrow(tab)) return(NULL)
       datatable(tab, selection = "single", rownames = FALSE,
-                options = list(pageLength = 8, scrollX = TRUE, dom = "tip"))
+                options = list(pageLength = 10, scrollX = TRUE, dom = "tip", language = preparo_idioma_tabela()))
     })
 
     observeEvent(input$tabela_rows_selected, {
@@ -210,7 +228,14 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         ns("etapa_selecionada")
       )))
 
-      tagList(alternar_controles)
+      situacao <- if (is.null(base)) "" else bases_estado_cache(base, cache_selecionado(), revisao_atual())
+      finalizada <- !is.null(base) && !identical(base$estado, "rascunho")
+      botoes <- c(finalizar = is.null(base) || finalizada || !identical(situacao, "Atualizada"),
+                  reabrir = is.null(base) || !finalizada, recalcular = is.null(base))
+      estados <- vapply(names(botoes), function(id) sprintf(
+        "var el=document.getElementById('%s');if(el)el.disabled=%s;", ns(id),
+        if (botoes[[id]]) "true" else "false"), character(1))
+      tagList(alternar_controles, tags$script(HTML(paste(estados, collapse = ""))))
     })
 
     cache_selecionado <- reactive({
@@ -275,18 +300,18 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       info <- colunas_editor()
       situacao <- bases_estado_cache(base, cache_selecionado(), revisao_atual())
       tagList(
-        div(class = "d-flex justify-content-between align-items-center mb-2",
-            div(strong(base$nome_amigavel), " ", tags$code(base$nome_r)),
+        div(class = "d-flex justify-content-between align-items-center gap-2 flex-wrap mb-1",
+            tags$code(base$nome_r),
             tags$span(class = paste("badge", if (identical(base$estado, "rascunho"))
-              "bg-warning text-dark" else "bg-success"), paste(base$estado, situacao, sep = " · "))),
+              "bg-warning text-dark" else "bg-success"), paste(if (identical(base$estado, "rascunho")) "Em edição" else "Finalizada", situacao, sep = " · "))),
         if (identical(situacao, "Desatualizada"))
           div(class = "alert alert-warning mb-2",
               "A base compartilhada ou as etapas mudaram. A tabela mostra a última versão calculada. Clique em Recalcular para atualizar esta base."),
         if (identical(situacao, "Com erro"))
           div(class = "alert alert-danger mb-2",
               "O recálculo encontrou um erro: ", paste(unlist(cache_selecionado()$erros), collapse = "; ")),
-        if (!identical(base$estado, "rascunho"))
-          div(class = "alert alert-warning mb-2", style = "font-size:0.82rem; padding:8px 10px;",
+        if (!identical(base$estado, "rascunho") && identical(situacao, "Atualizada"))
+          div(class = "alert alert-success mb-2", style = "font-size:0.82rem; padding:8px 10px;",
               "Esta base está pronta. Clique em Reabrir Preparo para alterar suas etapas."),
         if (identical(base$estado, "rascunho") && length(base$etapas %||% list()) &&
             !identical(bases_estado_cache(base, cache_selecionado(), revisao_atual()), "Atualizada"))
@@ -505,13 +530,13 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       if (!length(etapas))
         return(div(class = "alert alert-light border", "Receita vazia: o ramo ainda é idêntico à Base Compartilhada (dados_analise)."))
       tags$ol(
-        class = "mb-3",
+        class = "preparo-etapas preparo-etapas-finas mb-3",
         lapply(seq_along(etapas), function(i) {
           et <- etapas[[i]]
           tt <- tratamentos[[et$tipo]]
           rotulo <- if (is.null(tt)) et$tipo else tt$rotulo(et$params)
           tags$li(
-            style = if (isTRUE(et$ativa)) NULL else "opacity:0.55; text-decoration:line-through;",
+            class = if (isTRUE(et$ativa)) NULL else "inativa",
             tags$code(et$tipo), " — ", rotulo,
             if (!isTRUE(et$ativa)) tags$span(class = "badge bg-secondary ms-1", "inativa")
           )
@@ -528,9 +553,10 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       atual <- etapa_preferida_rv() %||% isolate(input$etapa_selecionada)
       atual <- if (!is.null(atual) && atual %in% unname(escolhas)) atual else
         if (length(escolhas)) tail(unname(escolhas), 1) else character(0)
-      selectInput(
+      selectizeInput(
         ns("etapa_selecionada"), "Etapa selecionada:",
-        choices = escolhas, selected = atual
+        choices = escolhas, selected = atual, width = "100%",
+        options = list(dropdownParent = "body", maxOptions = 10000)
       )
     })
 
@@ -716,22 +742,59 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
                     "Esta base ainda não foi calculada. Clique em Recalcular."))
       validate(need(!is.null(entrada$df),
                     "O último recálculo não produziu uma tabela válida."))
-      previa <- head(entrada$df, 300)
+      previa <- entrada$df
       tabela <- datatable(
         previa,
         rownames = FALSE,
-        options = list(pageLength = 12, scrollX = TRUE)
+        options = list(pageLength = 10, scrollX = TRUE, lengthMenu = c(10, 25, 50, 100),
+                       language = preparo_idioma_tabela(ncol(previa)))
       )
       if ("percentual" %in% names(previa))
         tabela <- formatRound(tabela, columns = "percentual", digits = 2)
       tabela
     })
 
-    output$codigo <- renderText({
+    codigo_completo <- reactive({
       base <- base_selecionada()
-      if (is.null(base)) return("# Crie ou escolha uma base derivada acima.")
-      bases_codigo(base)
+      req(base)
+      origem <- if (is.function(codigo_compartilhada_rv)) codigo_compartilhada_rv() else
+        "# Antes de executar: dados_analise deve conter a Base Compartilhada."
+      ramo <- bases_codigo(base)
+      if (grepl("trat_moda", ramo, fixed = TRUE)) origem <- paste(origem,
+        "trat_moda <- function(x) { v <- unique(x[!is.na(x)]); if (!length(v)) return(NA); v[which.max(tabulate(match(x, v)))] }", sep = "\n")
+      paste(origem, ramo, sep = "\n\n")
     })
+    output$codigo <- renderText(codigo_completo())
+    output$origem_compartilhada <- renderUI({
+      d <- dados_raiz()
+      div(class = "preparo-origem mb-3", strong("Base Compartilhada"),
+        sprintf(" · %d linhas × %d colunas", nrow(d), ncol(d)),
+        p(class = "small mb-0", "Origem de todas as derivadas. Para editá-la, abra Preparar Base Compartilhada."))
+    })
+    output$dimensoes <- renderUI({
+      base <- base_selecionada(); entrada <- cache_selecionado()
+      req(base, entrada$df)
+      p(class = "small text-muted mt-2", strong(base$nome_amigavel),
+        sprintf(" · %d linhas × %d colunas · %s", nrow(entrada$df), ncol(entrada$df),
+          bases_estado_cache(base, entrada, revisao_atual())))
+    })
+    exigir_atualizada <- function() {
+      base <- base_selecionada(); req(base)
+      validate(need(identical(bases_estado_cache(base, cache_selecionado(), revisao_atual()), "Atualizada"),
+        "Recalcule esta base antes de baixar os arquivos."))
+      base
+    }
+    nome_download <- function(extensao) {
+      nome <- base_selecionada()$nome_r
+      sufixo <- sub("^base_(derivada_?)?", "", nome)
+      paste0("base_derivada", if (nzchar(sufixo)) paste0("_", sufixo), extensao)
+    }
+    output$baixar_base <- downloadHandler(
+      filename = function() nome_download(".xlsx"),
+      content = function(file) { exigir_atualizada(); writexl::write_xlsx(as.data.frame(cache_selecionado()$df), file) })
+    output$baixar_codigo <- downloadHandler(
+      filename = function() nome_download(".R"),
+      content = function(file) { exigir_atualizada(); writeLines(codigo_completo(), file, useBytes = TRUE) })
 
     output$detalhes <- renderUI({
       base <- base_selecionada()
@@ -752,8 +815,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           tags$dt(class = "col-sm-3", "Origem"),
           tags$dd(class = "col-sm-9", "Base Compartilhada ", tags$code("dados_analise")),
           tags$dt(class = "col-sm-3", "Finalidade"), tags$dd(class = "col-sm-9", finalidade_rotulo %||% base$finalidade),
-          tags$dt(class = "col-sm-3", "Estado"), tags$dd(class = "col-sm-9", strong(base$estado)),
-          tags$dt(class = "col-sm-3", "Cache"),
+          tags$dt(class = "col-sm-3", "Estado"), tags$dd(class = "col-sm-9", strong(if (identical(base$estado, "rascunho")) "Em edição" else "Finalizada")),
+          tags$dt(class = "col-sm-3", "Atualização"),
           tags$dd(class = "col-sm-9", tags$span(class = paste("badge", classe_badge), estado_cache)),
           tags$dt(class = "col-sm-3", "Etapas"), tags$dd(class = "col-sm-9", length(base$etapas %||% list())),
           tags$dt(class = "col-sm-3", "Dimensões"),
@@ -810,7 +873,40 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       recalcular_base_selecionada()
     })
 
+    # Reutiliza o mesmo editor, registrando ajustes somente na derivada.
+    output$ajustes_finais <- renderUI({
+      base <- base_selecionada()
+      if (is.null(base)) return(p("Crie ou escolha uma derivada."))
+      if (!identical(base$estado, "rascunho")) return(tagList(
+        p(class = "small text-muted", "Preparo finalizado. Clique em Reabrir Preparo para editar."),
+        tags$fieldset(disabled = "disabled", class = "preparo-somente-leitura",
+          mod_organizar_variaveis_ui(ns("organizar_final"), somente_controles = TRUE))))
+      if (!identical(bases_estado_cache(base, cache_selecionado(), revisao_atual()), "Atualizada"))
+        return(tagList(p("Recalcule para editar as variáveis atuais."), actionButton(ns("recalcular_receita"), "Recalcular", class = "btn-primary")))
+      mod_organizar_variaveis_ui(ns("organizar_final"), somente_controles = TRUE)
+    })
+    organizacao_final <- mod_organizar_variaveis_server("organizar_final", reactive({
+      base <- base_selecionada(); req(base)
+      dados <- cache_selecionado()$df; req(dados)
+      attr(dados, "base_em_edicao") <- base$id
+      dados
+    }), on_etapa = function(etapa) {
+      base <- base_selecionada(); req(base)
+      novo <- tryCatch(bases_adicionar_etapa(registros(), base$id, etapa$tipo,
+        etapa$params, dados_validacao_etapa(base)), error = function(e) e)
+      if (inherits(novo, "error")) {
+        showNotification(conditionMessage(novo), type = "error"); return(FALSE)
+      }
+      registro_bases_rv(novo)
+      recalcular_base_selecionada()
+      TRUE
+    })
+
     observeEvent(input$finalizar, {
+      if (isTRUE(organizacao_final$pendente())) {
+        showNotification("Adicione ou descarte os ajustes de variáveis antes de finalizar.", type = "warning")
+        return()
+      }
       base <- base_selecionada()
       if (is.null(base)) { showNotification("Selecione uma base.", type = "warning"); return() }
       novo <- tryCatch(
@@ -829,6 +925,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       base <- base_selecionada()
       if (is.null(base)) { showNotification("Selecione uma base.", type = "warning"); return() }
       registro_bases_rv(bases_reabrir(registros(), base$id))
+      bslib::nav_select("bases_derivadas_subabas", "etapas", session = session)
       showNotification(sprintf("Base '%s' reaberta como rascunho.", base$nome_r), type = "message")
     })
 

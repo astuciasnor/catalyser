@@ -167,6 +167,7 @@ exportacao_trecho_pacotes <- function() {
     "# here() monta os caminhos a partir da raiz do projeto (onde está o .Rproj),",
     "# permitindo que o mesmo arquivo funcione em computadores diferentes.",
     "library(here)",
+    "source(here(\"R\", \"funcoes.R\"))",
     "",
     "# Leitura da planilha.",
     "library(readxl)",
@@ -233,11 +234,20 @@ exportacao_trecho_importar <- function(import_info = list()) {
 
 # Passo 2: operações estruturais (Pivotar/Separar/Organizar).
 #
-# O código registrado por esses módulos é R executável, mas cada bloco promovido
-# recomeça pela leitura da planilha. Blocos acumulados, portanto, não rodam em
-# sequência. Por isso o script usa a fotografia da base resolvida e mantém o
-# código como referência comentada — a conferência final acusa qualquer desvio.
-exportacao_bloco_estrutural <- function(base_externa = NULL) {
+# As promoções atuais guardam a sequência executável, sem repetir a importação.
+# Registros antigos sem essa sequência ainda usam a base salva e conservam o
+# código original comentado, com essa limitação explícita no projeto.
+exportacao_bloco_estrutural <- function(base_externa = NULL, import_info = list()) {
+  sequencia <- exportacao_organizacao_anova(base_externa)
+  if (!exportacao_anova_usa_base_resolvida(base_externa) &&
+      (length(sequencia) || length(import_info$preparo_importacao))) {
+    return(c(
+      "# Escolhas da importação e reestruturações, na ordem registrada na IDE.",
+      exportacao_preparo_importacao(import_info),
+      if (length(sequencia)) c("library(dplyr)", "library(tidyr)", sequencia),
+      "base_resolvida <- dados", ""
+    ))
+  }
   codigo <- trimws(as.character(base_externa$codigo %||% ""))
   if (!nzchar(codigo)) {
     return(c(
@@ -284,7 +294,7 @@ exportacao_bloco_trilha <- function(pipeline, reg = tratamentos) {
   for (i in seq_along(ativas)) {
     etapa <- ativas[[i]]
     tratamento <- reg[[etapa$tipo]]
-    if (is.null(tratamento)) next
+    if (is.null(tratamento)) stop("Há um tratamento sem gerador de código na trilha.", call. = FALSE)
     linhas <- c(
       linhas,
       sprintf("# Etapa %d: %s", i, tratamento$rotulo(etapa$params)),
@@ -297,14 +307,14 @@ exportacao_bloco_trilha <- function(pipeline, reg = tratamentos) {
 
 # Trecho `tratar`: da planilha bruta à Base Compartilhada (`dados_analise`).
 exportacao_trecho_tratar <- function(pipeline, base_externa = NULL,
-                                     reg = tratamentos) {
+                                     reg = tratamentos, import_info = list()) {
   c(
     exportacao_marcador("tratar"),
     "# Transforma a planilha na Base Compartilhada, exatamente como aconteceu na",
     "# CatalyseR: primeiro as operações estruturais, depois a Trilha de Preparo, na",
     "# ordem lógica registrada. Sai dados_analise, conferido contra a fotografia da IDE.",
     "",
-    exportacao_bloco_estrutural(base_externa),
+    exportacao_bloco_estrutural(base_externa, import_info),
     exportacao_bloco_trilha(pipeline, reg),
     "# -----------------------------------------------------------------------",
     "# 4. Conferência",
@@ -1007,9 +1017,35 @@ exportacao_anova_simples <- function(manifesto) {
   length(inc) == 1 && identical(as.character(inc[[1]]$tipo %||% ""), "anova_um_fator")
 }
 
+# A função de datas mora no pacote CatalyseR. Retira somente sua
+# definição dos blocos registrados, preservando chamadas e demais operações.
+# Usa as linhas da expressão R, inclusive em receitas salvas antes deste ajuste.
+exportacao_preparo_sem_funcao_data <- function(codigo) {
+  linhas <- strsplit(paste(codigo, collapse = "\n"), "\n", fixed = TRUE)[[1]]
+  expressoes <- parse(text = linhas, keep.source = TRUE)
+  referencias <- attr(expressoes, "srcref")
+  remover <- integer()
+  for (i in seq_along(expressoes)) {
+    x <- expressoes[[i]]
+    if (is.call(x) && identical(x[[1]], as.name("<-")) &&
+        identical(x[[2]], as.name("converter_data")) &&
+        is.call(x[[3]]) && identical(x[[3]][[1]], as.name("function"))) {
+      inicio <- referencias[[i]][1]
+      # Leva junto apenas o cabeçalho explicativo imediatamente anterior.
+      while (inicio > 1L && grepl("^\\s*(#|$)", linhas[inicio - 1L]) &&
+             !grepl("^## ---- ", linhas[inicio - 1L])) inicio <- inicio - 1L
+      remover <- c(remover, seq.int(inicio, referencias[[i]][3]))
+    }
+  }
+  if (length(remover)) linhas <- linhas[-unique(remover)]
+  # Atualiza também receitas guardadas quando a função viajava no script.
+  gsub("\\bconverter_data\\s*\\(", "catalyser::converter_datas(", linhas)
+}
+
 # As edições de variáveis já trazem código que parte da base corrente.
 # Cada confirmação deve alimentar a próxima, em vez de apenas imprimir a prévia.
 exportacao_organizacao_anova <- function(base_externa) {
+  if (!is.null(base_externa$codigo_sequencial)) return(base_externa$codigo_sequencial)
   codigo <- trimws(as.character(base_externa$codigo %||% ""))
   if (!nzchar(codigo)) return(character())
   expressoes <- tryCatch(parse(text = codigo), error = function(e) NULL)
@@ -1032,17 +1068,16 @@ exportacao_anova_usa_base_resolvida <- function(base_externa) {
     is.null(exportacao_organizacao_anova(base_externa))
 }
 
-# Preparo em R comum: as escolhas da importação, a trilha e o ramo da análise.
-# Este gerador fica na IDE. O projeto recebe somente as linhas produzidas aqui.
-exportacao_preparo_anova <- function(manifesto, import_info = list(), pipeline = list(),
-                                      registro_bases = list(), base_externa = NULL) {
+# A mesma receita de importação alimenta a ANOVA e o exportador geral.
+exportacao_preparo_importacao <- function(import_info = list()) {
   texto_r <- function(x) encodeString(as.character(x), quote = '"')
   coluna_r <- function(x) if (identical(make.names(x), x)) x else encodeString(x, quote = "`")
   vetor_r <- function(x) paste0("c(", paste(texto_r(x), collapse = ", "), ")")
   linhas <- "dados <- dados_brutos"
   preparo <- import_info$preparo_importacao %||% list()
+  if ("Date" %in% unlist(preparo$tipos)) linhas <- c(preparo_codigo_data(), "", linhas)
   colunas <- preparo$colunas %||% character()
-  if (length(colunas)) linhas <- c(linhas,
+  if (length(colunas) && !identical(colunas, preparo$colunas_originais)) linhas <- c(linhas,
     "# Colunas escolhidas na importação.",
     sprintf("dados <- dados |> dplyr::select(dplyr::all_of(%s))", vetor_r(colunas)))
   for (nome in names(preparo$recodificacoes)) {
@@ -1056,12 +1091,16 @@ exportacao_preparo_anova <- function(manifesto, import_info = list(), pipeline =
   }
   for (nome in names(preparo$tipos)) {
     if (length(colunas) && !nome %in% colunas) next
+    # Evita reconverter colunas que já chegaram no tipo solicitado.
+    original <- preparo$classes_originais[[nome]]
+    if (identical(original, preparo$tipos[[nome]]) &&
+        !length(preparo$recodificacoes[[nome]])) next
     col <- coluna_r(nome)
     expr <- switch(preparo$tipos[[nome]],
       numeric = sprintf('as.numeric(gsub(",", ".", as.character(%s), fixed = TRUE))', col),
       integer = sprintf('as.integer(gsub(",", ".", as.character(%s), fixed = TRUE))', col),
       factor = sprintf("factor(%s)", col), character = sprintf("as.character(%s)", col),
-      logical = sprintf("as.logical(%s)", col), Date = sprintf("as.Date(as.character(%s))", col), NULL)
+      logical = sprintf("as.logical(%s)", col), Date = sprintf("catalyser::converter_datas(%s)", col), NULL)
     if (!is.null(expr)) linhas <- c(linhas, sprintf("dados <- dados |> dplyr::mutate(%s = %s)", col, expr))
   }
   for (nome in names(preparo$filtros_niveis)) {
@@ -1087,6 +1126,13 @@ exportacao_preparo_anova <- function(manifesto, import_info = list(), pipeline =
     if (!identical(nome, novo)) linhas <- c(linhas,
       sprintf("dados <- dados |> dplyr::rename(%s = %s)", coluna_r(novo), coluna_r(nome)))
   }
+  linhas
+}
+
+# Preparo em R comum: as escolhas da importação, a trilha e o ramo da análise.
+exportacao_preparo_anova <- function(manifesto, import_info = list(), pipeline = list(),
+                                      registro_bases = list(), base_externa = NULL) {
+  linhas <- exportacao_preparo_importacao(import_info)
   etapas_codigo <- function(etapas) {
     codigo <- character()
     for (etapa in etapas %||% list()) {
@@ -1107,7 +1153,8 @@ exportacao_preparo_anova <- function(manifesto, import_info = list(), pipeline =
       paste0("# > ", strsplit(base_externa$codigo %||% "", "\n", fixed = TRUE)[[1]])
     )
   } else {
-    linhas <- c(linhas, exportacao_organizacao_anova(base_externa))
+    sequencia <- exportacao_organizacao_anova(base_externa)
+    linhas <- c(linhas, if (length(sequencia)) c("library(dplyr)", "library(tidyr)", sequencia))
   }
   linhas <- c(linhas, etapas_codigo(pipeline), "base_compartilhada <- dados")
   item <- exportacao_execucoes_incluidas(manifesto)[[1]]
@@ -1133,7 +1180,7 @@ exportacao_conferir_preparo_anova <- function(codigo, dados_brutos, dados_analis
   ambiente$dados_brutos <- as.data.frame(dados_brutos)
   ambiente$base_resolvida <- as.data.frame(base_resolvida)
   tryCatch(eval(parse(text = codigo), envir = ambiente), error = function(e) {
-    stop(paste("O preparo da ANOVA não pôde ser reproduzido em R:", conditionMessage(e)), call. = FALSE)
+    stop(paste("O preparo não pôde ser reproduzido em R:", conditionMessage(e)), call. = FALSE)
   })
   iguais <- function(a, b) {
     a <- as.data.frame(a); b <- as.data.frame(b)
@@ -1153,7 +1200,7 @@ exportacao_conferir_preparo_anova <- function(codigo, dados_brutos, dados_analis
   if (identical(item$base_tipo, "derivada")) {
     esperada <- cache_bases[[item$base_id]]$df
     if (is.null(esperada) || !iguais(ambiente$dados, esperada)) {
-      stop("O preparo exportado não reproduziu a base derivada desta ANOVA. Atualize a base e execute a análise novamente.", call. = FALSE)
+      stop("O preparo exportado não reproduziu a base derivada desta análise. Atualize a base e execute a análise novamente.", call. = FALSE)
     }
   }
   invisible(TRUE)
@@ -1183,6 +1230,7 @@ exportacao_modelo_anova <- function(arquivo, manifesto, import_info,
   nome_r <- function(x) if (identical(make.names(x), x)) x else encodeString(x, quote = "`")
   titulo_grafico <- as.character(item$parametros$titulo_grafico %||% "")
   codigo_preparo <- exportacao_preparo_anova(manifesto, import_info, pipeline, registro_bases, base_externa)
+  codigo_preparo <- exportacao_preparo_sem_funcao_data(codigo_preparo)
   usa_base_salva <- exportacao_anova_usa_base_resolvida(base_externa)
   if (usa_base_salva) codigo_preparo <- c(
     'base_resolvida <- as.data.frame(readRDS(here("dados", "processados", "base_resolvida.rds")))',
@@ -1266,7 +1314,8 @@ exportacao_gerar_script <- function(manifesto, nome_projeto = "projeto",
     "",
     exportacao_trecho_importar(import_info),
     "",
-    exportacao_trecho_tratar(pipeline, base_externa),
+    exportacao_preparo_sem_funcao_data(
+      exportacao_trecho_tratar(pipeline, base_externa, import_info = import_info)),
     "",
     exportacao_trecho_bases_projeto(),
     ""
@@ -1684,7 +1733,7 @@ exportacao_leiame_projeto <- function(nome_projeto, import_info = list()) {
     "│",
     "├── R/",
     "│   ├── analise.R             O CÓDIGO, comentado passo a passo: é aqui que se edita",
-    "│   └── funcoes.R             só definições: a ligação entre o script e o relatório",
+    "│   └── funcoes.R             funções de apoio e ligação entre script e relatório",
     "│",
     "├── imagens/                  fotos, esquemas e mapas que NÃO vêm do código (começa vazia)",
     "│",
@@ -1809,12 +1858,23 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }, error = function(e) e)
     if (!is.null(erro_preparo)) {
       tem_estrutura <- nzchar(trimws(as.character(base_externa$codigo %||% "")))
-      if (!tem_estrutura || exportacao_anova_usa_base_resolvida(base_externa)) stop(erro_preparo)
+      if (!tem_estrutura || !is.null(base_externa$codigo_sequencial) ||
+          exportacao_anova_usa_base_resolvida(base_externa)) stop(erro_preparo)
       # Uma edição pode ter partido de uma configuração de importação anterior.
       # Nesse caso usamos a base salva, mantendo a conferência da trilha e do ramo.
       base_externa$usar_snapshot_anova <- TRUE
       codigo <- exportacao_preparo_anova(manifesto, import_info, pipeline, registro_bases, base_externa)
       exportacao_conferir_preparo_anova(codigo, dados_brutos, dados_analise, manifesto, cache_bases, base_resolvida)
+    }
+  } else {
+    # Confere também o exportador geral antes de escrever os arquivos.
+    # Cada ramo parte da compartilhada; nunca reutiliza o resultado do anterior.
+    itens <- exportacao_execucoes_incluidas(manifesto)
+    if (!length(itens)) itens <- list(list(incluir_word = TRUE, base_tipo = "compartilhada"))
+    for (item in itens) {
+      plano <- list(execucoes = list(item))
+      codigo <- exportacao_preparo_anova(plano, import_info, pipeline, registro_bases, base_externa)
+      exportacao_conferir_preparo_anova(codigo, dados_brutos, dados_analise, plano, cache_bases, base_resolvida)
     }
   }
 
@@ -1842,8 +1902,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # Nada de cópias redundantes: o que o projeto sabe reconstruir, ele reconstrói.
   caminho_bruto <- file.path(projeto, "dados", "brutos", exportacao_nome_planilha(import_info))
   origem_excel <- as.character(import_info$datapath %||% "")
-  copiar_original <- exportacao_anova_simples(manifesto) &&
-    identical(import_info$source, "local") &&
+  copiar_original <- identical(import_info$source, "local") &&
     identical(tolower(tools::file_ext(import_info$file_name %||% "")), "xlsx") &&
     nzchar(origem_excel) && file.exists(origem_excel)
   gravou_brutos <- if (copiar_original) {
@@ -1861,9 +1920,8 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     file.path(projeto, "dados", "processados", "base_compartilhada.xlsx"),
     aba = "dados_analise"
   )
-  # A fotografia pós-estrutural só é necessária quando houve Pivotar/Organizar
-  # promovido: é o único trecho que o script não consegue reconstruir sozinho.
-  if (nzchar(trimws(as.character(base_externa$codigo %||% "")))) {
+  # Somente registros legados precisam da fotografia pós-estrutural.
+  if (exportacao_anova_usa_base_resolvida(base_externa)) {
     exportacao_salvar_dataframe(
       base_resolvida, file.path(projeto, "dados", "processados", "base_resolvida.rds")
     )
@@ -1889,6 +1947,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
     file.copy(origem, file.path(projeto, templates[[nome]]), overwrite = TRUE)
   }
+
 
   # No modelo ANOVA, o Render abre o HTML e atualiza o Word na mesma pasta.
   if (exportacao_anova_simples(manifesto)) {
@@ -1990,3 +2049,43 @@ exportacao_empacotar_projeto <- function(file, ...) {
   invisible(file)
 }
 
+
+
+# Idioma e dimensões usados pelas tabelas de preparo; filtros são apenas visuais.
+preparo_idioma_tabela <- function(colunas = NULL) {
+  list(search = "Buscar:", lengthMenu = "Mostrar _MENU_ linhas", zeroRecords = "Nenhuma ocorrência encontrada",
+    emptyTable = "Nenhum dado disponível", infoEmpty = "0 linhas",
+    info = paste0("Mostrando _START_ a _END_ de _TOTAL_ linhas", if (!is.null(colunas)) paste0(" · ", colunas, " colunas")),
+    infoFiltered = "(consulta sobre _MAX_ linhas)",
+    paginate = list(first = "Primeira", previous = "Anterior", "next" = "Próxima", last = "Última"))
+}
+
+preparo_leitura_entrada <- function(info) {
+  q <- function(x) encodeString(as.character(x), quote = '"')
+  arquivo <- info$file_name %||% "dados.xlsx"
+  if (identical(info$source, "package")) {
+    c(sprintf("data(list = %s, package = \"EAPADados\")", q(info$package_dataset)),
+      sprintf("dados_brutos <- as.data.frame(get(%s))", q(info$package_dataset)))
+  } else if (tolower(tools::file_ext(arquivo)) %in% c("csv", "txt", "tsv")) {
+    preparo_leitura_csv(info, "dados_brutos")
+  } else {
+    sprintf("dados_brutos <- as.data.frame(readxl::read_excel(%s, sheet = %s))", q(arquivo), if (is.null(info$excel_sheet)) "1" else q(info$excel_sheet))
+  }
+}
+
+# A aba de importação e a sequência completa usam a mesma leitura.
+preparo_codigo_importacao <- function(info) {
+  paste(c("# Importação — CatalyseR",
+    "# Guarde o arquivo original junto ao script ou ajuste o caminho da leitura.",
+    "", preparo_leitura_entrada(info), "", exportacao_preparo_importacao(info),
+    "", "# Confira dimensões e tipos antes de preparar os dados.", "dim(dados)", "str(dados)"), collapse = "\n")
+}
+
+preparo_codigo_completo <- function(info, pipeline = list(), base_externa = NULL) {
+  leitura <- preparo_leitura_entrada(info)
+  manifesto <- list(execucoes = list(preparo = list(incluir_word = TRUE, base_tipo = "compartilhada")))
+  codigo <- exportacao_preparo_anova(manifesto, info, pipeline, base_externa = base_externa)
+  codigo <- exportacao_preparo_sem_funcao_data(codigo)
+  paste(c("# Preparo completo — CatalyseR", "# Guarde o arquivo original junto ao script ou ajuste o caminho da leitura.",
+    "library(dplyr)", "library(tidyr)", "", leitura, "", codigo, "", "dados_analise <- base_compartilhada"), collapse = "\n")
+}

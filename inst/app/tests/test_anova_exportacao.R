@@ -313,7 +313,7 @@ stopifnot(
   any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
   # Os comentários que explicam a análise passo a passo e a apresentação
   # moram no script; o relatório recebe só o código.
-  any(grepl("a análise passo a passo", script, fixed = TRUE)),
+  any(grepl("A análise passo a passo", script, fixed = TRUE)),
   any(grepl("agora pela função da CatalyseR", script, fixed = TRUE)),
   any(grepl("# 4. Ajustar a ANOVA de um fator.", script, fixed = TRUE)),
   !any(grepl("# 4. Ajustar a ANOVA de um fator.", qmd, fixed = TRUE)),

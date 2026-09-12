@@ -189,13 +189,13 @@ anova_validar_entrada <- function(df, dep_var, ind_var) {
     return(sprintf("A base não contém a(s) coluna(s): %s. Reveja a base escolhida em Base utilizada.",
                    paste(ausentes, collapse = ", ")))
   if (!is.numeric(df[[dep_var]]))
-    return(sprintf("A resposta '%s' precisa ser numérica. Use Criar e Editar Variáveis e Níveis para convertê-la antes da ANOVA.",
+    return(sprintf("A resposta '%s' precisa ser numérica. Em Preparar Base Compartilhada, use Variáveis e categorias para definir o tipo e adicionar a mudança ao preparo antes da ANOVA.",
                    dep_var))
 
   completos <- stats::complete.cases(df[c(dep_var, ind_var)])
   d <- df[completos, , drop = FALSE]
   if (!nrow(d))
-    return("Todas as linhas têm dados faltantes na resposta ou no fator. Trate os ausentes na Trilha de Preparo.")
+    return("Todas as linhas têm dados faltantes na resposta ou no fator. Confira os ausentes no grupo Limpeza de Preparar Base Compartilhada ou no preparo da base derivada escolhida.")
 
   fator <- droplevels(as.factor(d[[ind_var]]))
   if (nlevels(fator) < 2L)

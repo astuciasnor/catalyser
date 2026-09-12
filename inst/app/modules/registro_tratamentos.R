@@ -128,7 +128,21 @@ trat_organizar_aplicar <- function(df, p) {
 
 tratamentos <- list(
   organizar = list(
-    rotulo = function(p) "Organizar variáveis e categorias",
+    rotulo = function(p) {
+      itens <- character()
+      if (length(p$renomear)) itens <- c(itens, paste0("Renomear ",
+        paste(paste(names(p$renomear), "→", unname(p$renomear)), collapse = ", ")))
+      if (length(p$tipos)) itens <- c(itens, paste0("Definir tipos: ",
+        paste(paste(names(p$tipos), "→", unlist(p$tipos, use.names = FALSE)), collapse = ", ")))
+      for (coluna in names(p$recodes)) {
+        mapa <- p$recodes[[coluna]]
+        itens <- c(itens, sprintf("Recodificar %s (%s)", coluna,
+          paste(paste(names(mapa), "→", unname(mapa)), collapse = ", ")))
+      }
+      if (!is.null(p$selecionar)) itens <- c(itens,
+        paste0("Manter variáveis: ", paste(p$selecionar, collapse = ", ")))
+      if (length(itens)) paste(itens, collapse = "; ") else "Organizar variáveis e categorias"
+    },
     validar = function(df, p) {
       tryCatch({ trat_organizar_aplicar(df, p); NULL }, error = function(e) conditionMessage(e))
     },
@@ -142,6 +156,7 @@ tratamentos <- list(
       met <- c(remover = "remover linhas", media = "imputar media",
                mediana = "imputar mediana", moda = "imputar moda",
                constante = "valor constante")[p$metodo]
+      if (identical(p$metodo, "constante")) met <- paste("substituir por", trat_num_txt(p$valor))
       sprintf("Tratar NA de %s (%s)", alvo, met)
     },
     validar = function(df, p) {
@@ -187,11 +202,12 @@ tratamentos <- list(
         moda      = "trat_moda(.)",
         constante = trat_num_txt(p$valor))
       if (identical(p$coluna, "__num__")) {
-        sprintf("dados <- dados |> dplyr::mutate(dplyr::across(dplyr::where(is.numeric), ~ ifelse(is.na(.), %s, .)))", fun)
+        sprintf("dados <- dados |> dplyr::mutate(dplyr::across(dplyr::where(is.numeric), ~ replace(., is.na(.), %s)))", fun)
       } else {
         col <- trat_bt(p$coluna)
-        sprintf("dados <- dados |> dplyr::mutate(%s = ifelse(is.na(%s), %s, %s))",
-                col, col, sub("\\.", col, fun), col)
+        # replace() preserva a classe de datas e fatores, como a execução na IDE.
+        sprintf("dados <- dados |> dplyr::mutate(%s = replace(%s, is.na(%s), %s))",
+                col, col, col, sub("\\.", col, fun))
       }
     }
   ),
@@ -238,8 +254,9 @@ tratamentos <- list(
 
   padronizar = list(
     rotulo = function(p) {
-      met <- c(zscore = "z-score", centralizar = "centralizar",
-               normalizar = "normalizar 0-1")[p$metodo]
+      met <- c(zscore = "z-score: (x − média) ÷ desvio-padrão",
+               centralizar = "x − média",
+               normalizar = "0–1: (x − mínimo) ÷ (máximo − mínimo)")[p$metodo]
       sprintf("Padronizar '%s' (%s) -> %s", p$coluna, met, p$nome)
     },
     validar = function(df, p) {
@@ -377,8 +394,9 @@ tratamentos <- list(
   # ---- Reescalar por prefixo SI (dividir por potencia de dez) -----------------
   reescalar = list(
     rotulo = function(p) {
-      pf <- if (nzchar(p$simbolo %||% "")) p$simbolo else "base"
-      sprintf("Reescalar %s (prefixo %s) -> %s", p$coluna, pf, p$nome)
+      divisor <- format(trat_fator_si(p$simbolo), scientific = FALSE,
+        trim = TRUE, big.mark = ".", decimal.mark = ",")
+      sprintf("Reescalar %s → %s (÷ %s)", p$coluna, p$nome, divisor)
     },
     validar = function(df, p) {
       if (is.null(p$nome) || !nzchar(trimws(p$nome))) return("De um nome a coluna reescalada.")
@@ -536,6 +554,9 @@ gerar_script_preparo <- function(pipeline, info, reg = tratamentos, base_extra =
     if (!is.null(info) && identical(info$source, "package")) {
       leitura <- c("library(EAPADados)", sprintf("data(%s)", info$package_dataset),
                    sprintf("dados <- %s", info$package_dataset))
+      usa_readxl <- FALSE
+    } else if (!is.null(info) && identical(tolower(tools::file_ext(info$file_name)), "csv")) {
+      leitura <- preparo_leitura_csv(info)
       usa_readxl <- FALSE
     } else {
       fn  <- if (!is.null(info)) info$file_name   else "SEU_ARQUIVO.xlsx"

@@ -48,8 +48,15 @@ Obs.: **vírgula decimal não é problema** se a célula for numérica de verdad
 
 ## Datas
 
-- Melhor: **data de verdade do Excel**. Se for texto, use **`AAAA-MM-DD`** (`2026-07-13`).
-- Evite formatos misturados (`15/10/2020`, `Out 15`) e erros como `15/10//2020`.
+- Melhor: **data de verdade do Excel**. Se for texto, use dia-mês-ano ou ano-mês-dia e escolha o tipo **Data / Date** na CatalyseR. Barras, traços e pontos são aceitos: `13/07/2026`, `13-07-2026`, `2026-07-13`, `2026/07/13` ou `13.07.2026`. Dia/mês sem zero à esquerda também funciona (`1/7/2026`); prefira ano com quatro dígitos. Valores não reconhecidos são informados para correção na planilha original.
+- A barra é interpretada como dia/mês/ano. Mantenha um formato consistente na planilha. Datas inválidas impedem a conversão da coluna e são informadas para correção; números seriais do Excel devem ser formatados como datas no próprio Excel.
+
+## CSV
+
+- Escolha separadamente o delimitador das colunas e o separador decimal.
+- Exemplo: colunas separadas por `;` e números como `12,5` → **Ponto e Vírgula** nas colunas e **Vírgula** no decimal.
+- Exemplo: colunas separadas por `,` e números como `12.5` → **Vírgula** nas colunas e **Ponto** no decimal.
+- Confira a prévia antes de preparar. Se a tabela inteira aparecer em uma coluna, revise o delimitador. Se os números aparecerem como texto, confira o decimal e possíveis letras misturadas aos valores.
 
 ## A aba inteira
 
@@ -60,10 +67,10 @@ Obs.: **vírgula decimal não é problema** se a célula for numérica de verdad
 
 ## O que a CatalyseR faz por você (não precisa fazer na mão)
 
-- **Nomes:** você pode manter `Comprimento total (cm)`; ela cria o nome técnico interno (`comprimento_total_cm`) e mostra o original nos resultados.
-- Retira espaços acidentais; remove linhas/colunas vazias; detecta nomes repetidos; sugere tipos; mostra categorias e ausentes.
-- Com sua confirmação: converte texto→número/data, une categorias parecidas, tipa fatores, ordena níveis, converte unidades, **pivota (long ↔ wide)**, separa/une colunas, trata duplicatas.
-- **Nunca** faz nada silencioso perigoso: não exclui *outliers*, não imputa, não vira zero em ausente, não altera valores originais.
+- **Nomes:** os nomes podem ser ajustados em Renomear variáveis. Não há padronização automática com `janitor`; prepare cabeçalhos únicos e não vazios. O leitor de Excel pode reparar cabeçalhos inválidos ao abrir o arquivo, por isso confira os nomes na prévia.
+- Reconhece os tipos de entrada e permite conferir dados, categorias e ausentes. Linhas/colunas vazias e códigos como `-` ou `n/d` devem ser organizados previamente na planilha.
+- Com sua escolha: padroniza espaços e caixa do texto, recodifica categorias, define tipos, reescala unidades, **pivota (long ↔ wide)**, separa colunas e trata duplicatas.
+- Exclusão de linhas e preenchimento de ausentes são ações escolhidas pelo pesquisador. A IDE não decide quais valores extremos são erros e não transforma zero em ausente automaticamente. O arquivo original permanece preservado.
 - Colunas **calculadas**: prefira criá-las **na CatalyseR** (ela preserva o original e registra a fórmula).
 
 > Sobre **formato longo × largo**: não se preocupe em escolher. Entregue estruturalmente coerente — a CatalyseR deriva as bases certas (`base_pca`, `base_agrupamento`, …) sem tocar na sua planilha original.

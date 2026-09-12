@@ -2,7 +2,7 @@
 # -----------------------------------------------------------------------------
 # A ANOVA passou a usar o mesmo contrato das demais análises homologadas:
 #   Base Compartilhada ou Base Derivada -> Executar análise -> Adicionar aos
-#   resultados -> Comunicação -> Word -> Projeto R.
+#   resultados -> Comunicação -> Projeto R -> Render no RStudio (HTML e Word).
 # O cálculo, a arrumação e a narrativa vivem em templates/funcoes_anova.R
 # (fonte canônica). Este módulo é só interface e estado.
 
@@ -46,9 +46,10 @@ mod_anova_ui <- function(id) {
             div(
               class = "alert alert-light border small mb-0",
               icon("file-export"), " ",
-              "O Word e o Projeto R da ANOVA saem de ",
+              "Baixe o Projeto R em ",
               strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
-              strong("Adicionar aos resultados"), " e escolha lá os componentes do relatório."
+              strong("Adicionar aos resultados"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
             )
           )
         )

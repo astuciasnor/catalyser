@@ -10,12 +10,9 @@ library(shiny)
 library(bslib)
 library(DT)
 
-mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
+mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE, separar_controles = FALSE) {
   ns <- NS(id)
-  controles <- card(
-          card_header("Adicionar etapa do preparo"),
-          card_body(
-            style = "padding: 12px 15px;",
+  selecao <- tagList(
             tags$style(HTML(sprintf(
               "#%s .selectize-dropdown-content { max-height: min(30rem, calc(100vh - 15rem)); }",
               ns("tipo_wrapper")
@@ -34,11 +31,40 @@ mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
                 ),
                 options = list(maxOptions = 10)
               )
-            ),
-
+            )
+  )
+  # Identificação das colunas fica junto da escolha da ação.
+  colunas <- tagList(
+    conditionalPanel(condition = sprintf("input['%s'] == 'tratar_na'", ns("tipo")),
+      selectInput(ns("na_col"), "Coluna:", choices = NULL)),
+    conditionalPanel(condition = sprintf("input['%s'] == 'dicotomizar'", ns("tipo")),
+      selectInput(ns("dic_col"), "Coluna de origem:", choices = NULL),
+      textInput(ns("dic_nome"), "Nome da variável 0/1:", value = "")),
+    conditionalPanel(condition = sprintf("input['%s'] == 'padronizar'", ns("tipo")),
+      selectInput(ns("pad_col"), "Coluna numérica:", choices = NULL),
+      textInput(ns("pad_nome"), "Nome da coluna nova:", value = "")),
+    conditionalPanel(condition = sprintf("input['%s'] == 'binning'", ns("tipo")),
+      selectInput(ns("bin_col"), "Coluna numérica:", choices = NULL),
+      textInput(ns("bin_nome"), "Nome da coluna de classes:", value = "")),
+    conditionalPanel(condition = sprintf("input['%s'] == 'remover_duplicatas'", ns("tipo")),
+      selectizeInput(ns("dup_cols"), "Colunas-chave (vazio = linha inteira):",
+        choices = NULL, multiple = TRUE,
+        options = list(placeholder = "vazio = linhas idênticas", plugins = list("remove_button")))),
+    conditionalPanel(condition = sprintf("input['%s'] == 'padronizar_texto'", ns("tipo")),
+      selectInput(ns("txt_col"), "Coluna de texto:", choices = NULL)),
+    conditionalPanel(condition = sprintf("input['%s'] == 'calcular'", ns("tipo")),
+      textInput(ns("calc_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"),
+      conditionalPanel(condition = sprintf("input['%s'] == 'guiado'", ns("calc_modo")),
+        selectInput(ns("calc_a"), "Variável A:", NULL),
+        conditionalPanel(condition = sprintf("input['%s'] == 'coluna'", ns("calc_b_tipo")),
+          selectInput(ns("calc_b_col"), "Variável B:", NULL)))),
+    conditionalPanel(condition = sprintf("input['%s'] == 'reescalar'", ns("tipo")),
+      selectInput(ns("re_col"), "Variável numérica:", NULL),
+      textInput(ns("re_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"))
+  )
+  parametros <- tagList(
             conditionalPanel(
               condition = sprintf("input['%s'] == 'tratar_na'", ns("tipo")),
-              selectInput(ns("na_col"), "Coluna:", choices = NULL),
               radioButtons(ns("na_metodo"), "O que fazer com os NA?",
                 choices = c("Remover as linhas" = "remover",
                             "Imputar a média" = "media",
@@ -55,7 +81,6 @@ mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'dicotomizar'", ns("tipo")),
-              selectInput(ns("dic_col"), "Coluna de origem:", choices = NULL),
               radioButtons(ns("dic_origem"), "Como definir o 1?",
                 choices = c("Por limiar (numérica)" = "numerica",
                             "Por níveis (categórica)" = "categorica"),
@@ -73,45 +98,35 @@ mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
                                choices = NULL, multiple = TRUE,
                                options = list(placeholder = "escolha um ou mais...",
                                               plugins = list("remove_button")))
-              ),
-              textInput(ns("dic_nome"), "Nome da variável 0/1:", value = "")
+              )
             ),
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'padronizar'", ns("tipo")),
-              selectInput(ns("pad_col"), "Coluna numérica:", choices = NULL),
               radioButtons(ns("pad_metodo"), "Método:",
                 choices = c("Escore z (centralizar e dividir pelo desvio)" = "zscore",
                             "Centralizar (subtrair a média)" = "centralizar",
                             "Normalizar 0-1 (min-máx)" = "normalizar"),
-                selected = "zscore"),
-              textInput(ns("pad_nome"), "Nome da coluna nova:", value = "")
+                selected = "zscore")
             ),
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'binning'", ns("tipo")),
-              selectInput(ns("bin_col"), "Coluna numérica:", choices = NULL),
               div(class = "d-flex gap-2",
                 numericInput(ns("bin_n"), "Nº de classes:", value = 4, min = 2, max = 20, step = 1),
                 radioButtons(ns("bin_metodo"), "Cortes:",
                   choices = c("Amplitude igual" = "igual", "Por quantis" = "quantil"),
                   selected = "igual")),
-              textInput(ns("bin_nome"), "Nome da coluna de classes:", value = ""),
               helpText("Ex.: classes de comprimento para avaliação de estoque.")
             ),
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'remover_duplicatas'", ns("tipo")),
-              selectizeInput(ns("dup_cols"), "Colunas-chave (vazio = linha inteira):",
-                             choices = NULL, multiple = TRUE,
-                             options = list(placeholder = "vazio = linhas idênticas",
-                                            plugins = list("remove_button"))),
               helpText("Mantém a 1ª ocorrência de cada combinação.")
             ),
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'padronizar_texto'", ns("tipo")),
-              selectInput(ns("txt_col"), "Coluna de texto:", choices = NULL),
               radioButtons(ns("txt_metodo"), "Ação:",
                 choices = c("Remover espaços extras" = "squish",
                             "minúsculas" = "minusculas",
@@ -123,15 +138,12 @@ mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
 
             conditionalPanel(
               condition = sprintf("input['%s'] == 'calcular'", ns("tipo")),
-              textInput(ns("calc_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"),
               radioButtons(ns("calc_modo"), "Como calcular:", c("Guiado" = "guiado", "Expressão R" = "livre"), inline = TRUE),
               conditionalPanel(condition = sprintf("input['%s'] == 'guiado'", ns("calc_modo")),
                 selectInput(ns("calc_funcao"), "Função:", calc_funcoes_choices),
-                selectInput(ns("calc_a"), "Variável A:", NULL),
                 selectInput(ns("calc_op"), "Operação:", calc_ops_choices),
                 radioButtons(ns("calc_b_tipo"), "Combinar com:", c("Número" = "numero", "Variável" = "coluna"), inline = TRUE),
-                conditionalPanel(condition = sprintf("input['%s'] == 'numero'", ns("calc_b_tipo")), numericInput(ns("calc_b_num"), "Número:", 1)),
-                conditionalPanel(condition = sprintf("input['%s'] == 'coluna'", ns("calc_b_tipo")), selectInput(ns("calc_b_col"), "Variável B:", NULL))
+                conditionalPanel(condition = sprintf("input['%s'] == 'numero'", ns("calc_b_tipo")), numericInput(ns("calc_b_num"), "Número:", 1))
               ),
               conditionalPanel(condition = sprintf("input['%s'] == 'livre'", ns("calc_modo")),
                 textInput(ns("calc_expr"), "Expressão:", placeholder = "peso_g / comprimento_cm")),
@@ -139,17 +151,18 @@ mod_tratar_ui <- function(id, checagem_ui = NULL, somente_controles = FALSE) {
             ),
             conditionalPanel(
               condition = sprintf("input['%s'] == 'reescalar'", ns("tipo")),
-              selectInput(ns("re_col"), "Variável numérica:", NULL),
               radioButtons(ns("re_modo"), "Prefixo:", c("Automático" = "auto", "Escolher" = "manual"), inline = TRUE),
               conditionalPanel(condition = sprintf("input['%s'] == 'manual'", ns("re_modo")),
                 selectInput(ns("re_prefixo"), "Prefixo:", calc_prefixo_choices(), selected = "k")),
-              textInput(ns("re_nome"), "Nome da nova variável:", placeholder = "Ex.: peso_kg"),
               textOutput(ns("re_exemplo"))
-            ),
-            actionButton(ns("add_etapa"), "Adicionar etapa do preparo",
-                         icon = icon("plus"), class = "btn-primary w-100 mt-2")
-          )
-        )
+            )
+  )
+  adicionar <- actionButton(ns("add_etapa"), "Adicionar etapa do preparo",
+    icon = icon("plus"), class = "btn-primary mt-2")
+  # Permite distribuir os mesmos controles na aba de preparo, sem duplicar entradas.
+  if (isTRUE(separar_controles)) return(list(selecao = selecao, colunas = colunas, parametros = parametros, adicionar = adicionar))
+  controles <- card(card_header("Adicionar etapa do preparo"),
+    card_body(style = "padding: 12px 15px;", selecao, colunas, parametros, adicionar))
   if (isTRUE(somente_controles)) return(controles)
 
   conteudo_tratamentos <- layout_columns(
@@ -400,14 +413,25 @@ mod_tratar_server <- function(id, base_rv, replay_rv, pipeline_rv, import_info, 
       ch <- if (length(ps)) stats::setNames(
               as.character(seq_along(ps)),
               vapply(seq_along(ps), function(i)
-                sprintf("%d. %s", i, tratamentos[[ps[[i]]$tipo]]$rotulo(ps[[i]]$params)),
+                sprintf("%d. %s%s", i, if (isTRUE(ps[[i]]$ativa)) "" else "[Inativa] ", tratamentos[[ps[[i]]$tipo]]$rotulo(ps[[i]]$params)),
                 character(1))) else character(0)
       updateSelectInput(session, "etapa_sel", choices = ch,
                         selected = isolate(input$etapa_sel))
     }, ignoreNULL = FALSE)
 
     output$trilha_display <- renderUI({
-      HTML(desenhar_trilha_svg(pipeline_rv(), resultado()$erros, base_label = base_lbl()))
+      etapas <- pipeline_rv(); erros <- resultado()$erros
+      tagList(
+        div(class = "preparo-origem", strong(base_lbl())),
+        if (!length(etapas)) p(class = "small text-muted mt-2", "Nenhuma etapa adicionada.") else
+          tags$ol(class = "preparo-etapas", lapply(seq_along(etapas), function(i) {
+            et <- etapas[[i]]
+            tags$li(class = if (isTRUE(et$ativa)) "ativa" else "inativa",
+              tratamentos[[et$tipo]]$rotulo(et$params),
+              span(class = "badge text-bg-light border ms-2", if (isTRUE(et$ativa)) "Ativa" else "Inativa"),
+              if (length(erros[[as.character(i)]])) div(class = "text-danger", erros[[as.character(i)]]))
+          }))
+      )
     })
 
     output$preview_antes <- renderDT({

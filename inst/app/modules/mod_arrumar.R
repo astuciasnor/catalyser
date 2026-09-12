@@ -134,9 +134,32 @@ arrumar_nomes_padrao <- function(n) paste(paste0("parte", seq_len(max(2L, n))), 
 
 # --- Suporte à TIPAGEM (definir o tipo de cada coluna) -----------------------
 
+# Datas da v1: a barra significa dia/mês/ano; o hífen, ano-mês-dia.
+# A conversão é a mesma na IDE e no script exportado, sem adivinhar mês/dia.
+# O código explicado mora no pacote. Em desenvolvimento, usa o fonte local;
+# no aplicativo instalado, usa a função pública da mesma instalação.
+preparo_codigo_data <- function() {
+  "# Datas: use catalyser::converter_datas(); ajuda em ?catalyser::converter_datas."
+}
+preparo_converter_data <- local({
+  if (file.exists("../../R/converter_datas.R")) {
+    ambiente <- new.env(parent = baseenv())
+    sys.source("../../R/converter_datas.R", envir = ambiente)
+    ambiente$converter_datas
+  } else getExportedValue("catalyser", "converter_datas")
+})
+
+# Conserva no script as escolhas de leitura usadas na tela.
+preparo_leitura_csv <- function(info, objeto = "dados") {
+  q <- function(x) encodeString(as.character(x), quote = '"')
+  sprintf("%s <- read.csv(%s, header = %s, sep = %s, dec = %s, check.names = FALSE, stringsAsFactors = FALSE)",
+    objeto, q(info$file_name), if (isFALSE(info$csv_header)) "FALSE" else "TRUE",
+    q(info$csv_sep %||% ","), q(info$csv_dec %||% "."))
+}
+
 # Tokens de tipo -> função de conversão (para o script .R).
 arrumar_tipo_fun <- c(texto = "as.character", numero = "as.numeric",
-                      inteiro = "as.integer", fator = "as.factor", data = "as.Date")
+                      inteiro = "as.integer", fator = "as.factor", data = "catalyser::converter_datas")
 
 # Rótulos amigáveis para o seletor de tipo.
 arrumar_tipo_choices <- c("Texto" = "texto", "Número" = "numero",
@@ -145,7 +168,7 @@ arrumar_tipo_choices <- c("Texto" = "texto", "Número" = "numero",
 # Detecta o tipo atual de um vetor (para pré-selecionar no modal).
 arrumar_detectar_tipo <- function(x) {
   if (is.factor(x)) "fator"
-  else if (inherits(x, "Date")) "data"
+  else if (inherits(x, "Date") || inherits(x, "POSIXt")) "data"
   else if (is.integer(x)) "inteiro"
   else if (is.numeric(x)) "numero"
   else "texto"
@@ -153,6 +176,7 @@ arrumar_detectar_tipo <- function(x) {
 
 # Converte um vetor para o tipo escolhido (defensivo: erro -> mantém original).
 arrumar_converter_tipo <- function(x, tipo) {
+  if (identical(tipo, "data")) return(preparo_converter_data(x))
   tryCatch(switch(tipo,
     texto   = as.character(x),
     numero  = as.numeric(as.character(x)),
@@ -352,13 +376,13 @@ arrumar_bt <- function(x) {
 # nele mesmo (encadeável). `n` é o número da etapa (para o comentário).
 arrumar_codigo_transformacao <- function(cfg, n, esc, q) {
   if (identical(cfg$modo, "alargar")) {
-    c(sprintf("# Etapa %d: alargar (longo -> largo)", n),
+    c(sprintf("# Etapa %d: Alargar %s em colunas; valores de %s (longo → largo)", n, cfg$names_from, cfg$values_from),
       "dados_arrumados <- dados_arrumados |>",
       sprintf("  pivot_wider(names_from = %s, values_from = %s)",
               arrumar_bt(cfg$names_from), arrumar_bt(cfg$values_from)))
   } else if (identical(cfg$modo, "separar")) {
     if (identical(cfg$metodo, "delim")) {
-      c(sprintf("# Etapa %d: separar '%s' pelo delimitador '%s'", n, cfg$col_separar, cfg$delim),
+      c(sprintf("# Etapa %d: Separar %s → %s (%s a coluna %s; delimitador '%s')", n, cfg$col_separar, paste(cfg$novas, collapse = " e "), if (isTRUE(cfg$manter_original)) "manteve" else "removeu", cfg$col_separar, cfg$delim),
         "dados_arrumados <- dados_arrumados |>",
         "  separate_wider_delim(",
         sprintf("    cols = %s,", arrumar_bt(cfg$col_separar)),
@@ -367,7 +391,7 @@ arrumar_codigo_transformacao <- function(cfg, n, esc, q) {
         sprintf("    cols_remove = %s", if (isTRUE(cfg$manter_original)) "FALSE" else "TRUE"),
         "  )")
     } else {
-      c(sprintf("# Etapa %d: separar '%s' por regex", n, cfg$col_separar),
+      c(sprintf("# Etapa %d: Separar %s → %s (%s a coluna %s; expressão regular)", n, cfg$col_separar, paste(cfg$novas, collapse = " e "), if (isTRUE(cfg$manter_original)) "manteve" else "removeu", cfg$col_separar),
         "dados_arrumados <- dados_arrumados |>",
         "  extract(",
         sprintf("    col = %s,", arrumar_bt(cfg$col_separar)),
@@ -382,7 +406,7 @@ arrumar_codigo_transformacao <- function(cfg, n, esc, q) {
     else
       sprintf('    names_pattern = "%s",', esc(cfg$regex))
     linhas <- c(
-      sprintf("# Etapa %d: empilhar colunas largas (largo -> longo)", n),
+      sprintf("# Etapa %d: Empilhar %s → %s; valores em %s (largo → longo)", n, paste(cfg$cols_medida, collapse = ", "), paste(cfg$novas, collapse = " e "), cfg$values_to),
       "cols_medida <- c(",
       paste0("  ", q(cfg$cols_medida)),
       ")",
@@ -419,6 +443,9 @@ arrumar_gerar_codigo <- function(passos, info, renomear = character(0),
     leitura <- c("library(EAPADados)",
                  sprintf("data(%s)", info$package_dataset),
                  sprintf("dados_largo <- %s", info$package_dataset))
+    usa_readxl <- FALSE
+  } else if (!is.null(info) && identical(tolower(tools::file_ext(info$file_name)), "csv")) {
+    leitura <- preparo_leitura_csv(info, "dados_largo")
     usa_readxl <- FALSE
   } else {
     fn  <- if (!is.null(info)) info$file_name   else "SEU_ARQUIVO.xlsx"
@@ -467,6 +494,7 @@ arrumar_gerar_codigo <- function(passos, info, renomear = character(0),
     linhas <- c(linhas, "  )")
   }
   if (length(tipos)) {
+    if ("data" %in% unlist(tipos)) linhas <- c(linhas, "", preparo_codigo_data())
     cols <- names(tipos)
     pares <- vapply(seq_along(cols), function(i) {
       f <- arrumar_tipo_fun[[ tipos[[cols[i]]] ]]
@@ -488,9 +516,28 @@ arrumar_gerar_codigo <- function(passos, info, renomear = character(0),
   paste(linhas, collapse = "\n")
 }
 
+arrumar_codigo_etapas <- function(codigo) {
+  linhas <- strsplit(codigo, "\n", fixed = TRUE)[[1]]
+  inicio <- grep("^# Etapa [0-9]+:", linhas)
+  if (!length(inicio)) return(character())
+  linhas <- linhas[min(inicio):length(linhas)]
+  linhas[trimws(linhas) != "print(dados_arrumados)"]
+}
+
 # --- UI ----------------------------------------------------------------------
 
 mod_arrumar_ui <- function(id, modo_fixo = NULL) {
+  # Abre a lista no lado com mais espaço, sem esconder opções no rodapé.
+  opcoes_dropdown <- list(onDropdownOpen = I("function(dropdown) {
+    var campo = this.$control[0].getBoundingClientRect();
+    var topo = document.querySelector('.navbar');
+    var limite = topo ? Math.max(0, topo.getBoundingClientRect().bottom) : 0;
+    var acima = Math.max(0, campo.top - limite - 12);
+    var abaixo = Math.max(0, window.innerHeight - campo.bottom - 12);
+    var subir = abaixo < 280 && acima > abaixo;
+    dropdown.toggleClass('arrumar-dropdown-acima', subir);
+    this.$dropdown_content.css('max-height', Math.min(280, subir ? acima : abaixo) + 'px');
+  }"))
   ns <- NS(id)
   combinado   <- is.null(modo_fixo)
   mostrar_emp <- combinado || identical(modo_fixo, "empilhar")
@@ -510,13 +557,9 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
   else if (identical(modo_fixo, "empilhar")) { n_grp <- 1L; n_regex <- 2L; n_saida <- 3L }
   else { n_grp <- 1L; n_regex <- 2L; n_saida <- NA_integer_ }
 
-  tagList(
-    layout_columns(
-      col_widths = c(1, 1, 1),
-      style = "grid-template-columns: 3fr 6.5fr 2.5fr !important;",
-
+  controles <- div(class = "arrumar-controles",
       # COLUNA 1: CONFIGURAÇÃO
-      div(
+      div(class = "arrumar-escolhas",
         if (combinado) card(
           card_header("1. O que fazer?"),
           card_body(
@@ -534,8 +577,8 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
           card_header("1. Alargar dados"),
           card_body(
             style = "padding: 12px 15px;",
-            selectInput(ns("wider_names2"), "Coluna que vira novas colunas (names_from):", choices = NULL),
-            selectInput(ns("wider_values"), "Coluna com os valores (values_from):", choices = NULL),
+            selectizeInput(ns("wider_names2"), "Coluna que vira novas colunas (names_from):", choices = NULL, options = opcoes_dropdown),
+            selectizeInput(ns("wider_values"), "Coluna com os valores (values_from):", choices = NULL, options = opcoes_dropdown),
             helpText("Espalha os níveis da primeira coluna em novas colunas, preenchidas pelos valores da segunda."),
             div(
               class = "alert alert-light border",
@@ -555,8 +598,9 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
             helpText("Sugere como 'medida' colunas que começam com 4 dígitos (ex.: '2025 - ...')."),
             selectizeInput(ns("cols_medida"), "Colunas a empilhar:",
                            choices = NULL, multiple = TRUE,
-                           options = list(placeholder = "clique para escolher…",
-                                          plugins = list("remove_button"))),
+                           options = c(opcoes_dropdown, list(placeholder = "Digite para buscar e selecionar…",
+                                          closeAfterSelect = FALSE,
+                                          plugins = list("remove_button")))),
             div(style = "font-size: 0.78rem; color: #555;",
                 strong("Identificadores (automático): "),
                 textOutput(ns("cols_id_preview"), inline = TRUE))
@@ -568,7 +612,7 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
           card_header(sprintf("%d. Coluna a separar", n_grp)),
           card_body(
             style = "padding: 12px 15px;",
-            selectInput(ns("col_separar"), "Coluna a quebrar:", choices = NULL),
+            selectizeInput(ns("col_separar"), "Coluna a quebrar:", choices = NULL, options = opcoes_dropdown),
             checkboxInput(ns("manter_original"), "Manter a coluna original", value = FALSE),
             helpText("As partes dos VALORES desta coluna viram novas colunas.")
           )
@@ -590,7 +634,7 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
               actionButton(ns("auto_detectar_sep"), "Detectar separador automaticamente",
                            icon = icon("wand-magic-sparkles"),
                            class = "btn-outline-primary btn-sm w-100 mb-2"),
-              selectInput(ns("delim_comum"), "Separador:",
+              selectizeInput(ns("delim_comum"), "Separador:", options = opcoes_dropdown,
                 choices = c("Underscore  _"                = "_",
                             "Hífen  -"                     = "-",
                             "Hífen entre espaços  ' - '"   = " - ",
@@ -601,16 +645,13 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                             "Outro (digitar)…"             = "__custom__")),
               conditionalPanel(
                 condition = sprintf("input['%s'] == '__custom__'", ns("delim_comum")),
-                textInput(ns("delim_custom"), "Digite o separador:", value = "")),
-              numericInput(ns("n_cols"), "Número de colunas a criar:",
-                           value = 2, min = 2, max = 12, step = 1),
-              helpText("A IDE corta os valores no separador; cada pedaço vira uma coluna.")
+                textInput(ns("delim_custom"), "Digite o separador:", value = ""))
             ),
 
             # --- Método REGEX (avançado) ---
             conditionalPanel(
               condition = sprintf("input['%s'] == 'regex'", ns("metodo")),
-              selectInput(ns("regex_preset"),
+              selectizeInput(ns("regex_preset"), options = opcoes_dropdown,
                 label = tagList(
                   "Padrão de extração ",
                   actionLink(ns("ajuda_regex"), label = NULL, icon = icon("circle-question"),
@@ -623,12 +664,29 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                 condition = sprintf("input['%s'] == 'custom'", ns("regex_preset")),
                 textInput(ns("regex"), "Regex (cada parêntese vira uma coluna):",
                           value = "^(\\d{4}) - (.*)$"))
-            ),
+            )
+          )
+        )),
 
+        tags$details(tags$summary("Como funciona"),
+          p(if (mostrar_wider) "Escolha os nomes e valores que formarão as novas colunas."
+            else if (mostrar_emp) "Escolha as colunas de medida, separe seus cabeçalhos e dê nomes às novas colunas."
+            else "Escolha a coluna e o separador. Cada parte do valor vira uma nova coluna."),
+          p("Aplique, confira o resultado e adicione a mudança à Base Compartilhada."))
+      ),
+      div(class = "arrumar-parametros",
+        op_emp(conditionalPanel(
+          condition = sprintf("input['%s'] == 'delim'", ns("metodo")),
+          card(card_header(sprintf("%d. Quantidade de colunas", n_regex + 1L)), card_body(
+              numericInput(ns("n_cols"), "Número de colunas a criar:",
+                           value = 2, min = 2, max = 12, step = 1)
+          ))
+        )),
+        op_emp(card(card_header(sprintf("%d. Nomes das novas colunas", n_regex + 2L)), card_body(
             textInput(
               ns("novas_cols"),
               if (identical(modo_fixo, "empilhar")) {
-                "Nomes das colunas que descrevem os cabeçalhos (na ordem):"
+                "Nomes para as partes dos cabeçalhos (na ordem):"
               } else {
                 "Nomes das colunas novas (na ordem):"
               },
@@ -655,14 +713,9 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                 "Nome da coluna que receberá os valores:",
                 value = "captura_t"
               ),
-              helpText(
-                "Use um nome diferente dos anteriores. Ex.: ano, medida e captura_t."
-              ),
               checkboxInput(ns("como_numero"), "Converter valores para número", value = TRUE)
             ))
-          )
-        )),
-
+        ))),
         # Empilhar sempre gera formato longo; pivot_wider() vive na sub-aba
         # "Alargar Dados" e pode ser aplicado como a mudança seguinte.
 
@@ -673,81 +726,48 @@ mod_arrumar_ui <- function(id, modo_fixo = NULL) {
                        icon = icon("rotate-left"), class = "btn-outline-secondary btn-sm w-100"),
           uiOutput(ns("passos_indicador"), inline = TRUE)),
         helpText("As etapas se acumulam: você separa uma coluna, depois outra, e assim por diante. 'Desfazer' remove a última.")
-      ),
-
-      # COLUNA 2: PRÉVIA + SCRIPT
-      navset_card_tab(
-        nav_panel(
-          title = "Resultado", icon = icon("table"),
-          card_body(style = "padding: 10px 15px;", DTOutput(ns("preview_depois")))
-        ),
-        nav_panel(
-          title = "Original", icon = icon("table-list"),
-          card_body(style = "padding: 10px 15px;", DTOutput(ns("preview_antes")))
-        ),
-        nav_panel(
-          title = "Script gerado", icon = icon("code"),
-          card_body(style = "padding: 10px 15px;",
-            tags$pre(style = "white-space: pre-wrap; font-size: 0.82rem;",
-                     verbatimTextOutput(ns("script_preview"))))
-        )
-      ),
-
-      # COLUNA 3: STATUS / DOWNLOAD
-      div(
+      )
+  )
+  div(class = "arrumar-estudio",
+    div(class = "arrumar-downloads",
+      downloadButton(ns("baixar_script"), "Baixar script .R",
+                     class = "btn-outline-secondary btn-sm w-100"),
+      downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
+                     class = "btn-outline-primary btn-sm w-100")),
+    navset_tab(
+      id = ns("consulta"), selected = "resultado",
+      header = controles,
+      footer = div(class = "arrumar-exportar",
         card(
-          card_header("Exportar"),
           card_body(
             style = "padding: 12px 15px;",
             uiOutput(ns("status_indicador")),
-            hr(style = "margin: 10px 0;"),
-            downloadButton(ns("baixar_script"), "Baixar script .R",
-                           class = "btn-outline-secondary btn-sm w-100 mb-2"),
-            downloadButton(ns("baixar_dados"), "Baixar dados arrumados (.xlsx)",
-                           class = "btn-outline-primary btn-sm w-100 mb-2"),
-            hr(style = "margin: 10px 0;"),
             actionButton(ns("usar_analises"), "Adicionar Mudança à Trilha da Base Compartilhada",
-                         icon = icon("share-from-square"), class = "btn-primary w-100"),
-            helpText("A prévia passa a compor a Base Compartilhada e seu código é preservado na trilha de preparo.")
-          )
-        ),
-        card(
-          card_header("Como funciona"),
-          card_body(
-            style = "padding: 12px 15px; font-size: 0.8rem; line-height: 1.4;",
-            if (mostrar_emp) tagList(
-              tags$p(style = "margin: 0 0 6px;", strong("Empilhar"), " (metadados no nome da coluna):"),
-              tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
-                tags$li("Escolha (ou detecte) as colunas de medida."),
-                tags$li("Separe o nome por delimitador (ou regex) em ano/métrica."),
-                tags$li("Confira o formato longo; para o inverso, use a sub-aba Alargar Dados."))),
-            if (mostrar_wider) tagList(
-              tags$p(style = "margin: 0 0 6px;", strong("Alargar"), " (longo → largo):"),
-              tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
-                tags$li("Escolha a coluna que contém os nomes futuros."),
-                tags$li("Escolha a coluna que contém os valores."),
-                tags$li("Aplique e confira a nova estrutura."))),
-            if (mostrar_sep) tagList(
-              tags$p(style = "margin: 0 0 6px;", strong("Separar"), " (metadados dentro de uma coluna):"),
-              tags$ol(style = "padding-left: 16px; margin: 0 0 8px;",
-                tags$li("Escolha a coluna a quebrar."),
-                tags$li("Detecte/escolha o separador; cada pedaço vira uma coluna."))),
-            tags$p(
-              style = "margin: 0;",
-              "Depois de aplicar à Base Compartilhada, use ",
-              strong("Criar e Editar Variáveis e Níveis"),
-              " para selecionar, renomear, tipar ou recodificar."
-            )
+                         icon = icon("share-from-square"), class = "btn-primary w-100 arrumar-incorporar", disabled = "disabled"),
+            uiOutput(ns("estado_incorporacao"))
           )
         )
-      )
+      ),
+        nav_panel(
+          title = "Resultado", value = "resultado", icon = icon("table"),
+          card_body(style = "padding: 10px 15px;", DTOutput(ns("preview_depois")))
+        ),
+        nav_panel(
+          title = "Original", value = "original", icon = icon("table-list"),
+          card_body(style = "padding: 10px 15px;", DTOutput(ns("preview_antes")))
+        ),
+        nav_panel(
+          title = "Código R", value = "codigo", icon = icon("code"),
+          card_body(class = "arrumar-codigo", style = "padding: 10px 15px;",
+            verbatimTextOutput(ns("script_preview")))
+        )
     )
   )
 }
 
 # --- SERVER ------------------------------------------------------------------
 
-mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_usar = NULL) {
+mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_usar = NULL, base_externa_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -762,6 +782,8 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
 
     resultado_rv <- reactiveVal(NULL)                 # resultado do pivot (sem renomear)
     codigo_rv    <- reactiveVal("# Configure à esquerda e clique em 'Aplicar transformação'.")
+    exportacao_rv <- reactiveVal(NULL) # última saída confirmada, até mudar a origem
+    promocao_rv <- reactiveVal(NULL)
     cfg_rv       <- reactiveVal(NULL)                  # última config aplicada
     renomear_rv  <- reactiveVal(character(0))          # mapa nome_antigo -> nome_novo
     rn_cols      <- reactiveVal(character(0))          # ordem das colunas no modal
@@ -789,7 +811,12 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
     }
 
     # Popular seletores de coluna quando os dados chegam (reinicia tudo)
-    observeEvent(base_data(), {
+    observeEvent(list(base_data(), import_info()), {
+      promovida <- promocao_rv()
+      propria <- !is.null(promovida) && identical(base_data(), promovida$df) &&
+        identical(import_info(), promovida$info)
+      if (!propria) exportacao_rv(NULL)
+      promocao_rv(NULL)
       atualizar_seletores(base_data())
       resultado_rv(NULL)
       passos_rv(list())
@@ -1153,6 +1180,13 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
       for (i in seq_along(cols)) {
         sel <- input[[paste0("tp_", i)]]
         if (is.null(sel)) next
+        if (identical(sel, "data")) {
+          erro <- tryCatch({ preparo_converter_data(r[[cols[i]]]); NULL }, error = conditionMessage)
+          if (!is.null(erro)) {
+            showNotification(paste(cols[i], "—", erro), type = "error", duration = NULL)
+            return()
+          }
+        }
         natural <- if (cols[i] %in% names(r)) arrumar_detectar_tipo(r[[cols[i]]]) else "texto"
         if (!identical(sel, natural)) novo[[cols[i]]] <- sel   # guarda só as mudanças
       }
@@ -1243,16 +1277,42 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
     # Prévias
     output$preview_antes <- renderDT({
       req(base_data())
-      datatable(head(base_data(), 100), options = list(scrollX = TRUE, pageLength = 10), rownames = FALSE)
+      datatable(head(base_data(), 100), options = list(scrollX = TRUE, pageLength = 5, lengthMenu = c(5, 10, 25, 50)), rownames = FALSE)
     })
     output$preview_depois <- renderDT({
-      validate(need(!is.null(resultado_rv()), "Aplique uma transformação para ver o resultado aqui."))
-      datatable(head(resultado_final(), 200), options = list(scrollX = TRUE, pageLength = 12), rownames = FALSE)
+      d <- dados_saida()
+      validate(need(!is.null(d), "Aplique uma transformação para ver o resultado aqui."))
+      datatable(d, options = list(scrollX = TRUE, pageLength = 5, lengthMenu = c(5, 10, 25, 50),
+        language = preparo_idioma_tabela(ncol(d))), rownames = FALSE)
     })
-    output$script_preview <- renderText(codigo_rv())
-
-    output$status_indicador <- renderUI({
+    codigo_saida <- reactive({
       if (is.null(resultado_rv())) {
+        return(exportacao_rv()$codigo %||% codigo_rv())
+      }
+      if (!is.function(base_externa_rv)) return(codigo_rv())
+      origem <- base_externa_rv()
+      estrutura <- c(exportacao_organizacao_anova(origem), "dados_arrumados <- dados",
+        arrumar_codigo_etapas(codigo_rv()), "dados <- dados_arrumados")
+      completo <- preparo_codigo_completo(import_info(), base_externa = list(codigo_sequencial = estrutura))
+      paste(completo, "dados_arrumados <- dados_analise", sep = "\n")
+    })
+    dados_saida <- reactive({
+      if (!is.null(resultado_rv())) resultado_final() else exportacao_rv()$df
+    })
+    output$script_preview <- renderText(codigo_saida())
+
+    output$estado_incorporacao <- renderUI({
+      desativado <- if (is.null(resultado_rv())) "true" else "false"
+      tags$script(HTML(sprintf(
+        "(function(){function aplicar(){var el=document.getElementById('%s');if(el){el.disabled=%s;el.setAttribute('aria-disabled','%s');}}aplicar();window.setTimeout(aplicar,0);})();",
+        ns("usar_analises"), desativado, desativado)))
+    })
+    output$status_indicador <- renderUI({
+      if (is.null(resultado_rv()) && !is.null(exportacao_rv())) {
+        d <- exportacao_rv()$df
+        div(class = "alert alert-success", "Mudança adicionada à Base Compartilhada. Downloads disponíveis.",
+          tags$br(), sprintf("%d linhas × %d colunas", nrow(d), ncol(d)))
+      } else if (is.null(resultado_rv())) {
         div(style = "color:#888; font-size:0.85rem;", "Nenhuma transformação aplicada ainda.")
       } else {
         r <- resultado_final(); np <- length(passos_rv())
@@ -1272,13 +1332,13 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
     # Downloads
     output$baixar_script <- downloadHandler(
       filename = function() paste0("arrumar_dados_", Sys.Date(), ".R"),
-      content  = function(file) writeLines(codigo_rv(), file)
+      content  = function(file) { req(dados_saida()); writeLines(codigo_saida(), file, useBytes = TRUE) }
     )
     output$baixar_dados <- downloadHandler(
       filename = function() paste0("dados_arrumados_", Sys.Date(), ".xlsx"),
       content  = function(file) {
-        req(resultado_rv())
-        writexl::write_xlsx(resultado_final(), file)
+        req(dados_saida())
+        writexl::write_xlsx(as.data.frame(dados_saida()), file)
       }
     )
 
@@ -1296,7 +1356,21 @@ mod_arrumar_server <- function(id, data_rv, import_info, modo_fixo = NULL, on_us
           separar = "Separar Dados em Colunas",
           "Pivotar e Separar Dados"
         )
-        on_usar(resultado_final(), fonte, codigo_rv())
+        saida <- list(df = resultado_final(), codigo = codigo_saida(), info = import_info())
+        exportacao_rv(saida)
+        promocao_rv(saida)
+        codigo <- codigo_rv()
+        attr(codigo, "etapas") <- c("dados_arrumados <- dados", arrumar_codigo_etapas(codigo), "dados <- dados_arrumados")
+        on_usar(saida$df, fonte, codigo)
+        # Consome a prévia mesmo quando a incorporação não altera os valores.
+        resultado_rv(NULL)
+        passos_rv(list())
+        cfg_rv(NULL)
+        renomear_rv(character(0))
+        tipos_rv(list())
+        recode_rv(list())
+        sel_cols_rv(NULL)
+        atualizar_seletores(saida$df)
       }
     })
   })

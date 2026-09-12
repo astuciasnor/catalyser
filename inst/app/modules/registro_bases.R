@@ -391,7 +391,7 @@ bases_codigo <- function(base, reg_tratamentos = tratamentos, incluir_print = TR
   for (i in seq_along(ativas)) {
     et <- ativas[[i]]
     tt <- reg_tratamentos[[et$tipo]]
-    if (is.null(tt)) next
+    if (is.null(tt)) stop("Há um tratamento sem gerador de código na base derivada.", call. = FALSE)
     linhas <- c(linhas, sprintf("# Etapa %d: %s", i, tt$rotulo(et$params)),
                 tt$codigo(et$params), "")
   }

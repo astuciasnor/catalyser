@@ -145,11 +145,14 @@ glimpse(dados_brutos)
 {{PREPARO}}
 
 # A análise usa apenas observações com resposta e grupo preenchidos.
+base_da_anova <- dados
+if (!is.numeric(dados${{RESPOSTA_R}})) {
+  stop("A resposta precisa ser numérica. Confira a tipagem no preparo antes da ANOVA.")
+}
 n_preparadas <- nrow(dados)
 dados <- dados |>
   mutate(
-    {{FATOR_R}} = factor({{FATOR_R}}),
-    {{RESPOSTA_R}} = as.numeric(as.character({{RESPOSTA_R}}))
+    {{FATOR_R}} = factor({{FATOR_R}})
   ) |>
   tidyr::drop_na({{FATOR_R}}, {{RESPOSTA_R}}) |>
   droplevels()
@@ -270,6 +273,7 @@ omega2 <- fmt(efeito_omega$Omega2[1])
 
 eta_val <- efeito_eta$Eta2[1]
 classe_efeito <- if (is.na(eta_val)) "indeterminado" else
+  if (eta_val < 0.01) "muito pequeno" else
   if (eta_val < 0.06) "pequeno" else if (eta_val < 0.14) "médio" else "grande"
 
 normal_ok <- !is.na(teste_normalidade$p.value) && teste_normalidade$p.value >= 0.05
@@ -343,12 +347,24 @@ gráficos não conseguem confirmá-la.
 
 ```{r}
 #| label: diagnostico-variancia
+# Confira se a dispersão é parecida entre grupos; um funil merece investigação.
 plot(modelo, which = 1)
 ```
 
 ```{r}
 #| label: diagnostico-normalidade
+# Confira a proximidade da reta; curvas ou caudas afastadas merecem atenção.
 plot(modelo, which = 2)
+```
+
+Observe também se há observações que influenciam muito o ajuste. Picos na
+distância de Cook pedem conferência dos dados e do contexto da coleta, sem
+exclusão automática. A independência continua sendo avaliada pelo delineamento.
+
+```{r}
+#| label: diagnostico-influencia
+# Confira os picos; influência alta é um motivo para investigar, não para apagar.
+plot(modelo, which = 4)
 ```
 
 :::::
