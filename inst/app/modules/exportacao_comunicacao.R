@@ -1561,12 +1561,20 @@ exportacao_regressao_trechos <- function(item, raiz, templates_dir = "templates"
   linhas <- readLines(file.path(templates_dir, "regressao_linear", "analise.R"),
     encoding = "UTF-8", warn = FALSE)
   formula <- paste(deparse(call("~", as.name(p$resposta), as.name(p$preditor))), collapse = " ")
+  # Os rótulos mudam a apresentação; os nomes das colunas seguem no código.
+  rotulo_resposta <- as.character(p$rotulo_resposta %||% "")
+  rotulo_preditor <- as.character(p$rotulo_preditor %||% "")
+  if (!nzchar(trimws(rotulo_resposta))) rotulo_resposta <- p$resposta
+  if (!nzchar(trimws(rotulo_preditor))) rotulo_preditor <- p$preditor
   trocas <- list(RESPOSTA = encodeString(p$resposta, quote = '"'),
     PREDITOR = encodeString(p$preditor, quote = '"'), FORMULA = formula,
     CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
     EQUACAO = if (isFALSE(p$mostrar_equacao)) "FALSE" else "TRUE",
-    TEMA = encodeString(p$tema %||% "classic", quote = '"'),
-    AUTOCORRELACAO = if (isTRUE(p$avaliar_autocorrelacao)) "TRUE" else "FALSE")
+    TEMA = encodeString(p$tema %||% "minimal", quote = '"'),
+    AUTOCORRELACAO = if (isTRUE(p$avaliar_autocorrelacao)) "TRUE" else "FALSE",
+    ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
+    ROTULO_PREDITOR_R = encodeString(rotulo_preditor, quote = '"'),
+    TITULO_R = encodeString(as.character(p$titulo_personalizado %||% ""), quote = '"'))
   for (chave in names(trocas)) {
     linhas <- gsub(paste0("{{", chave, "}}"), trocas[[chave]], linhas, fixed = TRUE)
   }
@@ -1601,13 +1609,21 @@ exportacao_qmd_regressao <- function(item, raiz) {
   if ("diagnosticos" %in% item$saidas_word) linhas <- c(linhas,
     ':::: {.content-visible when-format="html"}', "### Diagnóstico do modelo", "",
     "**Linearidade e variância.** Procure curvatura e formato de funil nos resíduos versus ajustados.", "",
-    chunk("diagnostico-variancia", character()), "",
+    chunk("diagnostico-variancia", c(
+      '#| fig-cap: "Resíduos versus valores ajustados. Curvatura sugere que a reta não descreve bem a média; formato de funil sugere variância não constante."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
     "**Normalidade.** No gráfico Q-Q, procure desvios sistemáticos da reta, sobretudo nas caudas.", "",
-    chunk("diagnostico-normalidade", character()), "",
+    chunk("diagnostico-normalidade", c(
+      '#| fig-cap: "Gráfico Q-Q dos resíduos padronizados. Desvios sistemáticos da reta, sobretudo nas caudas, pedem investigação."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
     "**Independência.** Confira a unidade amostral, medidas repetidas e a ordem de coleta. O gráfico de ordem e Durbin-Watson só são executados quando essa ordem foi confirmada no roteiro.", "",
-    chunk("diagnostico-ordem", character()), "",
+    chunk("diagnostico-ordem", c(
+      '#| fig-cap: "Resíduos na ordem das linhas utilizadas. Só se lê como sequência de coleta quando essa ordem for real no delineamento."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
     "**Influência (complementar).** Cook destaca observações que merecem conferência. A linha 4/n não autoriza excluir dados automaticamente.", "",
-    chunk("diagnostico-influencia", character()), "::::", "")
+    chunk("diagnostico-influencia", c(
+      '#| fig-cap: "Distância de Cook por observação. A linha tracejada marca 4/n, uma referência de triagem e não um teste de hipótese."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "::::", "")
   linhas
 }
 

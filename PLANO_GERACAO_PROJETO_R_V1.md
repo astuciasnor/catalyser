@@ -1,5 +1,83 @@
 # Geração do Projeto R — fechamento da v1
 
+## Regressão linear simples — consolidação do caminho único de 15/09/2026
+
+A regressão carregava três caminhos de exportação em paralelo. O ciclo consolidado
+tem um só, o mesmo da ANOVA: `exportacao_comunicacao.R`. Foram retirados, a pedido
+do autor, com a ANOVA de um fator como inspiração e preservando as
+especificidades da reta:
+
+- os botões **Baixar Relatório Word (.docx)** e **Exportar Projeto R (.zip)** do
+  menu, que geravam um projeto de outra geração (`scripts/analise.R`,
+  `relatorios/relatorio_regressao.qmd`, `README.txt`) sem passar pelo registro de
+  execuções e sem `R/analise.R` comentado nem `R/funcoes.R`;
+- o modal órfão `export_qmd` e o gerador `qmd_code_text()`, que **não tinham botão
+  que os acionasse** em nenhum ponto do aplicativo;
+- `templates/relatorio_regressao.qmd` e `templates/funcoes_regressao.R`, que só
+  esses caminhos usavam.
+
+O card do menu passa a trazer o mesmo aviso da ANOVA e conserva apenas **Ver
+Código R**, que mostra o código de consulta da configuração em vigor e registra
+`codigo_r` na execução. Esse registro é preservado de propósito: o exportador
+recorre a ele como reserva para tipos de análise sem código passo a passo, e as
+análises irmãs gravam o mesmo campo. Retirá-lo é decisão do autor, não deste ciclo.
+
+**Parâmetros que a interface não alimentava.** O roteiro já era parametrizado, mas
+três escolhas não chegavam ao Projeto R:
+
+- o **nível de confiança** era gravado fixo em 0,95. Agora há `sliderInput` de 80 a
+  99, como na ANOVA, e o valor escolhido alimenta a tabela de coeficientes da tela
+  (`broom::tidy(conf.level=)`), o rótulo da coluna, o código de consulta e o
+  roteiro exportado;
+- o **tema do gráfico** não integrava a assinatura de execução: trocá-lo não
+  invalidava o resultado e o roteiro caía no tema padrão, ignorando a escolha.
+  Passa a integrar a assinatura e chega ao roteiro como `tema_grafico`;
+- **título e rótulos personalizados** não eram propagados aos parâmetros. Agora
+  chegam ao roteiro como `titulo_analise`, `rotulo_resposta` e `rotulo_preditor`,
+  no mesmo contrato da ANOVA: o rótulo muda só a apresentação — título e eixos do
+  gráfico e a narrativa —, enquanto o nome da coluna continua no código que lê e
+  calcula. Rótulo em branco volta ao nome da variável, e sem título informado o
+  gráfico não recebe título nenhum.
+
+**Diagnóstico no relatório.** As quatro verificações da reta já eram emitidas no
+`relatorio.qmd`, mas **sem legenda**: elas apareciam mudas e não numeradas. Passam
+a ter `fig-cap`, no padrão didático do EAPACaderno — a legenda diz o que se procura
+e o que é sinal de problema —, e dimensão declarada.
+
+**Verificação executada em 15/09/2026.** R 4.6.1, `broom` 1.0.13, `performance`
+0.17.1. O roteiro foi executado em memória sobre `camarao_vannamei_biometria`
+(EAPADados 0.1.12) e conferido contra `lm`, `confint` e `shapiro.test`:
+coeficientes, intervalos e p-valor idênticos; IC a 90% reproduz `confint(level=.90)`
+(5,79 a 6,30); o tema escolhido é respeitado; os rótulos chegam aos eixos e à
+narrativa sem alterar coeficiente, R² ou intervalo. Um projeto real foi gerado e o
+par script–relatório conferido com `conferir_codigo()`.
+
+Validação em camadas, na ordem da skill: (1) parse dos arquivos alterados; (2) teste
+puro do cálculo — `test_regressao_roteiro.R` confere coeficientes, IC, Shapiro e
+Cook contra o R base; (3) teste Shiny do estado explícito —
+`test_regressao_interface.R`; (4) duas execuções independentes no mesmo projeto:
+15 trechos por análise, 36 no total, nenhum rótulo de chunk duplicado e cada análise
+com a sua própria `variavel_resposta`; (5) geração e inspeção do script numerado;
+(6) execução de `R/analise.R` em processo R novo, fora da CatalyseR, com sucesso;
+(7) renderização do `relatorio.qmd` para HTML: o Quarto encerrou com **código 0** e o
+HTML traz **quatro figuras numeradas com legenda** — a reta e as três verificações
+aplicáveis —, o título personalizado do gráfico, os rótulos nos eixos e o texto
+registrando o desvio de normalidade dos resíduos do camarão. O gráfico de ordem não
+aparece porque a autocorrelação não foi solicitada, como deve ser.
+Passam também os testes da ANOVA, do registro de execuções, da comunicação e da
+exportação enxuta. O Word segue pendente de conferência no RStudio.
+
+**Limitações desta rodada.** A falha nativa do R ao encerrar (`-1073741819`,
+`ucrtbase.dll`) persiste e impede declarar saída zero da suíte. O `APOIO/temp` do
+ambiente de trabalho recusa gravação, e por isso `test_regressao_roteiro.R` não
+conclui ali; fora dele, conclui. A suíte inteira por `run_tests.R` para antes, na
+validação de sintaxe, por um erro **pré-existente e alheio** a esta rodada: o
+`templates/anova_um_fator/analise.R` contém `{{RESPOSTA_R}}`, que só é R válido
+depois da substituição, e o verificador tenta parsear o template cru. No ambiente
+de trabalho, o Quarto só renderiza com acesso ampliado: ele captura a saída do
+`Rscript` por pipe, e a política de arquivos bloqueia esse stdio. O Render de
+Word do projeto exportado continua pendente de conferência no RStudio do autor.
+
 ## Regressão linear simples — primeira rodada de 14/09/2026
 
 Aplicado o roteiro fornecido pelo autor à reta global: coeficientes com EP,

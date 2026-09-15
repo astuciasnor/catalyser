@@ -55,18 +55,20 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           )
         ),
         card(
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            execucao_explicita_downloads_ui(ns, tagList(
-              actionButton(ns("export_code"), "Ver Código R", icon = icon("code"),
-                           class = "btn-info w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-              helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
-            ))
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            ),
+            div(style = "margin-top: 8px;"),
+            actionButton(ns("export_code"), "Ver Código R", icon = icon("code"),
+                         class = "btn-info w-100")
           )
         )
       ),
@@ -137,6 +139,8 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
                 )
               )
             ),
+            sliderInput(ns("conf_level"), "Nível de confiança (%):",
+                        min = 80, max = 99, value = 95, step = 1),
             selectInput(ns("graph_theme"), "Tema do Gráfico:", 
                         choices = c("Mínimo" = "minimal", 
                                     "Clássico" = "classic", 
@@ -252,12 +256,21 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     revisao_execucao <- execucao_revisao_dados(dados_modulo)
     gatilho_execucao <- reactiveVal(0L)
 
+    # O roteiro exportado recebe o nível escolhido aqui; o mesmo valor alimenta a
+    # tabela de coeficientes, os intervalos do gráfico e as frases do relatório.
+    nivel_confianca <- reactive({
+      valor <- suppressWarnings(as.numeric(input$conf_level))
+      if (!length(valor) || is.na(valor)) valor <- 95
+      valor / 100
+    })
+
     assinatura_execucao <- reactive({
       req(input$var_x, input$var_y, input$model_type)
       execucao_assinatura(
         input,
         c("dataset_entrada", "var_y", "var_x", "model_type", "var_group",
-          "grp_reg", "avaliar_autocorrelacao"),
+          "grp_reg", "avaliar_autocorrelacao", "conf_level", "graph_theme",
+          "custom_title", "custom_label_x", "custom_label_y"),
         revisao_execucao()
       )
     })
@@ -447,16 +460,19 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       req(fit)
 
       if (inherits(fit, "lm") && !inherits(fit, "glm")) {
-        coefs <- broom::tidy(fit, conf.int = TRUE)
+        nivel <- nivel_confianca()
+        ic_rotulo <- paste0("IC ", formatC(100 * nivel, digits = 0, format = "f"), "%")
+        coefs <- broom::tidy(fit, conf.int = TRUE, conf.level = nivel)
         numero <- function(x) formatC(x, digits = 2, format = "f", decimal.mark = ",")
         tabela <- data.frame(
           Parâmetro = c("Intercepto", input$var_x),
           `β estimado` = numero(coefs$estimate), EP = numero(coefs$std.error),
-          `IC 95%` = paste0("[", numero(coefs$conf.low), "; ", numero(coefs$conf.high), "]"),
+          `IC` = paste0("[", numero(coefs$conf.low), "; ", numero(coefs$conf.high), "]"),
           t = numero(coefs$statistic),
           `p-valor` = ifelse(coefs$p.value < .001, "< 0,001",
             formatC(coefs$p.value, digits = 3, format = "f", decimal.mark = ",")),
           check.names = FALSE)
+        names(tabela)[4] <- ic_rotulo
         return(datatable(tabela, options = list(dom = "t", ordering = FALSE),
           rownames = FALSE, selection = "none"))
       }
@@ -1007,7 +1023,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           sprintf("modelo <- lm(`%s` ~ `%s`, data = dados)", input$var_y, input$var_x),
           "print(summary(modelo))",
           "# Coeficientes com IC e métricas globais, ainda sem arredondamento.",
-          "tabela_coeficientes <- broom::tidy(modelo, conf.int = TRUE)",
+          "tabela_coeficientes <- broom::tidy(modelo, conf.int = TRUE, conf.level = ",
+          format(nivel_confianca(), digits = 15, decimal.mark = "."), ")",
           "metricas_modelo <- broom::glance(modelo)",
           "print(tabela_coeficientes)",
           "print(metricas_modelo)",
@@ -1175,545 +1192,6 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       }
     )
     
-    # --- EXPORTAR RELATÓRIO QUARTO (QMD) ---
-    
-    # Gera o conteúdo do arquivo Quarto (.qmd) reativamente
-    qmd_code_text <- reactive({
-      req(input$var_x, input$var_y, import_info())
-      info <- import_info()
-      
-      # Títulos e rótulos atuais
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Ajuste Linear:", input$var_y, "vs", input$var_x)
-      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
-      
-      theme_code <- switch(input$graph_theme,
-                           "minimal" = "theme_minimal(base_size = 12)",
-                           "classic" = "theme_classic(base_size = 12)",
-                           "bw"      = "theme_bw(base_size = 12)",
-                           "gray"    = "theme_gray(base_size = 12)",
-                           "light"   = "theme_light(base_size = 12)",
-                           "theme_minimal(base_size = 12)")
-      
-      # YAML Header
-      yaml <- c(
-        "---",
-        sprintf("title: \"Relatório de Regressão Linear Simples: %s vs %s\"", input$var_y, input$var_x),
-        "author: \"IDE CatalyseR\"",
-        sprintf("date: \"%s\"", format(Sys.Date(), "%d/%m/%Y")),
-        "editor_options:",
-        "  chunk_output_type: console",
-        "format:",
-        "  docx:",
-        "    toc: false",
-        "    highlight-style: github",
-        "---",
-        ""
-      )
-      
-      # Setup Chunk
-      setup <- c(
-        "```{r}",
-        "#| label: setup",
-        "#| include: false",
-        "knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 6, fig.height = 4, fig.align = 'center')",
-        "library(ggplot2)",
-        "```",
-        ""
-      )
-      
-      # Load Data Chunk
-      load_data <- c(
-        "```{r}",
-        "#| label: load-data",
-        "# Carregamento dos dados limpos (preservando fatores e formatação)",
-        "load('../dados/dados_limpos.rda')",
-        "dados <- df_clean",
-        "",
-        "# Alternativa em formato aberto CSV (se preferir):",
-        "# library(readr)",
-        "# dados <- read_csv('../dados/dados_limpos.csv')",
-        "",
-        "# Ajuste do modelo",
-        sprintf("modelo <- lm(`%s` ~ `%s`, data = dados)", input$var_y, input$var_x),
-        "```",
-        ""
-      )
-      
-      body <- c(
-        "## Introdução",
-        sprintf("Este relatório apresenta o ajuste do modelo de regressão linear simples para a variável dependente **%s** em função da variável independente **%s**.", input$var_y, input$var_x),
-        ""
-      )
-      
-      # 1. Tabela de Coeficientes
-      if (input$show_out_coef) {
-        body <- c(body,
-          "## Tabela de Coeficientes",
-          "A tabela abaixo detalha as estimativas dos parâmetros do modelo (coeficiente linear e angular), seus erros padrão, estatísticas de teste t e p-valores correspondentes.",
-          "",
-          "```{r}",
-          "#| label: coef-table",
-          "coef_df <- as.data.frame(summary(modelo)$coefficients)",
-          "names(coef_df) <- c('Estimativa', 'Erro Padrão', 'Valor t', 'p-valor')",
-          "knitr::kable(coef_df, digits = 4, caption = 'Coeficientes do Modelo de Regressão Ajustado')",
-          "```",
-          ""
-        )
-      }
-      
-      # 2. Métricas de Ajuste
-      if (input$show_out_metrics) {
-        body <- c(body,
-          "## Métricas de Ajuste do Modelo",
-          "As estatísticas abaixo indicam a qualidade de ajuste global do modelo linear estimado:",
-          "",
-          "```{r}",
-          "#| label: metrics-summary",
-          "#| comment: NA",
-          "sum_fit <- summary(modelo)",
-          "cat(sprintf('- Coeficiente de Determinação (R²): %.4f (%.2f%%)\\n', sum_fit$r.squared, sum_fit$r.squared * 100))",
-          "cat(sprintf('- R² Ajustado: %.4f\\n', sum_fit$adj.r.squared))",
-          "cat(sprintf('- Erro Padrão Residual (RSE): %.4f em %d graus de liberdade\\n', sum_fit$sigma, sum_fit$df[2]))",
-          "if (!is.null(sum_fit$fstatistic)) {",
-          "  f_stat <- sum_fit$fstatistic",
-          "  f_p_val <- pf(f_stat[1], f_stat[2], f_stat[3], lower.tail = FALSE)",
-          "  cat(sprintf('- Estatística F: %.4f (GL: %d; %d, p-valor: %s)\\n', f_stat[1], f_stat[2], f_stat[3], format.pval(f_p_val, digits=4)))",
-          "}",
-          "```",
-          ""
-        )
-      }
-      
-      # 3. Gráfico da Reta Ajustada
-      if (input$show_out_fit_plot) {
-        # Calcula a equação real se possível
-        fit <- tryCatch(model_fit(), error = function(e) NULL)
-        subtitle_expr <- if (input$show_eq && !is.null(fit)) {
-          coefs <- coef(fit)
-          sprintf("Y = %.4f + (%.4f) * X", coefs[1], coefs[2])
-        } else {
-          ""
-        }
-        
-        if (input$var_group != "none") {
-          body <- c(body,
-            "## Reta Ajustada",
-            "Gráfico de dispersão dos dados observados com a reta de regressão ajustada e intervalo de confiança (com agrupamento).",
-            "",
-            "```{r}",
-            "#| label: fit-plot",
-            sprintf("dados$`%s` <- as.factor(dados$`%s`)", input$var_group, input$var_group),
-            sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", input$var_x, input$var_y, input$var_group, input$var_group),
-            "  geom_point(alpha = 0.8, size = 2.5) +",
-            "  geom_smooth(method = 'lm', formula = y ~ x, size = 1.2) +",
-            sprintf("  %s +", theme_code),
-            "  labs(",
-            sprintf("    title = '%s',", title_val),
-            if (nzchar(subtitle_expr)) sprintf("    subtitle = '%s',", subtitle_expr) else NULL,
-            sprintf("    x = '%s',", x_label),
-            sprintf("    y = '%s'", y_label),
-            "  ) +",
-            "  theme(plot.title = element_text(face = 'bold'))",
-            "```",
-            ""
-          )
-        } else {
-          body <- c(body,
-            "## Reta Ajustada",
-            "Gráfico de dispersão dos dados observados com a reta de regressão ajustada e intervalo de confiança.",
-            "",
-            "```{r}",
-            "#| label: fit-plot",
-            sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", input$var_x, input$var_y),
-            "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', size = 1.2) +",
-            sprintf("  %s +", theme_code),
-            "  labs(",
-            sprintf("    title = '%s',", title_val),
-            if (nzchar(subtitle_expr)) sprintf("    subtitle = '%s',", subtitle_expr) else NULL,
-            sprintf("    x = '%s',", x_label),
-            sprintf("    y = '%s'", y_label),
-            "  ) +",
-            "  theme(plot.title = element_text(face = 'bold'))",
-            "```",
-            ""
-          )
-        }
-      }
-      
-      # 4. Resíduos vs Ajustados
-      if (input$show_out_resid_plot) {
-        body <- c(body,
-          "## Análise de Resíduos (Resíduos vs Valores Ajustados)",
-          "Este gráfico de dispersão avalia a linearidade e homocedasticidade dos erros residuais.",
-          "",
-          "```{r}",
-          "#| label: resid-plot",
-          "diag_data <- data.frame(Ajustados = fitted(modelo), Residuos = residuals(modelo))",
-          "ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +",
-          "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', size = 1) +",
-          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, size = 1) +",
-          sprintf("  %s +", theme_code),
-          "  labs(title = 'Resíduos vs Valores Ajustados', x = 'Valores Ajustados (Fitted)', y = 'Resíduos (Residuals)') +",
-          "  theme(plot.title = element_text(face = 'bold'))",
-          "```",
-          ""
-        )
-      }
-      
-      # 5. Q-Q Plot
-      if (input$show_out_qq_plot) {
-        body <- c(body,
-          "## Normalidade (Normal Q-Q Plot)",
-          "Gráfico quantil-quantil para verificação visual da suposição de normalidade dos resíduos.",
-          "",
-          "```{r}",
-          "#| label: qq-plot",
-          "diag_data_qq <- data.frame(ResiduosStd = rstandard(modelo))",
-          "ggplot(diag_data_qq, aes(sample = ResiduosStd)) +",
-          "  stat_qq(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  stat_qq_line(color = '#0d6efd', size = 1) +",
-          sprintf("  %s +", theme_code),
-          "  labs(title = 'Normal Q-Q Plot', x = 'Quantis Teóricos', y = 'Resíduos Padronizados') +",
-          "  theme(plot.title = element_text(face = 'bold'))",
-          "```",
-          ""
-        )
-      }
-      
-      # Junta tudo
-      all_lines <- c(yaml, setup, load_data, body)
-      all_lines <- all_lines[!sapply(all_lines, is.null)]
-      paste(all_lines, collapse = "\n")
-    })
-    
-    # Exibe modal com o código .qmd gerado
-    observeEvent(input$export_qmd, {
-      showModal(modalDialog(
-        title = "Código Quarto (.qmd) de Reprodutibilidade",
-        size = "l",
-        easyClose = TRUE,
-        fade = TRUE,
-        footer = tagList(
-          downloadButton(session$ns("download_qmd"), "Baixar Script (.qmd)", class = "btn-success"),
-          modalButton("Fechar")
-        ),
-        tagList(
-          p("Copie o código Quarto (.qmd) abaixo ou faça o download para salvar o arquivo de relatório:"),
-          verbatimTextOutput(session$ns("qmd_code_preview"))
-        )
-      ))
-    })
-    
-    # Exibe a prévia do código no modal
-    output$qmd_code_preview <- renderPrint({
-      cat(qmd_code_text())
-    })
-    
-    # Download do script .qmd
-    output$download_qmd <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_regressao_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".qmd")
-      },
-      content = function(file) {
-        writeLines(qmd_code_text(), file)
-      }
-    )
-    
-    # Função auxiliar para customizar os parâmetros do QMD de regressão
-    customize_regression_qmd_params <- function(qmd_path, var_y, var_x, label_y, label_x) {
-      lines <- readLines(qmd_path, warn = FALSE)
-      lines <- gsub('var_y: ".*"', sprintf('var_y: "%s"', var_y), lines)
-      lines <- gsub('var_x: ".*"', sprintf('var_x: "%s"', var_x), lines)
-      lines <- gsub('label_y: ".*"', sprintf('label_y: "%s"', label_y), lines)
-      lines <- gsub('label_x: ".*"', sprintf('label_x: "%s"', label_x), lines)
-      return(lines)
-    }
-
-    # Download do Relatório Word (.docx)
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_regressao_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        if (input$model_type != "linear") {
-          showNotification("O relatório Word (.docx) está disponível apenas para o modelo Linear nesta versão.", type = "warning")
-          writeLines("O relatório está disponível apenas para o modelo Linear (reta) nesta versão.", file)
-          return()
-        }
-        req(dados_modulo())
-        
-        # Criar diretório temporário para compilação
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_regressao.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_regressao.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
-        # Copiar arquivos de templates para o diretório temporário
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_regressao.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_regressao.qmd", temp_qmd, overwrite = TRUE)
-        
-        # Salvar os dados limpos ativos
-        df_clean <- dados_modulo()
-        save(df_clean, file = temp_data)
-        
-        # Obter os nomes das variáveis
-        var_y_val <- input$var_y
-        var_x_val <- input$var_x
-        label_y_val <- paste0("a variável ", var_y_val)
-        label_x_val <- paste0("a variável ", var_x_val)
-        
-        # Customizar e escrever o QMD
-        custom_qmd_lines <- customize_regression_qmd_params(
-          temp_qmd,
-          var_y = var_y_val,
-          var_x = var_x_val,
-          label_y = label_y_val,
-          label_x = label_x_val
-        )
-        writeLines(custom_qmd_lines, temp_qmd)
-        
-        # Renderizar o relatório usando quarto CLI
-        old_wd <- getwd()
-        setwd(temp_dir)
-        
-        system2("quarto", args = c("render", "relatorio_regressao.qmd", "--to", "docx"))
-        
-        setwd(old_wd)
-        
-        # Copiar o arquivo final gerado para a saída
-        generated_docx <- file.path(temp_dir, "relatorio_regressao.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro: Não foi possível renderizar o relatório .docx usando o Quarto CLI.", file)
-        }
-      }
-    )
-
-    # Gerar e baixar pacote de estudo (.zip) contendo scripts, qmd e dados limpos
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_regressao_linear_simples_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        if (input$model_type != "linear") {
-          showNotification("O pacote de estudo (.zip) está disponível apenas para o modelo Linear nesta versão.", type = "warning")
-          writeLines("O pacote de estudo está disponível apenas para o modelo Linear (reta) nesta versão.", file)
-          return()
-        }
-        info <- import_info()
-        # Nome limpo da pasta do projeto
-        proj_dir_name <- paste0("projeto_regressao_linear_simples_", format(Sys.Date(), "%Y-%m-%d"))
-        # Criar diretórios temporários para o pacote
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # 1. Salvar os dados limpos (.rda, .csv e .xlsx)
-        df_clean <- dados_modulo()
-        req(df_clean)
-        # Salva o data frame com o nome 'dados' dentro do arquivo .rda
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        # Salva em formato .csv
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        # 2. Gerar o script .R (scripts/analise.R)
-        theme_code <- switch(input$graph_theme,
-                             "minimal" = "theme_minimal(base_size = 14)",
-                             "classic" = "theme_classic(base_size = 14)",
-                             "bw"      = "theme_bw(base_size = 14)",
-                             "gray"    = "theme_gray(base_size = 14)",
-                             "light"   = "theme_light(base_size = 14)",
-                             "theme_minimal(base_size = 14)")
-        
-        title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Ajuste Linear:", input$var_y, "vs", input$var_x)
-        x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-        y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
-        
-        r_script_content <- c(
-          "# --- SCRIPT DE ANÁLISE ESTATÍSTICA (IDE_R) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "library(ggplot2)",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "# Se aberto via projeto_analise.Rproj, a pasta de trabalho ativa será a raiz.",
-          "# Se rodado diretamente da pasta scripts/, buscaremos no nível superior.",
-          "if (file.exists('dados/dados_limpos.rda')) {",
-          "  load('dados/dados_limpos.rda')",
-          "} else if (file.exists('../dados/dados_limpos.rda')) {",
-          "  load('../dados/dados_limpos.rda')",
-          "} else {",
-          "  stop('Não foi possível encontrar o arquivo dados_limpos.rda. Certifique-se de abrir o projeto clicando em projeto_analise.Rproj.')",
-          "}",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em formato aberto Excel (se preferir):",
-          "# library(readxl)",
-          "# dados <- as.data.frame(read_excel('dados/dados_limpos.xlsx', sheet = 'Dados'))",
-          "",
-          "# Alternativa em formato aberto CSV:",
-          "# dados <- read.csv('dados/dados_limpos.csv', stringsAsFactors = TRUE, check.names = FALSE)",
-          "",
-          "# 2. AJUSTAR O MODELO LINEAR",
-          sprintf("modelo <- lm(`%s` ~ `%s`, data = dados)", input$var_y, input$var_x),
-          "print(summary(modelo))",
-          "",
-          "# 3. GERAR O GRÁFICO DA RETA AJUSTADA",
-          if (input$var_group != "none") {
-            c(
-              sprintf("dados$`%s` <- as.factor(dados$`%s`)", input$var_group, input$var_group),
-              sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", input$var_x, input$var_y, input$var_group, input$var_group),
-              "  geom_point(alpha = 0.8, size = 2.5) +",
-              "  geom_smooth(method = 'lm', formula = y ~ x, size = 1.2) +"
-            )
-          } else {
-            c(
-              sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", input$var_x, input$var_y),
-              "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-              "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', size = 1.2) +"
-            )
-          },
-          sprintf("  %s +", theme_code),
-          "  labs(",
-          sprintf("    title = '%s',", title_val),
-          if (input$show_eq) {
-            fit <- tryCatch(model_fit(), error = function(e) NULL)
-            if (!is.null(fit)) {
-              coefs <- coef(fit)
-              sprintf("    subtitle = 'Y = %.4f + (%.4f) * X',", coefs[1], coefs[2])
-            } else {
-              "    subtitle = 'Equação ajustada',"
-            }
-          } else {
-            NULL
-          },
-          sprintf("    x = '%s',", x_label),
-          sprintf("    y = '%s'", y_label),
-          "  ) +",
-          "  theme(",
-          "    plot.title = element_text(face = 'bold', size = 16, color = '#212529'),",
-          "    plot.subtitle = element_text(color = '#0d6efd', face = 'italic', size = 13)",
-          "  )",
-          "",
-          "# 4. GRÁFICO DE RESÍDUOS VS VALORES AJUSTADOS",
-          "diag_data <- data.frame(Ajustados = fitted(modelo), Residuos = residuals(modelo))",
-          "ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +",
-          "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', size = 1) +",
-          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, size = 1) +",
-          sprintf("  %s +", theme_code),
-          "  labs(title = 'Resíduos vs Valores Ajustados', x = 'Valores Ajustados (Fitted)', y = 'Resíduos (Residuals)') +",
-          "  theme(plot.title = element_text(face = 'bold', size = 16, color = '#212529'))",
-          "",
-          "# 5. GRÁFICO DE NORMALIDADE (Q-Q PLOT)",
-          "diag_data_qq <- data.frame(ResiduosStd = rstandard(modelo))",
-          "ggplot(diag_data_qq, aes(sample = ResiduosStd)) +",
-          "  stat_qq(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  stat_qq_line(color = '#0d6efd', size = 1) +",
-          sprintf("  %s +", theme_code),
-          "  labs(title = 'Normal Q-Q Plot', x = 'Quantis Teóricos', y = 'Resíduos Padronizados') +",
-          "  theme(plot.title = element_text(face = 'bold', size = 16, color = '#212529'))"
-        )
-        r_script_content <- r_script_content[!sapply(r_script_content, is.null)]
-        writeLines(paste(r_script_content, collapse = "\n"), file.path(dir_scripts, "analise.R"))
-        
-        # Copiar arquivos de templates
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_regressao.R", file.path(dir_scripts, "funcoes_regressao.R"), overwrite = TRUE)
-        
-        # Obter os nomes das variáveis
-        var_y_val <- input$var_y
-        var_x_val <- input$var_x
-        label_y_val <- paste0("a variável ", var_y_val)
-        label_x_val <- paste0("a variável ", var_x_val)
-        
-        # Customizar e escrever o QMD
-        custom_qmd_lines <- customize_regression_qmd_params(
-          "templates/relatorio_regressao.qmd",
-          var_y = var_y_val,
-          var_x = var_x_val,
-          label_y = label_y_val,
-          label_x = label_x_val
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_regressao.qmd"))
-        
-        # 4. Criar arquivo de Projeto do RStudio (.Rproj)
-        rproj_content <- c(
-          "Version: 1.0",
-          "",
-          "RestoreWorkspace: Default",
-          "SaveWorkspace: Default",
-          "AlwaysSaveHistory: Default",
-          "",
-          "EnableCodeIndexing: Yes",
-          "UseSpacesForTab: Yes",
-          "NumSpacesForTab: 2",
-          "Encoding: UTF-8",
-          "",
-          "RnwWeave: Sweave",
-          "LaTeX: pdfLaTeX"
-        )
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        # 5. Criar README.txt
-        readme_content <- c(
-          "===========================================================",
-          " PACOTE DE ANÁLISE REPRODUTÍVEL (IDE_R CIENTÍFICA)",
-          "===========================================================",
-          "",
-          "Parabéns! Você exportou um projeto de análise completo da IDE_R.",
-          "Este pacote contém a estrutura perfeita para você começar a programar",
-          "em R e Quarto diretamente em seu computador.",
-          "",
-          "ESTRUTURA DE PASTAS E ARQUIVOS:",
-          "- projeto_analise.Rproj: Arquivo de projeto do RStudio. Dê duplo clique nele!",
-          "- dados/               : Contém os dados limpos exportados em formatos .rda, .csv e .xlsx.",
-          "- scripts/             : Contém scripts e funções de apoio.",
-          "  - scripts/analise.R  : Script com o código de cálculo e gráficos.",
-          "  - scripts/funcoes_regressao.R : Funções de formatação e relato.",
-          "- relatorios/          : Contém o arquivo Quarto ('relatorio_regressao.qmd') para geração de relatórios.",
-          "- README.txt           : Este arquivo de instruções.",
-          "",
-          "COMO USAR E CONTINUAR SEUS ESTUDOS:",
-          "1. Dê um duplo clique no arquivo 'projeto_analise.Rproj' para abrir o projeto diretamente no RStudio.",
-          "   Isso definirá automaticamente o diretório de trabalho correto, facilitando os caminhos!",
-          "2. Para rodar a análise básica e ver o código R:",
-          "   - Com o RStudio aberto pelo projeto, abra o arquivo 'scripts/analise.R' e execute as linhas.",
-          "3. Para compilar seu relatório em múltiplos formatos (HTML, Word DOCX ou Typst PDF):",
-          "   - Abra o arquivo 'relatorios/relatorio_regressao.qmd'.",
-          "   - Certifique-se de que possui o Quarto instalado em sua máquina.",
-          "   - Clique no botão 'Render' no topo do editor do RStudio.",
-          "   - O Quarto gerará o relatório no formato escolhido. Você pode configurar o formato sob a seção 'format' no cabeçalho YAML do arquivo .qmd.",
-          "",
-          "Bons estudos! A programação em R abre portas incríveis para a ciência de dados.",
-          "IDE CatalyseR - Estatística Aplicada"
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # 6. Compactar em arquivo ZIP mantendo a pasta principal no topo
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
-
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())
       fit <- model_fit()
@@ -1744,10 +1222,13 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           grupo = input$var_group %||% "none",
           tipo_modelo = input$model_type %||% if (isTRUE(is_logistic)) "logistico" else "linear",
           regressao_por_grupo = isTRUE(input$grp_reg),
-          nivel_confianca = 0.95,
+          nivel_confianca = nivel_confianca(),
           avaliar_autocorrelacao = isTRUE(input$avaliar_autocorrelacao),
           mostrar_equacao = isTRUE(input$show_eq),
-          tema = input$graph_theme
+          tema = input$graph_theme %||% "minimal",
+          titulo_personalizado = input$custom_title %||% "",
+          rotulo_preditor = input$custom_label_x %||% "",
+          rotulo_resposta = input$custom_label_y %||% ""
         ),
         saidas_disponiveis = c(
           "narrativa", "tabela", "grafico", "pressupostos", "diagnosticos", "console"

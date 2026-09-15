@@ -8,6 +8,13 @@ library(broom)
 library(performance)
 variavel_resposta <- {{RESPOSTA}}
 variavel_preditor <- {{PREDITOR}}
+# Os rótulos mudam só a apresentação; os nomes das colunas continuam no código.
+# Se o pesquisador não escreveu um rótulo, a variável aparece pelo próprio nome.
+rotulo_resposta <- {{ROTULO_RESPOSTA_R}}
+if (!nzchar(trimws(rotulo_resposta))) rotulo_resposta <- variavel_resposta
+rotulo_preditor <- {{ROTULO_PREDITOR_R}}
+if (!nzchar(trimws(rotulo_preditor))) rotulo_preditor <- variavel_preditor
+titulo_analise <- {{TITULO_R}}
 nivel_confianca <- {{CONFIANCA}}
 if (length(nivel_confianca) != 1 || !is.finite(nivel_confianca) ||
     nivel_confianca <= 0 || nivel_confianca >= 1) {
@@ -121,7 +128,7 @@ gl_modelo <- unname(summary(modelo_lm)$fstatistic[2])
 gl_residuo <- df.residual(modelo_lm)
 # Associação descreve os dados; causalidade exige justificativa no estudo.
 texto_resultados <- stringr::str_glue(
-  "Foi ajustada uma regressão linear simples de {variavel_resposta} em função de {variavel_preditor}, ",
+  "Foi ajustada uma regressão linear simples de {rotulo_resposta} em função de {rotulo_preditor}, ",
   "com {nrow(base_regressao)} observações completas ({n_excluidos} pares incompletos excluídos). ",
   "O modelo explicou {fmt(100 * metricas_modelo$r.squared)}% da variabilidade da resposta ",
   "(R² = {fmt(metricas_modelo$r.squared)}; R² ajustado = {fmt(metricas_modelo$adj.r.squared)}; ",
@@ -131,8 +138,8 @@ texto_resultados <- stringr::str_glue(
   "(β = {fmt(beta)}; EP = {fmt(inclinacao$std.error)}; ",
   "IC {ic_percentual}% [{fmt(inclinacao$conf.low)}; {fmt(inclinacao$conf.high)}]; ",
   "t({gl_residuo}) = {fmt(inclinacao$statistic)}; {formatar_p(p_inclinacao, no_texto = TRUE)}). ",
-  "No modelo ajustado, para cada unidade adicional de {variavel_preditor}, ",
-  "o valor médio esperado de {variavel_resposta} {mudanca} em {fmt(abs(beta))} unidades, ",
+  "No modelo ajustado, para cada unidade adicional de {rotulo_preditor}, ",
+  "o valor médio esperado de {rotulo_resposta} {mudanca} em {fmt(abs(beta))} unidades, ",
   "dentro da faixa observada."
 )
 texto_pressupostos <- stringr::str_glue(
@@ -194,7 +201,8 @@ grafico_regressao <- ggplot(base_regressao,
   geom_point(alpha = 0.7, size = 2.5, color = "#0F3B5F") +
   geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca,
     color = "#E76F51", fill = "#E76F51", alpha = 0.15, se = TRUE) +
-  labs(x = variavel_preditor, y = variavel_resposta,
+  labs(x = rotulo_preditor, y = rotulo_resposta,
+    title = if (nzchar(trimws(titulo_analise))) titulo_analise else NULL,
     subtitle = if (mostrar_equacao) equacao else NULL) +
   tema_escolhido
 grafico_regressao

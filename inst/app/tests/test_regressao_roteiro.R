@@ -64,6 +64,73 @@ ordenado$parametros$avaliar_autocorrelacao <- TRUE
 o <- rodar(ordenado, brutos)
 stopifnot(is.finite(o$p_autocorr), grepl("Durbin-Watson: p", o$texto_pressupostos))
 
+# O dado canônico do ecossistema é o camarão; cars serve de caso com desvio de
+# variância, o camarão de caso com desvio de normalidade. Ambos precisam manter
+# os mesmos números do livro e da atividade.
+camarao <- as.data.frame(EAPADados::camarao_vannamei_biometria)
+item_camarao <- item
+item_camarao$parametros$resposta <- "peso_g"
+item_camarao$parametros$preditor <- "comprimento_cm"
+c_ <- rodar(item_camarao, camarao, TRUE)
+esperado_camarao <- lm(peso_g ~ comprimento_cm, data = camarao)
+stopifnot(
+  isTRUE(all.equal(unname(coef(c_$modelo_lm)), unname(coef(esperado_camarao)))),
+  isTRUE(all.equal(c_$tabela_coeficientes$conf.low, unname(confint(esperado_camarao)[, 1]))),
+  abs(c_$metricas_modelo$r.squared - 0.8990865) < 1e-6,
+  abs(c_$p_shapiro - shapiro.test(residuals(esperado_camarao))$p.value) < 1e-12,
+  # Aqui a normalidade é rejeitada: o texto deve dizer isso, não o contrário.
+  c_$p_shapiro < .05,
+  grepl("houve evidência de desvio da normalidade", c_$texto_pressupostos),
+  grepl("sinais de inadequação", c_$alerta_pressupostos),
+  abs(max(c_$dados_diagnostico$.cooksd) - max(cooks.distance(esperado_camarao))) < 1e-12)
+invisible(ggplot2::ggplot_build(c_$grafico_regressao))
+
+# O nível de confiança escolhido na tela tem de chegar ao IC da tabela e da frase.
+# graficos = TRUE porque `tabela_artigo` nasce no trecho reta-tabela, que o
+# helper pula quando só o cálculo interessa.
+noventa <- item_camarao
+noventa$parametros$nivel_confianca <- .90
+n_ <- rodar(noventa, camarao, TRUE)
+stopifnot(isTRUE(all.equal(n_$tabela_coeficientes$conf.low,
+    unname(confint(esperado_camarao, level = .90)[, 1]))),
+  identical(names(n_$tabela_artigo)[4], "IC 90%"),
+  grepl("IC 90%", n_$texto_resultados, fixed = TRUE))
+
+# O tema escolhido na tela tem de chegar ao roteiro, sem cair no padrão.
+for (tema in c("minimal", "classic")) {
+  t_ <- item
+  t_$parametros$tema <- tema
+  stopifnot((function(env) inherits(env$tema_escolhido, "theme"))(rodar(t_, brutos, TRUE)))
+}
+
+# Título e rótulos mudam a apresentação, nunca o cálculo. Sem rótulo, a variável
+# aparece pelo próprio nome; com rótulo, a narrativa e os eixos o usam.
+rotulado <- item_camarao
+rotulado$parametros$rotulo_resposta <- "Peso (g)"
+rotulado$parametros$rotulo_preditor <- "Comprimento (cm)"
+rotulado$parametros$titulo_personalizado <- "Crescimento do camarão"
+r_ <- rodar(rotulado, camarao, TRUE)
+stopifnot(identical(r_$rotulo_resposta, "Peso (g)"),
+  identical(r_$rotulo_preditor, "Comprimento (cm)"),
+  identical(r_$grafico_regressao$labels$x, "Comprimento (cm)"),
+  identical(r_$grafico_regressao$labels$y, "Peso (g)"),
+  identical(r_$grafico_regressao$labels$title, "Crescimento do camarão"),
+  grepl("Peso (g) em função de Comprimento (cm)", r_$texto_resultados, fixed = TRUE),
+  !grepl("peso_g em função", r_$texto_resultados, fixed = TRUE),
+  # O rótulo é só apresentação: os números têm de ser os mesmos.
+  isTRUE(all.equal(r_$beta, c_$beta)),
+  isTRUE(all.equal(r_$metricas_modelo$r.squared, c_$metricas_modelo$r.squared)),
+  isTRUE(all.equal(r_$tabela_artigo[[4]], c_$tabela_artigo[[4]])))
+# Rótulo em branco (ou só espaços) volta ao nome da variável.
+em_branco <- item_camarao
+em_branco$parametros$rotulo_resposta <- "   "
+stopifnot(identical(rodar(em_branco, camarao)$rotulo_resposta, "peso_g"))
+# Sem título informado, o gráfico não recebe título nenhum.
+stopifnot(is.null(c_$grafico_regressao$labels$title),
+  identical(c_$rotulo_preditor, "comprimento_cm"))
+cat(sprintf("CAMARAO: beta=%.6f; R2=%.7f; Shapiro p=%.4g; Cook max=%.4f\n",
+  c_$beta, c_$metricas_modelo$r.squared, c_$p_shapiro, max(c_$dados_diagnostico$.cooksd)))
+
 # Gera um projeto real, sincroniza e executa os chunks copiados, inclusive tabelas.
 destino <- tempfile("regressao_20260914_",
   tmpdir = normalizePath("../../../APOIO/temp", winslash = "/", mustWork = TRUE))
