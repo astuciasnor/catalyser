@@ -1,5 +1,46 @@
 # Comunicação de Resultados — especificação atual
 
+**Revisão de 13/09, fim da tarde:** o projeto não exporta `metadados/` nem lê
+`bases.csv`. Receitas e execuções (inclusive desmarcadas, para estudo) ficam no
+script; o QMD contém somente as execuções selecionadas. O Excel bruto recebe
+o nome da aba. Transformações simples são encadeadas com `|>`, sem objetos da
+interface. A ANOVA usa os mesmos trechos explícitos do modelo isolado também
+quando acompanhada por outras execuções; apenas os nomes dos chunks mudam.
+Esta revisão prevalece sobre as referências históricas a metadados e ao replay
+da ANOVA abaixo. Comparação e validação em `APRENDIZADOS_PREPARO_E_EXPORTACAO_2026-09-11.md`.
+
+**Decisão de 13/09/2026:** o QMD passa a ler as bases preparadas em RDS,
+incluindo cada derivada utilizada. Importação, preparo e conferência ficam no
+script. Esta decisão substitui a reconstrução do preparo no Render descrita
+abaixo. O pesquisador salva os RDS explicitamente se decidir adotar mudanças
+no preparo. ANOVA isolada tem quatro chunks analíticos e gráfico final com
+rótulos de média ± DP, preservando IC nas barras. Conteúdo editorial completo
+vem selecionado por padrão para novas execuções ANOVA. Ver detalhes e validação
+em `PLANO_GERACAO_PROJETO_R_V1.md`.
+
+## Atualização aprovada — 12/09/2026
+
+O fechamento da geração do Projeto R segue
+`PLANO_GERACAO_PROJETO_R_V1.md`. Esta decisão prevalece sobre descrições
+anteriores dos modelos: `R/analise.R` é a fonte comentada do código tanto na
+ANOVA isolada quanto no projeto com várias análises. O `.qmd` conserva texto,
+legendas e chunks preenchidos, ligados por `# fonte:`. `atualizar_codigo()`
+copia o código e `conferir_codigo()` detecta divergências no Render.
+
+O ZIP exporta somente a aba utilizada do Excel bruto; a base compartilhada em
+RDS e Excel; e um Excel de cada derivada utilizada. São fotografias da IDE,
+preservadas durante o Render, que reconstrói o preparo desde a entrada.
+Não exporta `_quarto.yml` nem `R/gerar_word.R`: Word e HTML são escolhidos
+separadamente no RStudio. O trecho `instalar`, executado manualmente uma vez,
+orienta instalar CatalyseR, EAPADados e os pacotes de leitura, preparo e análise.
+O relatório nunca instala pacotes durante o Render.
+
+A ANOVA dedicada é usada somente quando há uma execução no projeto. Havendo
+outras execuções, mesmo desmarcadas, o modelo geral mantém seu acervo nos
+metadados. O menu Preparar Dados e o catálogo de análises permanecem no escopo
+aprovado da v1. A validação final de Word/HTML ainda depende de resolver a falha
+local do processo R ao encerrar; evidências e pendências estão no plano.
+
 **Verificado em:** CatalyseR 0.1.5, commit `6aa407a`, 27/07/2026
 **Fontes de verdade:** `mod_comunicacao.R`, `registro_comunicacao.R`,
 `exportacao_comunicacao.R` e testes

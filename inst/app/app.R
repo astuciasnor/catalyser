@@ -541,6 +541,8 @@ ui <- page_navbar(
                   options = list(
                     placeholder = "Digite ou escolha um conjunto de dados...",
                     openOnFocus = TRUE,
+                    dropdownParent = "body",
+                    onDropdownOpen = I("function($dropdown) { $dropdown.addClass('origem-lista-ampla'); }"),
                     maxOptions = 100
                   ))
               ),
@@ -1086,7 +1088,8 @@ server <- function(input, output, session) {
       updateSelectizeInput(session, "package_dataset",
         choices = eapa_datasets, selected = sel,
         options = list(placeholder = "Digite ou escolha um conjunto de dados...",
-                       openOnFocus = TRUE, maxOptions = 100),
+                       openOnFocus = TRUE, maxOptions = 100, dropdownParent = "body",
+                       onDropdownOpen = I("function($dropdown) { $dropdown.addClass('origem-lista-ampla'); }")),
         server = FALSE)
     }
   }, ignoreInit = TRUE)
@@ -2369,7 +2372,9 @@ RCatalyst::run_ide()</pre>
       # Um arquivo enviado começa pela primeira aba; o pesquisador pode trocá-la.
       selected_sheet <- sheets[1]
       selectizeInput("excel_sheet", "Selecione a Aba (Sheet):", choices = sheet_choices, selected = selected_sheet,
-        options = list(placeholder = "Digite ou escolha a aba...", openOnFocus = TRUE))
+        options = list(placeholder = "Digite ou escolha a aba...", openOnFocus = TRUE,
+          dropdownParent = "body",
+          onDropdownOpen = I("function($dropdown) { $dropdown.addClass('origem-lista-ampla'); }")))
     } else {
       NULL
     }
@@ -2467,7 +2472,9 @@ RCatalyst::run_ide()</pre>
       source = input$data_source,
       file_name = if (!is.null(input$file_upload)) input$file_upload$name else "datasets-projetos.xlsx",
       datapath = if (!is.null(input$file_upload)) input$file_upload$datapath else "dados/datasets-projetos.xlsx",
-      excel_sheet = if (!is.null(input$excel_sheet)) input$excel_sheet else "regressao",
+      # CSV não tem aba: não carregar o nome deixado pela planilha anterior.
+      excel_sheet = if (tolower(tools::file_ext(input$file_upload$name %||% "")) %in% c("csv", "txt", "tsv")) NULL
+        else if (!is.null(input$excel_sheet)) input$excel_sheet else "regressao",
       csv_sep = if (!is.null(input$csv_sep)) input$csv_sep else ",",
       csv_dec = if (!is.null(input$csv_dec)) input$csv_dec else ".",
       csv_header = if (!is.null(input$csv_header)) input$csv_header else TRUE,

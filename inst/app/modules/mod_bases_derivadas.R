@@ -46,13 +46,17 @@ mod_bases_derivadas_ui <- function(id) {
               options = list(dropdownParent = "body")),
             selectizeInput(ns("ramo_tipo"), "Ação:", choices = c("Tratar dados faltantes" = "tratar_na"),
               options = list(dropdownParent = "body"))),
-            uiOutput(ns("parametros_etapa")),
-            div(class = "derivadas-adicionar", actionButton(ns("adicionar_etapa"), "Adicionar etapa do preparo", icon = icon("plus"), class = "btn-primary"))),
-            helpText("Adicione a etapa e clique em Recalcular. Confira o resultado em Dados preparados.")),
+            uiOutput(ns("parametros_etapa"))),
+            helpText("Escolha as opções e salve a etapa no botão 1. Alterar os campos, por si só, não modifica a receita.")),
           div(class = "derivadas-trilha",
-            div(class = "d-flex justify-content-between align-items-center gap-2 mb-2",
+            div(class = "d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2",
               h5("Etapas do Preparo", class = "mb-0"),
-              actionButton(ns("recalcular"), "Recalcular", icon = icon("arrows-rotate"), class = "btn-primary")),
+              div(class = "d-flex gap-2 flex-wrap justify-content-end ms-auto",
+                actionButton(ns("adicionar_etapa"), "1. Salvar etapa na receita", icon = icon("plus"), class = "btn-primary", disabled = "disabled"),
+                actionButton(ns("recalcular"), "2. Recalcular dados", icon = icon("arrows-rotate"), class = "btn-primary"))),
+            div(class = "small text-muted mb-3",
+              strong("1. Salvar: "), "registra suas escolhas na receita. ",
+              strong("2. Recalcular: "), "executa as etapas salvas e atualiza os dados. Opções ainda não salvas ficam de fora."),
             div(class = "derivadas-lista-etapas", uiOutput(ns("receita_ramo"))), uiOutput(ns("seletor_etapa")),
             div(class = "d-flex gap-2 flex-wrap derivadas-ordem",
               actionButton(ns("etapa_subir"), "Subir", icon = icon("arrow-up"), class = "btn-outline-secondary"),
@@ -231,7 +235,8 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
       situacao <- if (is.null(base)) "" else bases_estado_cache(base, cache_selecionado(), revisao_atual())
       finalizada <- !is.null(base) && !identical(base$estado, "rascunho")
       botoes <- c(finalizar = is.null(base) || finalizada || !identical(situacao, "Atualizada"),
-                  reabrir = is.null(base) || !finalizada, recalcular = is.null(base))
+                  reabrir = is.null(base) || !finalizada, recalcular = is.null(base),
+                  adicionar_etapa = is.null(base) || finalizada)
       estados <- vapply(names(botoes), function(id) sprintf(
         "var el=document.getElementById('%s');if(el)el.disabled=%s;", ns(id),
         if (botoes[[id]]) "true" else "false"), character(1))
@@ -306,7 +311,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
               "bg-warning text-dark" else "bg-success"), paste(if (identical(base$estado, "rascunho")) "Em edição" else "Finalizada", situacao, sep = " · "))),
         if (identical(situacao, "Desatualizada"))
           div(class = "alert alert-warning mb-2",
-              "A base compartilhada ou as etapas mudaram. A tabela mostra a última versão calculada. Clique em Recalcular para atualizar esta base."),
+              "A base compartilhada ou a receita mudou. Os dados abaixo ainda são da última execução. Clique em 2. Recalcular dados para atualizá-los."),
         if (identical(situacao, "Com erro"))
           div(class = "alert alert-danger mb-2",
               "O recálculo encontrou um erro: ", paste(unlist(cache_selecionado()$erros), collapse = "; ")),
@@ -480,7 +485,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
             class = "alert alert-warning",
             style = "font-size:0.8rem; padding:8px 10px;",
             "Esta etapa reduz a base a uma linha por grupo e deve encerrar a receita. ",
-            "Para mudar o resumo, ajuste as opções e clique em Atualizar."
+            "Para mudar o resumo, ajuste as opções, atualize a receita no botão 1 e recalcule os dados no botão 2."
           )
         ),
         contingencia = {
@@ -515,7 +520,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
               "A receita produzirá uma linha por combinação, com a coluna ",
               tags$code("n"), " e, quando solicitado, ", tags$code("percentual"), ". ",
               "A contingência deve ser a última etapa. Para trocar contagens por ",
-              "percentual, ajuste a opção e clique em Atualizar — não adicione uma ",
+              "percentual, ajuste a opção e atualize a receita no botão 1; depois recalcule os dados. Não adicione uma ",
               "segunda contingência."
             )
           )
@@ -613,11 +618,11 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         "adicionar_etapa",
         label = if (atualizar) {
           if (identical(tipo, "contingencia"))
-            "Atualizar a contingência existente"
+            "1. Atualizar contingência na receita"
           else
-            "Atualizar o agrupamento existente"
+            "1. Atualizar agrupamento na receita"
         } else {
-          "Adicionar etapa do preparo"
+          "1. Salvar etapa na receita"
         },
         icon = if (atualizar) icon("arrows-rotate") else icon("plus")
       )
@@ -666,9 +671,9 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         )
         showNotification(
           if (atualizar_redutor)
-            "Etapa final atualizada. Recalcule a base para renovar a prévia."
+            "Etapa atualizada na receita. Os dados ainda não mudaram: clique em 2. Recalcular dados."
           else
-            "Etapa adicionada. O cache deste ramo está desatualizado até o recálculo manual.",
+            "Etapa salva na receita. Os dados ainda não mudaram: clique em 2. Recalcular dados.",
           type = "message", duration = 6
         )
       }
@@ -858,7 +863,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
           type = "error", duration = 12
         )
       } else {
-        showNotification(sprintf("Base '%s' recalculada: %d linhas × %d colunas.",
+        showNotification(sprintf("Dados de '%s' atualizados: %d linhas × %d colunas. Confira a aba Dados preparados.",
                                  base$nome_r, entrada$linhas, entrada$colunas),
                          type = "message", duration = 5)
       }

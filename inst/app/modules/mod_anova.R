@@ -48,7 +48,7 @@ mod_anova_ui <- function(id) {
               icon("file-export"), " ",
               "Baixe o Projeto R em ",
               strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
-              strong("Adicionar aos resultados"), " e escolha lá os componentes do relatório. ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
               "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
             )
           )
@@ -308,9 +308,7 @@ mod_anova_server <- function(id, data_rv, import_info) {
         anova_titulo_secao("Gráfico principal"),
         plotOutput(ns("fit_plot"), height = "440px"),
         anova_titulo_secao("Boxplot exploratório"),
-        plotOutput(ns("box_plot"), height = "380px"),
-        anova_titulo_secao("Pontos com intervalo de confiança"),
-        plotOutput(ns("pontos_plot"), height = "380px")
+        plotOutput(ns("box_plot"), height = "380px")
       )
     })
 
@@ -345,11 +343,6 @@ mod_anova_server <- function(id, data_rv, import_info) {
     output$box_plot <- renderPlot({
       r <- result_rv(); req(r)
       grafico_boxplot_anova(r, tema = input$graph_theme %||% "minimal")
-    })
-
-    output$pontos_plot <- renderPlot({
-      r <- result_rv(); req(r)
-      grafico_pontos_anova(r, tema = input$graph_theme %||% "minimal")
     })
 
     # ---- 2. Comparações -------------------------------------------------------

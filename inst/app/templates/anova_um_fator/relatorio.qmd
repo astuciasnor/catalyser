@@ -22,6 +22,7 @@ crossref:
 format:
   # 1. HTML (saída principal): caderno com código recolhido, exploração e diagnóstico.
   html:
+    format-links: false
     theme: [cosmo, ocean.scss]
     title-block-banner: "#0F3B5F"
     title-block-banner-color: "white"
@@ -41,7 +42,7 @@ format:
     fig-height: 3.2
     fig-align: center
     smooth-scroll: true
-  # 2. Word (atualizado junto com o HTML): relatório para o leitor, somente com texto, tabelas e figuras.
+  # 2. Word: escolha este formato na seta do Render para gerar o relatório do leitor.
   docx:
     reference-doc: custom-reference.docx
     toc: false
@@ -59,6 +60,28 @@ editor_options:
   chunk_output_type: console
 ---
 
+<!-- O script ensina R; este documento reúne o código e o texto científico.
+A linha # fonte: indica os trechos de R/analise.R que alimentam cada chunk.
+O código já vem preenchido na exportação e pode ser executado linha a linha.
+Depois de editar e salvar o script, rode o chunk atualizar para copiar as mudanças.
+As opções #| e o texto fora dos chunks são preservados nessa atualização. -->
+
+```{r}
+#| label: codigo-do-script
+#| include: false
+source(here::here("R", "funcoes.R"))
+conferir_codigo()
+```
+
+```{r}
+#| label: atualizar
+#| eval: false
+#| include: false
+# Execute manualmente depois de salvar as alterações em R/analise.R.
+source(here::here("R", "funcoes.R"))
+atualizar_codigo()
+```
+
 # Introdução
 
 <!-- inicio-introducao -->
@@ -73,9 +96,10 @@ entre pares pelo teste de Tukey. Ajuste este texto ao contexto do seu estudo.
 ::: callout-tip
 ## Como usar este caderno
 
-O código deste `relatorio.qmd` é editável e produz as tabelas e figuras.
-O arquivo `R/analise.R` é uma cópia comentada para estudo, sem sincronização
-automática. O README orienta como gerar o Word e o HTML.
+Estude e edite o código em `R/analise.R`, onde cada passo está comentado.
+Depois de salvar, execute o chunk `atualizar` deste relatório para trazer o
+código aos chunks. O texto científico e as legendas são editados aqui.
+O Render confere a atualização antes de gerar o Word e o HTML.
 :::
 
 :::::
@@ -90,86 +114,33 @@ automática. O README orienta como gerar o Word e o HTML.
 Os dados têm uma linha por observação. O fator {{FATOR}} entra como agrupamento,
 que a análise de variância compara, e {{RESPOSTA}} entra como resposta numérica.
 {{DESCRICAO_PREPARO}}
-Foram utilizados os casos com resposta e grupo preenchidos.
+Foram utilizados os casos com resposta e grupo preenchidos. O relatório lê a
+base preparada em RDS; a receita completa de importação e preparo permanece
+em `R/analise.R`, para estudo e conferência.
 
 ```{r}
 #| label: instalar
 #| include: false
 #| eval: false
-pacotes <- c(
-  "here", "readxl", "dplyr", "tidyr", "ggplot2",
-  "car", "multcompView", "effectsize", "flextable", "stringr"
-)
-
-faltando <- pacotes[!pacotes %in% rownames(installed.packages())]
-
-if (length(faltando)) {
-  install.packages(faltando)
-}
+# fonte: instalar
 ```
 
 ```{r}
 #| label: pacotes
 #| include: false
-library(here)
-library(readxl)        # leitura da planilha
-library(dplyr)         # manipulação de dados
-library(tidyr)         # reorganização de dados
-library(ggplot2)       # gráficos
-library(car)           # teste de Levene
-library(multcompView)  # letras dos grupos após o Tukey
-library(effectsize)    # tamanho de efeito (eta² e omega²)
-library(flextable)     # tabelas para o Word
-
-source(here("R", "funcoes.R"))
-
-options(digits = 3)
-nivel_confianca <- {{NIVEL_CONFIANCA}}
+# fonte: pacotes
 ```
 
 ```{r}
-#| label: importar-e-conferir
+#| label: carregar-bases
 #| output: false
-arquivo <- here("dados", "brutos", {{PLANILHA_R}})
-
-excel_sheets(arquivo)
-
-dados_brutos <- read_excel(arquivo, sheet = {{ABA_R}})
-
-glimpse(dados_brutos)
+# fonte: carregar-bases
 ```
 
 ```{r}
 #| label: preparo
 #| output: false
-{{PREPARO}}
-
-# A análise usa apenas observações com resposta e grupo preenchidos.
-base_da_anova <- dados
-if (!is.numeric(dados${{RESPOSTA_R}})) {
-  stop("A resposta precisa ser numérica. Confira a tipagem no preparo antes da ANOVA.")
-}
-n_preparadas <- nrow(dados)
-dados <- dados |>
-  mutate(
-    {{FATOR_R}} = factor({{FATOR_R}})
-  ) |>
-  tidyr::drop_na({{FATOR_R}}, {{RESPOSTA_R}}) |>
-  droplevels()
-n_excluidas <- n_preparadas - nrow(dados)
-
-# Mantém a paleta Ocean; amplia as cores quando há mais grupos na análise.
-n_grupos <- nlevels(dados${{FATOR_R}})
-cores_grupos <- if (n_grupos <= length(cores_tratamento)) {
-  cores_tratamento[seq_len(n_grupos)]
-} else {
-  grDevices::colorRampPalette(cores_tratamento)(n_grupos)
-}
-
-glimpse(dados)
-summary(dados)
-
-count(dados, {{FATOR_R}})
+# fonte: preparar-analise
 ```
 
 ::::: {.content-visible when-format="html"}
@@ -186,20 +157,12 @@ aqui é o rascunho do teste. Esta seção aparece somente neste caderno HTML.
 
 ```{r}
 #| label: explora-resumo
-resumir_grupo(dados, {{RESPOSTA_R}}, {{FATOR_R}}, conf = nivel_confianca)
+# fonte: explora-resumo
 ```
 
 ```{r}
 #| label: explora-boxplot
-ggplot(dados, aes(x = {{FATOR_R}}, y = {{RESPOSTA_R}})) +
-  geom_boxplot(width = 0.5, outlier.shape = NA, colour = "grey50") +
-  geom_jitter(width = 0.1, height = 0, size = 1.5, alpha = 0.5) +
-  labs(
-    x = {{ROTULO_X_R}},
-    y = {{ROTULO_Y_R}},
-    title = "Exploração dos grupos"
-  ) +
-  tema_projeto()
+# fonte: explora-boxplot
 ```
 
 :::::
@@ -216,76 +179,27 @@ foram construídas com o `ggplot2` [@wickham2016]. Adotou-se 5 % de significânc
 [@zar2010].
 
 ```{r}
-#| label: analise
+#| label: analise-modelo
 #| output: false
-modelo <- aov({{RESPOSTA_R}} ~ {{FATOR_R}}, data = dados)
-tabela_anova <- anova(modelo)
-tabela_anova
+# fonte: analisar
+```
 
-residuos <- residuals(modelo)
-teste_normalidade <- if (length(residuos) >= 3 && length(residuos) <= 5000 && sd(residuos) > 0) {
-  shapiro.test(residuos)
-} else {
-  list(statistic = c(W = NA_real_), p.value = NA_real_)
-}
-teste_levene <- leveneTest({{RESPOSTA_R}} ~ {{FATOR_R}}, data = dados)
+```{r}
+#| label: analise-pressupostos
+#| output: false
+# fonte: analisar-pressupostos
+```
 
-teste_normalidade
-teste_levene
+```{r}
+#| label: analise-tukey
+#| output: false
+# fonte: analisar-tukey
+```
 
-tukey <- TukeyHSD(modelo, conf.level = nivel_confianca)
-tukey
-
-# A matriz identifica os pares sem confundir hífens nos nomes dos grupos.
-grupo_nomes <- levels(dados${{FATOR_R}})
-pares <- combn(grupo_nomes, 2)
-p_pares <- matrix(1, length(grupo_nomes), length(grupo_nomes),
-                  dimnames = list(grupo_nomes, grupo_nomes))
-p_ajustados <- tukey[[1]][paste(pares[2, ], pares[1, ], sep = "-"), "p adj"]
-p_pares[cbind(pares[1, ], pares[2, ])] <- p_ajustados
-p_pares[cbind(pares[2, ], pares[1, ])] <- p_ajustados
-ordem <- names(sort(tapply(dados${{RESPOSTA_R}}, dados${{FATOR_R}}, mean), decreasing = TRUE))
-letras <- multcompView::multcompLetters(p_pares[ordem, ordem])$Letters
-
-resumo <- resumir_grupo(dados, {{RESPOSTA_R}}, {{FATOR_R}}, conf = nivel_confianca) |>
-  mutate(letra = letras[as.character({{FATOR_R}})]) |>
-  arrange({{FATOR_R}})
-
-resumo
-
-f_valor   <- fmt(tabela_anova$`F value`[1])
-gl_trat   <- tabela_anova$Df[1]
-gl_res    <- tabela_anova$Df[2]
-p_anova   <- formatar_p(tabela_anova$`Pr(>F)`[1], no_texto = TRUE)
-p_shapiro <- formatar_p(teste_normalidade$p.value, no_texto = TRUE)
-p_levene  <- formatar_p(teste_levene$`Pr(>F)`[1], no_texto = TRUE)
-
-frase_anova <- if (is.na(tabela_anova$`Pr(>F)`[1]))
-  "A ANOVA não forneceu um p-valor válido para comparar as médias de {{RESPOSTA}} entre os grupos" else
-  if (tabela_anova$`Pr(>F)`[1] < 0.05)
-    "Houve evidência de diferença na média de {{RESPOSTA}} entre os grupos" else
-    "Não houve evidência de diferença na média de {{RESPOSTA}} entre os grupos"
-
-efeito_eta   <- eta_squared(modelo)
-efeito_omega <- omega_squared(modelo)
-eta2   <- fmt(efeito_eta$Eta2[1])
-omega2 <- fmt(efeito_omega$Omega2[1])
-
-eta_val <- efeito_eta$Eta2[1]
-classe_efeito <- if (is.na(eta_val)) "indeterminado" else
-  if (eta_val < 0.01) "muito pequeno" else
-  if (eta_val < 0.06) "pequeno" else if (eta_val < 0.14) "médio" else "grande"
-
-normal_ok <- !is.na(teste_normalidade$p.value) && teste_normalidade$p.value >= 0.05
-levene_ok <- !is.na(teste_levene$`Pr(>F)`[1]) && teste_levene$`Pr(>F)`[1] >= 0.05
-frase_normalidade <- if (is.na(teste_normalidade$p.value))
-  "o teste de normalidade não foi calculado; use o gráfico Q-Q" else if (normal_ok)
-  "não houve evidência para rejeitar a normalidade dos resíduos" else
-  "houve evidência de afastamento da normalidade dos resíduos"
-frase_levene <- if (is.na(teste_levene$`Pr(>F)`[1]))
-  "o teste de Levene não forneceu um p-valor válido" else if (levene_ok)
-  "não houve evidência para rejeitar a igualdade das variâncias entre os grupos" else
-  "houve evidência de variâncias diferentes entre os grupos"
+```{r}
+#| label: analise-texto
+#| output: false
+# fonte: preparar-resultados-texto
 ```
 
 ::::: {.content-visible when-format="html"}
@@ -347,24 +261,12 @@ gráficos não conseguem confirmá-la.
 
 ```{r}
 #| label: diagnostico-variancia
-# Confira se a dispersão é parecida entre grupos; um funil merece investigação.
-plot(modelo, which = 1)
+# fonte: diagnostico-variancia
 ```
 
 ```{r}
 #| label: diagnostico-normalidade
-# Confira a proximidade da reta; curvas ou caudas afastadas merecem atenção.
-plot(modelo, which = 2)
-```
-
-Observe também se há observações que influenciam muito o ajuste. Picos na
-distância de Cook pedem conferência dos dados e do contexto da coleta, sem
-exclusão automática. A independência continua sendo avaliada pelo delineamento.
-
-```{r}
-#| label: diagnostico-influencia
-# Confira os picos; influência alta é um motivo para investigar, não para apagar.
-plot(modelo, which = 4)
+# fonte: diagnostico-normalidade
 ```
 
 :::::
@@ -383,21 +285,7 @@ as letras do teste de Tukey.
 ```{r}
 #| label: tbl-resumo
 #| tbl-cap: "{{RESPOSTA}} por {{FATOR}}: n, média, desvio padrão (DP), erro padrão (EP), intervalo de confiança de {{IC_PERCENTUAL}} % e grupos do teste de Tukey."
-resumo |>
-  mutate(
-    `IC {{IC_PERCENTUAL}} %` = paste0(fmt(ic_inf, 1), " a ", fmt(ic_sup, 1)),
-    across(c(media, dp, ep), ~ fmt(.x, 1))
-  ) |>
-  select(
-    {{FATOR_R}} = {{FATOR_R}},
-    n,
-    `Média` = media,
-    DP = dp,
-    EP = ep,
-    `IC {{IC_PERCENTUAL}} %`,
-    Tukey = letra
-  ) |>
-  flextable_ocean()
+# fonte: tbl-resumo
 ```
 
 ## Análise de variância
@@ -417,77 +305,18 @@ gráficos. Se os diagnósticos indicarem problemas, reavalie a adequação do mo
 antes de concluir a comparação.
 
 A @tbl-anova resume a análise de variância. A @fig-barras mostra a média de cada
-grupo com as letras do teste de Tukey, e a
-@fig-grupos acrescenta as observações individuais em torno da média, para não
-perder de vista a dispersão que as barras escondem.
+grupo, os rótulos de média ± DP, os intervalos de confiança e as letras do teste de Tukey.
 
 ```{r}
 #| label: tbl-anova
 #| tbl-cap: "Análise de variância de {{RESPOSTA}} em função de {{FATOR}}."
-tabela_anova |>
-  as.data.frame() |>
-  mutate(
-    Fonte = c({{FATOR_STRING}}, "Resíduo"),
-    GL = Df,
-    SQ = fmt(`Sum Sq`, 1),
-    QM = fmt(`Mean Sq`, 1),
-    F = fmt(`F value`),
-    p = formatar_p(`Pr(>F)`)
-  ) |>
-  select(Fonte, GL, SQ, QM, F, p) |>
-  mutate(across(c(F, p), ~ ifelse(is.na(.x) | .x == "-", "", .x))) |>
-  flextable_ocean()
+# fonte: tbl-anova
 ```
 
 ```{r}
 #| label: fig-barras
-#| fig-cap: "{{RESPOSTA}} por {{FATOR}}: a barra é a média de cada grupo, a barra de erro é o intervalo de confiança de {{IC_PERCENTUAL}} % e as letras indicam os grupos do teste de Tukey."
-ggplot(resumo, aes(x = {{FATOR_R}}, y = media, fill = {{FATOR_R}})) +
-  geom_col(width = 0.7) +
-  geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup), width = 0.2, linewidth = 0.6) +
-  geom_text(aes(y = ic_sup, label = letra), vjust = -0.6, size = 4) +
-  scale_fill_manual(values = cores_grupos, guide = "none") +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
-  labs(
-    x = {{ROTULO_X_R}},
-    y = {{ROTULO_Y_R}},
-    title = {{TITULO_GRAFICO_R}}
-  ) +
-  tema_projeto()
-```
-
-```{r}
-#| label: fig-grupos
-#| fig-cap: "{{RESPOSTA}} por {{FATOR}}: cada ponto é uma observação, o ponto branco é a média, a barra é o intervalo de confiança de {{IC_PERCENTUAL}} % e as letras indicam os grupos do teste de Tukey."
-ggplot() +
-  geom_jitter(
-    data = dados,
-    aes(x = {{FATOR_R}}, y = {{RESPOSTA_R}}, colour = {{FATOR_R}}),
-    width = 0.12, height = 0, size = 1.5, alpha = 0.4
-  ) +
-  geom_errorbar(
-    data = resumo,
-    aes(x = {{FATOR_R}}, ymin = ic_inf, ymax = ic_sup),
-    width = 0.2, linewidth = 0.6
-  ) +
-  geom_point(
-    data = resumo,
-    aes(x = {{FATOR_R}}, y = media),
-    size = 3, shape = 21, fill = "white", stroke = 1
-  ) +
-  geom_text(
-    data = resumo,
-    aes(x = {{FATOR_R}}, y = ic_sup, label = letra),
-    vjust = -0.8, size = 4
-  ) +
-  scale_colour_manual(values = cores_grupos, guide = "none") +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
-  labs(
-    x = {{ROTULO_X_R}},
-    y = {{ROTULO_Y_R}},
-    title = {{TITULO_GRAFICO_R}}
-  ) +
-  tema_projeto()
+#| fig-cap: "{{RESPOSTA}} por {{FATOR}}: a barra é a média de cada grupo, o rótulo mostra média ± desvio padrão, a barra de erro é o intervalo de confiança de {{IC_PERCENTUAL}} % e as letras indicam os grupos do teste de Tukey."
+# fonte: fig-barras
 ```
 
 # Discussão

@@ -89,8 +89,9 @@ for (manter in c(FALSE, TRUE)) {
     projeto <- file.path(destino, "pesca_teste")
     # O teste executa os arquivos retirados do ZIP, sem fotografia estrutural.
     stopifnot(!file.exists(file.path(projeto, "dados/processados/base_resolvida.rds")),
-      identical(unname(tools::md5sum(info$datapath)),
-                unname(tools::md5sum(file.path(projeto, "dados/brutos/pesca.xlsx")))))
+      identical(readxl::excel_sheets(file.path(projeto, "dados/brutos/pesca.xlsx")), "pesca"),
+      identical(readxl::excel_sheets(info$datapath), c("pesca", "notas")),
+      isTRUE(all.equal(as.data.frame(readxl::read_excel(file.path(projeto, "dados/brutos/pesca.xlsx"))), brutos)))
     for (script in c(TRUE, FALSE)) {
       arquivo <- if (script) "R/analise.R" else "relatorios/relatorio.qmd"
       linhas <- readLines(file.path(projeto, arquivo), encoding = "UTF-8")
@@ -99,10 +100,13 @@ for (manter in c(FALSE, TRUE)) {
       sys.source(file.path(projeto, "R/funcoes.R"), envir = env)
       # Importa de verdade a planilha que viajou no projeto.
       library(readxl)
-      eval(parse(text = extrair(linhas, if (anova && !script) "importar-e-conferir" else "importar", script)), env)
-      codigo <- extrair(linhas, if (anova && !script) "preparo" else "tratar", script)
-      eval(parse(text = codigo), env)
-      obtida <- if (anova) env$base_compartilhada else env$dados_analise
+      if (script) {
+        eval(parse(text = extrair(linhas, "importar", TRUE)), env)
+        eval(parse(text = extrair(linhas, "tratar", TRUE)), env)
+      } else {
+        eval(parse(text = extrair(linhas, if (anova) "carregar-bases" else "carregar-compartilhada", FALSE)), env)
+      }
+      obtida <- if (anova && !script) readRDS(file.path(projeto, "dados/processados/base_compartilhada.rds")) else if (anova) env$base_compartilhada else env$dados_analise
       stopifnot(iguais(obtida, compartilhada))
       if (!anova) {
         raiz <- unname(exportacao_raizes_chunk(manifesto$execucoes)[[1]])

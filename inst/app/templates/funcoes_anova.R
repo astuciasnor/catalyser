@@ -692,6 +692,12 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
       vjust = -0.7, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
     ggplot2::scale_fill_manual(values = cores) +
+    # Média ± DP junto ao topo da barra, à direita da haste do intervalo.
+    ggplot2::geom_text(
+      ggplot2::aes(y = Media, label = paste0(anova_num_col(Media, 1), " ± ", anova_num_col(Desvio_Padrao, 1))),
+      nudge_x = 0.08, hjust = 0, vjust = -0.4, size = 3.5, color = "#0F3B5F"
+    ) +
+    ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
     ggplot2::scale_y_continuous(
       limits = c(piso, topo * 1.18),
       expand = ggplot2::expansion(mult = c(0, 0.02))
@@ -700,7 +706,7 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ggplot2::labs(
       title = titulo_final,
       subtitle = sprintf(
-        "Barras = média; hastes = IC %.0f%% da média; grupos com a mesma letra não diferiram (Tukey)",
+        "Barras = média; rótulos = média ± DP; hastes = IC %.0f%% da média\nMesma letra = sem diferença detectada pelo Tukey",
         100 * nivel
       ),
       x = rotulo_x %||% r$ind_var,

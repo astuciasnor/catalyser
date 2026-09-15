@@ -1,0 +1,90 @@
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+[carregar] pacote catalyser 0.1.7 instalado.
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+'data.frame':	8 obs. of  5 variables:
+ $ amostra       : chr  "A_seca" "B_seca" "C_seca" "D_seca" ...
+ $ especie       : chr  "Tilápia" "Tilápia" "Tilápia" "Tilápia" ...
+ $ peso_texto    : chr  "100,0" "200,0" "300,0" "400,0" ...
+ $ comprimento_cm: num  10 11 12 13 14 15 16 17
+ $ descartar     : chr  "fora" "fora" "fora" "fora" ...
+[Base Compartilhada] Reconstruída a partir da planilha e idêntica à fotografia: 7 linhas e 6 colunas.
+'data.frame':	8 obs. of  5 variables:
+ $ amostra       : chr  "A_seca" "B_seca" "C_seca" "D_seca" ...
+ $ especie       : chr  "Tilápia" "Tilápia" "Tilápia" "Tilápia" ...
+ $ peso_texto    : chr  "100,0" "200,0" "300,0" "400,0" ...
+ $ comprimento_cm: num  10 11 12 13 14 15 16 17
+ $ descartar     : chr  "fora" "fora" "fora" "fora" ...
+[Base Compartilhada] Reconstruída a partir da planilha e idêntica à fotografia: 7 linhas e 6 colunas.
+PASSOU: estatistica_descritiva — importação, separar, empilhar, alargar, reescala, renomes e derivada; original mantida: FALSE 
+Rows: 8
+Columns: 5
+$ amostra        <chr> "A_seca", "B_seca", "C_seca", "D_seca", "E_seca", "F_se…
+$ especie        <chr> "Tilápia", "Tilápia", "Tilápia", "Tilápia", "Tambaqui",…
+$ peso_texto     <chr> "100,0", "200,0", "300,0", "400,0", "500,0", "600,0", "…
+$ comprimento_cm <dbl> 10, 11, 12, 13, 14, 15, 16, 17
+$ descartar      <chr> "fora", "fora", "fora", "fora", "fora", "fora", "fora",…
+Rows: 5
+Columns: 6
+$ local_amostra  <chr> "D", "E", "F", "G", "H"
+$ estacao        <chr> "seca", "seca", "seca", "seca", "seca"
+$ especie        <fct> tilapia, tambaqui, tambaqui, tambaqui, tambaqui
+$ peso_g         <dbl> 400, 500, 600, 700, 800
+$ comprimento_cm <dbl> 13, 14, 15, 16, 17
+$ massa_final    <dbl> 0.4, 0.5, 0.6, 0.7, 0.8
+PASSOU: anova_um_fator — importação, separar, empilhar, alargar, reescala, renomes e derivada; original mantida: FALSE 
+'data.frame':	8 obs. of  5 variables:
+ $ amostra       : chr  "A_seca" "B_seca" "C_seca" "D_seca" ...
+ $ especie       : chr  "Tilápia" "Tilápia" "Tilápia" "Tilápia" ...
+ $ peso_texto    : chr  "100,0" "200,0" "300,0" "400,0" ...
+ $ comprimento_cm: num  10 11 12 13 14 15 16 17
+ $ descartar     : chr  "fora" "fora" "fora" "fora" ...
+[Base Compartilhada] Reconstruída a partir da planilha e idêntica à fotografia: 7 linhas e 7 colunas.
+'data.frame':	8 obs. of  5 variables:
+ $ amostra       : chr  "A_seca" "B_seca" "C_seca" "D_seca" ...
+ $ especie       : chr  "Tilápia" "Tilápia" "Tilápia" "Tilápia" ...
+ $ peso_texto    : chr  "100,0" "200,0" "300,0" "400,0" ...
+ $ comprimento_cm: num  10 11 12 13 14 15 16 17
+ $ descartar     : chr  "fora" "fora" "fora" "fora" ...
+[Base Compartilhada] Reconstruída a partir da planilha e idêntica à fotografia: 7 linhas e 7 colunas.
+PASSOU: estatistica_descritiva — importação, separar, empilhar, alargar, reescala, renomes e derivada; original mantida: TRUE 
+Rows: 8
+Columns: 5
+$ amostra        <chr> "A_seca", "B_seca", "C_seca", "D_seca", "E_seca", "F_se…
+$ especie        <chr> "Tilápia", "Tilápia", "Tilápia", "Tilápia", "Tambaqui",…
+$ peso_texto     <chr> "100,0", "200,0", "300,0", "400,0", "500,0", "600,0", "…
+$ comprimento_cm <dbl> 10, 11, 12, 13, 14, 15, 16, 17
+$ descartar      <chr> "fora", "fora", "fora", "fora", "fora", "fora", "fora",…
+Rows: 5
+Columns: 7
+$ local_amostra  <chr> "D", "E", "F", "G", "H"
+$ estacao        <chr> "seca", "seca", "seca", "seca", "seca"
+$ amostra        <chr> "D_seca", "E_seca", "F_seca", "G_seca", "H_seca"
+$ especie        <fct> tilapia, tambaqui, tambaqui, tambaqui, tambaqui
+$ peso_g         <dbl> 400, 500, 600, 700, 800
+$ comprimento_cm <dbl> 13, 14, 15, 16, 17
+$ massa_final    <dbl> 0.4, 0.5, 0.6, 0.7, 0.8
+PASSOU: anova_um_fator — importação, separar, empilhar, alargar, reescala, renomes e derivada; original mantida: TRUE 
+PREPARO_COMPLETO_CONFERIDO

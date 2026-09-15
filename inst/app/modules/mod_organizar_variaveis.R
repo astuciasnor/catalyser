@@ -627,10 +627,12 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
               div(style = "flex:0 0 20px; text-align:center; color:#aaa;", "→"),
               div(
                 style = "flex:1;",
-                selectInput(
+                selectizeInput(
                   session$ns(paste0("tipo_", i)), NULL,
                   choices = arrumar_tipo_choices,
-                  selected = tipo, width = "100%"
+                  selected = tipo, width = "100%",
+                  options = list(dropdownParent = "body", openOnFocus = TRUE,
+                    onDropdownOpen = I("function($dropdown) { $dropdown.addClass('tipos-lista-completa'); }"))
                 )
               )
             )
@@ -819,6 +821,8 @@ mod_organizar_variaveis_server <- function(id, data_rv, on_usar = NULL, on_etapa
     output$preview_final <- renderDT({
       datatable(
         resultado_final(),
+        class = "stripe hover compact preparo-tabela-compacta",
+        width = "auto",
         rownames = FALSE,
         filter = "top",
         options = list(

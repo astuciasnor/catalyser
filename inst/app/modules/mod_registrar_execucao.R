@@ -17,12 +17,12 @@ mod_analise_registravel_ui <- function(id, analise_ui, registro_ui) {
           class = "alert alert-light border small mt-3 mb-1",
           icon("arrow-right"), " ",
           "Depois de executar a análise, abra a sub-aba ",
-          strong("2. Adicionar aos resultados"), "."
+          strong("2. Adicionar ao Projeto R"), "."
         )
       )
     ),
     nav_panel(
-      title = "2. Adicionar aos resultados",
+      title = "2. Adicionar ao Projeto R",
       icon = icon("bookmark"),
       div(
         class = "pt-2",
@@ -52,6 +52,8 @@ mod_registrar_execucao_ui <- function(id) {
         ),
         uiOutput(ns("dependencia"))
       ),
+      selectInput(ns("execucao_id"), "Execução selecionada:",
+                  choices = c("Nova execução" = "")),
       uiOutput(ns("gerenciamento")),
       uiOutput(ns("detalhes")),
       helpText(
@@ -118,9 +120,10 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       span(class = "badge text-bg-info", sprintf("%d registrada%s", n, if (n == 1L) "" else "s"))
     })
 
-    output$gerenciamento <- renderUI({
+    # O seletor permanece montado. Recriá-lo a cada seleção fazia o navegador
+    # alternar entre a execução nova e a anterior, redesenhando o cartão.
+    observe({
       execs <- execucoes_modulo()
-      pronto <- !is.null(estado_disponivel())
       escolhas <- c("Nova execução" = "")
       if (length(execs)) {
         ids <- vapply(execs, `[[`, character(1), "id")
@@ -129,6 +132,13 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       }
       atual <- selecionada_rv()
       if (!atual %in% unname(escolhas)) atual <- ""
+      freezeReactiveValue(input, "execucao_id")
+      updateSelectInput(session, "execucao_id", choices = escolhas, selected = atual)
+    })
+
+    output$gerenciamento <- renderUI({
+      pronto <- !is.null(estado_disponivel())
+      atual <- selecionada_rv()
       botao <- function(id, rotulo, icone, classe, habilitado = TRUE) {
         tag <- actionButton(session$ns(id), rotulo, icon = icon(icone), class = classe)
         if (!isTRUE(habilitado))
@@ -137,8 +147,6 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
         tag
       }
       tagList(
-        selectInput(session$ns("execucao_id"), "Execução selecionada:",
-                    choices = escolhas, selected = atual),
         if (!nzchar(atual)) {
           botao("adicionar", "Adicionar Novo Resultado", "plus", "btn-success", pronto)
         } else {
@@ -183,6 +191,15 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
       )
       if (inherits(nova, "error")) {
         showNotification(conditionMessage(nova), type = "error", duration = 8)
+        return()
+      }
+      campos <- c("analise_id", "tipo", "titulo", "parametros", "base_id", "base_tipo",
+                  "base_versao_receita", "revisao_origem", "codigo_r", "saidas_disponiveis")
+      iguais <- Filter(function(x) identical(x[campos], nova[campos]), execucoes_modulo())
+      if (length(iguais)) {
+        selecionada_rv(iguais[[1]]$id)
+        showNotification("Esta análise já foi adicionada. O resultado existente foi selecionado.",
+                         type = "message", duration = 5)
         return()
       }
       registro_execucoes_rv(execucoes_adicionar(registro_execucoes_rv(), nova))

@@ -1,0 +1,31 @@
+[1] "LC_COLLATE=English_United States.utf8;LC_CTYPE=English_United States.utf8;LC_MONETARY=English_United States.utf8;LC_NUMERIC=C;LC_TIME=English_United States.utf8"
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+PASSOU: empilhar mantém Excel e script executável após incorporar.
+PASSOU: alargar executa depois de empilhar no script; troca de origem limpa saída antiga.
+PASSOU: separar mantém 71 × 12 e código reproduzível após incorporar.
+PASSOU: derivadas 43/58, ID sequencial, Excel, script completo e bloqueio de saída desatualizada.
+VERIFICACAO_CONCLUIDA

@@ -29,6 +29,8 @@ Imports:
     writexl,
     flextable,
     ggpubr,
+    broom,
+    performance,
     tibble,
     stringr,
     dplyr,

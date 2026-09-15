@@ -102,7 +102,8 @@ ramo <- bases_adicionar_etapa(
 )[[1]]
 ramo$estado <- "pronta"
 cache <- list(base_0001 = list(
-  df = dados[dados$ano >= 2020, ], erros = list(), revisao_origem = 7L,
+  # A derivada parte da compartilhada já com captura_dobro, mesmo fora do Word.
+  df = dados_analise_fixture[dados$ano >= 2020, ], erros = list(), revisao_origem = 7L,
   versao_receita = ramo$versao, linhas = sum(dados$ano >= 2020), colunas = ncol(dados)
 ))
 
@@ -223,14 +224,13 @@ stopifnot(
   identical(sort(list.files(file.path(projeto, "R"))), c("analise.R", "funcoes.R")),
   !dir.exists(file.path(projeto, "resultados")),
   dir.exists(file.path(projeto, "imagens")),
-  file.exists(file.path(projeto, "metadados", "manifesto_editorial.rds")),
-  any(grepl("chunk `importar`", leiame, fixed = TRUE)),
-  any(grepl("clique em **Render**", leiame, fixed = TRUE)),
+  !dir.exists(file.path(projeto, "metadados")),
+  any(grepl("`carregar-compartilhada` lê o RDS", leiame, fixed = TRUE)),
+  any(grepl("Na seta do **Render**, escolha **Word**", leiame, fixed = TRUE)),
   any(grepl("Onde o código mora", leiame, fixed = TRUE)),
   !any(grepl("02_execucao", leiame, fixed = TRUE)),
   !any(grepl("04_analisar", leiame, fixed = TRUE)),
-  any(grepl("A pasta `metadados/`", leiame, fixed = TRUE)),
-  any(grepl("não precisa ser aberta nem", leiame, fixed = TRUE)),
+  !any(grepl('here("metadados"', qmd, fixed = TRUE)),
   # O modelo de página do Word e o tema do HTML ficam ao lado do relatório.
   file.exists(file.path(projeto, "relatorios", "custom-reference.docx")),
   file.exists(file.path(projeto, "relatorios", "ocean.scss")),
@@ -245,10 +245,10 @@ stopifnot(
   # leitura, num chunk -analise à parte. eval: false também em `atualizar` e
   # `instalar`; output: false em importar, tratar e nos dois chunks de análise.
   sum(grepl("#| eval: false", qmd, fixed = TRUE)) == 3L,
-  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 4L,
+  sum(grepl("#| output: false", qmd, fixed = TRUE)) == 3L,
   any(grepl("#| label: linhas-captura", qmd, fixed = TRUE)),
-  any(grepl("# fonte: linhas-captura-base, linhas-captura-analise, linhas-captura-resultado", qmd, fixed = TRUE)),
-  any(grepl("# fonte: descritiva-captura-base, descritiva-captura-resultado", qmd, fixed = TRUE)),
+  any(grepl("# fonte: linhas-captura-carregar-base, linhas-captura-analise, linhas-captura-resultado", qmd, fixed = TRUE)),
+  any(grepl("# fonte: descritiva-captura-carregar-base, descritiva-captura-resultado", qmd, fixed = TRUE)),
   any(grepl("#| label: descritiva-captura-analise", qmd, fixed = TRUE)),
   any(grepl("**Pergunta:** como 'captura' se comporta ao longo de 'ano'?", qmd, fixed = TRUE)),
   sum(grepl("#| include: false", qmd, fixed = TRUE)) >= 3L,
@@ -281,16 +281,16 @@ stopifnot(
 
 # --- Os chunks importar e tratar levam a planilha até a conferência -----------
 stopifnot(
-  any(grepl("#| label: importar", qmd, fixed = TRUE)),
-  any(grepl("#| label: tratar", qmd, fixed = TRUE)),
-  any(grepl("read_excel(caminho_planilha, sheet = aba_planilha)", qmd, fixed = TRUE)),
-  any(grepl('here("dados", "brutos", "captura_teste.xlsx")', qmd, fixed = TRUE)),
-  any(grepl("dados_analise <- dados", qmd, fixed = TRUE)),
-  any(grepl("catalyser_conferir_base(", qmd, fixed = TRUE)),
-  any(grepl('here("dados", "processados", "dados_analise.rds")', qmd, fixed = TRUE)),
-  any(grepl("trat_moda <- catalyser_moda", qmd, fixed = TRUE)),
-  # Sem operação estrutural promovida, a base resolvida é a própria planilha.
-  any(grepl("base_resolvida <- dados_brutos", qmd, fixed = TRUE)),
+  any(grepl("#| label: carregar-compartilhada", qmd, fixed = TRUE)),
+  !any(grepl("#| label: tratar", qmd, fixed = TRUE)),
+  any(grepl("read_excel(caminho_planilha, sheet = aba_planilha)", script, fixed = TRUE)),
+  any(grepl('here("dados", "brutos", "captura_teste.xlsx")', script, fixed = TRUE)),
+  any(grepl("dados_analise <- dados", script, fixed = TRUE)),
+  any(grepl("catalyser_conferir_base(", script, fixed = TRUE)),
+  any(grepl('here("dados", "processados", "base_compartilhada.rds")', qmd, fixed = TRUE)),
+  !any(grepl("trat_moda <- catalyser_moda", script, fixed = TRUE)),
+  # Sem operação estrutural, a sequência começa diretamente na planilha.
+  any(grepl("dados_analise <- dados_brutos", script, fixed = TRUE)),
   # O único source() do relatório é o do funcoes.R que liga os dois arquivos.
   all(grepl("funcoes.R", grep("source(", qmd, fixed = TRUE, value = TRUE), fixed = TRUE)),
   # O script tem os mesmos trechos, com os comentários.
@@ -304,7 +304,9 @@ ligacao <- new.env(parent = baseenv())
 sys.source(file.path(projeto, "R", "funcoes.R"), envir = ligacao)
 stopifnot(isTRUE(ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)))
 # Editar o script sem atualizar o relatório é o que a conferência pega.
-script_mudado <- sub("str(dados_brutos)", "str(dados_brutos); nrow(dados_brutos)", script, fixed = TRUE)
+script_mudado <- script
+posicao_leitura <- grep('^dados_analise <- readRDS', script)
+script_mudado[posicao_leitura] <- paste0(script[posicao_leitura], '; nrow(dados_analise)')
 caminho_mudado <- tempfile(fileext = ".R")
 writeLines(script_mudado, caminho_mudado, useBytes = TRUE)
 erro_conferencia <- tryCatch(
@@ -313,7 +315,7 @@ erro_conferencia <- tryCatch(
 )
 stopifnot(
   is.character(erro_conferencia),
-  grepl("# fonte: importar", erro_conferencia, fixed = TRUE),
+  grepl("# fonte: carregar-compartilhada", erro_conferencia, fixed = TRUE),
   grepl("Rode o chunk `atualizar`", erro_conferencia, fixed = TRUE)
 )
 # E atualizar_codigo() traz a mudança, sem os comentários.
@@ -322,8 +324,8 @@ file.copy(caminho_qmd, qmd_copia)
 mudados <- suppressMessages(ligacao$atualizar_codigo(qmd = qmd_copia, script = caminho_mudado))
 qmd_atualizado <- readLines(qmd_copia, warn = FALSE, encoding = "UTF-8")
 stopifnot(
-  identical(mudados, "# fonte: importar"),
-  any(grepl("nrow(dados_brutos)", qmd_atualizado, fixed = TRUE)),
+  identical(mudados, "# fonte: carregar-compartilhada"),
+  any(grepl("nrow(dados_analise)", qmd_atualizado, fixed = TRUE)),
   !any(grepl("O QUE CONFERIR", qmd_atualizado, fixed = TRUE)),
   isTRUE(ligacao$conferir_codigo(qmd = qmd_copia, script = caminho_mudado))
 )
@@ -356,7 +358,7 @@ stopifnot(
   identical(list.files(file.path(projeto, "dados", "brutos")), "captura_teste.xlsx"),
   identical(
     sort(list.files(file.path(projeto, "dados", "processados"))),
-    sort(c("dados_analise.rds", "base_compartilhada.xlsx"))
+    sort(c("base_compartilhada.rds", "base_compartilhada.xlsx", "base_regressao.xlsx", "base_0001.rds"))
   ),
   # Sem operação estrutural promovida, a fotografia pós-estrutural não é gerada.
   !file.exists(file.path(projeto, "dados", "processados", "base_resolvida.rds")),
@@ -374,7 +376,7 @@ stopifnot(
   any(grepl("library(readxl)", qmd, fixed = TRUE)),
   any(grepl("#| label: descritiva-captura", qmd, fixed = TRUE)),
   any(grepl("## ---- descritiva-captura-base ----", script, fixed = TRUE)),
-  any(grepl("dados_da_analise <- dados_analise", qmd, fixed = TRUE)),
+  any(grepl('dados_da_analise <- readRDS(here("dados", "processados", "base_compartilhada.rds"))', qmd, fixed = TRUE)),
   # A apresentação escreve os parâmetros por extenso; nada de metadados no QMD.
   any(grepl("linhas_captura <- catalyser_executar(", qmd, fixed = TRUE)),
   any(grepl('tipo = "grafico_linhas"', qmd, fixed = TRUE)),
@@ -396,12 +398,13 @@ codigo_relatorio <- tempfile("relatorio_", fileext = ".R")
 knitr::purl(caminho_qmd, output = codigo_relatorio, quiet = TRUE)
 anterior <- getwd()
 setwd(projeto)
+ambiente_relatorio <- new.env(parent = globalenv())
 saida_relatorio <- utils::capture.output(
-  sys.source(codigo_relatorio, envir = new.env(parent = globalenv()))
+  sys.source(codigo_relatorio, envir = ambiente_relatorio)
 )
 setwd(anterior)
 stopifnot(
-  any(grepl("idêntica à fotografia", saida_relatorio, fixed = TRUE)),
+  identical(ambiente_relatorio$dados_analise, readRDS(file.path(projeto, "dados/processados/base_compartilhada.rds"))),
   !any(grepl("divergiu da fotografia", saida_relatorio, fixed = TRUE))
 )
 

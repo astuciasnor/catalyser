@@ -13,6 +13,21 @@
 .preparo-estudio .btn-outline-danger, .derivadas-fluxo .btn-outline-danger {background:#fff;color:#a52b38;border-color:#a52b38;}
 .selectize-dropdown .option {white-space:normal;overflow-wrap:anywhere;padding:8px 12px;}
 .selectize-dropdown-content {max-height:min(420px,55vh);}
+/* Origem: cerca de oito opções, sem recorte pelo painel de importação. */
+.origem-lista-ampla.selectize-dropdown {z-index:1100;}
+.origem-lista-ampla .selectize-dropdown-content {max-height:min(320px,60vh) !important;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:auto;}
+/* O menu de tipos sai da área rolável do modal e mostra todas as opções. */
+.tipos-lista-completa.selectize-dropdown {z-index:2100;}
+.tipos-lista-completa .selectize-dropdown-content {max-height:260px !important;overflow-y:auto;}
+.preparo-tabela-compacta.dataTable {width:auto !important;margin-left:0 !important;margin-right:auto !important;}
+.preparo-tabela-compacta th, .preparo-tabela-compacta td {white-space:nowrap;}
+.preparo-tabela-compacta input {min-width:5rem;max-width:12rem;}
+/* Cabeçalho, corpo e rodapé começam na mesma margem, mesmo com scrollX. */
+.preparo-tabela-esquerda .dataTables_scrollHeadInner,
+.preparo-tabela-esquerda .dt-scroll-headInner {margin-left:0 !important;margin-right:auto !important;}
+.preparo-tabela-esquerda .preparo-rodape {display:flex !important;flex-direction:column;align-items:flex-start;gap:.5rem;padding-top:.75rem;}
+.preparo-tabela-esquerda .preparo-rodape > * {float:none !important;width:auto !important;margin:0 !important;padding-top:0 !important;text-align:left !important;}
+.preparo-tabela-esquerda .preparo-rodape .pagination {justify-content:flex-start !important;margin:0 !important;}
 .preparo-origem {background:#0F3B5F;color:white;border-radius:8px;padding:12px 16px;font-size:1rem;}
 .preparo-etapas {padding-left:28px;margin:12px 0;}
 .preparo-etapas li {background:#eaf2f3;border-left:4px solid #2E7D8F;border-radius:6px;padding:10px 12px;margin:8px 0;font-size:.95rem;color:#0F3B5F;}
@@ -134,7 +149,6 @@
 .derivadas-edicao > *, .derivadas-formulario > * {min-width:0;}
 .derivadas-formulario {display:grid;grid-template-columns:minmax(180px,.85fr) minmax(240px,1.15fr);column-gap:20px;row-gap:8px;align-items:start;}
 .derivadas-escolhas {padding-right:16px;border-right:1px solid #dbe5e8;}
-.derivadas-adicionar {grid-column:1/-1;}
 .derivadas-lista-etapas {max-height:250px;overflow-y:auto;}
 .derivadas-trilha .preparo-etapas {margin-top:4px;}
 .derivadas-trilha .preparo-etapas li {padding:6px 10px;margin:5px 0;}

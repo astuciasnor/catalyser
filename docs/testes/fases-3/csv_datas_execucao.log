@@ -1,0 +1,41 @@
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+[carregar] pacote catalyser 0.1.7 instalado.
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+PASSOU: formatos, ausentes, bissexto e rejeição de datas inválidas.
+PASSOU: diálogo rejeita data inválida e código reproduz a conversão válida.
+── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ forcats   1.0.1     ✔ readr     2.2.0
+✔ lubridate 1.9.5     ✔ stringr   1.6.0
+✔ purrr     1.2.2     
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ purrr::compose() masks flextable::compose()
+✖ dplyr::filter()  masks stats::filter()
+✖ dplyr::lag()     masks stats::lag()
+ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+PASSOU: Coletas-ponto-e-virgula.csv — leitura, compartilhada, derivada, Excel e código de preparo em seis pares script/relatório.
+PASSOU: Coletas-virgula.csv — leitura, compartilhada, derivada, Excel e código de preparo em seis pares script/relatório.
+PASSOU: Conferencia-Datas.xlsx — leitura, compartilhada, derivada, Excel e código de preparo em seis pares script/relatório.
+CONCLUIDO: revisão CSV e datas.

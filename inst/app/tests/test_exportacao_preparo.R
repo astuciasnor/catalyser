@@ -33,7 +33,10 @@ for (derivada in c(FALSE,TRUE)) {
  destino <- tempfile("exportado_",tmpdir=saida);dir.create(destino)
  projeto <- exportacao_criar_projeto(destino,nome,df,df,preparada,ps,NULL,bs,caches,execucoes,manifesto,1L,info,file.path(app_dir,"templates"))
  stopifnot(file.exists(file.path(projeto,paste0(nome,".Rproj"))),
-           identical(unname(tools::md5sum(info$datapath)),unname(tools::md5sum(file.path(projeto,"dados/brutos",exportacao_nome_planilha(info))))))
+           identical(readxl::excel_sheets(file.path(projeto,"dados/brutos",exportacao_nome_planilha(info))), "biometria"),
+           isTRUE(all.equal(
+             as.data.frame(readxl::read_excel(file.path(projeto,"dados/brutos",exportacao_nome_planilha(info)))),
+             as.data.frame(readxl::read_excel(info$datapath, sheet="biometria")))) )
  esperada <- if(derivada)caches$base_0001$df else preparada
  esperada$especie <- factor(esperada$especie)
  esperada <- droplevels(tidyr::drop_na(esperada,massa_kg,especie))
@@ -43,7 +46,13 @@ for (derivada in c(FALSE,TRUE)) {
   env <- new.env(parent=globalenv());env$dados_brutos <- df;sys.source(file.path(projeto,"R/funcoes.R"),env)
   # Somente a gravação vai para a pasta temporária do projeto desta conferência.
   env$here <- function(...) file.path(projeto,...)
-  eval(parse(text=extrair(linhas,if(script)"tratar" else "preparo",script)),env)
+  if (script) {
+    eval(parse(text=extrair(linhas,"tratar",TRUE)),env)
+    eval(parse(text=extrair(linhas,"preparar-analise",TRUE)),env)
+  } else {
+    eval(parse(text=extrair(linhas,"carregar-bases",FALSE)),env)
+    eval(parse(text=extrair(linhas,"preparo",FALSE)),env)
+  }
   stopifnot(isTRUE(all.equal(as.list(env$dados),as.list(esperada))))
   stopifnot(length(env$cores_grupos) >= nlevels(env$dados$especie))
   modelo <- stats::aov(massa_kg~especie,data=env$dados)
@@ -51,5 +60,5 @@ for (derivada in c(FALSE,TRUE)) {
   stopifnot(isTRUE(all.equal(stats::coef(modelo),stats::coef(referencia))))
  }
 
- cat("PASSOU: projeto",nome,"reproduz",nrow(esperada),"linhas no script e no relatório; Excel original e nome Rproj preservados.\n")
+ cat("PASSOU: projeto",nome,"reproduz",nrow(esperada),"linhas no script e no relatório; aba utilizada e nome Rproj conferidos.\n")
 }

@@ -15,6 +15,8 @@
 #    2. Aparência das figuras .... tema_projeto(), cores_tratamento
 #    3. Formatação de números .... fmt(), formatar_p()
 #    4. Tabelas para o Word ...... flextable_ocean()
+#    5. Manutenção do relatório .. acrescentada pelo exportador a partir do
+#                                 template comum: atualizar_codigo(), conferir_codigo()
 #
 #  As funções das seções 3 e 4 têm o mesmo nome e o mesmo comportamento das
 #  que o EAPADados e a CatalyseR usam. Quem vier de lá reconhece; quem sair

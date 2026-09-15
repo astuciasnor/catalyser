@@ -1,0 +1,34 @@
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+
+Attaching package: 'dplyr'
+
+The following objects are masked from 'package:stats':
+
+    filter, lag
+
+The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union
+
+PASSOU: código de importação dos dois CSVs e do Excel coincide com a sequência completa.
+  id_peixe data_coleta peso_g     local         observacao
+1        2  02/09/2026 110.20 Estação B             d'água
+2        3             125.75 Estação A medida "conferida"
+3        5  05/09/2026 140.50 Estação A          conferido
+4        6  06/09/2026 160.25 Estação B          conferido
+5        8  08/09/2026 180.80 Estação B          conferido
+PASSOU: derivada atualizada em verde, nomes dos downloads e saídas equivalentes; base desatualizada sem mensagem de sucesso.
+FEEDBACK_5_CONCLUIDO

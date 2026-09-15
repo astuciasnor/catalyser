@@ -326,7 +326,7 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
           class = "alert alert-light border text-center",
           icon("bookmark"), br(),
           strong("Nenhuma execução registrada."), br(),
-          "Execute uma análise e clique em Adicionar aos resultados."
+          "Execute uma análise e clique em Adicionar ao Projeto R."
         ))
       }
 

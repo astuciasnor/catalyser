@@ -254,15 +254,13 @@ rotulos <- trimws(sub("^#\\|\\s*label:", "", grep("^#\\|\\s*label:", qmd, value 
 trechos <- sub("^## ---- (.+) ----$", "\\1", grep("^## ---- ", script, value = TRUE))
 stopifnot(
   # Labels dizem a intenção científica, não o número interno da execução.
-  # A ANOVA tem código validado: base, análise e resultado viram um chunk só,
-  # feito de três trechos do script.
-  "anova-profundidade-m" %in% rotulos,
-  "anova-profundidade-m-modelo" %in% rotulos,
-  "anova-profundidade-m-tukey" %in% rotulos,
-  "anova-profundidade-m-resumo-grupos" %in% rotulos,
-  all(c("anova-profundidade-m-base", "anova-profundidade-m-analise",
-        "anova-profundidade-m-resultado") %in% trechos),
-  any(grepl("# fonte: anova-profundidade-m-base, anova-profundidade-m-analise, anova-profundidade-m-resultado", qmd, fixed = TRUE)),
+  # A ANOVA acompanhada mantém os trechos didáticos do modelo isolado.
+  "anova-profundidade-m-analise-modelo" %in% rotulos,
+  "anova-profundidade-m-analise-tukey" %in% rotulos,
+  "tbl-anova-profundidade-m-resumo" %in% rotulos,
+  all(c("anova-profundidade-m-base", "anova-profundidade-m-analisar",
+        "anova-profundidade-m-analisar-tukey") %in% trechos),
+  any(grepl("# fonte: anova-profundidade-m-carregar-bases", qmd, fixed = TRUE)),
   !any(duplicated(trechos)),
   !any(grepl("-codigo$|-replay$", rotulos)),
   # Nenhum label sobrou com sublinhado ou com o ID cru como raiz.
@@ -284,20 +282,19 @@ stopifnot(
   # E o console nao aparece em nenhum chunk do relatorio.
   !any(grepl("[['console']]", qmd, fixed = TRUE)),
   !any(grepl("-console", qmd, fixed = TRUE)),
-  # O preparo está nos chunks importar e tratar, com a conferência no fim.
-  any(grepl("#| label: importar", qmd, fixed = TRUE)),
-  any(grepl("#| label: tratar", qmd, fixed = TRUE)),
-  any(grepl("catalyser_conferir_base(", qmd, fixed = TRUE)),
+  # O relatório lê RDS; a receita e sua conferência permanecem no script.
+  any(grepl("#| label: carregar-compartilhada", qmd, fixed = TRUE)),
+  !any(grepl("#| label: tratar", qmd, fixed = TRUE)),
+  any(grepl("catalyser_conferir_base(", script, fixed = TRUE)),
   all(grepl("funcoes.R", grep("source(", qmd, fixed = TRUE, value = TRUE), fixed = TRUE)),
   # E constrói a base derivada da ANOVA no chunk da própria análise.
   any(grepl("#| label: anova-profundidade-m", qmd, fixed = TRUE)),
-  any(grepl("base_anova_profundidade_especie <- dados", qmd, fixed = TRUE)),
-  any(grepl("dados_da_analise <- base_anova_profundidade_especie", qmd, fixed = TRUE)),
-  # A apresentação refaz a análise com os parâmetros por extenso, sem metadados.
-  any(grepl("anova_profundidade_m <- catalyser_executar(", qmd, fixed = TRUE)),
-  any(grepl('tipo = "anova_um_fator"', qmd, fixed = TRUE)),
-  any(grepl('resposta = "profundidade_m"', qmd, fixed = TRUE)),
-  any(grepl('catalyser_mostrar(anova_profundidade_m[["tabela"]])', qmd, fixed = TRUE)),
+  any(grepl("base_anova_profundidade_especie <- dados", script, fixed = TRUE)),
+  any(grepl("dados_da_analise <- readRDS", qmd, fixed = TRUE)),
+  # A ANOVA explícita alimenta diretamente as tabelas e figuras.
+  !any(grepl("anova_profundidade_m <- catalyser_executar(", qmd, fixed = TRUE)),
+  any(grepl('modelo <- aov(profundidade_m ~ especie, data = dados)', qmd, fixed = TRUE)),
+  any(grepl('flextable_ocean()', qmd, fixed = TRUE)),
   !any(grepl("analises_registradas", qmd, fixed = TRUE)),
   # A ANOVA tem código validado: o chunk da análise roda em silêncio.
   any(grepl("#| output: false", qmd, fixed = TRUE)),
@@ -305,18 +302,13 @@ stopifnot(
   any(grepl("library(catalyser)", qmd, fixed = TRUE)),
   !any(grepl("sys.source(", qmd, fixed = TRUE)),
   # Cada análise abre com a pergunta que responde.
-  any(grepl("**Pergunta:** a média de 'profundidade_m' difere entre os grupos de 'especie'?", qmd, fixed = TRUE)),
-  any(grepl("stats::aov(formula_anova, data = dados_anova)", qmd, fixed = TRUE)),
-  any(grepl("variavel_resposta <-", qmd, fixed = TRUE)),
-  any(grepl("effectsize::eta_squared", qmd, fixed = TRUE)),
+  any(grepl("eta_squared(modelo", qmd, fixed = TRUE)),
   any(grepl("### Resumo por grupo", qmd, fixed = TRUE)),
-  any(grepl("### Comparações múltiplas", qmd, fixed = TRUE)),
+  any(grepl("### Comparações de Tukey", qmd, fixed = TRUE)),
   # Os comentários que explicam a análise passo a passo e a apresentação
   # moram no script; o relatório recebe só o código.
-  any(grepl("A análise passo a passo", script, fixed = TRUE)),
-  any(grepl("agora pela função da CatalyseR", script, fixed = TRUE)),
-  any(grepl("# 4. Ajustar a ANOVA de um fator.", script, fixed = TRUE)),
-  !any(grepl("# 4. Ajustar a ANOVA de um fator.", qmd, fixed = TRUE)),
+  any(grepl("# O QUE CONFERIR:", script, fixed = TRUE)),
+  !any(grepl("# O QUE CONFERIR:", qmd, fixed = TRUE)),
   any(grepl("Profundidade de captura entre espécies", qmd, fixed = TRUE)),
   # As duas execuções gráficas continuam separadas no relatório.
   any(grepl("Comprimento das corvinas por observação", qmd, fixed = TRUE)),
@@ -340,11 +332,14 @@ saida_relatorio <- utils::capture.output(
 )
 setwd(anterior)
 stopifnot(
-  any(grepl("idêntica à fotografia", saida_relatorio, fixed = TRUE)),
-  exists("anova_profundidade_m", envir = ambiente_relatorio, inherits = FALSE),
+  identical(ambiente_relatorio$dados_analise, readRDS(file.path(projeto, "dados/processados/base_compartilhada.rds"))),
+  exists("modelo", envir = ambiente_relatorio, inherits = FALSE),
   exists("linhas_comprimento_cm", envir = ambiente_relatorio, inherits = FALSE),
   exists("linhas_peso_g", envir = ambiente_relatorio, inherits = FALSE),
-  inherits(get("anova_profundidade_m", envir = ambiente_relatorio), "resultado_catalyser")
+  inherits(get("modelo", envir = ambiente_relatorio), "aov"),
+  isTRUE(all.equal(unname(coef(ambiente_relatorio$modelo)),
+    unname(coef(stats::aov(profundidade_m ~ especie,
+      data = readRDS(file.path(projeto, "dados/processados/base_0001.rds")))))))
 )
 
 zip_saida <- file.path(raiz, "projeto_anova.zip")

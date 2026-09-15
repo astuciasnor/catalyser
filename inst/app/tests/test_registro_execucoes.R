@@ -119,7 +119,7 @@ html_fluxo <- htmltools::renderTags(
 )$html
 stopifnot(
   grepl("1. Configurar e executar", html_fluxo, fixed = TRUE),
-  grepl("2. Adicionar aos resultados", html_fluxo, fixed = TRUE),
+  grepl("2. Adicionar ao Projeto R", html_fluxo, fixed = TRUE),
   grepl("teste_fluxo-fluxo_registro_subabas", html_fluxo, fixed = TRUE)
 )
 
@@ -152,6 +152,12 @@ testServer(
 
     session$setInputs(titulo = "Captura por ano", adicionar = 1)
     stopifnot(length(registro_rv()) == 1L, identical(contador_rv(), 1L))
+    session$setInputs(adicionar = 2)
+    session$setInputs(salvar_novo = 1)
+    stopifnot(length(registro_rv()) == 1L, identical(contador_rv(), 1L))
+    for (i in 1:5) session$flushReact()
+    stopifnot(identical(selecionada_rv(), "execucao_0001"),
+      !grepl('select', output$gerenciamento$html, fixed = TRUE))
     stopifnot(
       grepl("Atualizar Resultado Anterior", output$gerenciamento$html, fixed = TRUE),
       grepl("Adicionar Novo Resultado", output$gerenciamento$html, fixed = TRUE),
@@ -159,7 +165,7 @@ testServer(
     )
 
     estado_atual(estado_linhas("esforco_h"))
-    session$setInputs(titulo = "Esforço por ano", salvar_novo = 1)
+    session$setInputs(titulo = "Esforço por ano", salvar_novo = 2)
     stopifnot(
       length(registro_rv()) == 2L,
       identical(registro_rv()$execucao_0001$parametros$y, "captura_t"),

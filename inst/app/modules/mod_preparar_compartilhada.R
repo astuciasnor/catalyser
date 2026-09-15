@@ -47,7 +47,8 @@ mod_preparar_compartilhada_ui <- function(id) {
           nav_panel("Dados Preparados", value = "dados", icon = icon("table"),
             card_body(fill = FALSE, fillable = FALSE,
               uiOutput(ns("opcao_previa")),
-              DTOutput(ns("dados"), fill = FALSE))),
+              div(class = "preparo-tabela-esquerda",
+                DTOutput(ns("dados"), fill = FALSE)))),
           nav_panel("Códigos R", value = "codigo", icon = icon("code"),
             card_body(fill = FALSE, fillable = FALSE,
               p(class = "small text-muted", "Sequência desde a importação até a Base Compartilhada. Guarde o arquivo original junto ao script ou ajuste o caminho indicado."),
@@ -82,7 +83,23 @@ mod_preparar_compartilhada_server <- function(id, dados_analise, replay_res, pip
     output$dados <- renderDT({
       d <- if (organizacao$pendente() && identical(input$ver_dados, "previa")) organizacao$previa() else dados_analise()
       req(d)
-      datatable(d, rownames = FALSE, filter = "top", options = list(scrollX = TRUE, pageLength = 10,
+      datatable(d, rownames = FALSE, filter = "top", width = "auto",
+        class = "stripe hover compact preparo-tabela-compacta",
+        # Reúne os controles reais do DT no rodapé, inclusive com o tema Bootstrap.
+        # Só mudar o dom/CSS não deslocava a paginação em todas as versões do tema.
+        callback = htmlwidgets::JS(
+          "function alinharRodape() {",
+          "  var container = $(table.table().container());",
+          "  var rodape = container.find('.preparo-rodape');",
+          "  if (!rodape.length) rodape = $('<div class=\"preparo-rodape\"></div>').appendTo(container);",
+          "  container.find('.dataTables_info, .dt-info').appendTo(rodape);",
+          "  container.find('.dataTables_paginate, .dt-paging').appendTo(rodape);",
+          "}",
+          "alinharRodape();",
+          "table.on('draw.dt', alinharRodape);"
+        ),
+        options = list(scrollX = TRUE, pageLength = 10,
+        dom = '<"d-flex justify-content-between flex-wrap"lf>rt<"preparo-rodape"ip>',
         lengthMenu = c(10,25,50,100), language = preparo_idioma_tabela(ncol(d))))
     }, server = TRUE)
     output$estrutura <- renderUI({

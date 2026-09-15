@@ -1,0 +1,17 @@
+[1] "LC_COLLATE=English_United States.utf8;LC_CTYPE=English_United States.utf8;LC_MONETARY=English_United States.utf8;LC_NUMERIC=C;LC_TIME=English_United States.utf8"
+
+Attaching package: 'bslib'
+
+The following object is masked from 'package:utils':
+
+    page
+
+
+Attaching package: 'DT'
+
+The following objects are masked from 'package:shiny':
+
+    dataTableOutput, renderDataTable
+
+PASSOU: renomear mostra pendência e não duplica etapa.
+PASSOU: código omite operações neutras e preserva conversão solicitada.

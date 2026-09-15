@@ -349,6 +349,11 @@ testes <- c(
   "test_anova_integrada.R",
   "test_anova_dois_fatores.R",
   "test_anova_exportacao.R",
+  "test_anova_script_relatorio.R",
+  "test_anova_codigo_didatico.R",
+  "test_regressao_roteiro.R",
+  "test_regressao_interface.R",
+  "test_exportacao_enxuta.R",
   "test_anova_preparo_projeto.R",
   "test_grafico_linhas_troca_y.R"
 )

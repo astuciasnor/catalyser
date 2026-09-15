@@ -45,6 +45,12 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
                   "Von Bertalanffy"        = "von_bertalanffy"
                 ), selected = "linear"))
             },
+            if (!is_logistic) conditionalPanel(
+              condition = sprintf("input['%s'] == 'linear'", ns("model_type")),
+              checkboxInput(ns("avaliar_autocorrelacao"),
+                "Testar autocorrelação (linhas na ordem de coleta)", value = FALSE),
+              helpText("Ative somente com ordem real de tempo ou posição. A independência também depende do delineamento.")
+            ),
             execucao_explicita_controles_ui(ns)
           )
         ),
@@ -76,7 +82,13 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
             verbatimTextOutput(ns("formula_text")),
             div(style = "margin-bottom: -20px;", DTOutput(ns("coef_table"), height = "auto")),
             hr(style = "margin: 10px 0; border-color: #dee2e6;"),
-            uiOutput(ns("metrics_summary"))
+            uiOutput(ns("metrics_summary")),
+            if (!is_logistic) conditionalPanel(
+              condition = sprintf("input['%s'] == 'linear'", ns("model_type")),
+              hr(), tags$h5("Pressupostos da reta global"),
+              DTOutput(ns("pressupostos_table")),
+              helpText("Leia os testes junto aos gráficos de resíduos e Q-Q. Retas por grupo exigem diagnóstico de cada grupo.")
+            )
           )
         ),
         nav_panel(
@@ -245,7 +257,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       execucao_assinatura(
         input,
         c("dataset_entrada", "var_y", "var_x", "model_type", "var_group",
-          "grp_reg"),
+          "grp_reg", "avaliar_autocorrelacao"),
         revisao_execucao()
       )
     })
@@ -381,6 +393,14 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         clean_df <- na.omit(clean_df)
 
         if (mt == "linear") {
+          validate(
+            need(input$var_x != input$var_y, "Escolha variáveis diferentes para X e Y."),
+            need(nrow(clean_df) >= 3, "A regressão precisa de pelo menos três pares completos."),
+            need(all(vapply(clean_df, function(x) all(is.finite(x)), logical(1))),
+              "Há valores infinitos. Confira os cálculos no preparo."),
+            need(all(vapply(clean_df, function(x) length(unique(x)) > 1, logical(1))),
+              "Resposta e preditor precisam variar; confira as colunas constantes.")
+          )
           formula_obj <- as.formula(paste(backtick(input$var_y), "~", backtick(input$var_x)))
           lm(formula_obj, data = clean_df)
         } else {
@@ -426,6 +446,21 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       fit <- model_fit()
       req(fit)
 
+      if (inherits(fit, "lm") && !inherits(fit, "glm")) {
+        coefs <- broom::tidy(fit, conf.int = TRUE)
+        numero <- function(x) formatC(x, digits = 2, format = "f", decimal.mark = ",")
+        tabela <- data.frame(
+          Parâmetro = c("Intercepto", input$var_x),
+          `β estimado` = numero(coefs$estimate), EP = numero(coefs$std.error),
+          `IC 95%` = paste0("[", numero(coefs$conf.low), "; ", numero(coefs$conf.high), "]"),
+          t = numero(coefs$statistic),
+          `p-valor` = ifelse(coefs$p.value < .001, "< 0,001",
+            formatC(coefs$p.value, digits = 3, format = "f", decimal.mark = ",")),
+          check.names = FALSE)
+        return(datatable(tabela, options = list(dom = "t", ordering = FALSE),
+          rownames = FALSE, selection = "none"))
+      }
+
       coef_matrix <- if (is_curve(fit)) fit$coefs else summary(fit)$coefficients
 
       # Converte para data frame legível
@@ -446,6 +481,35 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         formatSignif(columns = "p-valor", digits = 4)
     })
     
+    # O mesmo ajuste alimenta os testes, sem tratar p > alfa como confirmação.
+    pressupostos_reta <- eventReactive(gatilho_execucao(), {
+      fit <- model_fit()
+      req(inherits(fit, "lm"), !inherits(fit, "glm"))
+      residuos <- residuals(fit)
+      sh <- if (length(residuos) >= 3 && length(residuos) <= 5000 && sd(residuos) > 0)
+        shapiro.test(residuos)$p.value else NA_real_
+      bp <- tryCatch(as.numeric(performance::check_heteroscedasticity(fit)),
+        error = function(e) NA_real_)
+      dw <- NA_real_
+      if (isTRUE(input$avaliar_autocorrelacao)) {
+        set.seed(2026)
+        dw <- tryCatch(as.numeric(performance::check_autocorrelation(fit)),
+          error = function(e) NA_real_)
+      }
+      valores <- c(sh, bp, dw)
+      leitura <- ifelse(is.na(valores), "Não calculado",
+        ifelse(valores < .05, "Evidência de violação", "Sem evidência de violação; não comprova o pressuposto"))
+      if (!isTRUE(input$avaliar_autocorrelacao)) leitura[3] <- "Avalie a independência pelo delineamento"
+      data.frame(Teste = c("Shapiro-Wilk", "Breusch-Pagan", "Durbin-Watson"),
+        `p-valor` = ifelse(is.na(valores), "—", ifelse(valores < .001, "< 0,001",
+          formatC(valores, digits = 3, format = "f", decimal.mark = ","))),
+        Leitura = leitura, check.names = FALSE)
+    }, ignoreInit = FALSE)
+    output$pressupostos_table <- renderDT({
+      datatable(pressupostos_reta(), options = list(dom = "t", ordering = FALSE),
+        rownames = FALSE, selection = "none")
+    })
+
     # Sumário de métricas de ajuste do modelo
     output$metrics_summary <- renderUI({
       fit <- model_fit()
@@ -514,7 +578,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         "<p style='margin-bottom: 5px;'><b>Coeficiente de Determinação (R²):</b> ", round(r2, 4), " (", round(r2 * 100, 2), "%)</p>",
         "<p style='margin-bottom: 5px;'><b>R² Ajustado:</b> ", round(adj_r2, 4), "</p>",
         "<p style='margin-bottom: 5px;'><b>Erro Padrão Residual (RSE):</b> ", round(rse, 4), " em ", df_residual, " graus de liberdade</p>",
-        "<p style='margin-bottom: 0;'><b>Estatística F:</b> ", f_stat_text, "</p>",
+        "<p style='margin-bottom: 5px;'><b>Estatística F:</b> ", f_stat_text, "</p>",
+        "<p style='margin-bottom: 0;'><b>N:</b> ", nobs(fit), " · <b>AIC:</b> ", round(AIC(fit), 2), "</p>",
         "</div>"
       ))
     })
@@ -637,7 +702,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       if (input$show_eq) {
         if (input$var_group == "none" || !input$grp_reg) {
           coefs <- coef(fit)
-          eq_text <- sprintf("Y = %.4f + (%.4f) * X", coefs[1], coefs[2])
+          eq_text <- sprintf("Y = %.4f + (%.4f) * X; R² = %.4f", coefs[1], coefs[2], summary(fit)$r.squared)
         } else {
           df_clean <- df[, c(input$var_x, input$var_y, input$var_group)]
           df_clean <- na.omit(df_clean)
@@ -941,6 +1006,24 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           "# Ajustar modelo de Regressão Linear Simples",
           sprintf("modelo <- lm(`%s` ~ `%s`, data = dados)", input$var_y, input$var_x),
           "print(summary(modelo))",
+          "# Coeficientes com IC e métricas globais, ainda sem arredondamento.",
+          "tabela_coeficientes <- broom::tidy(modelo, conf.int = TRUE)",
+          "metricas_modelo <- broom::glance(modelo)",
+          "print(tabela_coeficientes)",
+          "print(metricas_modelo)",
+          "# Examine os resíduos, não a normalidade de X ou Y isoladamente.",
+          "dados_diagnostico <- broom::augment(modelo)",
+          "residuos <- dados_diagnostico$.resid",
+          "if (length(residuos) >= 3 && length(residuos) <= 5000 && sd(residuos) > 0) {",
+          "  print(shapiro.test(residuos))",
+          "}",
+          "print(performance::check_heteroscedasticity(modelo))",
+          if (isTRUE(input$avaliar_autocorrelacao)) c(
+            "# A ordem das linhas foi confirmada como ordem real de coleta.",
+            "set.seed(2026)",
+            "print(performance::check_autocorrelation(modelo))"
+          ) else "# Independência: confira o delineamento; autocorrelação não foi testada.",
+          "# p acima de 0,05 não comprova pressupostos. Complete com os gráficos.",
           ""
         )
       } else {
@@ -1032,6 +1115,9 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           coefs <- coef(fit)
           if (mt == "logistico") {
             plot_lines <- c(plot_lines, sprintf("    subtitle = 'P(Y=1) = 1 / (1 + exp(-(%.4f + %.4f * X)))  |  L50 = %.2f',", coefs[1], coefs[2], -coefs[1]/coefs[2]))
+          } else if (mt == "linear") {
+            plot_lines <- c(plot_lines,
+              "    subtitle = sprintf('Y = %.4f + (%.4f) * X; R² = %.4f', coef(modelo)[1], coef(modelo)[2], summary(modelo)$r.squared),")
           } else {
             plot_lines <- c(plot_lines, sprintf("    subtitle = 'Y = %.4f + (%.4f) * X',", coefs[1], coefs[2]))
           }
@@ -1658,6 +1744,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           grupo = input$var_group %||% "none",
           tipo_modelo = input$model_type %||% if (isTRUE(is_logistic)) "logistico" else "linear",
           regressao_por_grupo = isTRUE(input$grp_reg),
+          nivel_confianca = 0.95,
+          avaliar_autocorrelacao = isTRUE(input$avaliar_autocorrelacao),
           mostrar_equacao = isTRUE(input$show_eq),
           tema = input$graph_theme
         ),
