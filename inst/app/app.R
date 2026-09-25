@@ -25,7 +25,7 @@ if (file.exists(file.path("..", "..", "R", "descrevendo_dados.R"))) {
     "desenhar_caixa_ocean", "desenhar_dispersao_ocean", "resumir_continuas",
     "tabela_frequencia_exploratoria"
   )) {
-    assign(nome, getFromNamespace(nome, "catalyser"))
+    assign(nome, getFromNamespace(nome, "catalyser"), envir = globalenv())
   }
 }
 
