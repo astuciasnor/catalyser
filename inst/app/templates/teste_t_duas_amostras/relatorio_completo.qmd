@@ -1,0 +1,177 @@
+---
+title: "{{TITULO}}"
+subtitle: "Caderno completo · da base preparada à interpretação do teste t"
+author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
+date: today
+format:
+  html:
+    theme: [cosmo, ocean.scss]
+    title-block-banner: "#0F3B5F"
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    code-summary: "Ver código de apresentação"
+    code-tools: true
+    embed-resources: true
+    fig-width: 7
+    fig-height: 4.6
+    fig-dpi: 150
+execute:
+  echo: true
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_completo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+# Como usar este caderno
+
+Este documento acompanha o percurso completo do teste t para dois grupos
+independentes. Os cálculos vivem em `R/analise.R`; os chunks abaixo apenas
+apresentam os objetos produzidos por ele. As tabelas CSV e as figuras PNG em
+`saida/` são cópias para consulta e não alimentam o relatório. Cada Render
+começa em uma sessão nova.
+
+**Os textos são sugestões para estudo e adaptação.** Os números se atualizam
+com o script, mas a interpretação depende da pergunta, das unidades e do
+delineamento da pesquisa.
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+## Dados e preparo
+
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR
+registrou o preparo no início de `R/analise.R` e guardou a base adotada em
+`dados/processados/{{ARQUIVO_BASE}}`. O script reconstrói o percurso e usa a
+base adotada, impedindo mudanças silenciosas no Render.
+
+```{r}
+#| label: tbl-descritiva
+#| tbl-cap: "Resumo da resposta por grupo. DP: desvio padrão; EP: erro padrão da média."
+flextable_ocean(tabela_descritiva_exibir)
+```
+
+`r texto_amostra`
+
+## Análise estatística
+
+Compararam-se as médias dos dois grupos por teste t para amostras independentes,
+com intervalo de confiança de `r ic_percentual`%. A normalidade dentro de cada
+grupo foi examinada por Shapiro-Wilk e a igualdade de variâncias pelo teste de
+Levene. Quando as variâncias são compatíveis, usa-se o t de Student; caso
+contrário, o t de Welch. O tamanho do efeito é medido pelo d de Cohen.
+
+# Exploração
+
+```{r}
+#| label: fig-caixa
+#| fig-cap: "Distribuição da resposta por grupo; cada ponto é uma observação."
+grafico_caixa
+```
+
+# Resultados
+
+## A saída bruta, uma vez
+
+A saída abaixo ajuda você a reconhecer o resultado de `t.test()` fora deste
+projeto. As tabelas seguintes apresentam os mesmos números de forma organizada.
+
+```{r}
+#| label: console-teste
+resumo_console
+```
+
+`r texto_resultado`
+
+`r texto_efeito`
+
+```{r}
+#| label: tbl-teste
+#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p e tamanho do efeito."
+flextable_ocean(tabela_teste)
+```
+
+```{r}
+#| label: fig-medias
+#| fig-cap: "Média de cada grupo com intervalo de confiança de 95% da média."
+grafico_medias
+```
+
+# Pressupostos
+
+`r texto_pressupostos`
+
+```{r}
+#| label: tbl-pressupostos
+#| tbl-cap: "Testes dos pressupostos do teste t."
+flextable_ocean(tabela_pressupostos)
+```
+
+::::: {.content-visible when-format="html"}
+
+## Detalhe dos testes de pressupostos {.unnumbered}
+
+::: {.callout-note}
+## Shapiro-Wilk (normalidade dentro de cada grupo)
+
+H0: os dados do grupo seguem distribuição normal.
+H1: os dados do grupo se afastam da normalidade.
+
+`r frase_normalidade`.
+:::
+
+::: {.callout-note}
+## Levene (homogeneidade das variâncias)
+
+H0: as variâncias dos dois grupos são iguais.
+H1: as variâncias dos dois grupos são diferentes.
+
+`r frase_variancia`.
+:::
+
+Um p maior ou igual a `r fmt(alfa, 2)` significa que não há evidência para
+rejeitar o pressuposto; não é prova de que ele seja verdadeiro. As frases são
+escritas conforme o resultado real de cada teste.
+
+`r texto_welch`
+
+:::::
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r alerta_modelo`
+
+# Conclusão
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Reproduzir e adaptar
+
+Abra o arquivo `.Rproj`, reinicie o R e renderize este documento. Para alterar
+os cálculos, edite `R/analise.R`. Para amadurecer a argumentação científica,
+edite os QMDs. Preserve os dados de entrada e registre qualquer mudança feita
+na base preparada.
+
+## Ambiente computacional
+
+```{r}
+#| label: ambiente
+#| echo: false
+cat(registro_ambiente, sep = "\n")
+```
+
+# Referências

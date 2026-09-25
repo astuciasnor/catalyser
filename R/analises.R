@@ -761,19 +761,21 @@ catalyser_teste_t <- function(dados, p) {
       x <- x[!is.na(x)]
       if (length(x) >= 3L && length(x) <= 5000L) stats::shapiro.test(x)$p.value else NA_real_
     })
-    # Homocedasticidade: teste F de igualdade de variancias entre os dois grupos.
-    # So se aplica a exatamente dois grupos. Quando a igualdade de variancias for
-    # duvidosa, o t de Welch (var.equal = FALSE) e a escolha segura.
-    p_variancia <- if (length(sh) == 2L) {
-      tryCatch(
-        stats::var.test(catalyser_formula(p$resposta, p$grupo), data = dados)$p.value,
-        error = function(e) NA_real_
+    # Homocedasticidade: teste de Levene (igualdade de variancias entre os grupos),
+    # o mesmo usado na ANOVA e no projeto exportado. O grupo entra como fator para
+    # o Levene. Quando a igualdade de variancias for duvidosa, o t de Welch
+    # (var.equal = FALSE) e a escolha segura.
+    p_variancia <- tryCatch({
+      dados_levene <- data.frame(
+        resposta = dados[[p$resposta]],
+        grupo = factor(dados[[p$grupo]])
       )
-    } else NA_real_
+      car::leveneTest(resposta ~ grupo, data = dados_levene)[["Pr(>F)"]][1]
+    }, error = function(e) NA_real_)
     # Reune normalidade (por grupo) e homocedasticidade numa so tabela de pressupostos.
     pressupostos <- data.frame(
       Pressuposto = c(paste0("Normalidade (Shapiro-Wilk) - grupo ", names(sh)),
-                      "Homocedasticidade (teste F)"),
+                      "Homocedasticidade (Levene)"),
       `p-valor` = c(unlist(sh), p_variancia),
       check.names = FALSE
     )

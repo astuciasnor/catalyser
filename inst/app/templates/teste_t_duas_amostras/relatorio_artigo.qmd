@@ -1,0 +1,85 @@
+---
+title: "{{TITULO}}"
+subtitle: "Modelo de relatório científico · teste t para duas amostras"
+author: "Nome do autor — instituição (preencher)"
+date: today
+date-format: long
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: false
+    number-sections: true
+    fig-width: 6
+    fig-height: 4
+    fig-dpi: 300
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_artigo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+```{=html}
+<!-- GUIA DE EDIÇÃO: altere cálculos em R/analise.R e a argumentação aqui.
+Os resultados numéricos vêm dos objetos do script. Revise os textos antes de
+usar este documento como artigo, monografia ou relatório científico. -->
+```
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+# Resultados
+
+```{r}
+#| label: tbl-descritiva
+#| tbl-cap: "Resumo da resposta por grupo. DP: desvio padrão; EP: erro padrão da média."
+flextable_ocean(tabela_descritiva_exibir)
+```
+
+`r texto_amostra`
+
+`r texto_resultado`
+
+`r texto_efeito`
+
+```{r}
+#| label: tbl-teste
+#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p e tamanho do efeito."
+flextable_ocean(tabela_teste)
+```
+
+```{r}
+#| label: fig-medias
+#| fig-cap: "Média de cada grupo com intervalo de confiança de 95% da média."
+grafico_medias
+```
+
+`r texto_pressupostos`
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r alerta_modelo`
+
+# Conclusão
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Disponibilidade dos dados e do código
+
+O projeto reúne os dados de entrada, a base preparada adotada, o script
+comentado `R/analise.R` e dois documentos Quarto. O caderno HTML apresenta o
+percurso completo; este documento seleciona os resultados principais. Ambos
+executam a mesma análise.
+
+# Referências

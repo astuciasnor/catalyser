@@ -2215,6 +2215,181 @@ exportacao_qmd_regressao <- function(item, raiz) {
   linhas
 }
 
+# ---- TESTE T de duas amostras na árvore do molde (projeto novo) -------------
+# Um teste t de duas amostras independentes sozinho no projeto sai com a mesma
+# árvore do EAPACaderno: R/analise.R como fonte da verdade, dois QMDs que o
+# executam (caderno HTML e artigo Word), _quarto.yml, apa.csl e saida/.
+# Testes t acompanhados de outras análises continuam no exportador geral.
+exportacao_teste_t_simples <- function(item) {
+  identical(item$tipo, "teste_t_two_ind")
+}
+
+exportacao_teste_t_projeto_novo <- function(manifesto) {
+  itens <- manifesto$execucoes %||% list()
+  length(itens) == 1L &&
+    isTRUE(itens[[1]]$incluir_word) &&
+    exportacao_teste_t_simples(itens[[1]])
+}
+
+exportacao_teste_t_projeto_script <- function(manifesto, nome_projeto,
+                                              registro_bases = list(), pipeline = list(),
+                                              base_externa = NULL, import_info = list(),
+                                              templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  raizes <- exportacao_raizes_chunk(manifesto$execucoes)
+  raiz <- unname(raizes[[item$id]])
+
+  # O preparo é o mesmo do exportador geral, como na ANOVA: importar, tratar,
+  # ler a Base Compartilhada e adotar a base desta análise (dados_da_analise).
+  # O trecho de instalação fica de fora, porque os dois relatórios executam o
+  # script inteiro a cada Render; instalar vai no README.
+  prefixo <- c(
+    exportacao_cabecalho_script(nome_projeto),
+    exportacao_trecho_pacotes(), "",
+    exportacao_trecho_importar(import_info), "",
+    exportacao_preparo_sem_funcao_data(
+      exportacao_trecho_tratar(pipeline, base_externa, import_info = import_info)),
+    exportacao_trecho_carregar_base(), "",
+    "# ========================================================================",
+    paste0("# TESTE T DE DUAS AMOSTRAS — ", item$titulo),
+    "# ========================================================================",
+    "",
+    exportacao_trecho_base(item, raiz, registro_bases),
+    exportacao_trecho_carregar_base(item, raiz)
+  )
+  # O cabeçalho comum descreve a rota antiga, com relatório sincronizado.
+  # Nesta árvore, os QMDs apenas executam o script, que é a fonte da verdade.
+  prefixo <- gsub(
+    "# Este script é o código do relatório \\(relatorios/relatorio\\.qmd\\) com as",
+    "# Este script é a fonte da verdade dos dois relatórios Quarto, com as",
+    prefixo
+  )
+  prefixo <- gsub(
+    "# explicações que o relatório não mostra\\. Aqui se aprende; lá se apresenta\\.",
+    "# explicações para estudar a análise. Aqui se aprende; lá se apresenta.",
+    prefixo
+  )
+  remover_cabecalho <- grepl(
+    "primeira linha de cada chunk|código se edita aqui|do relatório, que copia|Render para e avisa|O trecho instalar|instala pacotes ausentes",
+    prefixo
+  )
+  prefixo <- prefixo[!remover_cabecalho]
+  # O bloco "SCRIPT E RELATÓRIO" descrevia a sincronização da rota antiga; aqui
+  # ele passa a dizer como o script e os dois relatórios se relacionam.
+  posicao <- which(prefixo == "# SCRIPT E RELATÓRIO")
+  if (length(posicao) == 1L) {
+    prefixo <- c(
+      prefixo[seq_len(posicao - 1L)],
+      "# SCRIPT E RELATÓRIOS",
+      "# Os dois documentos Quarto de relatorios/ executam este script inteiro a",
+      "# cada Render e apenas apresentam os objetos que ele cria. Edite os cálculos",
+      "# aqui e a argumentação científica nos documentos.",
+      prefixo[seq.int(posicao + 2L, length(prefixo))]
+    )
+  }
+
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  resposta <- as.character(p$resposta %||% "resposta")
+  grupo <- as.character(p$grupo %||% "grupo")
+  rotulo_resposta <- rotulo(p$rotulo_y, resposta)
+  rotulo_grupo <- rotulo(p$rotulo_x, grupo)
+  modelo <- readLines(
+    file.path(templates_dir, "teste_t_duas_amostras", "analise_projeto.R"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  modelo <- exportacao_preencher_template(modelo, list(
+    TITULO_COMENTARIO = toupper(as.character(item$titulo %||% "TESTE T DE DUAS AMOSTRAS")),
+    PERGUNTA_COMENTARIO = sprintf("a média de %s difere entre os dois grupos de %s?", rotulo_resposta, rotulo_grupo),
+    RESPOSTA_R = encodeString(resposta, quote = '"'),
+    GRUPO_R = encodeString(grupo, quote = '"'),
+    ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
+    ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
+    CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
+  ))
+  c(prefixo, modelo)
+}
+
+exportacao_teste_t_projeto_qmd <- function(arquivo, manifesto, titulo_projeto,
+                                           import_info = list(), templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  globais <- manifesto$secoes_globais %||% list()
+  sugestoes <- exportacao_textos_teste_t(item)
+  secao <- function(nome, padrao) {
+    texto <- paste(as.character(globais[[nome]] %||% ""), collapse = "\n")
+    if (nzchar(trimws(texto))) texto else padrao
+  }
+  linhas <- readLines(
+    file.path(templates_dir, "teste_t_duas_amostras", arquivo),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% titulo_projeto),
+    INTRODUCAO = secao("introducao", sugestoes$introducao),
+    METODOS = secao("metodos", sugestoes$metodos),
+    DISCUSSAO = secao("discussao", sugestoes$discussao),
+    CONCLUSAO = secao("conclusao", sugestoes$conclusao),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    ARQUIVO_BASE = exportacao_rds_base(item)
+  ))
+}
+
+exportacao_teste_t_projeto_readme <- function(manifesto, nome_projeto,
+                                              import_info = list(),
+                                              templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  linhas <- readLines(
+    file.path(templates_dir, "teste_t_duas_amostras", "README.md"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% nome_projeto),
+    PROJETO_RPROJ = paste0(nome_projeto, ".Rproj"),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    RESPOSTA = rotulo(p$rotulo_y, p$resposta),
+    GRUPO = rotulo(p$rotulo_x, p$grupo),
+    IC = format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  ))
+}
+
+# Sugestões entram apenas nas seções vazias de um relatório com um único teste t.
+# Não inferimos local, período, unidade amostral ou causalidade a partir da planilha.
+exportacao_textos_teste_t <- function(item) {
+  p <- item$parametros
+  rotulo <- function(nome, padrao) {
+    if (nzchar(trimws(nome %||% ""))) nome else padrao
+  }
+  resposta <- rotulo(p$rotulo_y, p$resposta)
+  grupo <- rotulo(p$rotulo_x, p$grupo)
+  ic <- format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  alfa <- format(1 - (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  list(
+    introducao = c(
+      "*Sugestão de redação: adapte a pergunta e acrescente referências do seu tema antes de compartilhar o relatório.*", "",
+      "O teste t para duas amostras independentes compara a média de uma variável numérica entre dois grupos e avalia se a diferença observada escapa ao acaso. É um teste paramétrico: pede normalidade dentro de cada grupo e, na versão clássica, variâncias parecidas entre os grupos.", "",
+      sprintf("Neste estudo, comparou-se %s entre os dois grupos de %s. O objetivo foi verificar se as médias diferem e, em caso afirmativo, qual grupo apresenta a maior média, quantificando a incerteza e o tamanho da diferença.", resposta, grupo)),
+    metodos = c(
+      "*Sugestão de redação: complete a origem dos dados, o período, o local, a unidade amostral, as unidades de medida e os critérios de seleção.*", "",
+      sprintf("Compararam-se as médias de %s entre os dois grupos de %s por teste t para amostras independentes, com intervalo de confiança de %s%% e nível de significância de %s. A normalidade dentro de cada grupo foi examinada pelo teste de Shapiro-Wilk e a igualdade de variâncias pelo teste de Levene. Conforme esse resultado, adotou-se o t de Student (variâncias iguais) ou o t de Welch (variâncias diferentes). O tamanho do efeito foi quantificado pelo d de Cohen.", resposta, grupo, ic, alfa), "",
+      "A independência das observações depende do delineamento e deve ser justificada pela unidade amostral, considerando repetições e agrupamentos."),
+    discussao = c(
+      "*Sugestão para desenvolver a discussão: interprete a magnitude da diferença e o tamanho do efeito no contexto do estudo, com as referências consultadas.*", "",
+      "Uma diferença estatisticamente significativa indica que as médias dos grupos diferem além do esperado pelo acaso, mas não descreve, sozinha, o mecanismo. Considere o tamanho do efeito ao lado do p-valor: a significância diz que a diferença existe; o tamanho do efeito diz o quanto ela importa."),
+    conclusao = c(
+      "*Sugestão de redação: retome a pergunta da introdução e revise esta síntese depois de examinar os pressupostos.*", "")
+  )
+}
+
+
 exportacao_gerar_script <- function(manifesto, nome_projeto = "projeto",
                                     registro_bases = list(), pipeline = list(),
                                     base_externa = NULL, import_info = list(),
@@ -2807,6 +2982,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   regressao_nova <- exportacao_regressao_projeto_novo(manifesto)
   # A ANOVA isolada segue a árvore do molde da regressão (ver acima).
   anova_nova <- exportacao_anova_projeto_novo(manifesto)
+  teste_t_nova <- exportacao_teste_t_projeto_novo(manifesto)
 
   if (exportacao_anova_simples(manifesto) && !anova_nova) {
     codigo <- exportacao_preparo_anova(manifesto, import_info, pipeline, registro_bases, base_externa)
@@ -2846,7 +3022,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # Imagens recebe fotos e esquemas do pesquisador, também no caminho ANOVA.
   pastas <- c(file.path("dados", "brutos"),
               file.path("dados", "processados"), "R", "imagens", "relatorios")
-  if (regressao_nova || anova_nova) pastas <- c(
+  if (regressao_nova || anova_nova || teste_t_nova) pastas <- c(
     pastas,
     file.path("saida", "tabelas"),
     file.path("saida", "figuras"),
@@ -2901,7 +3077,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # documentadas e com ajuda em português (`?catalyser_anova`). Viajam três
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
-  templates <- if (regressao_nova || anova_nova) c(
+  templates <- if (regressao_nova || anova_nova || teste_t_nova) c(
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "referencias.bib" = file.path("relatorios", "referencias.bib")
@@ -2921,7 +3097,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
     file.copy(origem, file.path(projeto, templates[[nome]]), overwrite = TRUE)
   }
-  if (regressao_nova || anova_nova) {
+  if (regressao_nova || anova_nova || teste_t_nova) {
     # A ANOVA usa os mesmos arquivos de apoio do molde: funções de apresentação,
     # estilo APA e _quarto.yml que renderiza os dois QMDs.
     file.copy(
@@ -2990,6 +3166,20 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
         file.path(projeto, "relatorios", arquivo), useBytes = TRUE
       )
     }
+  } else if (teste_t_nova) {
+    writeLines(
+      exportacao_teste_t_projeto_script(
+        manifesto, nome_projeto, registro_bases, pipeline, base_externa,
+        import_info, templates_dir
+      ),
+      caminho_script, useBytes = TRUE
+    )
+    for (arquivo in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
+      writeLines(
+        exportacao_teste_t_projeto_qmd(arquivo, manifesto, titulo, import_info, templates_dir),
+        file.path(projeto, "relatorios", arquivo), useBytes = TRUE
+      )
+    }
   } else {
     caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
     writeLines(
@@ -3025,6 +3215,8 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     exportacao_regressao_projeto_readme(manifesto, nome_projeto, import_info, templates_dir)
   } else if (anova_nova) {
     exportacao_anova_projeto_readme(manifesto, nome_projeto, import_info, templates_dir)
+  } else if (teste_t_nova) {
+    exportacao_teste_t_projeto_readme(manifesto, nome_projeto, import_info, templates_dir)
   } else if (exportacao_anova_simples(manifesto)) {
     exportacao_modelo_anova("README.md", manifesto, import_info, templates_dir, pipeline, registro_bases, base_externa)
   } else {
