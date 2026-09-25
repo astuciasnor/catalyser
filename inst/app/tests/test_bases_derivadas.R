@@ -1,6 +1,12 @@
 source("app.R", local = TRUE)
 
 html_bases <- htmltools::renderTags(mod_bases_derivadas_ui("teste_bases"))$html
+# A ordem dos atributos HTML não muda o bloqueio do formulário. Conferimos
+# o fieldset correto e o atributo disabled, mesmo com classes entre os dois.
+controles_receita <- regmatches(html_bases, regexpr(
+  '<fieldset\\b[^>]*id="teste_bases-controles_receita"[^>]*>', html_bases,
+  perl = TRUE
+))
 codigo_bases <- paste(
   readLines("modules/mod_bases_derivadas.R", encoding = "UTF-8"),
   collapse = "\n"
@@ -31,10 +37,10 @@ stopifnot(
   grepl("etapa_preferida_rv <- reactiveVal(NULL)", codigo_bases, fixed = TRUE),
   grepl("base_atualizada <- bases_obter(novo, base$id)", codigo_bases,
         fixed = TRUE),
-  grepl('id="teste_bases-controles_receita" disabled="disabled"',
-        html_bases, fixed = TRUE),
+  length(controles_receita) == 1L,
+  grepl('\\sdisabled="disabled"(?:\\s|>)', controles_receita, perl = TRUE),
   grepl("Etapas do Preparo", html_bases, fixed = TRUE),
-  grepl("Atualizar a contingência existente", codigo_bases, fixed = TRUE),
+  grepl("1. Atualizar contingência na receita", codigo_bases, fixed = TRUE),
   grepl("segunda contingência.", codigo_bases, fixed = TRUE),
   grepl('formatRound(tabela, columns = "percentual", digits = 2)',
         codigo_bases, fixed = TRUE),

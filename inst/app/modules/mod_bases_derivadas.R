@@ -121,7 +121,7 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
     observeEvent(input$grupo_acoes, {
       escolhas <- switch(input$grupo_acoes,
         limpeza = c("Tratar dados faltantes" = "tratar_na", "Remover duplicatas" = "remover_duplicatas", "Padronizar texto" = "padronizar_texto"),
-        recortes = c("Filtrar linhas" = "filtrar", "Agrupar e sumarizar" = "agrupar_sumarizar", "Construir contingência" = "contingencia"),
+        recortes = c("Filtrar linhas" = "filtrar", "Sortear subamostra" = "sortear_amostra", "Agrupar e sumarizar" = "agrupar_sumarizar", "Construir contingência" = "contingencia"),
         c("Calcular variável" = "calcular", "Reescalar unidades" = "reescalar", "Padronizar valores" = "padronizar", "Criar classes" = "binning", "Dicotomizar (0/1)" = "dicotomizar"))
       updateSelectInput(session, "ramo_tipo", choices = escolhas, selected = unname(escolhas[[1]]))
     })
@@ -452,6 +452,33 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
                              selected = intersect(isolate(input$ramo_fil_niveis) %||% character(), niveis_coluna(col, info)))
           )
         },
+        sortear_amostra = {
+          col <- input$ramo_sam_col
+          if (is.null(col) || !(col %in% c("", todas))) col <- ""
+          tagList(
+            selectInput(ns("ramo_sam_col"), "Sortear dentro de grupos?",
+                        choices = c("(sem grupos: sorteio simples)" = "",
+                                    stats::setNames(categoricas, categoricas)),
+                        selected = col),
+            layout_columns(
+              numericInput(ns("ramo_sam_n"),
+                           if (nzchar(col)) "Linhas por grupo (n):" else "Tamanho da amostra (n):",
+                           value = isolate(input$ramo_sam_n) %||% 200, min = 1, step = 1),
+              numericInput(ns("ramo_sam_semente"), "Semente:",
+                           value = isolate(input$ramo_sam_semente) %||% 42, min = 1, step = 1)
+            ),
+            div(
+              class = "alert alert-info",
+              style = "font-size:0.8rem; padding:8px 10px;",
+              "Sorteio sem reposição: com a mesma base, ordem das linhas e semente, ",
+              "aqui e no código R exportado são selecionados os mesmos indivíduos. ",
+              "Categorias sem indivíduos são ignoradas; valores ausentes na coluna de ",
+              "grupos precisam ser tratados antes. Sortear o mesmo número por grupo ",
+              "(ex.: 200 indivíduos de cada sexo) equilibra a subamostra, mas pode ",
+              "alterar as proporções observadas na base completa."
+            )
+          )
+        },
         agrupar_sumarizar = tagList(
           selectizeInput(
             ns("ramo_agr_grupos"), "Agrupar por:",
@@ -593,6 +620,9 @@ mod_bases_derivadas_server <- function(id, dados_analise_rv, registro_bases_rv,
         filtrar = list(coluna = input$ramo_fil_col, origem = input$ramo_fil_origem,
                        operador = input$ramo_fil_op, valor = input$ramo_fil_valor,
                        niveis = input$ramo_fil_niveis),
+        sortear_amostra = list(coluna = input$ramo_sam_col %||% "",
+                               n = input$ramo_sam_n,
+                               semente = input$ramo_sam_semente %||% 42),
         agrupar_sumarizar = list(
           grupos = input$ramo_agr_grupos %||% character(0),
           variaveis = input$ramo_agr_variaveis %||% character(0),

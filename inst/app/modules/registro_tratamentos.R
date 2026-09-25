@@ -518,6 +518,80 @@ tratamentos <- list(
       else
         sprintf("dados <- dados |> dplyr::filter(%s %%in%% c(%s))", col, trat_q(p$niveis))
     }
+  ),
+
+  # ---- Sortear subamostra aleatoria (simples ou n por grupo) ------------------
+  # Base derivada de sorteio reprodutivel: a semente fixa garante que o app e
+  # o codigo R exportado devolvem exatamente as mesmas linhas.
+  sortear_amostra = list(
+    rotulo = function(p) {
+      if (is.null(p$coluna) || !nzchar(p$coluna))
+        sprintf("Sortear %d linhas (semente %d)", as.integer(p$n), as.integer(p$semente))
+      else
+        sprintf("Sortear %d linhas por grupo de '%s' (semente %d)",
+                as.integer(p$n), p$coluna, as.integer(p$semente))
+    },
+    validar = function(df, p) {
+      n <- as.integer(p$n)
+      if (is.null(p$n) || is.na(n) || n < 1L) return("Informe quantas linhas sortear (n >= 1).")
+      if (is.null(p$semente) || is.na(as.integer(p$semente))) return("Informe a semente do sorteio.")
+      if (!is.null(p$coluna) && nzchar(p$coluna)) {
+        if (!p$coluna %in% names(df))
+          return(sprintf("A coluna '%s' nao existe neste ponto.", p$coluna))
+        if (anyNA(df[[p$coluna]]))
+          return("Ha valores ausentes na coluna de grupos. Trate os dados faltantes antes de sortear.")
+        contagens <- table(df[[p$coluna]])
+        # Um filtro pode manter niveis do fator sem nenhuma linha restante.
+        contagens <- contagens[contagens > 0L]
+        if (!length(contagens)) return("A coluna de grupos esta vazia.")
+        pequenos <- contagens[contagens < n]
+        if (length(pequenos))
+          return(sprintf(
+            "n = %d excede o tamanho do(s) grupo(s): %s. Reduza n ou escolha outra coluna.",
+            n, paste(sprintf("%s (%d)", names(pequenos), as.integer(pequenos)), collapse = ", ")))
+      } else if (nrow(df) < n) {
+        return(sprintf("A base tem apenas %d linhas; n = %d excede o total.", nrow(df), n))
+      }
+      NULL
+    },
+    aplicar = function(df, p) {
+      # set.seed dentro de aplicar: o replay e deterministico mesmo quando a
+      # etapa e reordenada ou recalculada.
+      set.seed(as.integer(p$semente))
+      if (!is.null(p$coluna) && nzchar(p$coluna)) {
+        df <- df |>
+          dplyr::group_by(dplyr::across(tidyselect::all_of(p$coluna)), .drop = TRUE) |>
+          dplyr::slice_sample(n = as.integer(p$n)) |>
+          dplyr::ungroup()
+      } else {
+        df <- dplyr::slice_sample(df, n = as.integer(p$n))
+      }
+      as.data.frame(df)
+    },
+    codigo = function(p) {
+      n <- as.integer(p$n)
+      # O codigo exportado tambem confere os grupos: editar a entrada no R
+      # nao deve criar um grupo NA ou truncar silenciosamente a subamostra.
+      conferir <- if (!is.null(p$coluna) && nzchar(p$coluna)) c(
+        "# Sorteamos apenas grupos presentes; faltantes precisam ser tratados antes.",
+        "local({",
+        sprintf("  grupos <- dados[[%s]]", encodeString(p$coluna, quote = '"')),
+        '  if (anyNA(grupos)) stop("Ha valores ausentes na coluna de grupos. Trate os dados faltantes antes de sortear.", call. = FALSE)',
+        "  contagens <- table(grupos)",
+        "  contagens <- contagens[contagens > 0L]",
+        '  if (!length(contagens)) stop("A coluna de grupos esta vazia.", call. = FALSE)',
+        sprintf("  pequenos <- contagens[contagens < %d]", n),
+        sprintf('  if (length(pequenos)) stop(sprintf("n = %d excede o tamanho do(s) grupo(s): %%s. Reduza n ou escolha outra coluna.",', n),
+        '    paste(sprintf("%s (%d)", names(pequenos), as.integer(pequenos)), collapse = ", ")), call. = FALSE)',
+        "})"
+      ) else character()
+      sorteio <- if (!is.null(p$coluna) && nzchar(p$coluna))
+        sprintf("dados <- dados |> dplyr::group_by(%s, .drop = TRUE) |> dplyr::slice_sample(n = %d) |> dplyr::ungroup()",
+                trat_bt(p$coluna), n)
+      else
+        sprintf("dados <- dados |> dplyr::slice_sample(n = %d)", n)
+      paste(c(conferir, sprintf("set.seed(%d)", as.integer(p$semente)), sorteio), collapse = "\n")
+    }
   )
 )
 

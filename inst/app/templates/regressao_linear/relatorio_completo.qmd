@@ -1,0 +1,225 @@
+---
+title: "{{TITULO}}"
+subtitle: "Caderno completo · da base preparada à interpretação da reta"
+author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
+date: today
+format:
+  html:
+    theme: [cosmo, ocean.scss]
+    title-block-banner: "#0F3B5F"
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    code-summary: "Ver código de apresentação"
+    code-tools: true
+    embed-resources: true
+    fig-width: 7
+    fig-height: 4.6
+    fig-dpi: 150
+execute:
+  echo: true
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_completo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+# Como usar este caderno
+
+Este documento acompanha o percurso completo da regressão. Os cálculos vivem
+em `R/analise.R`; os chunks abaixo apenas apresentam os objetos produzidos por
+ele. As tabelas CSV e as figuras PNG em `saida/` são cópias para consulta e não
+alimentam o relatório. Cada Render começa em uma sessão nova.
+
+**Os textos são sugestões para estudo e adaptação.** Os números se atualizam
+com o script, mas a interpretação depende da pergunta, das unidades e do
+delineamento da pesquisa.
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+## Dados e preparo
+
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR
+registrou o preparo no início de `R/analise.R` e guardou a base adotada em
+`dados/processados/{{ARQUIVO_BASE}}`. O script reconstrói o percurso, confere a
+base e usa a fotografia adotada para impedir mudanças silenciosas no Render.
+
+```{r}
+#| label: tbl-colunas
+#| tbl-cap: "Colunas numéricas da base preparada: ausências e amplitudes."
+flextable_ocean(tabela_colunas_exibir)
+```
+
+```{r}
+#| label: tbl-grupos
+#| tbl-cap: "Observações recebidas e utilizadas por grupo, quando um agrupamento foi escolhido."
+if (!is.null(tabela_grupos)) flextable_ocean(tabela_grupos)
+```
+
+`r texto_amostra`
+
+## Modelo
+
+Ajustou-se uma regressão linear simples por mínimos quadrados ordinários, com
+intervalo de confiança de `r ic_percentual`%. A faixa ao redor da reta expressa
+a incerteza da resposta média; não é um intervalo de predição individual.
+
+# Exploração
+
+```{r}
+#| label: tbl-descritiva
+#| tbl-cap: "Resumo das variáveis utilizadas na regressão. DP: desvio padrão."
+flextable_ocean(tabela_descritiva_exibir)
+```
+
+```{r}
+#| label: fig-grupos
+#| fig-cap: "Dispersão das observações por grupo, quando um agrupamento foi escolhido para exploração."
+if (!is.null(grafico_grupos)) grafico_grupos
+```
+
+# Resultados
+
+## A saída bruta, uma vez
+
+A saída abaixo ajuda você a reconhecer o resultado de `summary()` fora deste
+projeto. As tabelas seguintes apresentam os mesmos números de forma organizada.
+
+```{r}
+#| label: console-modelo
+resumo_console
+```
+
+`r texto_ajuste`
+
+`r texto_coeficiente`
+
+```{r}
+#| label: tbl-coeficientes
+#| tbl-cap: "Coeficientes da regressão linear simples e intervalos de confiança. β: coeficiente não padronizado; EP: erro padrão."
+flextable_ocean(tabela_coeficientes_exibir)
+```
+
+```{r}
+#| label: tbl-ajuste
+#| tbl-cap: "Resumo do ajuste e graus de liberdade do modelo."
+flextable_ocean(tabela_ajuste)
+```
+
+```{r}
+#| label: fig-regressao
+#| fig-cap: "Reta ajustada e intervalo de confiança para a resposta média."
+grafico_regressao
+```
+
+# Diagnósticos
+
+## Independência e delineamento
+
+A independência não é comprovada por um gráfico ou teste. Confira a unidade
+amostral, medidas repetidas, tanques, locais e outras formas de agrupamento. O
+Durbin-Watson só deve ser interpretado quando a ordem das linhas representa uma
+sequência real de coleta.
+
+```{r}
+#| label: fig-ordem
+#| fig-cap: "Resíduos na ordem informada, quando essa ordem tem significado no delineamento."
+if (!is.null(grafico_ordem)) grafico_ordem
+```
+
+## Linearidade e variância
+
+```{r}
+#| label: fig-residuos
+#| fig-cap: "Resíduos versus valores ajustados; curvatura ou abertura progressiva merecem investigação."
+grafico_residuos
+```
+
+```{r}
+#| label: fig-escala
+#| fig-cap: "Escala-localização: magnitude dos resíduos padronizados ao longo dos valores ajustados."
+grafico_escala
+```
+
+## Normalidade dos resíduos
+
+```{r}
+#| label: fig-qq
+#| fig-cap: "Gráfico Q-Q dos resíduos padronizados do modelo."
+grafico_qq
+```
+
+```{r}
+#| label: tbl-testes
+#| tbl-cap: "Testes formais complementares à inspeção gráfica e ao delineamento."
+flextable_ocean(tabela_testes)
+```
+
+`r texto_diagnosticos`
+
+## Influência e alavancagem
+
+```{r}
+#| label: fig-cook
+#| fig-cap: "Distância de Cook por linha da base preparada; o limiar 4/n é uma referência de triagem."
+grafico_cook
+```
+
+```{r}
+#| label: fig-alavancagem
+#| fig-cap: "Resíduos padronizados versus alavancagem; os rótulos indicam observações para conferência."
+grafico_alavancagem
+```
+
+```{r}
+#| label: fig-residuos-grupo
+#| fig-cap: "Resíduos da reta global por grupo, quando um agrupamento foi escolhido."
+if (!is.null(grafico_residuos_grupo)) grafico_residuos_grupo
+```
+
+`r texto_influencia`
+
+```{r}
+#| label: tbl-influencia
+#| tbl-cap: "Observações sinalizadas por pelo menos um critério de triagem."
+flextable_ocean(tabela_influencia)
+```
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r alerta_modelo`
+
+# Conclusão
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Reproduzir e adaptar
+
+Abra o arquivo `.Rproj`, reinicie o R e renderize este documento. Para alterar
+os cálculos, edite `R/analise.R`. Para amadurecer a argumentação científica,
+edite os QMDs. Preserve os dados de entrada e registre qualquer mudança feita
+na base preparada.
+
+## Ambiente computacional
+
+```{r}
+#| label: ambiente
+#| echo: false
+cat(registro_ambiente, sep = "\n")
+```
+
+# Referências

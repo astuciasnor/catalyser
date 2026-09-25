@@ -1,5 +1,128 @@
 # Comunicação de Resultados — especificação atual
 
+## Da análise à comunicação — decisão consolidada em 18/09/2026
+
+Nos novos Projetos R, os textos automáticos devem aparecer depois dos objetos
+estatísticos, das tabelas e dos gráficos. Eles funcionam como uma retomada das
+muitas saídas que o R pode produzir e ajudam o pesquisador a reconhecer o que
+será comunicado. A dependência dos objetos anteriores determina a posição
+mínima; vir depois das figuras é uma escolha narrativa para encerrar primeiro
+o percurso analítico e só então preparar sua comunicação.
+
+Os textos continuam sendo objetos simples, visíveis no console com `print()` e
+consumidos pelos QMDs. Como a execução do script nos relatórios ocorre em chunk
+oculto, as impressões não entram nos documentos. O R prepara uma síntese
+estatística; introdução, discussão e conclusão científica permanecem nos QMDs,
+sob revisão do pesquisador. Anotações próprias de figuras, como a equação da
+reta, ficam junto do código do gráfico.
+
+## Propósito didático confirmado pelo autor — 18/09/2026
+
+O Projeto R exportado deve convidar o pesquisador a aprender programação.
+Cada arquivo precisa ter um papel reconhecível, e o código deve permitir
+acompanhar como os dados se tornam resultados. Quem começa pelos cliques
+deve poder abrir o script, reconhecer suas escolhas, examinar os objetos e
+entender o que a CatalyseR executou. A legibilidade faz parte da entrega.
+
+O autor aprovou a clareza do exemplo `EAPACadernos/linear-morfometria-barbo` após
+revisar seus comentários e a disposição do código. Considerou o material
+compreensível para si e adequado para um professor com conhecimentos
+intermediários de R explicar aos alunos. Essa aprovação orienta os próximos
+roteiros, que devem ser apresentados ao autor para revisão didática depois
+da implementação e da validação de funcionamento.
+
+Manter cálculos e etapas visíveis, usar funções de pacotes com seu papel
+explicado e distribuir as linhas conforme a complexidade da chamada.
+Comentários devem esclarecer escolhas e operações menos familiares.
+O exemplo aprovado orienta a evolução do gerador; sua aprovação didática
+não significa que a migração do exportador para dois QMDs já foi implementada.
+
+## Refinamento aprovado — 18/09/2026: legibilidade e saídas enxutas
+
+O autor reafirmou a estrutura com `_quarto.yml`, `here`, script analítico e
+dois QMDs. O HTML documenta o percurso; o Word apresenta o artigo, com os
+resultados essenciais e uma síntese dos diagnósticos relevantes. Explicações
+de como explorar e verificar pressupostos ficam no HTML. Dicas de redação
+continuam no QMD do artigo como comentários, sem aparecer no Word.
+
+No projeto exportado, `R/analise.R` deve ser legível por quem conhece o básico
+de R: cabeçalho com pergunta e mapa dos objetos, seções numeradas reconhecidas
+pelo RStudio, operações em etapas e comentários sobre o motivo das escolhas.
+Cada gráfico recebe um nome. Evitar expressões aninhadas quando um objeto
+intermediário torna o percurso mais claro; não criar uma infraestrutura de
+funções genéricas para esconder os cálculos. A CatalyseR continua sendo a
+origem canônica das análises; o script é a referência executável do projeto
+que o pesquisador passa a editar.
+
+O exemplo `EAPACadernos/linear-morfometria-barbo` foi refinado nessa direção. Seus
+QMDs executam o script e consomem objetos da memória da sessão de renderização;
+os CSVs e PNGs em `saida/` são cópias para compartilhamento, não entradas dos
+QMDs. A sessão de Render não depende do Environment aberto no RStudio.
+
+Nesse exemplo, `dados/processados/` passa a conter somente `base_regressao.csv`,
+com os identificadores junto das duas medidas. A seleção das dez medidas
+numéricas serve à exploração em memória, sem separar fisicamente os IDs nem
+persistir um RDS que ninguém lê. Isso não altera a política de RDS do exportador
+atual: a migração precisa respeitar a adoção explícita das bases preparadas.
+
+APA é o único CSL fornecido no exemplo, conforme a edição do autor. No novo
+exportador, incluir apenas o CSL escolhido; outros podem ser acrescentados
+pelo pesquisador. CSL governa citações/referências; o modelo Word governa o
+estilo do documento. `sessionInfo()` e a versão do Quarto documentam o ambiente,
+mas não fixam nem reconstroem versões sozinhos.
+
+**Aplicado ao gerador atual:** cabeçalho visual da regressão, mapa de objetos,
+comentários didáticos e nomes para os gráficos de resíduos, Q-Q, ordem e Cook.
+Os marcadores de trechos e a apresentação do exportador existente foram
+preservados. **Ainda pendente:** a migração estrutural para os dois QMDs.
+
+## Direção aprovada — 16/09/2026: um script e dois documentos
+
+**Decisão de arquitetura; migração do exportador ainda pendente.** O autor
+aprovou separar o caderno HTML e o artigo Word em dois QMDs, ambos alimentados
+pela mesma análise em R. Esta direção substitui, para a próxima implementação,
+o documento único com seções condicionais por formato e a cópia sincronizada
+do código analítico. As revisões abaixo continuam descrevendo o exportador
+existente até que a migração seja implementada e validada.
+
+- `R/analise.R`: código comentado, na ordem do trabalho, com preparo,
+  exploração, ajuste e diagnósticos. É onde o aluno acompanha e altera os
+  cálculos. `R/funcoes.R` reúne apenas os auxiliares necessários.
+- `relatorios/relatorio_completo.qmd`: percurso explicado, exploração,
+  diagnósticos e resultados, para gerar o HTML.
+- `relatorios/relatorio_artigo.qmd`: Introdução, Material e métodos,
+  Resultados, Discussão, Conclusão e Referências, para gerar o Word.
+- Os dois QMDs executam o mesmo script e usam seus objetos em pequenos chunks
+  de apresentação e no texto dinâmico. Não mantêm uma segunda implementação
+  dos cálculos. Cada Render deve funcionar numa sessão nova, sem depender de
+  objetos criados manualmente no console.
+- `dados/brutos/` preserva as entradas; `dados/processados/` guarda as bases
+  tratadas; `imagens/` recebe fotos e esquemas fornecidos pelo pesquisador.
+  `saida/tabelas/`, `saida/figuras/` e `saida/relatorios/` recebem os produtos
+  regeneráveis. O projeto deve criar automaticamente as pastas necessárias.
+- O README explica a execução, a origem dos dados e como atualizar o preparo;
+  o projeto registra as versões do R, dos pacotes e do Quarto. Sem acrescentar
+  infraestrutura ao projeto didático.
+
+**Cuidado na migração:** executar o script no Render não pode sobrescrever
+silenciosamente uma base preparada que o pesquisador decidiu conservar. A
+implementação deve explicitar a etapa de adoção de mudanças no preparo,
+preservando a decisão de 13/09 sobre os RDS. Também deve preservar execuções
+selecionadas, textos autorais, rótulos, referências e diagnósticos próprios de
+cada análise. A regra para execuções não selecionadas precisa ficar clara no
+script: não devem entrar nos documentos por efeito colateral do `source()`.
+
+O fundamento é a organização em compêndios de pesquisa de Marwick, Boettiger
+e Mullen (2018), DOI 10.1080/00031305.2017.1375986. A separação em dois QMDs é
+uma adaptação didática do EAPA, não uma prescrição do artigo. O livro registra
+essa filosofia nos capítulos de organização de projetos e comunicação.
+
+Validação da futura migração: abrir um projeto exportado em sessão nova,
+gerar ambos os documentos, conferir que exibem os mesmos resultados para a
+mesma base e configuração, e verificar a atualização após uma alteração
+deliberada no script. A regressão com `morfometria_barbo` será o primeiro caso;
+a ANOVA e os projetos com várias análises também precisam ser preservados.
+
 **Revisão de 13/09, fim da tarde:** o projeto não exporta `metadados/` nem lê
 `bases.csv`. Receitas e execuções (inclusive desmarcadas, para estudo) ficam no
 script; o QMD contém somente as execuções selecionadas. O Excel bruto recebe
@@ -131,7 +254,7 @@ Não generalizar essa humanização para outras análises sem testes equivalente
 ## Árvore do Projeto R exportado (Fase A, set/2026)
 
 Desde a Fase A, o Projeto R exportado segue a árvore do **projeto-modelo** do
-ecossistema (`D:\Claude\EAPA-Ecossistema\EAPACaderno/`), para que quem sai da
+ecossistema (`D:\Claude\EAPA-Ecossistema\EAPACadernos/`), para que quem sai da
 IDE reconheça o caminho a pé. (A árvore abaixo é a da Fase A; a Fase C, mais
 adiante, removeu `R/` e levou o preparo para dentro do `.qmd`.)
 

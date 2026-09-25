@@ -96,8 +96,12 @@ local({
    stopifnot(identical(base_selecionada()$id,"base_0001"),
              identical(mensagens$base_escolhida$value,"base_0001"))
    session$setInputs(recalcular=1,finalizar=1)
+   anterior <- caches()[["base_0001"]]$df
    revisao(2L);session$flushReact()
-   stopifnot(grepl("A base compartilhada ou as etapas mudaram", output$editor_base$html, fixed=TRUE),
+   stopifnot(grepl("A base compartilhada ou a receita mudou", output$editor_base$html, fixed=TRUE),
+             grepl("última execução", output$editor_base$html, fixed=TRUE),
+             grepl("Recalcular dados", output$editor_base$html, fixed=TRUE),
+             identical(caches()[["base_0001"]]$df, anterior),
              !length(bases_disponiveis_analise(registros(),caches(),revisao())))
    registro_bases_rv(list());session$flushReact()
    stopifnot(is.null(base_selecionada()))

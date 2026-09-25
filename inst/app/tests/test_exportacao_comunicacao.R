@@ -182,6 +182,22 @@ manifesto_ruim <- manifesto
 manifesto_ruim$execucoes$execucao_0001$estado_dependencia <- "Precisa atualizar"
 stopifnot(!exportacao_validar_manifesto(manifesto_ruim)$ok)
 
+# O botão e o empacotador recusam um tipo sem replay, mesmo quando a execução
+# foi retirada do relatório: ela continuaria dentro do Projeto R.
+manifesto_sem_replay <- manifesto
+manifesto_sem_replay$execucoes$execucao_0002$tipo <- "frequencias_proporcoes"
+validacao_replay <- exportacao_validar_manifesto(manifesto_sem_replay)
+stopifnot(
+  !validacao_replay$ok,
+  any(grepl("execucao_0002 (frequencias_proporcoes)", validacao_replay$mensagens, fixed = TRUE)),
+  identical(
+    vapply(c("uma", "duas", "aderencia"), proporcoes_tipo_execucao, character(1)),
+    c(uma = "proporcao_uma", duas = "proporcao_duas", aderencia = "qui_quadrado_aderencia")
+  ),
+  all(vapply(c("proporcao_uma", "proporcao_duas", "qui_quadrado_aderencia"),
+             execucoes_tipo_reconstruivel, logical(1)))
+)
+
 raiz <- tempfile("teste_exportacao_3e_")
 dir.create(raiz)
 on.exit(unlink(raiz, recursive = TRUE, force = TRUE), add = TRUE)

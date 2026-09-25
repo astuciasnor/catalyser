@@ -32,6 +32,7 @@ mod_anova_ui <- function(id) {
           card_header("Configuração da ANOVA"),
           card_body(
             style = "padding: 12px 15px;",
+            uiOutput(ns("aviso_ficha")),
             selectInput(ns("var_y"), "Variável resposta (Y — numérica):", choices = NULL),
             selectInput(ns("var_x"), "Fator / grupo (X — categórico):", choices = NULL),
             sliderInput(ns("conf_level"), "Nível de confiança (%):",
@@ -87,78 +88,12 @@ mod_anova_ui <- function(id) {
             ),
             verbatimTextOutput(ns("console_bruto"))
           )
-        ),
-        nav_panel(
-          title = "Laboratório didático",
-          icon = icon("flask"),
-          card_body(
-            div(
-              class = "alert alert-warning py-2 small",
-              icon("triangle-exclamation"), " ",
-              strong("Estas duas ferramentas não são resultados dos seus dados."),
-              " A curva F é teórica e o simulador gera dados artificiais, apenas para",
-              " entender como a ANOVA se comporta. Nada daqui entra no relatório."
-            ),
-            navset_pill(
-              nav_panel(
-                title = "Curva F teórica",
-                layout_columns(
-                  col_widths = c(4, 8),
-                  card(
-                    card_header("Parâmetros"),
-                    card_body(
-                      checkboxInput(ns("use_calculated_values"), "Usar valores reais do modelo", TRUE),
-                      conditionalPanel(
-                        condition = sprintf("!input['%s']", ns("use_calculated_values")),
-                        numericInput(ns("sim_df_num"), "Graus de liberdade do fator:", value = 3, min = 1, step = 1),
-                        numericInput(ns("sim_df_den"), "Graus de liberdade dos resíduos:", value = 15, min = 1, step = 1),
-                        numericInput(ns("sim_f_val"), "F a visualizar:", value = 2.5, min = 0, step = 0.1)
-                      ),
-                      conditionalPanel(
-                        condition = sprintf("input['%s']", ns("use_calculated_values")),
-                        uiOutput(ns("calculated_values_info_ui"))
-                      ),
-                      sliderInput(ns("sim_alpha"), "Nível de significância (alfa):",
-                                  min = 0.001, max = 0.20, value = 0.05, step = 0.005)
-                    )
-                  ),
-                  card(
-                    card_header("Distribuição F teórica"),
-                    card_body(plotOutput(ns("f_dist_plot"), height = "420px"))
-                  )
-                )
-              ),
-              nav_panel(
-                title = "Simulador",
-                layout_columns(
-                  col_widths = c(4, 8),
-                  card(
-                    card_header("Parâmetros do simulador"),
-                    card_body(style = "padding: 10px 12px;", uiOutput(ns("sim_sliders_ui")))
-                  ),
-                  card(
-                    card_header("Dados simulados"),
-                    card_body(plotOutput(ns("sim_plot"), height = "410px"))
-                  )
-                )
-              )
-            )
-          )
         )
       )),
 
-      # COLUNA 3: EXIBIÇÃO / RESULTADOS DO SIMULADOR
+      # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
       card(
-        card_header(
-          conditionalPanel(
-            condition = sprintf("input['%s'] != 'Laboratório didático'", ns("active_tab")),
-            "Configurações de exibição"
-          ),
-          conditionalPanel(
-            condition = sprintf("input['%s'] == 'Laboratório didático'", ns("active_tab")),
-            "Resultados do simulador"
-          )
-        ),
+        card_header("Configurações de exibição"),
         card_body(
           style = "padding: 10px 12px;",
           conditionalPanel(
@@ -189,17 +124,15 @@ mod_anova_ui <- function(id) {
             ),
             helpText("As tabelas e a saída de console não dependem de configurações gráficas.")
           ),
-          conditionalPanel(
-            condition = sprintf("input['%s'] == 'Laboratório didático'", ns("active_tab")),
-            uiOutput(ns("sim_stats_col3_ui"))
-          )
         )
       )
     )
   )
 }
 
-mod_anova_server <- function(id, data_rv, import_info) {
+# ficha_rv (opcional): ficha de planejamento; quando sugere esta ANOVA, suas
+# colunas de resposta e de grupo são pré-selecionadas.
+mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     revisao_execucao <- execucao_revisao_dados(data_rv)
@@ -225,10 +158,21 @@ mod_anova_server <- function(id, data_rv, import_info) {
         alternativas <- setdiff(cat_cols, y_atual)
         x_atual <- if (length(alternativas)) alternativas[1] else cat_cols[1]
       }
+      # Quando a ficha de planejamento sugere esta ANOVA, suas colunas têm prioridade.
+      ficha <- if (is.function(ficha_rv)) ficha_rv() else NULL
+      if (identical(ficha$analise_sugerida, "anova_um_fator")) {
+        if (isTRUE(ficha$resposta_coluna %in% num_cols)) y_atual <- ficha$resposta_coluna
+        if (ficha_fator_coluna(ficha) %in% cat_cols) x_atual <- ficha_fator_coluna(ficha)
+      }
       updateSelectInput(session, "var_y", choices = num_cols, selected = y_atual)
       updateSelectInput(session, "var_x", choices = cat_cols, selected = x_atual)
     })
 
+    # A sugestão de teste chega do planejamento, sem ser reescolhida do zero.
+    output$aviso_ficha <- renderUI({
+      if (!is.function(ficha_rv)) return(NULL)
+      ficha_aviso_analise_ui(ficha_rv(), "anova_um_fator")
+    })
     nivel_confianca <- reactive({
       valor <- suppressWarnings(as.numeric(input$conf_level))
       if (!length(valor) || is.na(valor)) valor <- 95
@@ -408,176 +352,6 @@ mod_anova_server <- function(id, data_rv, import_info) {
     output$console_bruto <- renderText({
       r <- result_rv(); req(r)
       paste(r$console, collapse = "\n")
-    })
-
-    # ---- 5. Laboratório didático ---------------------------------------------
-    output$calculated_values_info_ui <- renderUI({
-      r <- result_rv()
-      req(r)
-      tagList(
-        tags$p(tags$b("gl do fator: "), r$df_entre, style = "margin-bottom: 4px; font-size: 0.85rem;"),
-        tags$p(tags$b("gl dos resíduos: "), r$df_dentro, style = "margin-bottom: 4px; font-size: 0.85rem;"),
-        tags$p(tags$b("F do modelo: "), round(r$f_anova, 4), style = "margin-bottom: 4px; font-size: 0.85rem;")
-      )
-    })
-
-    output$f_dist_plot <- renderPlot({
-      if (!requireNamespace("vistributions", quietly = TRUE)) {
-        return(
-          ggplot() +
-            annotate("text", x = 0.5, y = 0.5,
-                     label = "Instale o pacote 'vistributions' para ver a curva F teórica.",
-                     color = "#0F3B5F") +
-            theme_void()
-        )
-      }
-      if (isTRUE(input$use_calculated_values)) {
-        r <- result_rv()
-        req(r)
-        df_num <- r$df_entre; df_den <- r$df_dentro; f_val <- r$f_anova
-      } else {
-        req(input$sim_df_num, input$sim_df_den)
-        df_num <- input$sim_df_num; df_den <- input$sim_df_den; f_val <- input$sim_f_val
-      }
-      alpha <- input$sim_alpha
-
-      p <- tryCatch(
-        vistributions::vdist_f_perc(probs = 1 - alpha, num_df = df_num,
-                                    den_df = df_den, type = "lower", print_plot = FALSE),
-        error = function(e) {
-          ggplot() +
-            annotate("text", x = 0.5, y = 0.5,
-                     label = paste("Não foi possível gerar a curva:", e$message),
-                     color = "#E76F51") +
-            theme_void()
-        }
-      )
-      if (!is.null(p) && inherits(p, "ggplot") && !is.null(f_val) && !is.na(f_val)) {
-        f_crit <- qf(1 - alpha, df_num, df_den)
-        max_x <- min(max(f_crit * 1.5, f_val * 1.2, 5), 50)
-        p <- p +
-          geom_vline(xintercept = f_val, color = "#2E7D8F", linewidth = 1.2) +
-          annotate("label", x = f_val, y = 0, label = paste("F =", round(f_val, 2)),
-                   fill = "white", color = "#2E7D8F", fontface = "bold", size = 4) +
-          coord_cartesian(xlim = c(0, max_x)) +
-          labs(
-            title = paste("Distribuição F teórica (gl =", df_num, ",", df_den, ")"),
-            subtitle = paste("Região de rejeição a", alpha * 100, "% (F >", round(f_crit, 3), ")")
-          ) +
-          theme(
-            plot.title = element_text(face = "bold", color = "#0F3B5F", size = 13),
-            plot.subtitle = element_text(color = "#495057", size = 10)
-          )
-      }
-      p
-    })
-
-    output$sim_sliders_ui <- renderUI({
-      r <- result_rv()
-      req(r)
-      niveis <- head(levels(r$dados$fator), 5)
-      medias <- vapply(niveis, function(nivel) mean(r$dados$resposta[r$dados$fator == nivel]), numeric(1))
-      sd_res <- stats::sd(r$residuals)
-      min_y <- min(r$dados$resposta); max_y <- max(r$dados$resposta)
-      amplitude <- max_y - min_y
-      if (!is.finite(amplitude) || amplitude <= 0) amplitude <- 1
-
-      sliders <- lapply(niveis, function(nivel) {
-        sliderInput(
-          inputId = session$ns(paste0("sim_mean_", nivel)),
-          label = paste("Média do grupo", nivel),
-          min = round(min_y - amplitude * 0.15, 1),
-          max = round(max_y + amplitude * 0.15, 1),
-          value = round(unname(medias[nivel]), 1),
-          step = 0.1
-        )
-      })
-      tagList(
-        sliders,
-        sliderInput(
-          inputId = session$ns("sim_sd"),
-          label = "Desvio-padrão dentro dos grupos:",
-          min = round(max(0.1, sd_res * 0.1), 2),
-          max = round(max(0.2, sd_res * 3), 2),
-          value = round(sd_res, 2),
-          step = 0.05
-        )
-      )
-    })
-
-    simulated_data_rv <- reactive({
-      r <- result_rv()
-      req(r)
-      niveis <- head(levels(r$dados$fator), 5)
-      medias_sim <- vapply(niveis, function(nivel) {
-        valor <- input[[paste0("sim_mean_", nivel)]]
-        if (is.null(valor)) mean(r$dados$resposta[r$dados$fator == nivel]) else as.numeric(valor)
-      }, numeric(1))
-      sd_sim <- input$sim_sd
-      if (is.null(sd_sim)) sd_sim <- stats::sd(r$residuals)
-      n_sim <- round(mean(table(r$dados$fator[r$dados$fator %in% niveis])))
-      if (!is.finite(n_sim) || n_sim < 2) n_sim <- 5
-
-      set.seed(1234)
-      sim_df <- data.frame(
-        Grupo = factor(rep(niveis, each = n_sim), levels = niveis),
-        Valor = unlist(lapply(niveis, function(nivel) {
-          stats::rnorm(n_sim, mean = medias_sim[nivel], sd = sd_sim)
-        }))
-      )
-      fit_sim <- stats::aov(Valor ~ Grupo, data = sim_df)
-      resumo_sim <- summary(fit_sim)[[1]]
-      list(
-        data = sim_df, n = n_sim, sd = sd_sim,
-        f_val = resumo_sim$`F value`[1], p_val = resumo_sim$`Pr(>F)`[1],
-        sq_entre = resumo_sim$`Sum Sq`[1], sq_dentro = resumo_sim$`Sum Sq`[2]
-      )
-    })
-
-    output$sim_plot <- renderPlot({
-      sim <- simulated_data_rv()
-      r <- result_rv()
-      req(sim, r)
-      medias <- aggregate(Valor ~ Grupo, data = sim$data, FUN = mean)
-      ggplot(sim$data, aes(x = Grupo, y = Valor)) +
-        geom_jitter(aes(color = Grupo), width = 0.12, height = 0, alpha = 0.65,
-                    size = 2.2, show.legend = FALSE) +
-        geom_point(data = medias, aes(x = Grupo, y = Valor), inherit.aes = FALSE,
-                   size = 3.4, shape = 18, color = "#E76F51") +
-        scale_color_manual(values = rep(anova_cores_ocean, length.out = nlevels(sim$data$Grupo))) +
-        theme_minimal(base_size = 13) +
-        labs(title = "Dados simulados (não são os seus dados)",
-             x = r$ind_var, y = r$dep_var) +
-        theme(plot.title = element_text(face = "bold", color = "#0F3B5F"))
-    })
-
-    output$sim_stats_col3_ui <- renderUI({
-      sim <- simulated_data_rv()
-      req(sim)
-      f_str <- anova_fmt(sim$f_val, 3)
-      p_str <- anova_p_texto(sim$p_val)
-      classe <- if (!is.na(sim$p_val) && sim$p_val < 0.05) "alert-success" else "alert-secondary"
-      leitura <- if (!is.na(sim$p_val) && sim$p_val < 0.05) {
-        "Rejeitou-se H0 nesta simulação"
-      } else {
-        "Não houve evidência suficiente para rejeitar H0 nesta simulação"
-      }
-      tagList(
-        div(class = "card text-center border-primary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
-            h6("F simulado", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
-            h4(f_str, class = "card-title text-primary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.25rem;")),
-        div(class = paste("card text-center alert", classe), style = "padding: 8px; margin-bottom: 6px; border: 1px solid; color: inherit; border-radius: 6px;",
-            h6("p-valor simulado", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
-            h4(p_str, class = "card-title", style = "font-weight: 800; margin-bottom: 0; font-size: 1.1rem;")),
-        div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
-            h6("SQ entre grupos", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
-            h4(anova_fmt(sim$sq_entre, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.1rem;")),
-        div(class = "card text-center border-secondary", style = "padding: 8px; margin-bottom: 6px; border-radius: 6px;",
-            h6("SQ dentro dos grupos", class = "card-subtitle text-muted", style = "font-size: 0.75rem; margin-bottom: 2px; font-weight: 600;"),
-            h4(anova_fmt(sim$sq_dentro, 1), class = "card-title text-secondary", style = "font-weight: 800; margin-bottom: 0; font-size: 1.1rem;")),
-        div(class = paste("alert text-center", classe), style = "padding: 8px; font-weight: 600; font-size: 0.8rem; margin-top: 8px; margin-bottom: 0; border-radius: 6px;",
-            leitura)
-      )
     })
 
     # ---- Estado canônico registrado ------------------------------------------

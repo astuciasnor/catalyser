@@ -88,6 +88,20 @@ exportacao_validar_manifesto <- function(manifesto, exigir_word = FALSE) {
     mensagens <- c(mensagens, "Registre ao menos uma execução antes de exportar.")
   }
   execucoes <- manifesto$execucoes %||% list()
+  sem_replay <- which(!vapply(execucoes, function(x)
+    execucoes_tipo_reconstruivel(x$tipo), logical(1)))
+  if (length(sem_replay)) {
+    ids <- names(execucoes)
+    if (is.null(ids)) ids <- rep("", length(execucoes))
+    detalhes <- vapply(sem_replay, function(i) {
+      id <- if (nzchar(ids[[i]])) ids[[i]] else paste0("item ", i)
+      sprintf("%s (%s)", id, as.character(execucoes[[i]]$tipo %||% "sem tipo"))
+    }, character(1))
+    mensagens <- c(mensagens, sprintf(
+      "Estas execuções não têm reconstrução no Projeto R: %s. Corrija o tipo ou retire a execução do registro antes de exportar.",
+      paste(detalhes, collapse = ", ")
+    ))
+  }
   desatualizadas <- names(Filter(
     function(x) !identical(x$estado_dependencia, "Atualizada"), execucoes
   ))
@@ -167,7 +181,7 @@ exportacao_trecho_instalar <- function() {
     "  remotes::install_github(\"astuciasnor/EAPADados\", upgrade = \"never\")",
     "}",
     "if (!\"catalyser\" %in% rownames(installed.packages()) ||",
-    "    packageVersion(\"catalyser\") < package_version(\"0.1.8\")) {",
+    "    packageVersion(\"catalyser\") < package_version(\"0.1.9\")) {",
     "  remotes::install_github(\"astuciasnor/catalyser\", upgrade = \"never\")",
     "}",
     "# Depois de instalar ou atualizar, reinicie o R antes de executar a análise.",
@@ -361,15 +375,26 @@ exportacao_trecho_tratar <- function(pipeline, base_externa = NULL,
 exportacao_tipo_legivel <- function(tipo) {
   legiveis <- c(
     anova_um_fator = "anova_um_fator",
+    anova_mista_subamostras = "anova_mista_com_subamostras",
+    anova_medidas_repetidas = "anova_medidas_repetidas",
+    friedman = "friedman_grupos_pareados",
     anova_dois_fatores = "anova_dois_fatores",
+    qui_quadrado_variancia = "qui_quadrado_para_variancia",
+    teste_f_variancias = "teste_f_duas_variancias",
     grafico_linhas = "grafico_de_linhas",
     regressao_linear = "regressao_linear",
     regressao_logistica = "regressao_logistica",
+    regressao_poisson = "regressao_poisson",
+    regressao_binomial_negativa = "regressao_binomial_negativa",
     teste_t_one_val = "teste_t_uma_amostra",
     teste_t_two_ind = "teste_t_duas_amostras",
     teste_t_paired = "teste_t_pareado",
     estatistica_descritiva = "estatistica_descritiva",
     qui_quadrado = "qui_quadrado",
+    proporcao_uma = "uma_proporcao",
+    proporcao_duas = "duas_proporcoes",
+    qui_quadrado_aderencia = "qui_quadrado_aderencia",
+    mcnemar = "mcnemar_pares_binarios",
     pca = "pca",
     hca = "agrupamentos"
   )
@@ -390,15 +415,31 @@ exportacao_pergunta <- function(execucao) {
                                  p$resposta, p$fator_a, p$fator_b),
     anova_um_fator = sprintf("a média de '%s' difere entre os grupos de '%s'?",
                              p$resposta, p$fator),
+    anova_mista_subamostras = sprintf(
+      "a média de '%s' difere entre os grupos de '%s', respeitando '%s' como unidade?",
+      p$resposta, p$fator, p$unidade
+    ),
+    anova_medidas_repetidas = sprintf("a média de '%s' muda entre as ocasiões de '%s' na mesma unidade?",
+                                      p$resposta, p$momento),
+    friedman = sprintf("'%s' difere entre as condições de '%s' nos mesmos blocos de '%s'?",
+                       p$resposta, p$condicao, p$bloco),
     grafico_linhas = sprintf("como '%s' se comporta ao longo de '%s'?", p$y, p$x),
     regressao_linear = sprintf("'%s' varia em função de '%s'?", p$resposta, p$preditor),
     regressao_logistica = sprintf("o que prevê a ocorrência de '%s'?", p$resposta),
+    regressao_poisson = sprintf("como a contagem de '%s' varia com os preditores escolhidos?", p$resposta),
+    regressao_binomial_negativa = sprintf("como a contagem de '%s' varia quando há superdispersão?", p$resposta),
     teste_t_two_ind = sprintf("a média de '%s' difere entre os dois grupos de '%s'?",
                               p$resposta, p$grupo),
     teste_t_one_val = sprintf("a média de '%s' difere do valor de referência?", p$variavel),
     teste_t_paired = sprintf("houve mudança entre '%s' e '%s'?", p$variavel_1, p$variavel_2),
+    qui_quadrado_variancia = sprintf("a variância de '%s' difere da referência definida?", p$variavel),
+    teste_f_variancias = sprintf("a variância de '%s' difere entre os grupos de '%s'?", p$resposta, p$grupo),
     estatistica_descritiva = "como se distribuem as variáveis escolhidas?",
     qui_quadrado = sprintf("'%s' e '%s' são independentes?", p$var_row, p$var_col),
+    proporcao_uma = sprintf("a proporção de '%s' difere da referência definida?", p$sucesso),
+    proporcao_duas = sprintf("a proporção de '%s' difere entre os grupos de '%s'?", p$sucesso, p$grupo),
+    qui_quadrado_aderencia = sprintf("as contagens de '%s' seguem as proporções esperadas?", p$variavel),
+    mcnemar = sprintf("a resposta binária muda entre '%s' e '%s' nos mesmos pares?", p$variavel_1, p$variavel_2),
     execucao$titulo %||% "ver o título acima"
   )
 }
@@ -453,8 +494,37 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
     "# A tabela desta execução está preservada nos parâmetros registrados."
   }
 
+  # Poisson e Binomial Negativa compartilham a preparação; só muda o motor do ajuste.
+  codigo_contagem <- function(familia) {
+    preditores <- vetor_r(p$preditores)
+    colunas <- vetor_r(c(p$resposta, p$preditores, if (isTRUE(p$usar_offset)) p$offset))
+    offset <- if (isTRUE(p$usar_offset)) c(
+      sprintf("dados_modelo$.catalyser_offset_log <- log(dados_modelo[[%s]])", texto_r(p$offset))
+    ) else character()
+    termos <- if (isTRUE(p$usar_offset)) {
+      sprintf("c(%s, %s)", preditores, texto_r("offset(.catalyser_offset_log)"))
+    } else {
+      preditores
+    }
+    ajuste <- if (identical(familia, "poisson")) {
+      "modelo <- stats::glm(formula_modelo, data = dados_modelo, family = stats::poisson())"
+    } else {
+      "modelo <- MASS::glm.nb(formula_modelo, data = dados_modelo)"
+    }
+    c(
+      sprintf("variaveis_modelo <- %s", colunas),
+      "dados_modelo <- dados[stats::complete.cases(dados[variaveis_modelo]), variaveis_modelo, drop = FALSE]",
+      offset,
+      sprintf("formula_modelo <- stats::reformulate(%s, response = %s)", termos, texto_r(p$resposta)),
+      ajuste,
+      "dispersao_pearson <- sum(stats::residuals(modelo, type = 'pearson')^2) / stats::df.residual(modelo)",
+      "summary(modelo)"
+    )
+  }
+
   codigo <- switch(
     execucao$tipo,
+    descricao_exploratoria = catalyser_codigo_descricao(p),
     regressao_linear = c(
       sprintf(
         "formula_modelo <- stats::reformulate(%s, response = %s)",
@@ -471,6 +541,8 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
       "modelo <- stats::glm(formula_modelo, data = dados, family = stats::binomial())",
       "summary(modelo)"
     ),
+    regressao_poisson = codigo_contagem("poisson"),
+    regressao_binomial_negativa = codigo_contagem("binomial_negativa"),
     teste_t_one_val = c(
       sprintf(
         paste0(
@@ -506,6 +578,75 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
         texto_r(p$variavel_1), texto_r(p$variavel_2),
         texto_r(p$alternativa), numero_r(p$nivel_confianca)
       ),
+      "resultado"
+    ),
+    friedman = c(
+      "# 1. Declarar a resposta, a condição e o bloco que se repete.",
+      sprintf("resposta <- %s", texto_r(p$resposta)),
+      sprintf("condicao <- %s", texto_r(p$condicao)),
+      sprintf("bloco <- %s", texto_r(p$bloco)),
+      "",
+      "# 2. Conferir se todos os blocos têm todas as condições.",
+      "dados_friedman <- dados[stats::complete.cases(dados[c(resposta, condicao, bloco)]), c(resposta, condicao, bloco)]",
+      "names(dados_friedman) <- c('valor', 'condicao', 'bloco')",
+      "presencas <- stats::xtabs(~ bloco + condicao, data = dados_friedman) > 0",
+      "stopifnot(all(rowSums(presencas) == ncol(presencas)))",
+      "",
+      "# 3. Aplicar o teste de Friedman para condições pareadas.",
+      "resultado <- stats::friedman.test(valor ~ condicao | bloco, data = dados_friedman)",
+      "",
+      "# 4. Comparar pares com Holm quando a diferença global justificar.",
+      "posteste <- stats::pairwise.wilcox.test(dados_friedman$valor, dados_friedman$condicao, paired = TRUE, p.adjust.method = 'holm')",
+      "resultado",
+      "posteste"
+    ),
+    mcnemar = c(
+      "# 1. Declarar as duas medições binárias feitas nos mesmos pares.",
+      sprintf("primeira_medicao <- %s", texto_r(p$variavel_1)),
+      sprintf("segunda_medicao <- %s", texto_r(p$variavel_2)),
+      "",
+      "# 2. Manter apenas os pares completos e montar a tabela 2 por 2.",
+      "dados_mcnemar <- dados[stats::complete.cases(dados[c(primeira_medicao, segunda_medicao)]), ]",
+      "tabela_pares <- table(dados_mcnemar[[primeira_medicao]], dados_mcnemar[[segunda_medicao]])",
+      "",
+      "# 3. Testar se as proporções mudaram entre as medições.",
+      sprintf("resultado <- stats::mcnemar.test(tabela_pares, correct = %s)", if (isTRUE(p$correcao)) "TRUE" else "FALSE"),
+      "resultado"
+    ),
+    anova_medidas_repetidas = c(
+      sprintf("resposta <- %s", texto_r(p$resposta)),
+      sprintf("sujeito <- %s", texto_r(p$sujeito)),
+      sprintf("momento <- %s", texto_r(p$momento)),
+      "dados_repetidos <- dados[stats::complete.cases(dados[c(resposta, sujeito, momento)]), c(resposta, sujeito, momento)]",
+      "names(dados_repetidos) <- c('valor', 'sujeito', 'momento')",
+      "dados_repetidos$sujeito <- factor(dados_repetidos$sujeito)",
+      "dados_repetidos$momento <- factor(dados_repetidos$momento)",
+      "presencas <- stats::xtabs(~ sujeito + momento, data = dados_repetidos) > 0",
+      "sujeitos_completos <- rownames(presencas)[rowSums(presencas) == ncol(presencas)]",
+      "dados_repetidos <- droplevels(dados_repetidos[dados_repetidos$sujeito %in% sujeitos_completos, ])",
+      "modelo <- stats::aov(valor ~ sujeito + momento, data = dados_repetidos)",
+      "summary(modelo)"
+    ),
+    qui_quadrado_variancia = c(
+      sprintf("variavel <- %s", texto_r(p$variavel)),
+      sprintf("desvio_referencia <- %s", numero_r(p$desvio_hipotetico)),
+      sprintf("alternativa <- %s", texto_r(p$alternativa)),
+      "x <- dados[[variavel]]",
+      "x <- x[is.finite(x)]",
+      "gl <- length(x) - 1L",
+      "qui_quadrado <- gl * stats::var(x) / desvio_referencia^2",
+      "p_inferior <- stats::pchisq(qui_quadrado, gl)",
+      "p_superior <- stats::pchisq(qui_quadrado, gl, lower.tail = FALSE)",
+      "p_valor <- if (alternativa == 'less') p_inferior else if (alternativa == 'greater') p_superior else min(1, 2 * min(p_inferior, p_superior))",
+      "c(qui_quadrado = qui_quadrado, gl = gl, p_valor = p_valor)"
+    ),
+    teste_f_variancias = c(
+      sprintf("resposta <- %s", texto_r(p$resposta)),
+      sprintf("grupo <- %s", texto_r(p$grupo)),
+      sprintf("alternativa <- %s", texto_r(p$alternativa)),
+      sprintf("nivel_confianca <- %s", numero_r(p$nivel_confianca %||% 0.95)),
+      "formula_teste <- stats::reformulate(grupo, response = resposta)",
+      "resultado <- stats::var.test(formula_teste, data = dados, alternative = alternativa, conf.level = nivel_confianca)",
       "resultado"
     ),
     anova_um_fator = c(
@@ -575,6 +716,44 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
       "teste_shapiro",
       "eta_quadrado",
       "omega_quadrado"
+    ),
+    anova_mista_subamostras = c(
+      "# 1. Declarar o que cada coluna representa no estudo.",
+      sprintf("variavel_resposta <- %s", texto_r(p$resposta)),
+      sprintf("variavel_fator <- %s", texto_r(p$fator)),
+      sprintf("variavel_unidade <- %s", texto_r(p$unidade)),
+      sprintf("variavel_subamostra <- %s", texto_r(p$subamostra)),
+      "",
+      "# 2. Manter casos completos sem perder os identificadores.",
+      "variaveis_modelo <- c(variavel_resposta, variavel_fator, variavel_unidade, variavel_subamostra)",
+      "dados_modelo <- dados[stats::complete.cases(dados[variaveis_modelo]), variaveis_modelo, drop = FALSE]",
+      "names(dados_modelo) <- c('resposta', 'fator', 'unidade', 'subamostra')",
+      "dados_modelo$fator <- factor(dados_modelo$fator)",
+      "dados_modelo$unidade <- factor(dados_modelo$unidade)",
+      "",
+      "# 3. Caminho simples: uma média por unidade independente.",
+      "medias_por_unidade <- stats::aggregate(",
+      "  dados_modelo$resposta,",
+      "  list(unidade = dados_modelo$unidade, fator = dados_modelo$fator),",
+      "  mean",
+      ")",
+      "names(medias_por_unidade)[3] <- 'resposta_media'",
+      "modelo_simples <- stats::aov(resposta_media ~ fator, data = medias_por_unidade)",
+      "",
+      "# 4. Caminho misto: mantém as subamostras e declara a unidade.",
+      "modelo_misto <- nlme::lme(",
+      "  resposta ~ fator, random = ~1 | unidade,",
+      "  data = dados_modelo, method = 'REML'",
+      ")",
+      "",
+      "# 5. O caminho ingênuo fica somente como aviso didático.",
+      "modelo_ingenuo <- stats::aov(resposta ~ fator, data = dados_modelo)",
+      "",
+      "# 6. Examinar lado a lado; a conclusão vem dos dois caminhos corretos.",
+      "summary(modelo_simples)",
+      "nlme::anova.lme(modelo_misto)",
+      "nlme::VarCorr(modelo_misto)",
+      "summary(modelo_ingenuo)"
     ),
     anova_dois_fatores = c(
       "# 1. Declarar a resposta, os dois fatores e o nível de confiança.",
@@ -785,15 +964,24 @@ exportacao_raiz_chunk <- function(execucao) {
   partes <- switch(
     as.character(execucao$tipo %||% ""),
     anova_um_fator = c("anova", p$resposta),
+    anova_mista_subamostras = c("anova-mista", p$resposta),
+    anova_medidas_repetidas = c("anova-repetidas", p$resposta),
+    friedman = c("friedman", p$resposta),
     anova_dois_fatores = c("anova2", p$resposta),
     grafico_linhas = c("linhas", p$y),
     regressao_linear = c("regressao", p$resposta),
     regressao_logistica = c("regressao-logistica", p$resposta),
+    regressao_poisson = c("regressao-poisson", p$resposta),
+    regressao_binomial_negativa = c("regressao-binomial-negativa", p$resposta),
     teste_t_one_val = c("teste-t", p$variavel),
     teste_t_two_ind = c("teste-t", p$resposta),
     teste_t_paired = c("teste-t-pareado", p$variavel_1),
+    qui_quadrado_variancia = c("qui-quadrado-variancia", p$variavel),
+    teste_f_variancias = c("teste-f-variancias", p$resposta),
     estatistica_descritiva = c("descritiva", head(p$variaveis, 1)),
+    descricao_exploratoria = c(p$analise, p$variavel, p$outra, p$grupo),
     qui_quadrado = c("qui-quadrado", p$var_row),
+    mcnemar = c("mcnemar", p$variavel_1),
     c(exportacao_slug_chunk(execucao$tipo, "analise"))
   )
   partes <- Filter(function(x) length(x) && nzchar(as.character(x)[[1]]), partes)
@@ -910,7 +1098,13 @@ exportacao_trecho_resultado <- function(item, raiz, variavel) {
 # Tipos cujo código de estudo já foi humanizado e testado de ponta a ponta.
 # Só esses rodam de verdade no relatório; os demais ficam como código para
 # leitura (eval: false), até ganharem o mesmo tratamento.
-exportacao_tipos_com_codigo_vivo <- c("anova_um_fator", "anova_dois_fatores", "grafico_linhas")
+exportacao_tipos_com_codigo_vivo <- c(
+  "anova_um_fator", "anova_mista_subamostras", "anova_medidas_repetidas", "anova_dois_fatores",
+  "friedman", "mcnemar",
+  "qui_quadrado_variancia", "teste_f_variancias", "grafico_linhas", "descricao_exploratoria",
+  "proporcao_uma", "proporcao_duas", "qui_quadrado_aderencia",
+  "regressao_poisson", "regressao_binomial_negativa"
+)
 
 exportacao_codigo_vivo <- function(item) {
   as.character(item$tipo %||% "") %in% exportacao_tipos_com_codigo_vivo
@@ -1584,6 +1778,393 @@ exportacao_regressao_trechos <- function(item, raiz, templates_dir = "templates"
   linhas
 }
 
+# A nova árvore é ativada, nesta primeira migração, somente quando o projeto
+# contém uma única regressão linear simples global. Projetos mistos e retas
+# independentes por grupo preservam o exportador já homologado.
+exportacao_regressao_projeto_novo <- function(manifesto) {
+  itens <- manifesto$execucoes %||% list()
+  length(itens) == 1L &&
+    isTRUE(itens[[1]]$incluir_word) &&
+    exportacao_regressao_simples(itens[[1]])
+}
+
+# Substitui tanto valores curtos dentro de uma linha quanto blocos inteiros
+# marcados por uma linha {{CHAVE}}. Isso mantém os QMDs legíveis como templates.
+exportacao_preencher_template <- function(linhas, valores) {
+  for (chave in names(valores)) {
+    marca <- paste0("{{", chave, "}}")
+    valor <- as.character(valores[[chave]] %||% "")
+    posicoes <- which(trimws(linhas) == marca)
+    if (length(posicoes)) {
+      for (i in rev(posicoes)) {
+        antes <- if (i > 1L) linhas[seq_len(i - 1L)] else character()
+        depois <- if (i < length(linhas)) linhas[seq.int(i + 1L, length(linhas))] else character()
+        linhas <- c(antes, valor, depois)
+      }
+    }
+    linhas <- gsub(marca, paste(valor, collapse = " "), linhas, fixed = TRUE)
+  }
+  linhas
+}
+
+exportacao_regressao_projeto_script <- function(manifesto, nome_projeto,
+                                                 registro_bases = list(), pipeline = list(),
+                                                 base_externa = NULL, import_info = list(),
+                                                 templates_dir = "templates") {
+  item <- manifesto$execucoes[[1]]
+  raizes <- exportacao_raizes_chunk(manifesto$execucoes)
+  raiz <- unname(raizes[[item$id]])
+
+  # Reaproveitamos o preparo já homologado até o ponto em que a base adotada
+  # fica disponível em dados_da_analise. A partir daí entra o roteiro aprovado.
+  legado <- exportacao_gerar_script(
+    manifesto, nome_projeto, registro_bases, pipeline, base_externa,
+    import_info, templates_dir
+  )
+  inicio_antigo <- grep(
+    paste0("^## ---- ", raiz, "-configurar ----$"),
+    legado
+  )
+  if (length(inicio_antigo) != 1L) {
+    stop("O início do roteiro antigo da regressão não foi localizado.", call. = FALSE)
+  }
+  prefixo <- legado[seq_len(inicio_antigo - 1L)]
+
+  # Os dois relatórios novos executam R/analise.R inteiro em uma sessão limpa.
+  # Por isso, o bloco de instalação não pode permanecer no script: instalar
+  # pacotes é uma preparação feita uma única vez pelo pesquisador, não uma etapa
+  # repetida a cada Render. As instruções de instalação ficam no README.
+  inicio_instalar <- which(prefixo == "## ---- instalar ----")
+  inicio_pacotes <- which(prefixo == "## ---- pacotes ----")
+  if (length(inicio_instalar) != 1L || length(inicio_pacotes) != 1L ||
+      inicio_pacotes <= inicio_instalar) {
+    stop("Os trechos de instalação e pacotes não foram localizados.", call. = FALSE)
+  }
+  prefixo <- c(
+    prefixo[seq_len(inicio_instalar - 1L)],
+    prefixo[inicio_pacotes:length(prefixo)]
+  )
+
+  # O cabeçalho compartilhado descreve o relatório sincronizado da rota antiga.
+  # Nesta estrutura, os QMDs apenas executam o script, que é a fonte da verdade.
+  prefixo <- gsub(
+    "# Este script é o código do relatório \\(relatorios/relatorio\\.qmd\\) com as",
+    "# Este script é a fonte da verdade dos dois relatórios Quarto, com as",
+    prefixo
+  )
+  prefixo <- gsub(
+    "# explicações que o relatório não mostra\\. Aqui se aprende; lá se apresenta\\.",
+    "# explicações para estudar a análise. Aqui se aprende; lá se apresenta.",
+    prefixo
+  )
+  remover_cabecalho <- grepl(
+    "primeira linha de cada chunk|código se edita aqui|do relatório, que copia|Render para e avisa|O trecho instalar|instala pacotes ausentes",
+    prefixo
+  )
+  prefixo <- prefixo[!remover_cabecalho]
+
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  resposta <- rotulo(p$rotulo_resposta, p$resposta)
+  preditor <- rotulo(p$rotulo_preditor, p$preditor)
+  grupo <- as.character(p$grupo %||% "none")
+  grupo_r <- if (identical(grupo, "none")) "NA_character_" else encodeString(grupo, quote = '"')
+  rotulo_grupo <- if (identical(grupo, "none")) "Grupo" else grupo
+  pergunta <- sprintf("como %s varia, em média, em função de %s?", resposta, preditor)
+
+  modelo <- readLines(
+    file.path(templates_dir, "regressao_linear", "analise_projeto.R"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  modelo <- exportacao_preencher_template(modelo, list(
+    TITULO_COMENTARIO = toupper(as.character(item$titulo %||% "REGRESSÃO LINEAR SIMPLES")),
+    PERGUNTA_COMENTARIO = pergunta,
+    RESPOSTA_R = encodeString(p$resposta, quote = '"'),
+    PREDITOR_R = encodeString(p$preditor, quote = '"'),
+    GRUPO_R = grupo_r,
+    ROTULO_RESPOSTA_R = encodeString(resposta, quote = '"'),
+    ROTULO_PREDITOR_R = encodeString(preditor, quote = '"'),
+    ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
+    CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    EQUACAO = if (isFALSE(p$mostrar_equacao)) "FALSE" else "TRUE",
+    AUTOCORRELACAO = if (isTRUE(p$avaliar_autocorrelacao)) "TRUE" else "FALSE",
+    TITULO_R = encodeString(as.character(p$titulo_personalizado %||% ""), quote = '"')
+  ))
+  c(prefixo, modelo)
+}
+
+exportacao_regressao_projeto_qmd <- function(arquivo, manifesto, titulo_projeto,
+                                             import_info = list(), templates_dir = "templates") {
+  item <- manifesto$execucoes[[1]]
+  globais <- manifesto$secoes_globais %||% list()
+  sugestoes <- exportacao_textos_regressao(item, import_info)
+  secao <- function(nome, padrao) {
+    texto <- globais[[nome]] %||% ""
+    if (nzchar(trimws(texto))) texto else padrao
+  }
+  barbo <- identical(import_info$source, "package") &&
+    identical(import_info$package_dataset, "morfometria_barbo")
+  conclusao_padrao <- c(
+    "*Sugestão de escrita: responda à pergunta na escala observada e revise a síntese depois de examinar os diagnósticos.*",
+    "",
+    if (barbo) paste(
+      "As medidas do barbo já estavam corrigidas pelo comprimento padrão.",
+      "A associação descreve covariação de forma nesta amostra; não demonstra",
+      "causalidade nem representa crescimento individual."
+    ) else paste(
+      "A associação estimada descreve a variação média observada na faixa dos dados.",
+      "A interpretação causal, a extrapolação e a generalização dependem do",
+      "delineamento e do contexto científico."
+    )
+  )
+  linhas <- readLines(
+    file.path(templates_dir, "regressao_linear", arquivo),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% titulo_projeto),
+    INTRODUCAO = secao("introducao", sugestoes$introducao),
+    METODOS = secao("metodos", sugestoes$metodos),
+    DISCUSSAO = secao("discussao", sugestoes$discussao),
+    CONCLUSAO = secao("conclusao", conclusao_padrao),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    ARQUIVO_BASE = exportacao_rds_base(item)
+  ))
+}
+
+exportacao_regressao_projeto_readme <- function(manifesto, nome_projeto,
+                                                import_info = list(),
+                                                templates_dir = "templates") {
+  item <- manifesto$execucoes[[1]]
+  p <- item$parametros
+  grupo <- as.character(p$grupo %||% "none")
+  linhas <- readLines(
+    file.path(templates_dir, "regressao_linear", "README.md"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% nome_projeto),
+    PROJETO_RPROJ = paste0(nome_projeto, ".Rproj"),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    RESPOSTA = as.character(p$rotulo_resposta %||% p$resposta),
+    PREDITOR = as.character(p$rotulo_preditor %||% p$preditor),
+    GRUPO = if (identical(grupo, "none")) "nenhum" else grupo,
+    IC = format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  ))
+}
+
+# Sugestões entram apenas nas seções vazias de um relatório com uma reta.
+# Não inferimos local, período, unidade amostral ou causalidade a partir da planilha.
+exportacao_textos_regressao <- function(item, import_info = list()) {
+  p <- item$parametros
+  rotulo <- function(nome, padrao) {
+    if (nzchar(trimws(nome %||% ""))) nome else padrao
+  }
+  resposta <- rotulo(p$rotulo_resposta, p$resposta)
+  preditor <- rotulo(p$rotulo_preditor, p$preditor)
+  ic <- format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  alfa <- format(1 - (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  barbo <- identical(import_info$source, "package") &&
+    identical(import_info$package_dataset, "morfometria_barbo")
+  list(
+    introducao = c(
+      "*Sugestão de redação: adapte a pergunta e acrescente referências do seu tema antes de compartilhar o relatório.*", "",
+      if (barbo) {
+        "A forma corporal dos peixes pode ser descrita pela relação entre suas medidas morfométricas. No conjunto `morfometria_barbo`, do EAPADados, as medidas de *Barbus petenyi* já foram corrigidas alometricamente pelo comprimento padrão. Assim, a pergunta se refere à associação entre medidas de forma corporal, e não à velocidade de crescimento dos peixes. O conjunto é um recorte didático de dados disponibilizados no Mendeley Data [@takacs2022]."
+      } else {
+        "Na pesca e na aquicultura, estudar a relação entre duas medidas ajuda a formular perguntas sobre os organismos e os sistemas de produção. Uma regressão linear simples descreve como o valor médio de uma resposta varia ao longo de um preditor. A interpretação biológica depende da origem dos dados e de como as observações foram obtidas."
+      }, "",
+      sprintf("Neste estudo, investigou-se a associação entre %s e %s. O objetivo foi estimar a direção e a magnitude dessa associação, quantificar sua incerteza e avaliar se uma reta representa adequadamente a relação na faixa observada.", resposta, preditor)),
+    metodos = c(
+      "*Sugestão de redação: complete a origem dos dados, o período, o local, a unidade amostral, as unidades de medida e os critérios de seleção. Não declare independência sem conferir o delineamento.*", "",
+      if (barbo) "Utilizou-se o recorte `morfometria_barbo` do EAPADados. A base de origem reúne indivíduos de cinco populações; filtros e exclusões aplicados neste projeto devem ser descritos. As medidas já corrigidas pelo tamanho foram mantidas nessa escala. Uma reta conjunta descreve a associação no conjunto analisado e não separa relações dentro de cada população de diferenças entre populações." else NULL, "",
+      sprintf("Ajustou-se uma regressão linear simples por mínimos quadrados ordinários, com %s como resposta e %s como preditor. Foram utilizados os pares completos dessas duas variáveis, com registro das exclusões por dados ausentes. Estimaram-se o intercepto e a inclinação, seus erros padrão e intervalos de confiança de %s%%. A hipótese de inclinação nula foi avaliada pelo teste t, com nível de significância de %s. O ajuste foi descrito por R², R² ajustado e teste F global.", resposta, preditor, ic, alfa), "",
+      "A adequação da reta foi examinada por resíduos versus valores ajustados, procurando curvatura e mudanças de dispersão. A normalidade dos erros foi examinada por gráfico Q-Q e teste de Shapiro-Wilk, quando calculável; a constância da variância, pelo teste de Breusch-Pagan. A influência das observações foi investigada pela distância de Cook e pela alavancagem em conjunto com os resíduos padronizados. Esses diagnósticos orientam a investigação dos dados e não constituem regras automáticas de exclusão [@fox2019; @zuur2010].", "",
+      if (isTRUE(p$avaliar_autocorrelacao))
+        "A autocorrelação foi examinada pelo teste de Durbin-Watson e pelos resíduos na ordem informada. Essa leitura depende de as linhas representarem uma sequência real de coleta, a ser descrita pelo pesquisador; o teste não estabelece independência entre unidades amostrais."
+      else "O teste de Durbin-Watson não foi aplicado, pois não foi indicada uma ordem real de coleta. A independência deve ser justificada pela unidade amostral e pelo delineamento, considerando repetições do mesmo indivíduo e agrupamentos por tanque, rio ou população."),
+    discussao = c(
+      "*Sugestão para desenvolver a discussão: compare a magnitude e o intervalo de confiança da inclinação com estudos do mesmo organismo e na mesma escala. Explique a plausibilidade biológica, os sinais encontrados nos diagnósticos e os limites da amostragem. Inclua as referências consultadas.*", "",
+      if (barbo) "Neste exemplo, uma associação entre medidas corrigidas descreve covariação da forma corporal. Ela não demonstra crescimento individual nem um mecanismo causal. Como a base reúne cinco populações, diferenças entre elas podem contribuir para a associação conjunta. A sobreposição de tamanhos não elimina essa possibilidade nem comprova independência; confira a dispersão por população e o delineamento antes de generalizar." else
+        "Uma associação estatística, mesmo com R² elevado, não demonstra que alterar o preditor causará uma mudança na resposta. Considere fatores não incluídos no modelo, erros de medição e dependência entre observações. O intervalo ao redor da reta descreve a incerteza da resposta média; ele não representa a dispersão esperada de um peixe individual."),
+    conclusao = c(
+      "*Sugestão de redação: retome a pergunta da introdução e revise esta síntese depois de examinar os diagnósticos. Acrescente a implicação biológica que o delineamento permite sustentar.*", "",
+      "`r texto_conclusao`", "",
+      if (barbo) "Para o barbo, a interpretação se restringe às medidas de forma corrigidas pelo tamanho e à composição populacional da amostra analisada." else NULL)
+  )
+}
+
+# ---- ANOVA de um fator na árvore do molde (regressão linear simples) --------
+# Uma ANOVA sozinha no projeto sai com a mesma árvore de EAPACadernos/
+# linear-morfometria-barbo: R/analise.R como fonte da verdade, dois QMDs que o
+# executam (caderno HTML e artigo Word), _quarto.yml, apa.csl e saida/.
+# ANOVAs acompanhadas de outras análises continuam no exportador geral.
+exportacao_anova_projeto_novo <- function(manifesto) {
+  exportacao_anova_simples(manifesto)
+}
+
+exportacao_anova_projeto_script <- function(manifesto, nome_projeto,
+                                            registro_bases = list(), pipeline = list(),
+                                            base_externa = NULL, import_info = list(),
+                                            templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  raizes <- exportacao_raizes_chunk(manifesto$execucoes)
+  raiz <- unname(raizes[[item$id]])
+
+  # O preparo é o mesmo do exportador geral, como na regressão: importar,
+  # tratar, ler a Base Compartilhada e adotar a base desta análise
+  # (dados_da_analise). O trecho de instalação fica de fora, porque os dois
+  # relatórios executam o script inteiro a cada Render; instalar vai no README.
+  prefixo <- c(
+    exportacao_cabecalho_script(nome_projeto),
+    exportacao_trecho_pacotes(), "",
+    exportacao_trecho_importar(import_info), "",
+    exportacao_preparo_sem_funcao_data(
+      exportacao_trecho_tratar(pipeline, base_externa, import_info = import_info)),
+    exportacao_trecho_carregar_base(), "",
+    "# ========================================================================",
+    paste0("# ANOVA DE UM FATOR — ", item$titulo),
+    "# ========================================================================",
+    "",
+    exportacao_trecho_base(item, raiz, registro_bases),
+    exportacao_trecho_carregar_base(item, raiz)
+  )
+  # O cabeçalho comum descreve a rota antiga, com relatório sincronizado.
+  # Nesta árvore, os QMDs apenas executam o script, que é a fonte da verdade.
+  prefixo <- gsub(
+    "# Este script é o código do relatório \\(relatorios/relatorio\\.qmd\\) com as",
+    "# Este script é a fonte da verdade dos dois relatórios Quarto, com as",
+    prefixo
+  )
+  prefixo <- gsub(
+    "# explicações que o relatório não mostra\\. Aqui se aprende; lá se apresenta\\.",
+    "# explicações para estudar a análise. Aqui se aprende; lá se apresenta.",
+    prefixo
+  )
+  remover_cabecalho <- grepl(
+    "primeira linha de cada chunk|código se edita aqui|do relatório, que copia|Render para e avisa|O trecho instalar|instala pacotes ausentes",
+    prefixo
+  )
+  prefixo <- prefixo[!remover_cabecalho]
+  # O bloco "SCRIPT E RELATÓRIO" descrevia a sincronização da rota antiga; aqui
+  # ele passa a dizer como o script e os dois relatórios se relacionam.
+  posicao <- which(prefixo == "# SCRIPT E RELATÓRIO")
+  if (length(posicao) == 1L) {
+    prefixo <- c(
+      prefixo[seq_len(posicao - 1L)],
+      "# SCRIPT E RELATÓRIOS",
+      "# Os dois documentos Quarto de relatorios/ executam este script inteiro a",
+      "# cada Render e apenas apresentam os objetos que ele cria. Edite os cálculos",
+      "# aqui e a argumentação científica nos documentos.",
+      prefixo[seq.int(posicao + 2L, length(prefixo))]
+    )
+  }
+
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  resposta <- as.character(p$resposta %||% "resposta")
+  fator <- as.character(p$fator %||% "grupo")
+  rotulo_resposta <- rotulo(p$rotulo_y, resposta)
+  rotulo_fator <- rotulo(p$rotulo_x, fator)
+  modelo <- readLines(
+    file.path(templates_dir, "anova_projeto", "analise_projeto.R"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  modelo <- exportacao_preencher_template(modelo, list(
+    TITULO_COMENTARIO = toupper(as.character(item$titulo %||% "ANOVA DE UM FATOR")),
+    PERGUNTA_COMENTARIO = sprintf("a média de %s difere entre os grupos de %s?", rotulo_resposta, rotulo_fator),
+    RESPOSTA_R = encodeString(resposta, quote = '"'),
+    FATOR_R = encodeString(fator, quote = '"'),
+    ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
+    ROTULO_FATOR_R = encodeString(rotulo_fator, quote = '"'),
+    CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
+  ))
+  c(prefixo, modelo)
+}
+
+exportacao_anova_projeto_qmd <- function(arquivo, manifesto, titulo_projeto,
+                                         import_info = list(), templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  globais <- manifesto$secoes_globais %||% list()
+  sugestoes <- exportacao_textos_anova(item)
+  secao <- function(nome, padrao) {
+    texto <- paste(as.character(globais[[nome]] %||% ""), collapse = "\n")
+    if (nzchar(trimws(texto))) texto else padrao
+  }
+  linhas <- readLines(
+    file.path(templates_dir, "anova_projeto", arquivo),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% titulo_projeto),
+    INTRODUCAO = secao("introducao", sugestoes$introducao),
+    METODOS = secao("metodos", sugestoes$metodos),
+    DISCUSSAO = secao("discussao", sugestoes$discussao),
+    CONCLUSAO = secao("conclusao", sugestoes$conclusao),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    ARQUIVO_BASE = exportacao_rds_base(item)
+  ))
+}
+
+exportacao_anova_projeto_readme <- function(manifesto, nome_projeto,
+                                            import_info = list(),
+                                            templates_dir = "templates") {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  linhas <- readLines(
+    file.path(templates_dir, "anova_projeto", "README.md"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  exportacao_preencher_template(linhas, list(
+    TITULO = as.character(item$titulo %||% nome_projeto),
+    PROJETO_RPROJ = paste0(nome_projeto, ".Rproj"),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info),
+    RESPOSTA = rotulo(p$rotulo_y, as.character(p$resposta %||% "resposta")),
+    FATOR = rotulo(p$rotulo_x, as.character(p$fator %||% "grupo")),
+    IC = format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  ))
+}
+
+# Sugestões entram apenas nas seções que o pesquisador deixou vazias na
+# Comunicação. Não inferimos local, período, unidade amostral nem causalidade.
+exportacao_textos_anova <- function(item) {
+  p <- item$parametros
+  rotulo <- function(x, padrao) {
+    x <- as.character(x %||% "")
+    if (nzchar(trimws(x))) x else padrao
+  }
+  resposta <- rotulo(p$rotulo_y, as.character(p$resposta %||% "a resposta"))
+  fator <- rotulo(p$rotulo_x, as.character(p$fator %||% "o fator"))
+  ic <- format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  alfa <- format(1 - (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  list(
+    introducao = c(
+      "*Sugestão de redação: adapte a pergunta e acrescente referências do seu tema antes de compartilhar o relatório.*", "",
+      "Na pesca e na aquicultura, comparar grupos é uma das perguntas mais frequentes: rações, densidades, espécies, locais ou épocas. A análise de variância de um fator avalia se a média de uma resposta numérica difere entre os grupos definidos por um fator.", "",
+      sprintf("Neste estudo, comparou-se %s entre os grupos de %s. O objetivo foi verificar se as médias diferem, identificar quais grupos se separam e estimar a magnitude dessa diferença.", resposta, fator)),
+    metodos = c(
+      "*Sugestão de redação: complete a origem dos dados, o período, o local, a unidade experimental, as unidades de medida e os critérios de seleção. Não declare independência sem conferir o delineamento.*", "",
+      sprintf("A comparação de %s entre os grupos de %s usou análise de variância de um fator, seguida do teste de Tukey, com as funções de base do R [@rcore2025]. Foram utilizados os casos com resposta e grupo preenchidos. Os intervalos de confiança das médias e das comparações foram de %s%%, e adotou-se nível de significância de %s [@zar2010].", resposta, fator, ic, alfa), "",
+      "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk, ambos acompanhados dos gráficos de resíduos. As letras de contraste do teste de Tukey foram obtidas com o pacote `multcompView` [@graves2026], e as figuras foram construídas com o `ggplot2` [@wickham2016]. O tamanho do efeito foi descrito por η² e ω²."),
+    discussao = c(
+      "*Sugestão para desenvolver a discussão: comente quais grupos se separam, o tamanho das diferenças e a leitura à luz do fenômeno investigado. Compare com estudos do mesmo organismo e inclua as referências consultadas.*", "",
+      "O p-valor expressa a compatibilidade dos dados com a hipótese nula; o tamanho de efeito descreve a magnitude da associação. A importância prática depende do contexto do estudo. O teste descreve diferenças entre os grupos; a atribuição de causa depende do delineamento e de como os dados foram obtidos."),
+    conclusao = c(
+      "*Sugestão de redação: responda ao objetivo em poucas frases, considerando a magnitude das diferenças, a incerteza e os limites do delineamento. Não acrescente resultados que não tenham sido apresentados.*")
+  )
+}
+
 exportacao_qmd_regressao <- function(item, raiz) {
   chunk <- function(nome, opcoes = "#| output: false", prefixo = "") {
     exportacao_casca_chunk(paste0(prefixo, raiz, "-", nome),
@@ -1595,6 +2176,7 @@ exportacao_qmd_regressao <- function(item, raiz) {
     chunk("configurar"), chunk("preparar"), chunk("modelo"),
     chunk("pressupostos"), chunk("texto"), "")
   if ("narrativa" %in% item$saidas_word) linhas <- c(linhas,
+    exportacao_nota("Sugestão para os Resultados: apresente a associação e sua incerteza, depois os diagnósticos. Os números abaixo são recalculados no Render; revise a interpretação, sem copiá-los como valores fixos."),
     "`r texto_resultados`", "", "`r texto_pressupostos`", "", "`r alerta_pressupostos`", "")
   if ("tabela" %in% item$saidas_word) linhas <- c(linhas,
     chunk("tabela", '#| tbl-cap: "Coeficientes da regressão linear simples, erros padrão e intervalos de confiança."', "tbl-"),
@@ -1620,10 +2202,16 @@ exportacao_qmd_regressao <- function(item, raiz) {
     chunk("diagnostico-ordem", c(
       '#| fig-cap: "Resíduos na ordem das linhas utilizadas. Só se lê como sequência de coleta quando essa ordem for real no delineamento."',
       "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
-    "**Influência (complementar).** Cook destaca observações que merecem conferência. A linha 4/n não autoriza excluir dados automaticamente.", "",
+    "**Influência (complementar).** Cook destaca observações que merecem conferência. A linha 4/n não autoriza excluir dados automaticamente. Os números identificam linhas da base preparada, antes de retirar pares incompletos.", "",
     chunk("diagnostico-influencia", c(
       '#| fig-cap: "Distância de Cook por observação. A linha tracejada marca 4/n, uma referência de triagem e não um teste de hipótese."',
-      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "::::", "")
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
+    "**Alavancagem e resíduos.** Um peixe com valor extremo do preditor pode ter grande alavancagem mesmo com resíduo pequeno. Leia este gráfico junto com Cook. As linhas de referência (2p/n, com p parâmetros incluindo o intercepto, e resíduos em ±2) servem apenas para triagem; os rótulos indicam linhas da base que merecem conferência [@nistdiagnosticos].", "",
+    chunk("diagnostico-alavancagem", c(
+      '#| fig-cap: "Resíduos padronizados versus alavancagem. Rótulos identificam linhas sinalizadas por alavancagem, resíduo ou Cook; não são uma decisão de exclusão."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
+    "**Como decidir o próximo passo.** Curvatura pede revisar a forma da relação; um funil pede revisar a variância. Valores sinalizados pedem conferir digitação, medição e contexto, e justificar uma análise de sensibilidade quando necessária. Medidas repetidas ou peixes agrupados podem exigir um modelo que represente essa dependência. Não tente resolver esses problemas apenas acumulando testes [@zuur2010].", "",
+    "Na reta simples com intercepto e um preditor, o teste F global e o teste t bilateral da inclinação avaliam a mesma hipótese (F = t²). Não é necessário acrescentar Pearson para confirmar o resultado, nem VIF, que se refere à colinearidade entre múltiplos preditores. Testes adicionais de falta de ajuste dependem do delineamento; não são uma exigência automática deste roteiro.", "::::", "")
   linhas
 }
 
@@ -1664,7 +2252,13 @@ exportacao_gerar_script <- function(manifesto, nome_projeto = "projeto",
       next
     }
     if (exportacao_regressao_simples(item)) {
-      linhas <- c(linhas, paste0("# ", item$titulo),
+      linhas <- c(linhas,
+        "# ========================================================================",
+        paste0("# REGRESSÃO LINEAR SIMPLES — ", item$titulo),
+        "# ========================================================================",
+        "# Percurso: conferir a base -> ajustar -> diagnosticar -> apresentar.",
+        "# Cada tabela, gráfico e texto tem um nome para ser consultado no R.",
+        "",
         if (!isTRUE(item$incluir_word)) "# Para estudo: execução não incluída no relatório.",
         exportacao_trecho_base(item, raiz, registro_bases),
         exportacao_trecho_carregar_base(item, raiz),
@@ -1792,8 +2386,12 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
   }
   globais <- manifesto$secoes_globais %||% list()
   planilha <- exportacao_nome_planilha(import_info)
-  texto_ou_lembrete <- function(texto, lembrete) {
-    if (nzchar(trimws(texto %||% ""))) texto else exportacao_nota(lembrete)
+  incluidas <- Filter(function(x) isTRUE(x$incluir_word), manifesto$execucoes %||% list())
+  sugestoes <- if (length(incluidas) == 1L && exportacao_regressao_simples(incluidas[[1]]))
+    exportacao_textos_regressao(incluidas[[1]], import_info) else list()
+  texto_ou_lembrete <- function(texto, lembrete, secao) {
+    if (nzchar(trimws(texto %||% ""))) texto else
+      sugestoes[[secao]] %||% exportacao_nota(lembrete)
   }
 
   linhas <- c(
@@ -1848,7 +2446,7 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
     "",
     texto_ou_lembrete(
       globais$introducao,
-      "Escreva aqui a introdução: o contexto, a pergunta e por que ela importa."
+      "Escreva aqui a introdução: o contexto, a pergunta e por que ela importa.", "introducao"
     ),
     "",
     "# Material e métodos",
@@ -1874,7 +2472,7 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
     "",
     texto_ou_lembrete(
       globais$metodos,
-      "Descreva aqui os métodos: o que cada análise testa e a que nível de significância."
+      "Descreva aqui os métodos: o que cada análise testa e a que nível de significância.", "metodos"
     ),
     "",
     "As configurações analíticas foram registradas explicitamente na CatalyseR. Cada análise, abaixo, informa a pergunta, a base e os parâmetros usados.",
@@ -1957,16 +2555,18 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
     "",
     texto_ou_lembrete(
       globais$discussao,
-      "Escreva aqui a discussão: o que os resultados dizem, comparados ao que se esperava."
+      "Escreva aqui a discussão: o que os resultados dizem, comparados ao que se esperava.", "discussao"
     ),
     "",
     "# Conclusão",
     "",
     texto_ou_lembrete(
       globais$conclusao,
-      "Escreva aqui a conclusão, em poucas frases, respondendo à pergunta da introdução."
+      "Escreva aqui a conclusão, em poucas frases, respondendo à pergunta da introdução.", "conclusao"
     ),
     "",
+    if (any(vapply(incluidas, exportacao_regressao_simples, logical(1))))
+      c("# Referências {.unnumbered}", "", "::: {#refs}", ":::", ""),
     exportacao_nota(
       "Uma cerca de dois-pontos com a condição when-format=\"html\" faz um trecho",
       "existir só no caderno HTML; no Word o Quarto o remove antes de gerar."
@@ -2199,12 +2799,16 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
                                      base_resolvida, dados_analise, pipeline,
                                      base_externa, registro_bases, cache_bases,
                                      registro_execucoes, manifesto, revisao_origem,
-                                     import_info = list(), templates_dir = "templates") {
+                                     import_info = list(), templates_dir = "templates",
+                                     ficha_planejamento = NULL) {
   manifesto <- exportacao_sem_execucoes_repetidas(manifesto)
   validacao <- exportacao_validar_manifesto(manifesto, exigir_word = FALSE)
   if (!validacao$ok) stop(paste(validacao$mensagens, collapse = " "), call. = FALSE)
+  regressao_nova <- exportacao_regressao_projeto_novo(manifesto)
+  # A ANOVA isolada segue a árvore do molde da regressão (ver acima).
+  anova_nova <- exportacao_anova_projeto_novo(manifesto)
 
-  if (exportacao_anova_simples(manifesto)) {
+  if (exportacao_anova_simples(manifesto) && !anova_nova) {
     codigo <- exportacao_preparo_anova(manifesto, import_info, pipeline, registro_bases, base_externa)
     erro_preparo <- tryCatch({
       exportacao_conferir_preparo_anova(codigo, dados_brutos, dados_analise, manifesto, cache_bases, base_resolvida)
@@ -2242,6 +2846,12 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # Imagens recebe fotos e esquemas do pesquisador, também no caminho ANOVA.
   pastas <- c(file.path("dados", "brutos"),
               file.path("dados", "processados"), "R", "imagens", "relatorios")
+  if (regressao_nova || anova_nova) pastas <- c(
+    pastas,
+    file.path("saida", "tabelas"),
+    file.path("saida", "figuras"),
+    file.path("saida", "relatorios")
+  )
   dirs <- file.path(projeto, pastas)
   vapply(dirs, dir.create, logical(1), recursive = TRUE, showWarnings = FALSE)
 
@@ -2291,7 +2901,11 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # documentadas e com ajuda em português (`?catalyser_anova`). Viajam três
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
-  templates <- c(
+  templates <- if (regressao_nova || anova_nova) c(
+    "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
+    "ocean.scss" = file.path("relatorios", "ocean.scss"),
+    "referencias.bib" = file.path("relatorios", "referencias.bib")
+  ) else c(
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "abnt.csl" = file.path("relatorios", "abnt.csl"),
@@ -2307,8 +2921,24 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
     file.copy(origem, file.path(projeto, templates[[nome]]), overwrite = TRUE)
   }
+  if (regressao_nova || anova_nova) {
+    # A ANOVA usa os mesmos arquivos de apoio do molde: funções de apresentação,
+    # estilo APA e _quarto.yml que renderiza os dois QMDs.
+    file.copy(
+      file.path(templates_dir, "regressao_linear", "funcoes.R"),
+      file.path(projeto, "R", "funcoes.R"), overwrite = TRUE
+    )
+    file.copy(
+      file.path(templates_dir, "regressao_linear", "apa.csl"),
+      file.path(projeto, "relatorios", "apa.csl"), overwrite = TRUE
+    )
+    file.copy(
+      file.path(templates_dir, "regressao_linear", "_quarto.yml"),
+      file.path(projeto, "_quarto.yml"), overwrite = TRUE
+    )
+  }
 
-  if (exportacao_anova_simples(manifesto)) {
+  if (exportacao_anova_simples(manifesto) && !anova_nova) {
     # A ANOVA mantém seus ajudantes de apresentação e recebe a mesma ligação
     # script -> relatório do exportador geral, sem uma segunda implementação.
     comuns <- readLines(file.path(templates_dir, "funcoes.R"), encoding = "UTF-8", warn = FALSE)
@@ -2326,30 +2956,64 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
 
   titulo <- paste("Relatório de análise —", nome_projeto)
   caminho_script <- file.path(projeto, "R", "analise.R")
-  caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
-  writeLines(
-    exportacao_gerar_script(
-      manifesto, nome_projeto, registro_bases = registro_bases,
-      pipeline = pipeline, base_externa = base_externa, import_info = import_info,
-      templates_dir = templates_dir
-    ),
-    caminho_script, useBytes = TRUE
-  )
-  writeLines(
-    exportacao_gerar_qmd(
-      manifesto, titulo, registro_bases = registro_bases,
-      pipeline = pipeline, base_externa = base_externa, import_info = import_info,
-      templates_dir = templates_dir
-    ),
-    caminho_qmd, useBytes = TRUE
-  )
-  # Os chunks do relatório nascem vazios (só a linha "# fonte:") e são
-  # preenchidos pelo MESMO atualizar_codigo() que o pesquisador vai usar
-  # depois de editar o script. Um caminho só, sem segunda implementação.
-  ligacao <- new.env(parent = baseenv())
-  sys.source(file.path(projeto, "R", "funcoes.R"), envir = ligacao)
-  suppressMessages(ligacao$atualizar_codigo(qmd = caminho_qmd, script = caminho_script))
-  ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)
+  if (regressao_nova) {
+    writeLines(
+      exportacao_regressao_projeto_script(
+        manifesto, nome_projeto, registro_bases, pipeline, base_externa,
+        import_info, templates_dir
+      ),
+      caminho_script, useBytes = TRUE
+    )
+    writeLines(
+      exportacao_regressao_projeto_qmd(
+        "relatorio_completo.qmd", manifesto, titulo, import_info, templates_dir
+      ),
+      file.path(projeto, "relatorios", "relatorio_completo.qmd"), useBytes = TRUE
+    )
+    writeLines(
+      exportacao_regressao_projeto_qmd(
+        "relatorio_artigo.qmd", manifesto, titulo, import_info, templates_dir
+      ),
+      file.path(projeto, "relatorios", "relatorio_artigo.qmd"), useBytes = TRUE
+    )
+  } else if (anova_nova) {
+    writeLines(
+      exportacao_anova_projeto_script(
+        manifesto, nome_projeto, registro_bases, pipeline, base_externa,
+        import_info, templates_dir
+      ),
+      caminho_script, useBytes = TRUE
+    )
+    for (arquivo in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
+      writeLines(
+        exportacao_anova_projeto_qmd(arquivo, manifesto, titulo, import_info, templates_dir),
+        file.path(projeto, "relatorios", arquivo), useBytes = TRUE
+      )
+    }
+  } else {
+    caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+    writeLines(
+      exportacao_gerar_script(
+        manifesto, nome_projeto, registro_bases = registro_bases,
+        pipeline = pipeline, base_externa = base_externa, import_info = import_info,
+        templates_dir = templates_dir
+      ),
+      caminho_script, useBytes = TRUE
+    )
+    writeLines(
+      exportacao_gerar_qmd(
+        manifesto, titulo, registro_bases = registro_bases,
+        pipeline = pipeline, base_externa = base_externa, import_info = import_info,
+        templates_dir = templates_dir
+      ),
+      caminho_qmd, useBytes = TRUE
+    )
+    # No caminho legado, os chunks continuam sincronizados com o script.
+    ligacao <- new.env(parent = baseenv())
+    sys.source(file.path(projeto, "R", "funcoes.R"), envir = ligacao)
+    suppressMessages(ligacao$atualizar_codigo(qmd = caminho_qmd, script = caminho_script))
+    ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)
+  }
   writeLines(
     c(
       "Version: 1.0", "RestoreWorkspace: No", "SaveWorkspace: No",
@@ -2357,7 +3021,11 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     ),
     file.path(projeto, paste0(nome_projeto, ".Rproj")), useBytes = TRUE
   )
-  leiame <- if (exportacao_anova_simples(manifesto)) {
+  leiame <- if (regressao_nova) {
+    exportacao_regressao_projeto_readme(manifesto, nome_projeto, import_info, templates_dir)
+  } else if (anova_nova) {
+    exportacao_anova_projeto_readme(manifesto, nome_projeto, import_info, templates_dir)
+  } else if (exportacao_anova_simples(manifesto)) {
     exportacao_modelo_anova("README.md", manifesto, import_info, templates_dir, pipeline, registro_bases, base_externa)
   } else {
     exportacao_leiame_projeto(nome_projeto, import_info)
@@ -2365,6 +3033,8 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   leiame <- gsub("projeto_analise.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
   leiame <- gsub("projeto.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
   leiame <- sub("^projeto/$", paste0(nome_projeto, "/"), leiame)
+  # A ficha de planejamento viaja como objeto salvo em dados/ (contrato 1), sem pasta nova.
+  if (!is.null(ficha_planejamento)) leiame <- c(leiame, ficha_salvar_projeto(ficha_planejamento, projeto))
   writeLines(leiame, file.path(projeto, "README.md"), useBytes = TRUE)
 
   projeto

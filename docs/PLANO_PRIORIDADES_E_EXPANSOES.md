@@ -130,12 +130,26 @@ subamostragem corrige automaticamente vieses da coleta original.
   com denominadores e métodos explícitos. Não tratar Fisher, Dunn, Levene,
   Bartlett, Pearson/Spearman ou Shapiro como ausências a implementar novamente.
 
+## Frente retirada da reserva em 22/09/2026
+
+**ANOVA com subamostras por modelo misto.** A primeira etapa entrou no menu
+**Testes Paramétricos** com um fator fixo e um nível de agrupamento. A tela pede
+a resposta, o fator, a unidade independente e a identificação da subamostra;
+ajusta `nlme::lme(resposta ~ fator, random = ~1 | unidade)` e apresenta lado a
+lado a ANOVA das médias por unidade e o modelo misto. O caminho que trata cada
+subamostra como réplica aparece apenas como alerta didático. A ficha de
+planejamento pode enviar os nomes das colunas e a recomendação à análise.
+
+A evolução permanece deliberadamente gradual: comparações múltiplas com
+`emmeans`, segundo nível de aninhamento (`unidade/subnivel`), medidas repetidas
+no tempo e estruturas de correlação não fazem parte deste primeiro recorte.
+
 ## Expansões reservadas — não fazer agora
 
 | Frente | Conteúdo guardado | Condição de retomada |
 |---|---|---|
-| Contagens e proporções em regressão | Poisson, binomial negativa, binomial sucessos/total; esforço amostral e sobredispersão | Após consolidar regressões e definir diagnósticos. |
-| Medidas repetidas e modelos mistos | Efeitos de indivíduo, tanque, local/campanha; estruturas de dependência | Com exemplo didático e revisão dos delineamentos. |
+| Regressão de contagem | Poisson e Binomial Negativa, com offset de esforço/área/volume e diagnóstico de superdispersão | Implementadas em 21/09/2026; aguardam revisão visual e didática do autor. |
+| Medidas repetidas e modelos mistos ampliados | Tempo, segundo nível de aninhamento e estruturas de correlação; o caso de subamostras com um fator e um agrupamento já saiu da reserva | Retomar um desenho por vez, depois da revisão didática do primeiro módulo. |
 | Ecologia de comunidades | Diversidade, números de Hill, rarefação, NMDS, PCoA, PERMANOVA/PERMDISP; depois RDA/CCA | Começar dentro de Multivariada; justificar distâncias e permutações. |
 | Sobrevivência | Kaplan–Meier, log-rank; depois Cox | Distinguir tempo até evento/censura de proporção de sobreviventes. |
 | Séries temporais | Previsões de referência, ETS/ARIMA e validação temporal | Ampliar a exploração já existente; não criar módulo duplicado. |

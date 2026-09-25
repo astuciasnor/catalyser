@@ -8,23 +8,55 @@ library(readxl)
 # Aumenta limite de upload para 50 MB
 options(shiny.maxRequestSize = 50 * 1024^2)
 
+# ---- Motor compartilhado (carregar ANTES dos modulos) ----------------------
+# Alguns modulos (ex.: mod_exploracao_visual.R) chamam funcoes do motor, como
+# cores_ocean(), ja no momento em que sao lidos por source(). Por isso o motor
+# precisa estar disponivel aqui, antes do primeiro source() de modulo; caso
+# contrario o app falha com "nao foi possivel encontrar a funcao cores_ocean".
+if (file.exists(file.path("..", "..", "R", "descrevendo_dados.R"))) {
+  # Modo desenvolvimento: runApp("inst/app") a partir da raiz do pacote.
+  source(file.path("..", "..", "R", "descrevendo_dados.R"), encoding = "UTF-8")
+} else {
+  # Modo pacote instalado: traz as funcoes internas direto do namespace catalyser.
+  for (nome in c(
+    "descricao_catalogo", "descricao_tipo", "exploracao_tipo_variavel",
+    "catalyser_codigo_descricao", "catalyser_descricao", "cores_ocean", "tema_ocean",
+    "aplicar_faceta_ocean", "desenhar_distribuicao", "desenhar_barras_ocean",
+    "desenhar_caixa_ocean", "desenhar_dispersao_ocean", "resumir_continuas",
+    "tabela_frequencia_exploratoria"
+  )) {
+    assign(nome, getFromNamespace(nome, "catalyser"))
+  }
+}
+
 # Carrega os módulos de análise
 source("modules/utils_export.R", encoding = "UTF-8")
 source("modules/mod_regression.R", encoding = "UTF-8")
+source("modules/mod_regressao_contagem.R", encoding = "UTF-8")
 source("modules/mod_model_discovery.R", encoding = "UTF-8")
 source("modules/mod_nonlinear.R", encoding = "UTF-8")
 source("modules/mod_description.R", encoding = "UTF-8")
 source("modules/mod_parametric.R", encoding = "UTF-8")
+source("modules/ficha_planejamento.R", encoding = "UTF-8")
 source("modules/mod_sampling.R", encoding = "UTF-8")
 source("modules/mod_anova.R", encoding = "UTF-8")
+source("modules/mod_anova_mista.R", encoding = "UTF-8")
 source("modules/mod_anova_dois_fatores.R", encoding = "UTF-8")
 source("modules/mod_pca.R", encoding = "UTF-8")
 source("modules/mod_hca.R", encoding = "UTF-8")
 source("modules/mod_contingency.R", encoding = "UTF-8")
 source("modules/mod_experimental_design.R", encoding = "UTF-8")
+source("modules/mod_planejamento_variaveis.R", encoding = "UTF-8")
+# Este R local falha ao converter alguns arquivos UTF-8 quando o argumento
+# encoding é forçado. A limpeza global de codificação permanece separada.
+source("modules/mod_planejamento_observacional.R")
+source("modules/mod_n_poder.R", encoding = "UTF-8")
+source("modules/mod_monitoramento.R", encoding = "UTF-8")
+source("modules/mod_conceitos_coleta.R", encoding = "UTF-8")
 source("modules/mod_nonparametric.R", encoding = "UTF-8")
 source("modules/mod_pizza.R", encoding = "UTF-8")
 source("modules/mod_viz_extra.R", encoding = "UTF-8")
+source("modules/mod_exploracao_visual.R", encoding = "UTF-8")
 source("modules/mod_mapa.R", encoding = "UTF-8")
 source("modules/mod_mapa_pontos.R", encoding = "UTF-8")
 source("modules/mod_series_temporais.R", encoding = "UTF-8")
@@ -46,8 +78,15 @@ source("modules/mod_bases_derivadas.R", encoding = "UTF-8")
 source("modules/mod_comunicacao.R", encoding = "UTF-8")
 source("modules/mod_correlacao.R", encoding = "UTF-8")
 source("modules/mod_laboratorio.R", encoding = "UTF-8")
+source("modules/mod_lab_tlc.R", encoding = "UTF-8")
+source("modules/mod_lab_anova.R", encoding = "UTF-8")
+source("modules/mod_lab_teste_t.R", encoding = "UTF-8")
 source("modules/mod_ancova.R", encoding = "UTF-8")
 source("modules/mod_frequencia.R", encoding = "UTF-8")
+source("modules/mod_descrevendo_dados.R", encoding = "UTF-8")
+source("modules/mod_proporcoes.R", encoding = "UTF-8")
+source("modules/mod_parametricos_complementares.R", encoding = "UTF-8")
+source("modules/mod_pareados_categoricos.R", encoding = "UTF-8")
 # Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
 # source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
 # source("modules/mod_mapa_raster.R")    # raster ambiental isolado
@@ -111,12 +150,6 @@ ui <- page_navbar(
       tags$img(src = "shiny_logo.png", height = "59px", style = "opacity: 0.95;")
     ),
     tags$a(
-      href = "https://portal.ufpa.br/",
-      target = "_blank",
-      style = "display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;",
-      tags$img(src = "ufpa_logo.png", height = "76px", style = "opacity: 0.95; object-fit: contain;")
-    ),
-    tags$a(
       id = "sobre-custom-btn",
       href = "#",
       title = "Sobre a CatalyseR",
@@ -125,6 +158,16 @@ ui <- page_navbar(
       style = "display: flex; flex-direction: column; align-items: center; justify-content: center; width: 56px; min-width: 56px; height: 76px; text-decoration: none; color: #1d4ed8 !important; padding: 3px; transition: all 0.2s ease; cursor: pointer;",
       tags$i(class = "fas fa-university", style = "font-size: 1.7rem; color: #1d4ed8; margin-bottom: 3px;"),
       span("Sobre", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.72rem; line-height: 1;")
+    ),
+    tags$a(
+      id = "ajuda-custom-btn",
+      href = "#",
+      title = "Ajuda de uso",
+      `aria-label` = "Abrir Ajuda de uso",
+      onclick = "var el = document.querySelector(\"a[data-value='Ajuda']\"); if(el) el.click(); return false;",
+      style = "display: flex; flex-direction: column; align-items: center; justify-content: center; width: 56px; min-width: 56px; height: 76px; text-decoration: none; color: #3b82f6 !important; padding: 3px; transition: all 0.2s ease; cursor: pointer;",
+      tags$i(class = "fas fa-circle-question", style = "font-size: 1.7rem; color: #3b82f6; margin-bottom: 3px;"),
+      span("Ajuda", style = "font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.72rem; line-height: 1;")
     )
   ),
   theme = bs_theme(
@@ -295,33 +338,36 @@ ui <- page_navbar(
       }
       
       /* Cores individuais e modernas para cada ícone de menu */
-      .navbar-nav > li:nth-child(1) .nav-link i, .navbar-nav > li:nth-child(1) .dropdown-toggle i { color: #0d6efd !important; } /* Preparando Dados -> azul */
-      .navbar-nav > li:nth-child(2) .nav-link i, .navbar-nav > li:nth-child(2) .dropdown-toggle i { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
-      .navbar-nav > li:nth-child(3) .nav-link i, .navbar-nav > li:nth-child(3) .dropdown-toggle i { color: #00b894 !important; } /* Descrevendo Dados -> verde-água */
-      .navbar-nav > li:nth-child(4) .nav-link i, .navbar-nav > li:nth-child(4) .dropdown-toggle i { color: #7c3aed !important; } /* Modelos de Regressão -> roxo */
-      .navbar-nav > li:nth-child(5) .nav-link i, .navbar-nav > li:nth-child(5) .dropdown-toggle i { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
+      .navbar-nav > li:nth-child(1) .nav-link i, .navbar-nav > li:nth-child(1) .dropdown-toggle i { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
+      .navbar-nav > li:nth-child(2) .nav-link i, .navbar-nav > li:nth-child(2) .dropdown-toggle i { color: #0d6efd !important; } /* Preparando Dados -> azul */
+      .navbar-nav > li:nth-child(3) .nav-link i, .navbar-nav > li:nth-child(3) .dropdown-toggle i { color: #00b894 !important; } /* Explorando os Dados -> verde-água */
+      .navbar-nav > li:nth-child(4) .nav-link i, .navbar-nav > li:nth-child(4) .dropdown-toggle i { color: #00c2cb !important; } /* Visualização dos Dados -> turquesa */
+      .navbar-nav > li:nth-child(5) .nav-link i, .navbar-nav > li:nth-child(5) .dropdown-toggle i { color: #E89B3C !important; } /* Frequências e Proporções -> âmbar */
       .navbar-nav > li:nth-child(6) .nav-link i, .navbar-nav > li:nth-child(6) .dropdown-toggle i { color: #f97316 !important; } /* Testes Paramétricos -> laranja */
       .navbar-nav > li:nth-child(7) .nav-link i, .navbar-nav > li:nth-child(7) .dropdown-toggle i { color: #84cc16 !important; } /* Testes Não Paramétricos -> verde-limão */
-      .navbar-nav > li:nth-child(8) .nav-link i, .navbar-nav > li:nth-child(8) .dropdown-toggle i { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
-      .navbar-nav > li:nth-child(9) .nav-link i, .navbar-nav > li:nth-child(9) .dropdown-toggle i { color: #0ea5e9 !important; } /* Estatísticas Avançadas -> azul-ciano */
-      .navbar-nav > li:nth-child(10) .nav-link i, .navbar-nav > li:nth-child(10) .dropdown-toggle i { color: #00c2cb !important; } /* Visualizando Dados -> azul claro/turquesa */
-      .navbar-nav > li:nth-child(11) .nav-link i, .navbar-nav > li:nth-child(11) .dropdown-toggle i { color: #6366f1 !important; } /* Mapas -> roxo-violeta */
-      .navbar-nav > li:nth-child(12) .nav-link i, .navbar-nav > li:nth-child(12) .dropdown-toggle i { color: #22c55e !important; } /* Calculando Probabilidades -> verde */
-      .navbar-nav > li:nth-child(14) .nav-link i, .navbar-nav > li:nth-child(14) .dropdown-toggle i { color: #3b82f6 !important; } /* Ajuda -> azul */
-      .navbar-nav > li:nth-child(15) .nav-link i, .navbar-nav > li:nth-child(15) .dropdown-toggle i { color: #1d4ed8 !important; } /* Sobre -> azul institucional */
+      .navbar-nav > li:nth-child(8) .nav-link i, .navbar-nav > li:nth-child(8) .dropdown-toggle i { color: #7c3aed !important; } /* Modelos de Regressão -> roxo */
+      .navbar-nav > li:nth-child(9) .nav-link i, .navbar-nav > li:nth-child(9) .dropdown-toggle i { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
+      .navbar-nav > li:nth-child(10) .nav-link i, .navbar-nav > li:nth-child(10) .dropdown-toggle i { color: #2E7D8F !important; } /* Séries Temporais -> teal */
+      .navbar-nav > li:nth-child(11) .nav-link i, .navbar-nav > li:nth-child(11) .dropdown-toggle i { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
+      .navbar-nav > li:nth-child(12) .nav-link i, .navbar-nav > li:nth-child(12) .dropdown-toggle i { color: #6366f1 !important; } /* Mapas -> roxo-violeta */
+      .navbar-nav > li:nth-child(13) .nav-link i, .navbar-nav > li:nth-child(13) .dropdown-toggle i { color: #198754 !important; } /* Laboratório de Conceitos -> verde */
+      .navbar-nav > li:nth-child(14) .nav-link i, .navbar-nav > li:nth-child(14) .dropdown-toggle i { color: #0ea5e9 !important; } /* Comunicação de Resultados -> azul-ciano */
       
-      /* Botão Sobre na terceira faixa, dimensionado como as logos. */
-      #sobre-custom-btn {
+      /* Atalhos da terceira faixa, dimensionados como as logos. */
+      #sobre-custom-btn,
+      #ajuda-custom-btn {
         transition: all 0.2s ease;
         flex: 0 0 56px !important;
       }
-      #sobre-custom-btn:hover {
+      #sobre-custom-btn:hover,
+      #ajuda-custom-btn:hover {
         background-color: rgba(13, 110, 253, 0.08) !important;
         border-radius: 8px;
         transform: translateY(-1px);
       }
-      .navbar-nav > li:nth-child(15) {
-        display: none !important; /* Esconde a aba original 'Sobre' no menu central */
+      .navbar-nav > li:has(> a[data-value='Ajuda']),
+      .navbar-nav > li:has(> a[data-value='Sobre']) {
+        display: none !important; /* Ajuda e Sobre usam os atalhos à direita. */
       }
       
       /* Dropdowns da bslib mantêm o formato horizontal interno clássico */
@@ -451,6 +497,62 @@ ui <- page_navbar(
       .catalyser-base-selector .alert {
         margin-top: 0 !important;
       }
+      /* Em Explorando os Dados, a base cabe numa faixa curta acima da pergunta. */
+      .catalyser-base-selector-compact {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 4px;
+        padding: 0 2px;
+      }
+      .catalyser-base-selector-compact > label {
+        flex: 0 0 auto;
+        margin: 0;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #495057;
+      }
+      .catalyser-base-selector-compact-input {
+        width: min(30rem, 62vw);
+      }
+      .catalyser-base-selector-compact-input .shiny-input-container,
+      .catalyser-base-selector-compact-input .selectize-control {
+        margin: 0 !important;
+      }
+      .catalyser-base-selector-compact-input .selectize-input {
+        min-height: 1.55rem !important;
+        padding: 2px 7px !important;
+      }
+      /* Em telas estreitas, o seletor continua legível sem criar rolagem lateral. */
+      @media (max-width: 640px) {
+        .catalyser-base-selector-compact {
+          align-items: stretch;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .catalyser-base-selector-compact-input {
+          width: 100%;
+        }
+      }
+      /* Nos testes complementares (Teste F, qui-quadrado de variância, ANOVA de
+         medidas repetidas), os vãos padrão de 16px dos painéis do bslib empurram
+         o resultado para fora da primeira dobra; 6px mantém as linhas juntas. */
+      .catalyser-complementar .tab-pane.bslib-gap-spacing {
+        gap: 6px;
+      }
+      /* Os gráficos exploratórios não precisam ocupar toda a largura do painel. */
+      .descricao-grafico-compacto {
+        width: min(52%, 780px);
+        min-width: 34rem;
+        margin: 6px auto 12px;
+      }
+      /* Em telas menores, a largura total preserva rótulos e escalas legíveis. */
+      @media (max-width: 900px) {
+        .descricao-grafico-compacto {
+          width: 100%;
+          min-width: 0;
+        }
+      }
 
       /* 3. Compactação das Abas Superiores do Painel Central */
       .nav-tabs .nav-link {
@@ -493,7 +595,68 @@ ui <- page_navbar(
     "))
   ),
   
-  # 1. Preparando Dados
+  # 1. Planejando sua Pesquisa
+  nav_menu(
+    title = HTML("Planejando<br>sua Pesquisa"),
+    icon = icon("compass-drafting"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Antes de contar")),
+    nav_panel(
+      title = "Conceitos antes da coleta",
+      icon = icon("book-open"),
+      mod_conceitos_coleta_ui("conceitos_coleta")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Delineamentos observacionais")),
+    planejamento_observacional_painel("transversal_comparativo"),
+    planejamento_observacional_painel("longitudinal"),
+    nav_panel(
+      title = "Monitoramento (Séries Temporais)", icon = icon("chart-line"),
+      mod_monitoramento_ui("monitoramento")
+    ),
+    planejamento_observacional_painel("gradiente"),
+    planejamento_observacional_painel("impacto"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Delineamentos experimentais")),
+    nav_panel(
+      title = "DIC - Inteiramente Casualizado",
+      icon = icon("flask"),
+      tagList(
+        planejamento_contexto_ui("Como distribuir tratamentos?", "Organize as unidades e os tratamentos no croqui. Depois, abra a aba Variáveis do experimento para preparar a coleta. A análise precisa respeitar o delineamento escolhido."),
+        mod_experimental_design_ui(
+          "experimental_dic",
+          variaveis_ui = mod_planejamento_variaveis_ui("variables_exp_dic", experimental = TRUE),
+          tipo_fixo = "DIC"
+        )
+      )
+    ),
+    nav_panel(
+      title = "DBC - Blocos Casualizados", icon = icon("flask"),
+      mod_experimental_design_ui("experimental_dbc", mod_planejamento_variaveis_ui("variables_exp_dbc", experimental = TRUE), tipo_fixo = "DBC")
+    ),
+    nav_panel(
+      title = "DQL - Quadrado Latino", icon = icon("flask"),
+      mod_experimental_design_ui("experimental_dql", mod_planejamento_variaveis_ui("variables_exp_dql", experimental = TRUE), tipo_fixo = "DQL")
+    ),
+    nav_panel(
+      title = "Fatorial (em DIC)", icon = icon("flask"),
+      mod_experimental_design_ui("experimental_fatorial", mod_planejamento_variaveis_ui("variables_exp_fatorial", experimental = TRUE), tipo_fixo = "fatorial")
+    ),
+    nav_panel(
+      title = "Parcelas Subdivididas (Split-Plot)", icon = icon("flask"),
+      mod_experimental_design_ui("experimental_split_plot", mod_planejamento_variaveis_ui("variables_exp_split_plot", experimental = TRUE), tipo_fixo = "split_plot")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Montagem da amostra")),
+    nav_panel(
+      title = "Quanto amostrar",
+      icon = icon("calculator"),
+      mod_quantos_coletar_ui("quantos_coletar")
+    ),
+    nav_panel(
+      title = "Como amostrar",
+      icon = icon("shuffle"),
+      mod_sortear_amostra_ui("sortear_amostra")
+    )
+  ),
+
+  # 2. Preparando Dados
   nav_menu(
     title = HTML("Preparar<br>Dados"),
     icon = icon("database"),
@@ -639,81 +802,210 @@ ui <- page_navbar(
       mod_bases_derivadas_ui("bases_derivadas")
     )
   ),
-  
-  # 2. Planejando sua Pesquisa
+
+  # O menu passa a convidar o aluno a investigar antes de escolher um teste.
   nav_menu(
-    title = HTML("Planejando<br>sua Pesquisa"),
-    icon = icon("compass-drafting"),
-    nav_panel(
-      title = "Planejamentos Observacionais",
-      icon = icon("filter"),
-      navset_card_tab(
-        nav_panel(
-          title = "Amostrando uma AAS",
-          icon = icon("filter"),
-          mod_aas_ui("aas")
-        ),
-        nav_panel(
-          title = "Amostrando um AE Proporcional",
-          icon = icon("layer-group"),
-          mod_aep_ui("aep")
-        ),
-        nav_panel(
-          title = "Amostrando uma AS (Sistemática)",
-          icon = icon("network-wired"),
-          mod_as_ui("as")
-        )
-      )
-    ),
-    nav_panel(
-      title = "Planejamentos Experimentais",
-      icon = icon("flask"),
-      mod_experimental_design_ui("experimental_design")
-    )
-  ),
-  
-  # 2. Descrevendo Dados
-  nav_menu(
-    title = HTML("Descrevendo<br>Dados"),
+    title = HTML("Explorando<br>os Dados"),
     icon = icon("chart-bar"),
     nav_panel(
-      title = "Estatística Descritiva",
+      title = "Explorar Dataset",
       icon = icon("table-list"),
+      mod_descrevendo_dados_ui("descricao_explorar", "explorar")
+    ),
+    nav_panel(
+      title = "Conhecer as Variáveis",
+      icon = icon("layer-group"),
+      mod_descrevendo_dados_ui("descricao_descrever", "descrever")
+    ),
+    nav_panel(
+      title = "Encontrar Relações",
+      icon = icon("chart-simple"),
+      mod_descrevendo_dados_ui("descricao_relacoes", "relacoes")
+    ),
+    nav_panel(
+      title = "Avaliar Pressupostos",
+      icon = icon("square-poll-vertical"),
+      mod_descrevendo_dados_ui("descricao_pressupostos", "pressupostos")
+    ),
+    nav_panel(
+      title = "Transformar Variáveis",
+      icon = icon("arrows-rotate"),
+      mod_descrevendo_dados_ui("descricao_transformar", "transformar")
+    )
+  ),
+
+  # A coleção visual vem logo após a exploração que ajuda a escolher o gráfico.
+  nav_menu(
+    title = HTML("Visualização<br>dos Dados"),
+    icon = icon("eye"),
+    nav_panel(title = "Histograma e densidade", icon = icon("chart-area"), mod_exploracao_visual_ui("visual_histograma", "histograma")),
+    nav_panel(title = "Boxplot e violino", icon = icon("chart-column"), mod_exploracao_visual_ui("visual_caixa", "caixa_violino")),
+    nav_panel(title = "Dispersão e tendência", icon = icon("chart-line"), mod_exploracao_visual_ui("visual_dispersao", "dispersao")),
+    nav_panel(title = "Duplo eixo Y", icon = icon("arrows-left-right-to-line"), mod_exploracao_visual_ui("visual_duplo_eixo", "duplo_eixo")),
+    nav_panel(
+      title = "Linhas para eixo ordenado", icon = icon("timeline"),
       mod_analise_registravel_ui(
-        "fluxo_descr_stats",
+        "fluxo_lines", tagList(mod_seletor_base_analise_ui("base_lines"), mod_lines_ui("lines")), mod_registrar_execucao_ui("registrar_lines")
+      )
+    ),
+    nav_panel(title = "Barras", icon = icon("chart-bar"), mod_exploracao_visual_ui("visual_barras", "barras")),
+    nav_panel(title = "Rosca", icon = icon("circle-notch"), mod_exploracao_visual_ui("visual_rosca", "rosca")),
+    nav_panel(title = "Matriz de dispersão", icon = icon("table-cells"), mod_exploracao_visual_ui("visual_matriz", "matriz")),
+    nav_panel(title = "Mapa de calor de correlação", icon = icon("table-cells-large"), mod_exploracao_visual_ui("visual_calor", "calor"))
+  ),
+
+  # 4. Frequências e Proporções — respostas categóricas de unidades independentes.
+  nav_menu(
+    title = HTML("Frequências<br>e Proporções"),
+    icon = icon("chart-pie"),
+    nav_panel(
+      title = "Uma proporção",
+      icon = icon("percent"),
+      mod_proporcoes_ui("proporcao_uma", "uma")
+    ),
+    nav_panel(
+      title = "Duas proporções",
+      icon = icon("scale-balanced"),
+      mod_proporcoes_ui("proporcao_duas", "duas")
+    ),
+    nav_panel(
+      title = "Qui-quadrado (aderência)",
+      icon = icon("bullseye"),
+      mod_proporcoes_ui("qui_aderencia", "aderencia")
+    ),
+    nav_panel(
+      title = "McNemar (pares binários)",
+      icon = icon("right-left"),
+      mod_pareados_categoricos_ui("mcnemar", "mcnemar")
+    ),
+    nav_panel(
+      title = "Qui-quadrado de independência",
+      icon = icon("table-cells"),
+      mod_analise_registravel_ui(
+        "fluxo_np_qui",
         tagList(
-          mod_seletor_base_analise_ui("base_descr_stats"),
-          mod_descr_stats_ui("descr_stats")
+          mod_seletor_base_analise_ui("base_np_qui"),
+          div(
+            class = "alert alert-light border py-2 small",
+            "A base escolhida vale para Duas variáveis e para Base tidy de contingência. ",
+            "Bases tidy usam a coluna n como frequência. Se a base derivada não aparecer ",
+            "em Base utilizada, volte a Preparar Bases Derivadas, clique em Recalcular esta base ",
+            "e depois em Finalizar preparo."
+          ),
+          mod_nonparametric_ui("np_qui", "quiquadrado")
         ),
-        mod_registrar_execucao_ui("registrar_descr_stats")
+        mod_registrar_execucao_ui("registrar_np_qui")
+      )
+    )
+  ),
+
+  # 5. Testes Paramétricos
+  nav_menu(
+    title = HTML("Testes<br>Paramétricos"),
+    icon = icon("calculator"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparação de médias")),
+    nav_panel(
+      title = "Teste t de Student",
+      icon = icon("arrows-left-right"),
+      mod_analise_registravel_ui(
+        "fluxo_parametric",
+        tagList(
+          mod_seletor_base_analise_ui("base_parametric"),
+          mod_parametric_ui("parametric")
+        ),
+        mod_registrar_execucao_ui("registrar_parametric")
       )
     ),
     nav_panel(
-      title = "Tabela de Frequência",
+      title = "ANOVA de um fator",
+      icon = icon("sliders"),
+      mod_analise_registravel_ui(
+        "fluxo_anova",
+        tagList(
+          mod_seletor_base_analise_ui("base_anova"),
+          mod_anova_ui("anova")
+        ),
+        mod_registrar_execucao_ui("registrar_anova")
+      )
+    ),
+    nav_panel(
+      title = "ANOVA com subamostras",
       icon = icon("layer-group"),
-      mod_frequencia_ui("frequencia")
+      mod_analise_registravel_ui(
+        "fluxo_anova_mista",
+        tagList(
+          mod_seletor_base_analise_ui("base_anova_mista"),
+          mod_anova_mista_ui("anova_mista")
+        ),
+        mod_registrar_execucao_ui("registrar_anova_mista")
+      )
     ),
     nav_panel(
-      title = "Histogramas",
-      icon = icon("chart-simple"),
-      mod_histogram_ui("histogram")
+      title = "ANOVA de medidas repetidas",
+      icon = icon("arrows-rotate"),
+      mod_parametrico_complementar_ui("anova_repetidas", "anova_medidas_repetidas")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Modelos com mais de um fator")),
+    nav_panel(
+      title = "ANOVA a dois fatores",
+      icon = icon("table-cells-large"),
+      mod_analise_registravel_ui(
+        "fluxo_anova2",
+        tagList(
+          mod_seletor_base_analise_ui("base_anova2"),
+          mod_anova_dois_fatores_ui("anova2")
+        ),
+        mod_registrar_execucao_ui("registrar_anova2")
+      )
     ),
     nav_panel(
-      title = "Boxplot",
-      icon = icon("square-poll-vertical"),
-      mod_boxplot_ui("boxplot")
+      title = "ANCOVA (Análise de Covariância)",
+      icon = icon("chart-line"),
+      mod_ancova_ui("ancova")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparação de variâncias")),
+    nav_panel(
+      title = "Qui-quadrado para variância",
+      icon = icon("square-root-variable"),
+      mod_parametrico_complementar_ui("qui_variancia", "qui_quadrado_variancia")
+    ),
+    nav_panel(
+      title = "Teste F para duas variâncias",
+      icon = icon("scale-balanced"),
+      mod_parametrico_complementar_ui("teste_f_variancias", "teste_f_variancias")
     )
   ),
-  
-  # 3. Modelos de Regressão
+
+  # 6. Testes Não Paramétricos
+  nav_menu(
+    title = HTML("Testes Não<br>Paramétricos"),
+    icon = icon("percent"),
+    nav_panel(
+      title = "Mann-Whitney (2 grupos)",
+      icon = icon("arrows-left-right"),
+      mod_nonparametric_ui("np_mw", "mannwhitney")
+    ),
+    nav_panel(
+      title = "Wilcoxon (pareado)",
+      icon = icon("shuffle"),
+      mod_nonparametric_ui("np_wil", "wilcoxon")
+    ),
+    nav_panel(
+      title = "Kruskal-Wallis (k grupos)",
+      icon = icon("arrows-up-down"),
+      mod_nonparametric_ui("np_kw", "kruskal")
+    ),
+    nav_panel(
+      title = "Friedman (k grupos pareados)",
+      icon = icon("arrows-rotate"),
+      mod_pareados_categoricos_ui("friedman", "friedman")
+    )
+  ),
+
+  # 7. Modelos de Regressão
   nav_menu(
     title = HTML("Modelos de<br>Regressão"),
     icon = icon("chart-line"),
-    nav_panel(
-      title = "Correlação",
-      icon = icon("square-root-variable"),
-      mod_correlacao_ui("correlacao")
-    ),
     nav_panel(
       title = "Descobrindo o Modelo",
       icon = icon("magnifying-glass-chart"),
@@ -729,15 +1021,6 @@ ui <- page_navbar(
           mod_regression_ui("regression")
         ),
         mod_registrar_execucao_ui("registrar_regression")
-      )
-    ),
-    nav_panel(
-      title = "Regressão Logística Binária",
-      icon = icon("chart-line"),
-      mod_analise_registravel_ui(
-        "fluxo_logistic_regression",
-        mod_regression_ui("logistic_regression", is_logistic = TRUE),
-        mod_registrar_execucao_ui("registrar_logistic")
       )
     ),
     nav_panel(
@@ -759,13 +1042,27 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "Séries Temporais",
-      icon = icon("chart-area"),
-      mod_series_temporais_ui("series")
-    )
+      title = "Regressão Logística Binária",
+      icon = icon("chart-line"),
+      mod_analise_registravel_ui(
+        "fluxo_logistic_regression",
+        mod_regression_ui("logistic_regression", is_logistic = TRUE),
+        mod_registrar_execucao_ui("registrar_logistic")
+      )
+    ),
+    nav_panel(
+      title = "Regressão de Poisson",
+      icon = icon("hashtag"),
+      mod_regressao_contagem_ui("regressao_poisson", "poisson")
+    ),
+    nav_panel(
+      title = "Regressão Binomial Negativa",
+      icon = icon("chart-column"),
+      mod_regressao_contagem_ui("regressao_binomial_negativa", "binomial_negativa")
+    ),
   ),
 
-  # 3.1. Regressão Não Linear
+  # 7.1. Regressão Não Linear
   nav_menu(
     title = HTML("Regressão<br>Não Linear"),
     icon = icon("bezier-curve"),
@@ -800,95 +1097,29 @@ ui <- page_navbar(
       mod_nonlinear_ui("logistico", "logistico")
     )
   ),
-  
-  # 4. Testes Paramétricos
+
+  # 8. Séries Temporais: uma família própria, marcada pela ordem das observações.
   nav_menu(
-    title = HTML("Testes<br>Paramétricos"),
-    icon = icon("calculator"),
+    title = HTML("Séries<br>Temporais"),
+    icon = icon("clock"),
     nav_panel(
-      title = "Teste t de Student",
-      icon = icon("arrows-left-right"),
-      mod_analise_registravel_ui(
-        "fluxo_parametric",
-        tagList(
-          mod_seletor_base_analise_ui("base_parametric"),
-          mod_parametric_ui("parametric")
-        ),
-        mod_registrar_execucao_ui("registrar_parametric")
-      )
-    ),
-    nav_panel(
-      title = "ANOVA (Análise de Variância)",
-      icon = icon("sliders"),
-      mod_analise_registravel_ui(
-        "fluxo_anova",
-        tagList(
-          mod_seletor_base_analise_ui("base_anova"),
-          mod_anova_ui("anova")
-        ),
-        mod_registrar_execucao_ui("registrar_anova")
-      )
-    ),
-    nav_panel(
-      title = "ANOVA a dois fatores",
-      icon = icon("table-cells-large"),
-      mod_analise_registravel_ui(
-        "fluxo_anova2",
-        tagList(
-          mod_seletor_base_analise_ui("base_anova2"),
-          mod_anova_dois_fatores_ui("anova2")
-        ),
-        mod_registrar_execucao_ui("registrar_anova2")
-      )
-    ),
-    nav_panel(
-      title = "ANCOVA (Análise de Covariância)",
+      title = "Visualizar e suavizar",
       icon = icon("chart-line"),
-      mod_ancova_ui("ancova")
+      mod_series_temporais_ui("series_visualizar", "visualizar")
+    ),
+    nav_panel(
+      title = "Decomposição",
+      icon = icon("layer-group"),
+      mod_series_temporais_ui("series_decompor", "decompor")
+    ),
+    nav_panel(
+      title = "Autocorrelação",
+      icon = icon("wave-square"),
+      mod_series_temporais_ui("series_autocorrelacao", "autocorrelacao")
     )
   ),
 
-  # 5. Testes Não Paramétricos
-  nav_menu(
-    title = HTML("Testes Não<br>Paramétricos"),
-    icon = icon("percent"),
-    nav_panel(
-      title = "Qui-quadrado (independência)",
-      icon = icon("table-cells"),
-      mod_analise_registravel_ui(
-        "fluxo_np_qui",
-        tagList(
-          mod_seletor_base_analise_ui("base_np_qui"),
-          div(
-            class = "alert alert-light border py-2 small",
-            "A base escolhida vale para Duas variáveis e para Base tidy de contingência. ",
-            "Bases tidy usam a coluna n como frequência. Se a base derivada não aparecer ",
-            "em Base utilizada, volte a Preparar Bases Derivadas, clique em Recalcular esta base ",
-            "e depois em Finalizar preparo."
-          ),
-          mod_nonparametric_ui("np_qui", "quiquadrado")
-        ),
-        mod_registrar_execucao_ui("registrar_np_qui")
-      )
-    ),
-    nav_panel(
-      title = "Mann-Whitney (2 grupos)",
-      icon = icon("arrows-left-right"),
-      mod_nonparametric_ui("np_mw", "mannwhitney")
-    ),
-    nav_panel(
-      title = "Wilcoxon (pareado)",
-      icon = icon("shuffle"),
-      mod_nonparametric_ui("np_wil", "wilcoxon")
-    ),
-    nav_panel(
-      title = "Kruskal-Wallis (k grupos)",
-      icon = icon("arrows-up-down"),
-      mod_nonparametric_ui("np_kw", "kruskal")
-    )
-  ),
-  
-  # 6. Estatística Multivariada
+  # 9. Estatística Multivariada
   nav_menu(
     title = HTML("Estatística<br>Multivariada"),
     icon = icon("diagram-project"),
@@ -915,54 +1146,22 @@ ui <- page_navbar(
         ),
         mod_registrar_execucao_ui("registrar_hca")
       )
-    )
-  ),
-  
-  # 7. Comunicação de Resultados (antiga "Estatísticas Avançadas")
-  nav_menu(
-    title = HTML("Comunicação<br>de Resultados"),
-    icon = icon("file-export"),
-    nav_panel(
-      title = "Projeto de Comunicação",
-      icon = icon("file-export"),
-      mod_comunicacao_ui("comunicacao")
-    )
-  ),
-  
-  # 9. Visualizando Dados
-  nav_menu(
-    title = HTML("Visualizando<br>Dados"),
-    icon = icon("eye"),
-    nav_panel(
-      title = "Gráfico de Dispersão",
-      icon = icon("ellipsis"),
-      mod_scatter_ui("scatter")
     ),
+    # Reserve k-means como percurso próprio, sem apresentar cálculo antes da implementação.
     nav_panel(
-      title = "Gráfico de Linhas",
-      icon = icon("chart-line"),
-      mod_analise_registravel_ui(
-        "fluxo_lines",
-        tagList(
-          mod_seletor_base_analise_ui("base_lines"),
-          mod_lines_ui("lines")
-        ),
-        mod_registrar_execucao_ui("registrar_lines")
+      title = "Agrupamentos por k-means",
+      icon = icon("bullseye"),
+      tagList(
+        tags$h2("Agrupamentos por k-means", class = "h4 mb-2"),
+        div(
+          class = "alert alert-light border",
+          icon("compass"), " Esta opção está reservada para uma próxima etapa. Ela permitirá propor um número de grupos e examinar a separação entre observações numéricas, com padronização quando as unidades forem diferentes."
+        )
       )
-    ),
-    nav_panel(
-      title = "Gráfico de Barras",
-      icon = icon("chart-column"),
-      mod_bar_ui("bar")
-    ),
-    nav_panel(
-      title = "Gráfico de Pizza",
-      icon = icon("chart-pie"),
-      mod_pizza_ui("pizza")
     )
   ),
-  
-  # 10. Mapas
+
+  # 11. Mapas
   nav_menu(
     title = "Mapas",
     icon = icon("map"),
@@ -982,57 +1181,29 @@ ui <- page_navbar(
       mod_mapa_pontos_ui("mapa_bolhas", "bolhas")
     )
   ),
-  
-  # 8. Laboratório de Conceitos (repurpose de "Calculando Probabilidades")
+
+  # O Laboratório transversal aparece antes da etapa final de Comunicação.
+  # Cada opção abre uma tela própria, sem uma segunda faixa de abas.
+  do.call(nav_menu, c(
+    list(title = HTML("Laboratório<br>de Conceitos"), icon = icon("flask")),
+    laboratorio_paineis()
+  )),
+
+  # Comunicação encerra o percurso; Ajuda e Sobre ficam nos ícones à direita.
   nav_menu(
-    title = HTML("Laboratório<br>de Conceitos"),
-    icon = icon("flask"),
+    title = HTML("Comunicação<br>de Resultados"),
+    icon = icon("file-export"),
     nav_panel(
-      title = "Visão geral",
-      icon = icon("compass"),
-      mod_laboratorio_ui("laboratorio")
-    ),
-    nav_panel(
-      title = "Teorema do Limite Central",
-      icon = icon("bell"),
-      lab_placeholder("Teorema do Limite Central (TLC)", "Médias de qualquer distribuição viram um sino conforme n cresce; sliders de n e nº de amostras.", "bell")
-    ),
-    nav_panel(
-      title = "Lei dos Grandes Números",
-      icon = icon("arrow-trend-up"),
-      lab_placeholder("Lei dos Grandes Números", "A média amostral converge para o valor esperado à medida que n aumenta.", "arrow-trend-up")
-    ),
-    nav_panel(
-      title = "Cobertura do IC",
-      icon = icon("bullseye"),
-      lab_placeholder("Cobertura do Intervalo de Confiança", "100 amostras, 100 intervalos: cerca de 95% contêm a média verdadeira.", "bullseye")
-    ),
-    nav_panel(
-      title = "Distribuição sob H0 / p-valor",
-      icon = icon("chart-area"),
-      lab_placeholder("Distribuição sob H0 / p-valor", "A distribuição nula, a estatística observada e a área do p-valor / região crítica.", "chart-area")
-    ),
-    nav_panel(
-      title = "Curvas z / t / F / qui-quadrado",
-      icon = icon("wave-square"),
-      lab_placeholder("Curvas de distribuição (z, t, F, qui-quadrado)", "Forma das curvas conforme os graus de liberdade; áreas e quantis.", "wave-square")
-    ),
-    nav_panel(
-      title = "Distribuição Normal",
-      icon = icon("circle-nodes"),
-      lab_placeholder("Distribuição Normal", "Áreas sob a curva e visualização da Normal (parâmetros mu e sigma).", "circle-nodes")
-    ),
-    nav_panel(
-      title = "Distribuição Binomial",
-      icon = icon("cubes"),
-      lab_placeholder("Distribuição Binomial", "Cálculo e simulação interativa de probabilidades Binomiais (n, p).", "cubes")
+      title = "Projeto de Comunicação",
+      icon = icon("file-export"),
+      mod_comunicacao_ui("comunicacao")
     )
   ),
-  
+
   # Spacer to push Ajuda and Sobre to the right
   nav_spacer(),
   
-  # 11. Ajuda de Uso
+  # 13. Ajuda de Uso
   nav_panel(
     title = "Ajuda",
     icon = icon("circle-info"),
@@ -1047,7 +1218,7 @@ ui <- page_navbar(
     )
   ),
   
-  # 12. Sobre a IDE
+  # 14. Sobre a IDE
   nav_panel(
     title = "Sobre",
     icon = icon("university"),
@@ -1061,8 +1232,8 @@ ui <- page_navbar(
       uiOutput("about_content_display")
     )
   ),
-  
-  # 13. Identidade CatalyseR na primeira faixa
+
+  # Identidade CatalyseR na primeira faixa
   nav_item(
     div(
       class = "navbar-slogan-container",
@@ -1127,7 +1298,7 @@ server <- function(input, output, session) {
         <p>O CatalyseR guia você através de uma jornada visual para a realização de análises estatísticas reprodutíveis. Para tirar o máximo proveito da IDE, siga este fluxo:</p>
         <ol>
           <li><b>Importação de Dados:</b> Carregue e prepare seus dados no menu <b>Preparando Dados</b>. Certifique-se de ajustar a tipagem das colunas se necessário.</li>
-          <li><b>Análise Exploratória e Modelagem:</b> Acesse os menus de análise (como <i>Estatística Descritiva</i>, <i>Histogramas</i>, <i>Boxplot</i> ou <i>Regressão Linear</i>) e defina suas variáveis e opções estéticas.</li>
+          <li><b>Análise Exploratória e Modelagem:</b> Em <i>Explorando os Dados</i>, conheça a planilha, as variáveis e as relações antes de escolher um teste. A CatalyseR sugere um caminho; você decide e pode guardar cada resultado em <i>Inserir análise</i>.</li>
           <li><b>Projeto R:</b> Abra o menu <i>Comunicação de Resultados</i> para reunir as análises e exportar o projeto.</li>
         </ol>
       ")
@@ -1151,12 +1322,12 @@ server <- function(input, output, session) {
       keywords = "média mediana desvio padrão variância resumo tabela descrever dados estatistica descritiva",
       content = HTML("
         <h4 class='text-primary' style='font-family: \"Outfit\", sans-serif; font-weight: 700;'>Estatística Descritiva</h4>
-        <p>Disponível no menu <b>Descrevendo Dados > Estatística Descritiva</b>, este módulo calcula de forma automática medidas de tendência central e dispersão.</p>
+        <p>Em <b>Explorando os Dados > Conhecer as Variáveis</b>, você começa pelo retrato recomendado e abre mais medidas apenas quando precisar.</p>
         <p><b>Principais Recursos:</b></p>
         <ul>
-          <li><b>Escolha de Variáveis:</b> Selecione múltiplas variáveis numéricas simultaneamente.</li>
-          <li><b>Agrupamento por Fator:</b> Escolha uma variável categórica para calcular as estatísticas separadas por cada nível ou subgrupo.</li>
-          <li><b>Métricas Customizadas:</b> Ative ou desative medidas como tamanho amostral (N), valores faltantes (NAs), média, mediana, desvio padrão, variância e quartis diretamente no painel de exibição.</li>
+          <li><b>Primeiro olhar:</b> Explorar Dataset mostra estrutura, tipos sugeridos e dados faltantes.</li>
+          <li><b>Uma variável por vez:</b> a IDE sugere frequências e barras para categóricas; centro, dispersão e distribuição para numéricas. Para comparar grupos, use Encontrar Relações. Transformar Variáveis compara alternativas sem alterar a base.</li>
+          <li><b>Resultados independentes:</b> Troque a variável e execute novamente. Na aba Inserir análise, escolha qual resultado adicionar ao Projeto R. As opções anteriores ficam disponíveis enquanto a base não mudar.</li>
         </ul>
       ")
     ),
@@ -1165,13 +1336,13 @@ server <- function(input, output, session) {
       keywords = "histograma frequência densidade distribuição bins classes cor tema grafico",
       content = HTML("
         <h4 class='text-primary' style='font-family: \"Outfit\", sans-serif; font-weight: 700;'>Gráficos de Histograma</h4>
-        <p>Disponível no menu <b>Descrevendo Dados > Histogramas</b>, o histograma é uma ferramenta essencial para analisar a forma da distribuição de variáveis quantitativas (simetria, assimetria, curtose).</p>
+        <p>Em <b>Explorando os Dados > Conhecer as Variáveis</b>, examine a forma da distribuição de uma variável numérica no retrato recomendado.</p>
         <p><b>Customizações Disponíveis:</b></p>
         <ul>
           <li><b>Classes (Bins):</b> Ajuste o número de barras para melhorar o detalhamento do gráfico.</li>
-          <li><b>Densidade:</b> Adicione a estimativa de densidade Kernel sobre o gráfico.</li>
-          <li><b>Estética e Temas:</b> Customize eixos, títulos e aplique temas visuais profissionais (ex: Mínimo, Clássico, Preto e Branco).</li>
-          <li><b>Legendas por Grupo:</b> Se selecionar uma variável de agrupamento, o histograma mapeia automaticamente cores separadas por categoria.</li>
+          <li><b>Polígono:</b> A linha conecta os pontos médios das mesmas classes usadas pelas barras.</li>
+          <li><b>Densidade:</b> A estimativa KDE tem sua própria sub-aba, com largura de banda informada.</li>
+          <li><b>Código:</b> Consulte o R de cada análise na tela e personalize o gráfico no projeto exportado.</li>
         </ul>
       ")
     ),
@@ -1180,11 +1351,12 @@ server <- function(input, output, session) {
       keywords = "boxplot caixa outliers dispersão jitter pontos agrupar cor preenchimento",
       content = HTML("
         <h4 class='text-primary' style='font-family: \"Outfit\", sans-serif; font-weight: 700;'>Diagrama de Caixa (Boxplot)</h4>
-        <p>Disponível no menu <b>Descrevendo Dados > Boxplot</b>, o boxplot permite visualizar a distribuição de dados e detectar outliers (valores atípicos) através de quartis.</p>
+        <p>Em <b>Explorando os Dados > Encontrar Relações</b>, compare grupos antes do teste. Pontos sinalizados merecem investigação, não exclusão automática.</p>
         <p><b>Destaques do CatalyseR:</b></p>
         <ul>
-          <li><b>Pontos Individuais (Jitter):</b> Superponha os dados reais ao boxplot de forma dispersa para melhor visualização da densidade de pontos.</li>
-          <li><b>Agrupamento Avançado:</b> Além de separar os dados no eixo X por uma variável categórica, você pode aplicar uma segunda variável de agrupamento mapeando separadamente cores de contorno ou de preenchimento.</li>
+          <li><b>Apresentação:</b> Escolha boxplot, violino ou ambos.</li>
+          <li><b>Por grupo:</b> Use <i>Relações > Comparações por grupo</i> para separar a variável por um fator, como sexo, espécie ou local.</li>
+          <li><b>Verificação:</b> Em <i>Pressupostos</i>, consulte normalidade, outliers e sugestões de transformação. Nenhuma transformação é aplicada automaticamente.</li>
         </ul>
       ")
     ),
@@ -2516,6 +2688,10 @@ RCatalyst::run_ide()</pre>
   revisao_dados_analise_rv <- reactiveVal(1L)
   registro_execucoes_rv <- reactiveVal(execucoes_vazio()) # Fase 3C: cliques explícitos
   contador_execucoes_rv <- reactiveVal(0L) # IDs monotônicos durante a sessão/dataset
+  # Ficha de planejamento (contrato 1, modules/ficha_planejamento.R). O
+  # delineamento, Quantos coletar e Como sortear preenchem suas partes; a
+  # planilha de coleta, as análises e o Projeto R leem este mesmo objeto.
+  ficha_delineamento_rv <- reactiveVal(NULL)
 
   # Base sobre a qual a trilha atua (importados ou resultado promovido).
   base_resolvida <- reactive({
@@ -2597,11 +2773,6 @@ RCatalyst::run_ide()</pre>
   # Fase 3B.3: um resolvedor leve por análise. Ele só oferece a base
   # compartilhada e ramos cujo preparo já foi finalizado e recalculado. Não há
   # replay aqui: o módulo recebe o data.frame pronto do cache da Fase 3A.1.
-  seletor_descr_stats <- mod_seletor_base_analise_server(
-    "base_descr_stats", dados_analise, registro_bases_rv, cache_bases_rv,
-    revisao_dados_analise_rv, finalidade_preferida = "geral",
-    nome_analise = "A Estatística Descritiva"
-  )
   seletor_regression <- mod_seletor_base_analise_server(
     "base_regression", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv, finalidade_preferida = "geral",
@@ -2626,6 +2797,11 @@ RCatalyst::run_ide()</pre>
     "base_anova", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv, finalidade_preferida = "anova",
     nome_analise = "A ANOVA"
+  )
+  seletor_anova_mista <- mod_seletor_base_analise_server(
+    "base_anova_mista", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, finalidade_preferida = "anova",
+    nome_analise = "A ANOVA com subamostras"
   )
   seletor_anova2 <- mod_seletor_base_analise_server(
     "base_anova2", dados_analise, registro_bases_rv, cache_bases_rv,
@@ -2661,21 +2837,57 @@ RCatalyst::run_ide()</pre>
     cache_bases_rv = cache_bases_rv,
     revisao_origem_rv = revisao_dados_analise_rv
   )
+  regressao_poisson <- mod_regressao_contagem_server(
+    "regressao_poisson", "poisson", dados_analise,
+    registro_bases_rv, cache_bases_rv, revisao_dados_analise_rv,
+    registro_execucoes_rv, contador_execucoes_rv
+  )
+  regressao_binomial_negativa <- mod_regressao_contagem_server(
+    "regressao_binomial_negativa", "binomial_negativa", dados_analise,
+    registro_bases_rv, cache_bases_rv, revisao_dados_analise_rv,
+    registro_execucoes_rv, contador_execucoes_rv
+  )
   mod_model_discovery_server("discovery", dados_analise, import_info)
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
-  descritiva <- mod_descr_stats_server("descr_stats", seletor_descr_stats$dados, import_info)
-  mod_frequencia_server("frequencia", dados_analise, import_info)
-  mod_histogram_server("histogram", dados_analise, import_info)
-  mod_boxplot_server("boxplot", dados_analise, import_info)
-  mod_pizza_server("pizza", dados_analise, import_info)
-  mod_scatter_server("scatter", dados_analise, import_info)
+  descricao_areas <- lapply(names(descricao_catalogo()), function(area) {
+    mod_descrevendo_dados_server(
+      paste0("descricao_", area), area, dados_analise, registro_bases_rv,
+      cache_bases_rv, revisao_dados_analise_rv, registro_execucoes_rv,
+      contador_execucoes_rv
+    )
+  })
+  proporcao_uma <- mod_proporcoes_server(
+    "proporcao_uma", "uma", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
+  )
+  proporcao_duas <- mod_proporcoes_server(
+    "proporcao_duas", "duas", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
+  )
+  qui_aderencia <- mod_proporcoes_server(
+    "qui_aderencia", "aderencia", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
+  )
+  mod_pareados_categoricos_server(
+    "mcnemar", "mcnemar", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
+  )
   grafico_linhas <- mod_lines_server("lines", seletor_lines$dados, import_info)
-  mod_bar_server("bar", dados_analise, import_info)
+  mod_exploracao_visual_server("visual_histograma", dados_analise, "histograma")
+  mod_exploracao_visual_server("visual_caixa", dados_analise, "caixa_violino")
+  mod_exploracao_visual_server("visual_dispersao", dados_analise, "dispersao")
+  mod_exploracao_visual_server("visual_duplo_eixo", dados_analise, "duplo_eixo")
+  mod_exploracao_visual_server("visual_barras", dados_analise, "barras")
+  mod_exploracao_visual_server("visual_rosca", dados_analise, "rosca")
+  mod_exploracao_visual_server("visual_matriz", dados_analise, "matriz")
+  mod_exploracao_visual_server("visual_calor", dados_analise, "calor")
   mod_mapa_server("mapa", dados_analise, import_info)
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
   mod_mapa_pontos_server("mapa_bolhas", dados_analise, import_info, "bolhas")
-  mod_series_temporais_server("series", dados_analise, import_info)
+  mod_series_temporais_server("series_visualizar", dados_analise, import_info)
+  mod_series_temporais_server("series_decompor", dados_analise, import_info)
+  mod_series_temporais_server("series_autocorrelacao", dados_analise, import_info)
   comunicacao_resultados <- mod_comunicacao_server(
     "comunicacao", dados_analise, import_info,
     registro_execucoes_rv, registro_bases_rv, cache_bases_rv,
@@ -2683,18 +2895,44 @@ RCatalyst::run_ide()</pre>
     dados_brutos_rv = raw_data,
     base_resolvida_rv = base_resolvida,
     pipeline_rv = pipeline_rv,
-    base_externa_rv = base_externa_rv
+    base_externa_rv = base_externa_rv,
+    ficha_rv = ficha_delineamento_rv
   )
-  mod_correlacao_server("correlacao", dados_analise, import_info)
   mod_laboratorio_server("laboratorio")
+  mod_lab_tlc_server("lab_tlc")
+  mod_lab_anova_server("lab_anova")
+  mod_lab_teste_t_server("lab_teste_t")
 
   # --- CHAMADA DO MÓDULO PARAMÉTRICO ---
   teste_t <- mod_parametric_server("parametric", seletor_parametric$dados, import_info)
+  mod_parametrico_complementar_server(
+    "anova_repetidas", "anova_medidas_repetidas", dados_analise,
+    registro_bases_rv, cache_bases_rv, revisao_dados_analise_rv,
+    registro_execucoes_rv, contador_execucoes_rv
+  )
+  mod_parametrico_complementar_server(
+    "qui_variancia", "qui_quadrado_variancia", dados_analise,
+    registro_bases_rv, cache_bases_rv, revisao_dados_analise_rv,
+    registro_execucoes_rv, contador_execucoes_rv
+  )
+  mod_parametrico_complementar_server(
+    "teste_f_variancias", "teste_f_variancias", dados_analise,
+    registro_bases_rv, cache_bases_rv, revisao_dados_analise_rv,
+    registro_execucoes_rv, contador_execucoes_rv
+  )
 
   # --- CHAMADAS DOS NOVOS MÓDULOS ---
-  mod_aas_server("aas", dados_analise, import_info)
-  mod_aep_server("aep", dados_analise, import_info)
-  mod_as_server("as", dados_analise, import_info)
+  # Como sortear a amostra: sorteio sobre o marco amostral, antes da coleta.
+  # O mesmo resultado alimenta a ficha de coleta dos delineamentos observacionais.
+  sorteio_planejado <- mod_sortear_amostra_server("sortear_amostra", ficha_destino_rv = ficha_delineamento_rv)
+  mod_quantos_coletar_server("quantos_coletar", ficha_rv = ficha_delineamento_rv)
+  mod_n_poder_server("quantos_coletar-poder", ficha_destino_rv = ficha_delineamento_rv)
+  # As quatro abas novas do Quanto amostrar, todas gravando na mesma ficha.
+  mod_n_media_server("quantos_coletar-media", ficha_destino_rv = ficha_delineamento_rv)
+  mod_n_proporcao_server("quantos_coletar-proporcao", ficha_destino_rv = ficha_delineamento_rv)
+  mod_n_duas_prop_server("quantos_coletar-duas_prop", ficha_destino_rv = ficha_delineamento_rv)
+  mod_n_correlacao_server("quantos_coletar-correlacao", ficha_destino_rv = ficha_delineamento_rv)
+  mod_conceitos_coleta_server("conceitos_coleta")
   # A contingência agora é uma etapa reproduzível da receita de uma Base
   # Derivada; o fluxo legado de "tabela preparada" fica desativado.
   contingency_shared <- NULL
@@ -2737,7 +2975,10 @@ RCatalyst::run_ide()</pre>
     "bases_derivadas", dados_analise, registro_bases_rv, cache_bases_rv,
     revisao_dados_analise_rv, codigo_compartilhada_rv = preparo_compartilhado$codigo
   )
-  anova_resultado <- mod_anova_server("anova", seletor_anova$dados, import_info)
+  anova_resultado <- mod_anova_server("anova", seletor_anova$dados, import_info, ficha_rv = ficha_delineamento_rv)
+  anova_mista_resultado <- mod_anova_mista_server(
+    "anova_mista", seletor_anova_mista$dados, ficha_delineamento_rv
+  )
   anova2_resultado <- mod_anova_dois_fatores_server("anova2", seletor_anova2$dados, import_info)
   mod_ancova_server("ancova", dados_analise, import_info)
 
@@ -2746,16 +2987,15 @@ RCatalyst::run_ide()</pre>
   mod_nonparametric_server("np_mw",  dados_analise, import_info, contingency_shared, "mannwhitney")
   mod_nonparametric_server("np_wil", dados_analise, import_info, contingency_shared, "wilcoxon")
   mod_nonparametric_server("np_kw",  dados_analise, import_info, contingency_shared, "kruskal")
+  mod_pareados_categoricos_server(
+    "friedman", "friedman", dados_analise, registro_bases_rv, cache_bases_rv,
+    revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
+  )
   pca_resultado <- mod_pca_server("pca", seletor_pca$dados, import_info)
   hca_resultado <- mod_hca_server("hca", seletor_hca$dados, import_info)
 
   # Fase 3C: o registro só acontece por clique. Cada módulo fornece um estado
   # leve; o registrador acrescenta o vínculo com a base e congela os parâmetros.
-  registro_descr_stats <- mod_registrar_execucao_server(
-    "registrar_descr_stats", descritiva$estado_execucao, seletor_descr_stats$contexto,
-    registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
-    registro_bases_rv, cache_bases_rv, "descr_stats", "A Estatística Descritiva"
-  )
   registro_regression <- mod_registrar_execucao_server(
     "registrar_regression", regressao_linear$estado_execucao, seletor_regression$contexto,
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
@@ -2786,6 +3026,12 @@ RCatalyst::run_ide()</pre>
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
     registro_bases_rv, cache_bases_rv, "anova", "A ANOVA"
   )
+  registro_anova_mista <- mod_registrar_execucao_server(
+    "registrar_anova_mista", anova_mista_resultado$estado_execucao,
+    seletor_anova_mista$contexto, registro_execucoes_rv, contador_execucoes_rv,
+    revisao_dados_analise_rv, registro_bases_rv, cache_bases_rv,
+    "anova_mista", "A ANOVA com subamostras"
+  )
   registro_anova2 <- mod_registrar_execucao_server(
     "registrar_anova2", anova2_resultado$estado_execucao, seletor_anova2$contexto,
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
@@ -2801,7 +3047,30 @@ RCatalyst::run_ide()</pre>
     registro_execucoes_rv, contador_execucoes_rv, revisao_dados_analise_rv,
     registro_bases_rv, cache_bases_rv, "hca", "A Análise de Agrupamentos"
   )
-  mod_experimental_design_server("experimental_design")
+  delineamentos_experimentais <- list(
+    dic = mod_experimental_design_server("experimental_dic"),
+    dbc = mod_experimental_design_server("experimental_dbc"),
+    dql = mod_experimental_design_server("experimental_dql"),
+    fatorial = mod_experimental_design_server("experimental_fatorial"),
+    split_plot = mod_experimental_design_server("experimental_split_plot")
+  )
+  for (tipo in names(catalogo_delineamentos_observacionais())) {
+    mod_planejamento_observacional_server(
+      paste0("obs_", tipo), tipo, ficha_destino_rv = ficha_delineamento_rv
+    )
+    mod_planejamento_variaveis_server(
+      paste0("variables_obs_", tipo),
+      estrutura_rv = sorteio_planejado,
+      ficha_destino_rv = ficha_delineamento_rv
+    )
+  }
+  mod_monitoramento_server("monitoramento")
+  for (tipo in names(delineamentos_experimentais)) {
+    mod_planejamento_variaveis_server(
+      paste0("variables_exp_", tipo), delineamentos_experimentais[[tipo]],
+      ficha_destino_rv = ficha_delineamento_rv
+    )
+  }
   
   # --- CONTROLE E RASTREAMENTO PARA EXPORTAÇÃO CONSOLIDADA ---
   used_analyses <- reactiveValues(
@@ -2992,8 +3261,8 @@ RCatalyst::run_ide()</pre>
                         value = used_analyses$contingency)
         ),
         
-        # Menu: Descrevendo Dados
-        h6("Descrevendo Dados", style = "font-weight: 700; color: #0d6efd; margin-top: 14px; margin-bottom: 6px; font-size: 0.85rem; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 2px;"),
+        # Menu: resultados produzidos em Explorando os Dados.
+        h6("Explorando os Dados", style = "font-weight: 700; color: #0d6efd; margin-top: 14px; margin-bottom: 6px; font-size: 0.85rem; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 2px;"),
         div(
           style = if (!used_analyses$descr_stats) "opacity: 0.5; pointer-events: none;" else "",
           checkboxInput("exp_descr_stats", 
@@ -3625,13 +3894,13 @@ RCatalyst::run_ide()</pre>
               sprintf("dados$`%s` <- as.factor(dados$`%s`)", reg_var_group, reg_var_group),
               sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", reg_var_x, reg_var_y, reg_var_group, reg_var_group),
               "  geom_point(alpha = 0.8, size = 2.5) +",
-              "  geom_smooth(method = 'lm', formula = y ~ x, size = 1.2) +"
+              "  geom_smooth(method = 'lm', formula = y ~ x, linewidth = 1.2) +"
             )
           } else {
             c(
               sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", reg_var_x, reg_var_y),
               "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-              "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', size = 1.2) +"
+              "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +"
             )
           },
           sprintf("  %s +", reg_theme_code),
@@ -3660,8 +3929,8 @@ RCatalyst::run_ide()</pre>
           "diag_data <- data.frame(Ajustados = fitted(modelo), Residuos = residuals(modelo))",
           "ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +",
           "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', size = 1) +",
-          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, size = 1) +",
+          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', linewidth = 1) +",
+          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, linewidth = 1) +",
           sprintf("  %s +", reg_theme_code),
           "  labs(title = 'Resíduos vs Valores Ajustados', x = 'Valores Ajustados (Fitted)', y = 'Resíduos (Residuals)') +",
           "  theme(plot.title = element_text(face = 'bold', size = 16, color = '#212529'))",
@@ -3670,7 +3939,7 @@ RCatalyst::run_ide()</pre>
           "diag_data_qq <- data.frame(ResiduosStd = rstandard(modelo))",
           "ggplot(diag_data_qq, aes(sample = ResiduosStd)) +",
           "  stat_qq(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  stat_qq_line(color = '#0d6efd', size = 1) +",
+          "  stat_qq_line(color = '#0d6efd', linewidth = 1) +",
           sprintf("  %s +", reg_theme_code),
           "  labs(title = 'Normal Q-Q Plot', x = 'Quantis Teóricos', y = 'Resíduos Padronizados') +",
           "  theme(plot.title = element_text(face = 'bold', size = 16, color = '#212529'))"
@@ -3733,7 +4002,7 @@ RCatalyst::run_ide()</pre>
                 sprintf("dados$`%s` <- as.factor(dados$`%s`)", reg_var_group, reg_var_group),
                 sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", reg_var_x, reg_var_y, reg_var_group, reg_var_group),
                 "  geom_point(alpha = 0.8, size = 2.5) +",
-                "  geom_smooth(method = 'lm', formula = y ~ x, size = 1.2) +"
+                "  geom_smooth(method = 'lm', formula = y ~ x, linewidth = 1.2) +"
               )
             } else {
               c(
@@ -3742,7 +4011,7 @@ RCatalyst::run_ide()</pre>
                 "#| echo: false",
                 sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", reg_var_x, reg_var_y),
                 "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-                "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', size = 1.2) +"
+                "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +"
               )
             },
             sprintf("  %s +", reg_theme_code),
@@ -3766,8 +4035,8 @@ RCatalyst::run_ide()</pre>
             "diag_data <- data.frame(Ajustados = fitted(modelo), Residuos = residuals(modelo))",
             "ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +",
             "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', size = 1) +",
-            "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, size = 1) +",
+            "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', linewidth = 1) +",
+            "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, linewidth = 1) +",
             sprintf("  %s +", reg_theme_code),
             "  labs(title = 'Resíduos vs Valores Ajustados', x = 'Valores Ajustados', y = 'Resíduos') +",
             "  theme(plot.title = element_text(face = 'bold'))",
@@ -3784,7 +4053,7 @@ RCatalyst::run_ide()</pre>
             "diag_data_qq <- data.frame(ResiduosStd = rstandard(modelo))",
             "ggplot(diag_data_qq, aes(sample = ResiduosStd)) +",
             "  stat_qq(color = '#495057', alpha = 0.7, size = 2.5) +",
-            "  stat_qq_line(color = '#0d6efd', size = 1) +",
+            "  stat_qq_line(color = '#0d6efd', linewidth = 1) +",
             sprintf("  %s +", reg_theme_code),
             "  labs(title = 'Normal Q-Q Plot', x = 'Quantis Teóricos', y = 'Resíduos Padronizados') +",
             "  theme(plot.title = element_text(face = 'bold'))",
@@ -3824,7 +4093,7 @@ RCatalyst::run_ide()</pre>
             "grid <- curva_predita(fit_res)",
             sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", var_x, var_y),
             "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', size = 1.2) +", var_x, var_y),
+            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', linewidth = 1.2) +", var_x, var_y),
             "  theme_minimal() +",
             sprintf("  labs(title = 'Ajuste: %s', x = '%s', y = '%s')", label_curva, var_x, var_y)
           )
@@ -3874,7 +4143,7 @@ RCatalyst::run_ide()</pre>
             "grid <- curva_predita(fit_res)",
             sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", var_x, var_y),
             "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', size = 1.2) +", var_x, var_y),
+            sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', linewidth = 1.2) +", var_x, var_y),
             "  theme_minimal() +",
             sprintf("  labs(x = '%s', y = '%s')", var_x, var_y),
             "```",

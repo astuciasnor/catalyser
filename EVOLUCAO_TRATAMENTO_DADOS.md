@@ -113,12 +113,21 @@ A caixa **Tratamento a adicionar** contém:
 7. Calcular variável;
 8. Reescalar (prefixo SI);
 9. Filtrar linhas;
-10. Agrupar / Sumarizar;
-11. Tabela de Contingência.
+10. Sortear subamostra (com semente);
+11. Agrupar / Sumarizar;
+12. Tabela de Contingência.
 
 Portanto, Bases Derivadas não se limitam aos três últimos itens: elas também
 podem repetir um tratamento geral quando ele for necessário apenas para uma
 análise específica.
+
+**Sortear subamostra** (no grupo *Recortes e resumos*) sorteia n linhas da base
+— ou n linhas **por grupo** de uma coluna categórica — com **semente fixa**
+(padrão 42): o sorteio é reprodutível e o código R gerado
+(`set.seed()` + `dplyr::slice_sample()`) devolve exatamente as mesmas linhas do
+resultado na IDE. É o caminho para bases derivadas de subamostra equilibrada
+(ex.: 200 indivíduos de cada sexo). Reduz linhas sem mudar a forma da base,
+portanto **não é etapa redutora**: aceita etapas depois dela.
 
 Agrupar/Sumarizar e Contingência são **etapas redutoras**:
 

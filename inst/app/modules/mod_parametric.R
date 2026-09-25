@@ -680,7 +680,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       
       ggplot(diag_data, aes(sample = ResiduosStd)) +
         stat_qq(color = "#495057", alpha = 0.7, size = 2) +
-        stat_qq_line(color = "#0d6efd", size = 0.8) +
+        stat_qq_line(color = "#0d6efd", linewidth = 0.8) +
         g_theme +
         labs(title = "Normal Q-Q Plot", x = "Quantis Teóricos", y = "Quantis Amostrais")
     })

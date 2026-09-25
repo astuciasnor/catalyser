@@ -56,11 +56,11 @@ execucao_teste <- function(id, titulo, analise_id, saidas, base = "dados_analise
 }
 
 e1 <- execucao_teste(
-  "execucao_0001", "Regressão da captura por esforço", "regression",
+  "execucao_0001", "Regressão da captura por esforço", "regressao_linear",
   c("narrativa", "tabela", "grafico", "pressupostos", "diagnosticos", "console")
 )
 e2 <- execucao_teste(
-  "execucao_0002", "Produção por ano", "lines", c("grafico")
+  "execucao_0002", "Produção por ano", "grafico_linhas", c("grafico")
 )
 registro_inicial <- list(execucao_0001 = e1, execucao_0002 = e2)
 
@@ -70,7 +70,7 @@ stopifnot(
   identical(estado$ordem, c("execucao_0001", "execucao_0002")),
   identical(
     estado$itens$execucao_0001$saidas_selecionadas,
-    c("narrativa", "tabela", "grafico")
+    c("narrativa", "tabela", "grafico", "pressupostos", "diagnosticos")
   ),
   identical(estado$itens$execucao_0002$saidas_selecionadas, "grafico")
 )
@@ -140,6 +140,17 @@ testServer(
       grepl("baixar_projeto", output$acoes_exportacao$html, fixed = TRUE)
     )
 
+    sem_replay <- registro_rv()
+    sem_replay$execucao_0002$tipo <- "frequencias_proporcoes"
+    registro_rv(sem_replay)
+    session$flushReact()
+    stopifnot(
+      !grepl("baixar_projeto", output$acoes_exportacao$html, fixed = TRUE),
+      grepl("não têm reconstrução", output$acoes_exportacao$html, fixed = TRUE)
+    )
+    registro_rv(registro_inicial)
+    session$flushReact()
+
     revisao_rv(6L)
     session$flushReact()
     stopifnot(
@@ -174,7 +185,7 @@ testServer(
     stopifnot(identical(names(manifesto()$execucoes)[1], "execucao_0002"))
 
     e3 <- execucao_teste(
-      "execucao_0003", "Teste t de comprimento por sexo", "parametric",
+      "execucao_0003", "Teste t de comprimento por sexo", "teste_t_two_ind",
       c("narrativa", "tabela", "grafico", "pressupostos")
     )
     registro_rv(c(registro_rv(), list(execucao_0003 = e3)))
@@ -206,7 +217,7 @@ testServer(
       identical(reiniciado$total_word, 1L),
       identical(
         reiniciado$execucoes$execucao_0001$saidas_word,
-        c("narrativa", "tabela", "grafico")
+        c("narrativa", "tabela", "grafico", "pressupostos", "diagnosticos")
       )
     )
   }

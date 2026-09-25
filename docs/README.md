@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+Comece pelo [mapa da arquitetura e dos contratos](../ARQUITETURA.md).
+
 1. [Decisões pedagógicas e de refinamento](DECISOES_PEDAGOGICAS_E_REFINAMENTO.md)
    — filosofia do produto, código humano e ciclos de duas análises.
 2. [Pipeline de dados e relatórios](../PIPELINE_DADOS_E_RELATORIOS.md)
@@ -39,6 +41,14 @@ Distinção vigente:
 
 ## Produto e escopo futuro
 
+- [ANOVA com subamostras — primeiro recorte](ANOVA_MISTA_SUBAMOSTRAS.md)
+  — módulo com `nlme`, ligação planejamento → análise, limites atuais e próximos passos.
+- [Roteiro Focus — pequenas atividades e ponto de retomada](ROTEIRO_FOCUS_V1.md)
+  — fila guardada, duas ou três atividades por vez e sessões de 25 ou 40 minutos;
+  um bloco é uma sessão válida, sem obrigação de fazer um segundo.
+- [Prioridades e expansões reservadas — 21/09/2026](PLANO_PRIORIDADES_E_EXPANSOES.md)
+  — primeiro lote de Frequências e Proporções, metas de desenho amostral e
+  expansões adiadas; implementação depende de nova autorização do autor.
 - [Laboratório de Conceitos](../MODULO_LABORATORIO_CONCEITOS.md) — o menu e a
   visão geral já existem; os visualizadores indicados como “em construção”
   permanecem planejados e não fazem parte do ciclo atual de refinamento.

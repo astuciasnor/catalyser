@@ -1,0 +1,87 @@
+---
+title: "{{TITULO}}"
+subtitle: "Modelo de relatório científico · regressão linear simples"
+author: "Nome do autor — instituição (preencher)"
+date: today
+date-format: long
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: false
+    number-sections: true
+    fig-width: 6
+    fig-height: 4
+    fig-dpi: 300
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_artigo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+```{=html}
+<!-- GUIA DE EDIÇÃO: altere cálculos em R/analise.R e a argumentação aqui.
+Os resultados numéricos vêm dos objetos do script. Revise os textos antes de
+usar este documento como artigo, monografia ou relatório científico. -->
+```
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+# Resultados
+
+```{r}
+#| label: tbl-descritiva
+#| tbl-cap: "Resumo das variáveis analisadas. DP: desvio padrão."
+flextable_ocean(tabela_descritiva_exibir)
+```
+
+`r texto_amostra`
+
+`r texto_ajuste`
+
+`r texto_coeficiente`
+
+```{r}
+#| label: tbl-coeficientes
+#| tbl-cap: "Coeficientes da regressão linear simples e intervalos de confiança. β: coeficiente não padronizado; EP: erro padrão."
+flextable_ocean(tabela_coeficientes_exibir)
+```
+
+```{r}
+#| label: fig-regressao
+#| fig-cap: "Reta ajustada e intervalo de confiança para a resposta média."
+grafico_regressao
+```
+
+`r texto_diagnosticos_artigo`
+
+`r texto_influencia_artigo`
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r alerta_modelo`
+
+# Conclusão
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Disponibilidade dos dados e do código
+
+O projeto reúne os dados de entrada, a base preparada adotada, o script
+comentado `R/analise.R` e dois documentos Quarto. O caderno HTML apresenta o
+percurso completo; este documento seleciona os resultados principais. Ambos
+executam a mesma análise.
+
+# Referências

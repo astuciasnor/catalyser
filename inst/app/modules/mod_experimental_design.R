@@ -16,8 +16,13 @@ parse_levels <- function(text) {
   return(parts)
 }
 
-mod_experimental_design_ui <- function(id) {
+mod_experimental_design_ui <- function(id, variaveis_ui = NULL, tipo_fixo = NULL) {
   ns <- NS(id)
+  escolhas_tipo <- c("DIC - Inteiramente Casualizado" = "DIC",
+                     "DBC - Blocos Casualizados" = "DBC",
+                     "DQL - Quadrado Latino" = "DQL",
+                     "Fatorial (em DIC)" = "fatorial",
+                     "Parcelas Subdivididas (Split-Plot)" = "split_plot")
   tagList(
     layout_columns(
       col_widths = c(1, 1, 1),
@@ -29,12 +34,16 @@ mod_experimental_design_ui <- function(id) {
           card_header("Configuração do Planejamento"),
           card_body(
             style = "padding: 12px 15px;",
-            selectInput(ns("design_type"), "Tipo de Delineamento:",
-                        choices = c("DIC - Inteiramente Casualizado" = "DIC",
-                                    "DBC - Blocos Casualizados" = "DBC",
-                                    "DQL - Quadrado Latino" = "DQL",
-                                    "Fatorial (em DIC)" = "fatorial",
-                                    "Parcelas Subdivididas (Split-Plot)" = "split_plot")),
+            if (is.null(tipo_fixo)) {
+              selectInput(ns("design_type"), "Tipo de Delineamento", choices = escolhas_tipo)
+            } else {
+              # A mesma entrada mantém o servidor comum; no menu aberto, o
+              # tipo vem do item clicado e não aparece como um segundo seletor.
+              tags$div(style = "display:none;",
+                selectInput(ns("design_type"), "Tipo de Delineamento", choices = escolhas_tipo,
+                            selected = tipo_fixo)
+              )
+            },
             
             # Painel Condicional para DIC
             conditionalPanel(
@@ -63,7 +72,7 @@ mod_experimental_design_ui <- function(id) {
               condition = sprintf("input['%s'] == 'DQL'", ns("design_type")),
               textInput(ns("dql_factor_name"), "Nome do Fator:", value = "Tratamento"),
               textInput(ns("dql_levels"), "Níveis do Fator (separados por vírgula):", value = "A, B, C"),
-              helpText("DQL: Grade automática de tamanho K x K (onde K é o número de níveis).")
+              helpText("Linhas e colunas: K x K, necessariamente iguais ao número de tratamentos. O DQL não permite escolher medidas diferentes sem deixar de ser um quadrado latino.")
             ),
             
             # Painel Condicional para Fatorial
@@ -104,15 +113,24 @@ mod_experimental_design_ui <- function(id) {
       # COLUNA 2: RESULTADOS (ABAS)
       navset_card_tab(
         nav_panel(
-          title = "Croqui da Área",
+          title = "Croqui",
           icon = icon("table-cells"),
           card_body(
             style = "padding: 10px 15px;",
             plotOutput(ns("plot_croqui"), height = "450px")
           )
         ),
+        if (!is.null(variaveis_ui)) nav_panel(
+          title = "Variáveis do experimento",
+          icon = icon("list-check"),
+          card_body(
+            style = "padding: 10px 15px;",
+            p("Depois de gerar o croqui, descreva as variáveis que serão medidas. Tratamento, bloco e unidade experimental devem continuar identificáveis na planilha."),
+            variaveis_ui
+          )
+        ),
         nav_panel(
-          title = "Ficha de Campo (Tabela Tidy)",
+          title = "Ficha de campo",
           icon = icon("table"),
           card_body(
             style = "padding: 10px 15px;",
@@ -120,7 +138,7 @@ mod_experimental_design_ui <- function(id) {
           )
         ),
         nav_panel(
-          title = "Descrição Metodológica",
+          title = "Descrição",
           icon = icon("file-lines"),
           card_body(
             style = "padding: 10px 15px;",
@@ -149,7 +167,7 @@ mod_experimental_design_ui <- function(id) {
 mod_experimental_design_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    
+
     # Armazena o resultado do delineamento gerado
     delineamento_rv <- reactiveVal(NULL)
     
@@ -250,6 +268,8 @@ mod_experimental_design_server <- function(id) {
             footer = modalButton("OK")
           ))
         } else {
+          # Guarda o tipo para orientar a análise futura sem precisar reconstruir o croqui.
+          res$design_type <- type
           delineamento_rv(res)
           showNotification("Croqui gerado com sucesso!", type = "message")
         }
@@ -268,6 +288,13 @@ mod_experimental_design_server <- function(id) {
     click <- function(id) {
       session$sendInputMessage(id, list(value = input[[id]] + 1))
     }
+
+    # A escolha do tipo também atualiza o croqui, a ficha e a descrição. Os
+    # controles visíveis já mudam no navegador; esta reinicialização aplica os
+    # valores próprios do novo delineamento à sua estrutura gerada.
+    observeEvent(input$design_type, {
+      delineamento_rv(NULL)
+    }, ignoreInit = TRUE)
     
     # 1. Renderizar Croqui
     output$plot_croqui <- renderPlot({
@@ -509,5 +536,7 @@ mod_experimental_design_server <- function(id) {
         setwd(old_wd)
       }
     )
+    # Devolve o croqui para que o planejamento de variáveis reutilize fator, bloco e repetição.
+    delineamento_rv
   })
 }

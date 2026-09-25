@@ -7,8 +7,25 @@
 library(shiny)
 library(bslib)
 
-mod_seletor_base_analise_ui <- function(id) {
+mod_seletor_base_analise_ui <- function(id, compacto = FALSE) {
   ns <- NS(id)
+  # A versão compacta ocupa apenas uma linha nos módulos de exploração.
+  if (isTRUE(compacto)) {
+    return(div(
+      class = "catalyser-base-selector-compact",
+      tags$label(`for` = ns("base_id"), "Base utilizada:"),
+      div(
+        class = "catalyser-base-selector-compact-input",
+        selectizeInput(
+          ns("base_id"), NULL,
+          choices = c("Base compartilhada — dados_analise" = "dados_analise"),
+          width = "100%",
+          options = list(maxOptions = 200)
+        )
+      )
+    ))
+  }
+  # Os demais módulos preservam o cartão e os avisos detalhados já existentes.
   card(
     class = "mb-2 catalyser-base-selector",
     fill = FALSE,
@@ -82,18 +99,9 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
     dados <- reactive({ contexto()$df })
 
     output$status <- renderUI({
-      base <- contexto()
-      estilo <- "font-size:0.78rem; padding:7px 9px; margin:20px 0 0;"
-      status_atual <- if (isTRUE(base$derivada)) {
-        div(class = "alert alert-info", style = estilo,
-            icon("diagram-project"), " ", strong(base$nome_amigavel), " — ",
-            tags$code(base$base_objeto),
-            sprintf(" — %d linhas × %d colunas", nrow(base$df), ncol(base$df)))
-      } else {
-        div(class = "alert alert-light border", style = estilo,
-            icon("database"), " ", tags$code("dados_analise"), " — base compartilhada")
-      }
-
+      # A linha que repetia o nome da base sob o seletor foi removida: a
+      # identificação já aparece na própria caixa "Base utilizada". Restam
+      # apenas os avisos de bases pendentes.
       ids_disponiveis <- unname(opcoes())
       pendentes <- Filter(
         function(item) !item$id %in% ids_disponiveis,
@@ -121,7 +129,7 @@ mod_seletor_base_analise_server <- function(id, dados_analise_rv, registro_bases
           paste0(paste(motivos, collapse = "; "), ".")
         )
       }
-      tagList(status_atual, aviso_pendentes)
+      tagList(aviso_pendentes)
     })
 
     invisible(list(dados = dados, contexto = contexto, opcoes = opcoes))

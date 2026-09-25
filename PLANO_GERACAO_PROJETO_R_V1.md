@@ -1,5 +1,208 @@
 # Geração do Projeto R — fechamento da v1
 
+## Roteiro de regressão consolidado — 18/09/2026
+
+O exemplo `EAPACadernos/linear-morfometria-barbo/R/analise.R` incorporou a organização
+revisada pelo autor. Depois de dados, modelo, diagnósticos, tabelas e gráficos,
+a seção 9 reúne os resultados em frases destinadas aos relatórios. A posição
+expressa duas ideias: os textos dependem dos objetos calculados anteriormente;
+e, por decisão narrativa, a comunicação começa depois de o pesquisador examinar
+também as figuras. A equação permanece na seção gráfica porque é uma anotação
+da figura e precisa existir antes de `grafico_regressao`.
+
+Cada frase é guardada em um objeto e apresentada com `print()` para facilitar
+o estudo no console. Os QMDs executam o script em um chunk com `include: false`,
+portanto essas impressões não aparecem no HTML nem no Word. O script produz
+`texto_sintese_estatistica`, não uma conclusão científica. Os QMDs combinam
+essa síntese com a interpretação escrita e revisada pelo pesquisador.
+
+Essa decisão está validada no exemplo, mas ainda precisa ser levada ao template
+do exportador durante a migração estrutural para dois QMDs.
+
+## Referência didática para os próximos roteiros — 18/09/2026
+
+**Revisão didática aprovada pelo autor.** Após os ajustes nos comentários e
+na disposição do código, o autor considerou os arquivos e o roteiro do exemplo
+`morfometria-barbo` fáceis de compreender. Em sua avaliação, um professor com
+conhecimentos intermediários de R consegue explicar esse percurso aos alunos.
+Fica concluída esta rodada de revisão didática do exemplo; as próximas análises
+também devem passar pela leitura do autor. A migração completa do exportador
+continua pendente, como descrito abaixo.
+
+O autor aprovou `EAPACadernos/linear-morfometria-barbo/R/analise.R` como referência
+de clareza para as próximas análises. Preservar etapas numeradas, nomes de
+objetos expressivos, cálculos acompanháveis e comentários que expliquem as
+decisões e as operações menos familiares. Os gráficos construídos em etapas
+com ggplot2 ajudam a tornar o procedimento visível; usar funções de outros
+pacotes quando forem necessárias, explicando seu papel.
+
+Ao concluir e validar cada análise, entregar o script para revisão didática
+do autor: ele pode ser compreendido por um iniciante com algum esforço e
+explicado com facilidade por um professor? Registrar o retorno antes de
+considerar encerrada a revisão didática. Isso não impede implementar e
+verificar o trabalho previamente autorizado.
+
+## Aprendizagem progressiva nos Projetos R — 18/09/2026
+
+**Primeiro exemplo preparado:** `EAPACadernos/descritiva-barbo`, com uma
+variável do mesmo conjunto usado na regressão, tabela de cinco medidas e
+histograma. O script tem 102 linhas (incluindo comentários e linhas vazias);
+os QMDs completo e artigo têm 69 e 56 linhas. Ambos foram renderizados; o
+Word tem duas páginas. Os cinco resumos foram comparados ao motor
+`catalyser_resumo_descritivo()` e coincidem, assim como as contagens.
+HTML e Word foram inspecionados visualmente. A revisão didática do autor
+está pendente. O exemplo foi construído diretamente, sem alterar o exportador.
+
+O autor propôs usar análises mais enxutas como degraus de aprendizagem.
+Uma análise de estatística descritiva ou um teste t de uma amostra pode
+introduzir toda a organização do Projeto R com poucas operações: localizar
+os dados, acompanhar o script, examinar objetos e gerar os relatórios.
+Nos projetos seguintes, o aluno reconhece os papéis dos arquivos e acumula
+novos conhecimentos de R e de estatística sobre essa base familiar.
+
+A regressão linear simples permanece como referência de clareza e organização.
+A quantidade de código, de comentários e de saídas deve acompanhar a necessidade
+de cada análise. Não reproduzir todas as etapas da regressão em exemplos mais
+simples nem esconder cálculos em funções apenas para reduzir o número de linhas.
+Poucas operações compreensíveis são mais úteis que código comprimido.
+
+Descritiva e teste t de uma amostra são candidatos ao primeiro degrau, sem
+ordem definitiva escolhida. A sequência e o nível de explicação serão calibrados
+com o autor conforme os roteiros forem construídos e revisados. Esta orientação
+não registra uma nova análise implementada nem altera o estado da migração.
+
+## O percurso integrado como diferencial — 18/09/2026
+
+Os ganhos recentes devem ser preservados como partes de um único percurso, e
+não tratados como recursos independentes. O menu de preparo registra as mudanças
+feitas nos dados; a Base Compartilhada mantém a origem comum; as Bases Derivadas
+abrem ramos para perguntas específicas; várias análises podem ser reunidas no
+mesmo Projeto R; e o script analítico documenta de onde vieram os resultados que
+os relatórios comunicam.
+
+Nesse desenho, `R/analise.R` é a fonte da verdade de cada análise. Sua seção
+final de textos recolhe resultados antes espalhados pelo console e cria a ponte
+para o HTML e o Word. Os QMDs precisam apenas carregar o script e apresentar os
+objetos pertinentes a cada público. O HTML documenta o percurso do pesquisador;
+o Word se aproxima do artigo. Interpretação biológica, discussão e conclusão
+científica permanecem sob revisão humana.
+
+O projeto didático curto acrescenta uma porta de entrada para essa arquitetura.
+Ele apresenta as mesmas pastas e os mesmos papéis com poucas linhas; a regressão
+linear simples acrescenta exploração, pressupostos, diagnóstico e comunicação;
+as análises seguintes acumulam conhecimento sem exigir que o aluno reaprenda a
+organização do projeto. Essa progressão materializa a CatalyseR como ponte entre
+o estudo dos métodos estatísticos e a prática da pesquisa reprodutível: começa
+na interface, torna o código legível e termina em documentos que podem ser
+recalculados e avaliados.
+
+## Legibilidade do roteiro e recorte do artigo — 18/09/2026
+
+O exemplo `EAPACadernos/linear-morfometria-barbo` recebeu uma primeira revisão de
+legibilidade: mapa de objetos, seções numeradas, conferências e resumos em
+etapas, textos numéricos com interpolação legível e exportação de uma única
+base processada com IDs. O artigo conserva as dicas no fonte e deixa de
+imprimi-las; mantém a síntese dos diagnósticos que afetam a interpretação.
+APA permanece como o único CSL, conforme a escolha do autor.
+
+O roteiro de regressão gerado pela CatalyseR também recebeu o cabeçalho,
+comentários didáticos e nomes para os gráficos. Isso melhora o script atual;
+não equivale à migração para dois QMDs, que continua pendente. As decisões
+estão detalhadas no refinamento de 18/09 da especificação de comunicação.
+
+## Próxima estrutura aprovada — 16/09/2026
+
+O autor aprovou um script analítico comentado e dois QMDs separados: caderno
+completo em HTML e artigo em Word, ambos executando a mesma análise em R.
+A decisão, a árvore de pastas, os cuidados com bases preparadas e os critérios
+de validação estão na seção "Direção aprovada — 16/09/2026" de
+`MODULO_COMUNICACAO_RESULTADOS.md`. A migração do gerador ainda está pendente;
+as validações registradas abaixo se referem ao exportador com QMD único.
+O livro recebeu a fundamentação em compêndios de pesquisa, com referência a
+Marwick, Boettiger e Mullen (2018), distinguindo o princípio científico da
+adaptação didática em dois documentos.
+
+## Renderização pelo desktop resolvida — 15/09/2026
+
+A falha nativa relatada abaixo foi isolada: `PROCESSOR_ARCHITECTURE` não chegava
+ao processo R iniciado pelo desktop. O pacote `cli` 3.6.6 consultava a variável
+ausente ao encerrar. Informar a arquitetura real (`AMD64` neste computador x64)
+permitiu encerrar normalmente, com o mesmo R 4.6.1 e a mesma biblioteca usados
+no RStudio. Não foi necessário reinstalar R ou pacotes.
+
+O utilitário `APOIO/scripts/renderizar-quarto-desktop.ps1`, na pasta-mãe, faz
+esse ajuste somente no processo e restaura o ambiente depois. O Quarto precisa
+também poder escrever no seu cache local para compilar o tema HTML. Com isso,
+o projeto de revisão `regressao_barbo_20260915_a420655d1013/regressao_barbo`, em
+`APOIO/temp/`, gerou `relatorio.docx` e `relatorio.html` sem erro de renderização,
+incluindo os textos de apoio e o diagnóstico de alavancagem.
+
+## Textos de apoio e revisão dos diagnósticos da reta — 15/09/2026
+
+O relatório com uma regressão simples passa a oferecer sugestões editáveis de
+Introdução, Material e métodos, Discussão e Conclusão nas seções não preenchidas
+pelo autor. Resultados e síntese da conclusão vêm dos números recalculados no
+Render. O texto do autor prevalece; relatórios com várias análises não recebem
+uma conclusão global baseada apenas na última reta. O contexto do barbo só entra
+quando a origem registrada é `EAPADados::morfometria_barbo`: medidas corrigidas,
+associação de forma e cuidado com as cinco populações, sem alegar causalidade,
+crescimento individual ou independência comprovada.
+
+A revisão considerou Zuur, Ieno e Elphick (2010), DOI
+10.1111/j.2041-210X.2009.00001.x, a documentação de diagnósticos do NIST
+(https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/regrdiag.htm)
+e a documentação de `performance::check_model`. O complemento adotado foi
+resíduos padronizados versus alavancagem, junto de Cook, no caderno HTML.
+Os limites são referências de triagem; nenhum ponto é excluído automaticamente.
+Os rótulos remetem às linhas da base preparada antes da retirada de pares
+incompletos. Permanecem Shapiro, Breusch-Pagan, resíduos versus ajustados, Q-Q e
+Durbin-Watson apenas quando há ordem real. Não se acrescentam testes redundantes
+nem se usa VIF numa reta com um único preditor.
+
+Conferência: asserções do roteiro concluídas para coeficientes, IC, alavancagem
+contra `hatvalues`, rastreio de linhas com NA, conclusão sem associação e com
+diagnósticos desfavoráveis, texto autoral, contexto da origem e múltiplas retas.
+O projeto exportado manteve script e QMD sincronizados, e o novo gráfico foi
+inspecionado. A renderização nesta sessão executou os 35 passos, mas a falha
+nativa de encerramento do R impediu confirmar o Word e HTML finais. O autor
+havia confirmado ambos os formatos antes destas alterações.
+
+## Navegação entre resultados da regressão — 15/09/2026
+
+A troca de aba atualizava os campos compartilhados de título e eixos e, por isso,
+marcava uma execução válida como pendente. Cada gráfico agora conserva seus
+próprios campos; navegar não escreve nos parâmetros da reta. Os rótulos da reta
+também permanecem no código registrado quando uma aba de diagnóstico está aberta.
+
+O teste de interface com `morfometria_barbo` reproduz a devolução das mensagens
+dos campos pelo navegador: falha no código anterior e conclui as asserções após
+a correção. Confere tabela, reta, resíduos e Q-Q, preservação do modelo e do
+registro, e invalidação por mudanças reais nos dados, no IC e nos rótulos da reta.
+As asserções passaram; o processo R ainda terminou com a falha nativa de saída
+observada neste ambiente, portanto isso não equivale a uma execução com código
+de saída zero nem substitui a conferência visual na aplicação reiniciada.
+
+## Exemplo principal da regressão: morfometria do barbo — 15/09/2026
+
+O autor escolheu `morfometria_barbo` para conduzir a revisão da regressão,
+seguindo o modo de trabalho da ANOVA. Configuração inicial: resposta
+`comprimento_cabeca`, preditor `distancia_pre_peitoral`, reta global sem
+agrupamento, IC de 95% e autocorrelação desativada enquanto não houver ordem
+real de coleta informada.
+
+O teste do roteiro e o projeto de exemplo gerado por ele passam a usar esse
+conjunto como referência principal. Camarão e `cars` permanecem como casos
+com sinais de inadequação para conferir a honestidade do texto automático.
+Os rótulos do exemplo identificam as medidas como corrigidas pelo tamanho;
+a introdução explica que a relação descreve forma corporal, não crescimento.
+
+Conferência com `lm`, `confint`, `shapiro.test` e `performance`: 100 observações,
+inclinação 0,98974518, R² 0,89655657, Shapiro p = 0,44001152 e Breusch-Pagan
+p = 0,42550214. Asserções de cálculo e sincronização script–relatório concluídas.
+Esses p-valores não comprovam pressupostos, e as cinco populações exigem leitura
+do delineamento para avaliar independência. Esta escolha de exemplo não encerra
+a revisão da regressão nem substitui a conferência visual do autor.
+
 ## Regressão linear simples — consolidação do caminho único de 15/09/2026
 
 A regressão carregava três caminhos de exportação em paralelo. O ciclo consolidado

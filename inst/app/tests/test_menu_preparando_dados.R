@@ -52,8 +52,13 @@ html_compartilhada <- htmltools::renderTags(mod_preparar_compartilhada_ui("teste
 stopifnot(
   all(vapply(c("Importar Dados", "Reestruturar Planilha", "Preparar Base Compartilhada", "Preparar Bases Derivadas"),
     function(x) grepl(paste0('title = "', x, '"'), codigo_app, fixed = TRUE), logical(1))),
-  all(vapply(c("Variáveis e categorias", "Cálculos e transformações", "Limpeza", "Etapas do Preparo", "Dados preparados", "Código R"),
+  all(vapply(c("Variáveis e categorias", "Cálculos e transformações", "Limpeza", "Etapas do Preparo", "Dados Preparados", "Códigos R"),
     function(x) grepl(x, html_compartilhada, fixed = TRUE), logical(1))),
+  # Os três grupos são opções de ações; etapas, dados e código são abas.
+  all(vapply(c("limpeza", "calculos", "variaveis"), function(x)
+    grepl(paste0('value="', x, '"'), html_compartilhada, fixed = TRUE), logical(1))),
+  all(vapply(c("etapas", "dados", "codigo"), function(x)
+    grepl(paste0('data-value="', x, '"'), html_compartilhada, fixed = TRUE), logical(1))),
   !grepl("Checagem Final da Base Compartilhada", html_compartilhada, fixed = TRUE),
   grepl('id="organizar_variaveis-abrir_renomear"', html_compartilhada, fixed = TRUE),
   grepl('id="tratar-calc_modo"', html_compartilhada, fixed = TRUE),

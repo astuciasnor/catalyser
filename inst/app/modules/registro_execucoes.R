@@ -20,6 +20,23 @@ execucoes_rotulos_saidas <- c(
 )
 execucoes_saidas_validas <- names(execucoes_rotulos_saidas)
 
+# Contrato único dos tipos que catalyser_executar() sabe reconstruir. O nome
+# analise_id identifica a tela; o campo tipo identifica a execução reproduzível.
+execucoes_tipos_reconstruiveis <- c(
+  "descricao_exploratoria", "estatistica_descritiva", "grafico_linhas",
+  "regressao_linear", "regressao_logistica", "regressao_poisson",
+  "regressao_binomial_negativa", "teste_t_one_val", "teste_t_two_ind",
+  "teste_t_paired", "anova_um_fator", "anova_mista_subamostras",
+  "anova_medidas_repetidas", "anova_dois_fatores", "friedman", "mcnemar",
+  "qui_quadrado_variancia", "teste_f_variancias", "qui_quadrado",
+  "proporcao_uma", "proporcao_duas", "qui_quadrado_aderencia", "pca", "hca"
+)
+
+execucoes_tipo_reconstruivel <- function(tipo) {
+  is.character(tipo) && length(tipo) == 1L && !is.na(tipo) &&
+    tipo %in% execucoes_tipos_reconstruiveis
+}
+
 execucoes_vazio <- function() list()
 
 execucoes_ou <- function(x, padrao) {

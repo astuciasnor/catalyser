@@ -68,10 +68,20 @@ mod_registrar_execucao_server <- function(id, estado_execucao_rv, base_contexto_
                                           registro_execucoes_rv, contador_execucoes_rv,
                                           revisao_origem_rv, registro_bases_rv,
                                           cache_bases_rv, analise_id,
-                                          nome_analise = "Esta análise") {
+                                          nome_analise = "Esta análise",
+                                          nova_configuracao_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     selecionada_rv <- reactiveVal("")
     ultimo_sugerido_rv <- reactiveVal("")
+
+    # Nas áreas com histórico, outra prévia significa uma nova análise por padrão.
+    # Os módulos antigos mantêm a seleção explícita e o comportamento já aprovado.
+    if (!is.null(nova_configuracao_rv)) observeEvent(nova_configuracao_rv(), {
+      selecionada_rv("")
+      updateSelectInput(session, "execucao_id", selected = "")
+      estado <- estado_execucao_rv()
+      updateTextInput(session, "titulo", value = if (is.null(estado)) "" else estado$titulo)
+    }, ignoreNULL = FALSE, priority = 10)
 
     execucoes_modulo <- reactive({
       execucoes_da_analise(registro_execucoes_rv(), analise_id)

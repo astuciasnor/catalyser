@@ -32,7 +32,10 @@ comunicacao_saidas_padrao <- function(execucao) {
   principais <- intersect(c("narrativa", "tabela", "grafico"), disponiveis)
   # Na ANOVA de um fator e na regressão linear, comece com todo o conteúdo; escolhas posteriores
   # do pesquisador continuam sendo preservadas pela sincronização.
-  if (execucao$tipo %in% c("anova_um_fator", "regressao_linear")) return(disponiveis)
+  if (execucao$tipo %in% c(
+    "anova_um_fator", "anova_mista_subamostras", "regressao_linear", "regressao_poisson",
+    "regressao_binomial_negativa"
+  )) return(disponiveis)
   if (length(principais)) principais else head(disponiveis, 1L)
 }
 

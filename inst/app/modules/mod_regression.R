@@ -123,9 +123,25 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           # Controles mostrados apenas quando abas de gráfico estão selecionadas
           conditionalPanel(
             condition = sprintf("input['%s'] != 'Tabela de Resultados'", ns("active_tab")),
-            textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
-            textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
-            textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = ""),
+            # Cada gráfico conserva os próprios rótulos ao navegar pelas abas.
+            conditionalPanel(
+              condition = sprintf("input['%s'] == '%s'", ns("active_tab"), aba_ajuste),
+              textInput(ns("custom_title"), "Título do Gráfico:", value = ""),
+              textInput(ns("custom_label_x"), "Rótulo Eixo X:", value = ""),
+              textInput(ns("custom_label_y"), "Rótulo Eixo Y:", value = "")
+            ),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == '%s'", ns("active_tab"), aba_residuos),
+              textInput(ns("resid_title"), "Título do Gráfico:", value = ""),
+              textInput(ns("resid_label_x"), "Rótulo Eixo X:", value = ""),
+              textInput(ns("resid_label_y"), "Rótulo Eixo Y:", value = "")
+            ),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == '%s'", ns("active_tab"), aba_diagnostico),
+              textInput(ns("qq_title"), "Título do Gráfico:", value = ""),
+              textInput(ns("qq_label_x"), "Rótulo Eixo X:", value = ""),
+              textInput(ns("qq_label_y"), "Rótulo Eixo Y:", value = "")
+            ),
             if (!is_logistic) tagList(
               selectInput(ns("var_group"), "Variável de Agrupamento (Cor):", choices = c("Nenhuma" = "none")),
               conditionalPanel(
@@ -312,53 +328,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", all_cols), selected = selected_grp)
     })
     
-    # Quando o usuário muda a aba ativa ou as variáveis, atualizamos os campos para o padrão daquela aba
-    observeEvent(list(input$active_tab, input$var_x, input$var_y), {
-      req(input$active_tab, input$var_x, input$var_y)
-      
-      if (input$active_tab == aba_ajuste) {
-        updateTextInput(
-          session, "custom_title",
-          value = paste(
-            if (isTRUE(is_logistic)) "Regressão Logística Binária:" else "Ajuste Linear:",
-            input$var_y, "vs", input$var_x
-          )
-        )
-        updateTextInput(session, "custom_label_x", value = input$var_x)
-        updateTextInput(
-          session, "custom_label_y",
-          value = if (isTRUE(is_logistic)) "Probabilidade estimada" else input$var_y
-        )
-      } else if (input$active_tab == aba_residuos) {
-        updateTextInput(
-          session, "custom_title",
-          value = if (isTRUE(is_logistic))
-            "Resíduos de Deviance vs Probabilidades Ajustadas"
-          else "Resíduos vs Valores Ajustados"
-        )
-        updateTextInput(
-          session, "custom_label_x",
-          value = if (isTRUE(is_logistic)) "Probabilidades ajustadas" else "Valores Ajustados (Fitted)"
-        )
-        updateTextInput(
-          session, "custom_label_y",
-          value = if (isTRUE(is_logistic)) "Resíduos de deviance" else "Resíduos (Residuals)"
-        )
-      } else if (input$active_tab == aba_diagnostico) {
-        updateTextInput(
-          session, "custom_title",
-          value = if (isTRUE(is_logistic)) "Influência das observações (Distância de Cook)" else "Normal Q-Q Plot"
-        )
-        updateTextInput(
-          session, "custom_label_x",
-          value = if (isTRUE(is_logistic)) "Observação" else "Quantis Teóricos"
-        )
-        updateTextInput(
-          session, "custom_label_y",
-          value = if (isTRUE(is_logistic)) "Distância de Cook" else "Resíduos Padronizados"
-        )
-      }
-    }, ignoreInit = FALSE)
+    # Os textos vazios usam os padrões definidos em cada gráfico. Navegar não
+    # escreve nos inputs nem altera a assinatura da execução ou seus rótulos.
     
     # O modelo só é ajustado após o clique explícito.
     model_fit <- eventReactive(gatilho_execucao(), {
@@ -820,11 +791,11 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       )
 
       # Títulos e rótulos customizados
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else
+      title_val <- if (nzchar(input$resid_title %||% "")) input$resid_title else
         if (eh_glm) "Resíduos de Deviance vs Probabilidades Ajustadas" else "Resíduos vs Valores Ajustados"
-      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else
+      x_label <- if (nzchar(input$resid_label_x %||% "")) input$resid_label_x else
         if (eh_glm) "Probabilidades ajustadas" else "Valores Ajustados (Fitted)"
-      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else
+      y_label <- if (nzchar(input$resid_label_y %||% "")) input$resid_label_y else
         if (eh_glm) "Resíduos de deviance" else "Resíduos (Residuals)"
       
       g_theme <- switch(input$graph_theme,
@@ -862,10 +833,10 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           DistanciaCook = as.numeric(cook)
         )
         limite <- 4 / max(1, nrow(diag_cook))
-        title_val <- if (nzchar(input$custom_title)) input$custom_title else
+        title_val <- if (nzchar(input$qq_title %||% "")) input$qq_title else
           "Influência das observações (Distância de Cook)"
-        x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else "Observação"
-        y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Distância de Cook"
+        x_label <- if (nzchar(input$qq_label_x %||% "")) input$qq_label_x else "Observação"
+        y_label <- if (nzchar(input$qq_label_y %||% "")) input$qq_label_y else "Distância de Cook"
         g_theme <- switch(input$graph_theme,
                           "minimal" = theme_minimal(base_size = 14),
                           "classic" = theme_classic(base_size = 14),
@@ -898,9 +869,9 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       diag_data <- data.frame(ResiduosStd = std_resid)
       
       # Títulos e rótulos customizados
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else "Normal Q-Q Plot"
-      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else "Quantis Teóricos"
-      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Resíduos Padronizados"
+      title_val <- if (nzchar(input$qq_title %||% "")) input$qq_title else "Normal Q-Q Plot"
+      x_label <- if (nzchar(input$qq_label_x %||% "")) input$qq_label_x else "Quantis Teóricos"
+      y_label <- if (nzchar(input$qq_label_y %||% "")) input$qq_label_y else "Resíduos Padronizados"
       
       g_theme <- switch(input$graph_theme,
                         "minimal" = theme_minimal(base_size = 14),
@@ -912,7 +883,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       
       ggplot(diag_data, aes(sample = ResiduosStd)) +
         stat_qq(color = "#495057", alpha = 0.7, size = 2.5) +
-        stat_qq_line(color = "#0d6efd", size = 1) +
+        stat_qq_line(color = "#0d6efd", linewidth = 1) +
         g_theme +
         labs(
           title = title_val,
@@ -1061,14 +1032,14 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                            "light"   = "theme_light(base_size = 14)",
                            "theme_minimal(base_size = 14)")
       
-      personalizar_ajuste <- identical(input$active_tab, aba_ajuste)
-      title_val <- if (personalizar_ajuste && nzchar(input$custom_title)) input$custom_title else {
+      # Os rótulos da reta são preservados, qualquer que seja a aba em exibição.
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else {
         if (mt == "logistico") paste("Regressão Logística Binária:", input$var_y, "vs", input$var_x)
         else if (mt == "linear") paste("Ajuste Linear:", input$var_y, "vs", input$var_x)
         else paste("Modelo Ajustado:", input$var_y, "vs", input$var_x)
       }
-      x_label <- if (personalizar_ajuste && nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-      y_label <- if (personalizar_ajuste && nzchar(input$custom_label_y)) {
+      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
+      y_label <- if (nzchar(input$custom_label_y)) {
         input$custom_label_y
       } else if (mt == "logistico") {
         "Probabilidade estimada"
@@ -1109,7 +1080,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           "# Gerar gráfico da reta ajustada com ggplot2 (com agrupamento)",
           sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", input$var_x, input$var_y, input$var_group, input$var_group),
           "  geom_point(alpha = 0.8, size = 2.5) +",
-          "  geom_smooth(method = 'lm', formula = y ~ x, size = 1.2) +",
+          "  geom_smooth(method = 'lm', formula = y ~ x, linewidth = 1.2) +",
           sprintf("  %s +", theme_code),
           "  labs("
         )
@@ -1118,7 +1089,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           "# Gerar gráfico da reta ajustada com ggplot2",
           sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", input$var_x, input$var_y),
           "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', size = 1.2) +",
+          "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +",
           sprintf("  %s +", theme_code),
           "  labs("
         )

@@ -72,7 +72,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
 
   # --- 3. Pacotes essenciais (CRAN) -----------------------------------------
   secao("2/4  Pacotes essenciais (CRAN)")
-  cran <- c("shiny","bslib","DT","ggplot2","readxl","readr","writexl","markdown","zip",
+  cran <- c("shiny","bslib","DT","ggplot2","readxl","readr","writexl","openxlsx","shinyWidgets","markdown","zip",
             "flextable","ggpubr","tibble","stringr","dplyr","tidyr","tidyselect",
             "scales","cowplot","ggrepel",
             "car","emmeans","effectsize","rstatix","rcompanion","vistributions")

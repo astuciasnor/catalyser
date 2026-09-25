@@ -1,7 +1,7 @@
 Package: catalyser
 Type: Package
 Title: CatalyseR: IDE Científica para Análise de Dados em R
-Version: 0.1.8
+Version: 0.1.9
 Author: Evaldo Silva [aut, cre]
 Maintainer: Evaldo Silva <astuciasnor@gmail.com>
 Authors@R: c(
@@ -20,6 +20,7 @@ Imports:
     later,
     bslib,
     ggplot2,
+    ggfortify,
     DT,
     readxl,
     readr,
@@ -27,6 +28,8 @@ Imports:
     markdown,
     zip,
     writexl,
+    openxlsx,
+    shinyWidgets,
     flextable,
     ggpubr,
     broom,
@@ -38,10 +41,13 @@ Imports:
     tidyselect,
     scales,
     cowplot,
+    MASS,
+    nlme,
     ggrepel,
     car,
     emmeans,
     effectsize,
+    pwr,
     rstatix,
     rcompanion,
     vistributions,
@@ -55,10 +61,7 @@ Suggests:
     RColorBrewer,
     leaflet,
     hexbin,
-    multcompView,
-    tsibble,
-    feasts,
-    fabletools
+    multcompView
 Remotes:
     astuciasnor/EAPADados
 Depends: R (>= 4.3.0)

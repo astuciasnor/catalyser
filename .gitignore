@@ -23,3 +23,9 @@ src/*.so
 ..Rcheck/
 instalar_dependencias.R
 .fuse_hidden*
+
+# Artefatos de desenvolvimento do app (nao versionar)
+inst/app/app.R.bak_*
+inst/app/_log_*.txt
+inst/app/probe_*.png
+inst/app/rodar_*.R

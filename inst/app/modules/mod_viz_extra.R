@@ -184,9 +184,9 @@ mod_scatter_server <- function(id, data_rv, import_info) {
       }
       if (isTRUE(input$reg_line)) {
         if (has_grp) {
-          p <- p + geom_smooth(method = "lm", se = isTRUE(input$reg_se), linewidth = 1)
+          p <- p + geom_smooth(method = "lm", formula = y ~ x, se = isTRUE(input$reg_se), linewidth = 1)
         } else {
-          p <- p + geom_smooth(method = "lm", se = isTRUE(input$reg_se), color = "#E76F51", fill = "#E89B3C", linewidth = 1)
+          p <- p + geom_smooth(method = "lm", formula = y ~ x, se = isTRUE(input$reg_se), color = "#E76F51", fill = "#E89B3C", linewidth = 1)
         }
       }
       if (has_grp) p <- p + scale_color_manual(values = .ocean_pal) + scale_fill_manual(values = .ocean_pal)
@@ -208,7 +208,7 @@ mod_scatter_server <- function(id, data_rv, import_info) {
           sprintf("p <- ggplot(dados, aes(%s)) +", aes_str),
           sprintf("  geom_point(size = %s, alpha = %s%s) +", input$pt_size, input$pt_alpha,
                   if (has_grp) "" else ", color = '#0F3B5F'"),
-          if (isTRUE(input$reg_line)) sprintf("  geom_smooth(method = 'lm', se = %s) +", isTRUE(input$reg_se)) else NULL,
+          if (isTRUE(input$reg_line)) sprintf("  geom_smooth(method = 'lm', formula = y ~ x, se = %s) +", isTRUE(input$reg_se)) else NULL,
           if (has_grp) "  scale_color_manual(values = ocean) +" else NULL,
           "  theme_minimal(base_size = 14) +",
           sprintf("  labs(title = '%s', x = '%s', y = '%s')", gsub("'", "", title_val), input$var_x, input$var_y),

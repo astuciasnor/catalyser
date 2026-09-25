@@ -1,0 +1,19 @@
+project:
+  type: default
+  output-dir: saida
+  execute-dir: project
+  render:
+    - relatorios/relatorio_completo.qmd
+    - relatorios/relatorio_artigo.qmd
+
+lang: pt-BR
+bibliography: relatorios/referencias.bib
+csl: relatorios/apa.csl
+link-citations: true
+execute:
+  cache: false
+  freeze: false
+  echo: false
+  message: false
+  warning: true
+

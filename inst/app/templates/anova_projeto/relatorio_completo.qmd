@@ -1,0 +1,188 @@
+---
+title: "{{TITULO}}"
+subtitle: "Caderno completo · da base preparada à comparação dos grupos"
+author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
+date: today
+format:
+  html:
+    theme: [cosmo, ocean.scss]
+    title-block-banner: "#0F3B5F"
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    code-summary: "Ver código de apresentação"
+    code-tools: true
+    embed-resources: true
+    fig-width: 7
+    fig-height: 4.6
+    fig-dpi: 150
+execute:
+  echo: true
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_completo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+# Como usar este caderno
+
+Este documento acompanha o percurso completo da ANOVA. Os cálculos vivem em
+`R/analise.R`; os chunks abaixo apenas apresentam os objetos produzidos por
+ele. As tabelas CSV e as figuras PNG em `saida/` são cópias para consulta e não
+alimentam o relatório. Cada Render começa em uma sessão nova.
+
+**Os textos são sugestões para estudo e adaptação.** Os números se atualizam
+com o script, mas a interpretação depende da pergunta, das unidades e do
+delineamento da pesquisa.
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+## Dados e preparo
+
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR
+registrou o preparo no início de `R/analise.R` e guardou a base adotada em
+`dados/processados/{{ARQUIVO_BASE}}`. O script reconstrói o percurso, confere a
+base e usa a fotografia adotada para impedir mudanças silenciosas no Render.
+
+`r texto_amostra`
+
+## Modelo
+
+Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey, com
+intervalos de confiança de `r ic_percentual`%. Os pressupostos foram examinados
+pelos testes de Shapiro-Wilk e de Levene e pelos gráficos de resíduos.
+
+# Exploração
+
+```{r}
+#| label: tbl-resumo-exploracao
+#| tbl-cap: "Resumo por grupo antes do teste: tamanho, centro e dispersão."
+flextable_ocean(tabela_resumo_exibir[, 1:5])
+```
+
+```{r}
+#| label: fig-boxplot
+#| fig-cap: "Distribuição da resposta em cada grupo, com as observações sobrepostas."
+grafico_boxplot
+```
+
+# Resultados
+
+## A saída bruta, uma vez
+
+A saída abaixo ajuda você a reconhecer o resultado de `summary()` fora deste
+projeto. As tabelas seguintes apresentam os mesmos números de forma organizada.
+
+```{r}
+#| label: console-modelo
+resumo_console
+```
+
+`r texto_anova`
+
+```{r}
+#| label: tbl-anova
+#| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
+flextable_ocean(tabela_anova_exibir)
+```
+
+`r texto_efeito`
+
+```{r}
+#| label: tbl-efeito
+#| tbl-cap: "Tamanho do efeito do fator."
+flextable_ocean(tabela_efeito)
+```
+
+## Comparações entre os grupos
+
+`r texto_tukey`
+
+```{r}
+#| label: tbl-tukey
+#| tbl-cap: "Comparações entre pares pelo teste de Tukey, com intervalos de confiança e p-valores ajustados."
+flextable_ocean(tabela_tukey_exibir)
+```
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "Resumo por grupo com as letras do teste de Tukey."
+flextable_ocean(tabela_resumo_exibir)
+```
+
+```{r}
+#| label: fig-barras
+#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do teste de Tukey."
+grafico_barras
+```
+
+# Diagnósticos
+
+## Independência e delineamento
+
+A independência não é comprovada por um gráfico ou teste. Confira a unidade
+experimental, medidas repetidas, tanques, locais e outras formas de
+agrupamento antes de interpretar a ANOVA.
+
+## Homogeneidade das variâncias
+
+```{r}
+#| label: fig-residuos
+#| fig-cap: "Resíduos versus valores ajustados; faixas de alturas muito diferentes sugerem variâncias desiguais."
+grafico_residuos
+```
+
+## Normalidade dos resíduos
+
+```{r}
+#| label: fig-qq
+#| fig-cap: "Gráfico Q-Q dos resíduos padronizados do modelo."
+grafico_qq
+```
+
+```{r}
+#| label: tbl-testes
+#| tbl-cap: "Testes formais complementares à inspeção gráfica e ao delineamento."
+flextable_ocean(tabela_testes)
+```
+
+`r texto_pressupostos`
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r alerta_modelo`
+
+# Conclusão
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Reproduzir e adaptar
+
+Abra o arquivo `.Rproj`, reinicie o R e renderize este documento. Para alterar
+os cálculos, edite `R/analise.R`. Para amadurecer a argumentação científica,
+edite os QMDs. Preserve os dados de entrada e registre qualquer mudança feita
+na base preparada.
+
+## Ambiente computacional
+
+```{r}
+#| label: ambiente
+#| echo: false
+cat(registro_ambiente, sep = "\n")
+```
+
+# Referências

@@ -1,6 +1,8 @@
 # CatalyseR — roteiro de pequenas atividades
 
-Registrado em 21/09/2026. Planejamento autorizado; implementação ainda não autorizada.
+Registrado em 21/09/2026. O autor autorizou, no recorte da F01, a implementação
+das três análises de Frequências e Proporções; outras mudanças continuam exigindo
+autorização específica.
 
 Este é o lugar para guardar a fila, não uma lista para copiar inteira no Focus
 To-Do. O escopo e as referências ficam em
@@ -75,18 +77,21 @@ no caminho em uso deve receber uma tarefa pequena e específica.
 
 ## Primeira retirada — somente duas atividades
 
-### F01 — Etapa 1: testar Preparar Dados · 40 minutos
+### F01 — Reestruturar Menus e Módulos da CatalyseR · 25 minutos
 
-O autor percorre o caminho de Preparar Dados e relata os problemas observados.
-O agente organiza cada relato como defeito comprovado, dúvida de uso ou melhoria
-de clareza, reproduz o que for possível e prepara evidências e um recorte de
-correção para autorização. Não mudar menus nem código neste bloco.
+O autor confere a localização do grupo e revisa uma execução de cada análise. O
+agente mantém o Qui-quadrado de independência, com Fisher opcional, no mesmo
+motor, execução e exportação; implementa **uma proporção**, **duas proporções**
+e **Qui-quadrado de aderência** como módulos completos. As três exigem unidades
+independentes, registram a configuração e podem ser levadas ao Projeto R.
+McNemar continua em Testes Não Paramétricos quando for implementado. Preparar
+Dados será testado em etapa separada.
 
-**Pronto quando:** os problemas do percurso estiverem registrados com o ponto em
-que surgem, efeito observado e próximo passo pequeno. A atividade pode pausar
-com uma lista parcial; não precisa resolver tudo em um bloco.
+**Pronto quando:** o autor aprovar a posição e percorrer, com uma base de exemplo,
+uma das novas telas e sua exportação; o agente confirmar cálculo, limites e um
+único acesso ao Qui-quadrado de independência.
 
-### F02 — Escolher o exemplo de uma proporção · 25 minutos
+### F03 — Escolher o exemplo de uma proporção · 25 minutos
 
 O agente procura um exemplo documentado no EAPADados e apresenta a pergunta,
 o que conta como sucesso, o denominador e a unidade observada. O autor aprova
@@ -161,15 +166,21 @@ hipóteses continuam no plano principal. Esta fila não é condição para fecha
 
 ## Estado para a próxima conversa
 
-**Etapa atual:** estrutura visual do novo grupo aplicada e aguardando conferência
-do autor; F01 ainda não iniciou o relato de problemas de Preparar Dados.
-**Autorização para código neste roteiro:** nenhuma.
-**Atividades disponíveis:** F01 e F02. Não presumir que já foram inseridas no Focus.
+**Etapa atual:** F01, **Reestruturar Menus e Módulos da CatalyseR**, está
+concluída, aprovada e testada pelo autor. F02, **Reformular Menu Explorando os
+Dados (antigo Descrevendo Dados)**, está em andamento. Não oferecer outra
+atividade até novo pedido do autor.
+**Autorização para código neste roteiro:** concedida para a F01: implementação
+completa de uma proporção, duas proporções e Qui-quadrado de aderência, inclusive
+limites de desenho, registro e Projeto R. Nenhum outro recorte foi autorizado.
+**Atividades disponíveis:** nenhuma nova atividade está sendo oferecida. F03
+permanece guardada para quando o autor pedir.
 
 | Atividade | Estado | Evidência / decisão |
 |---|---|---|
-| F01 | Pendente — relato e teste de Preparar Dados | Em 21/09/2026, o autor redefiniu a primeira etapa para testar Preparar Dados antes de decidir a ordem dos menus. Aguardar os problemas observados; o agente ainda não altera código nesse recorte. |
-| F02 | Agendada — próxima no Focus | Agente verificou em 21/09/2026 `EAPADados::lagostas_kelp_sexo`: 1.457 lagostas (663 fêmeas, 794 machos), origem documentada e limite de armadilhas/sítios. Aguardar escolha ou ajuste da pergunta pelo autor. |
+| F01 — Reestruturar Menus e Módulos da CatalyseR | Concluída — aprovada e testada pelo autor | Em 21/09/2026, o autor abriu a CatalyseR local e aprovou a nova organização de menus e módulos, inclusive Frequências e Proporções. O agente havia verificado sintaxe, cálculos de referência, registro e exportação. Não há McNemar ainda: ele continua explicitamente reservado a Testes Não Paramétricos. |
+| F02 — Reformular Menu Explorando os Dados (antigo Descrevendo Dados) | Em andamento | Recorte aberto pelo autor para transformar a descrição em exploração orientada por perguntas, retratos recomendados e encaminhamentos pedagógicos, sem escolher o teste pelo aluno. Ainda não há aprovação visual ou didática desta F02. |
+| F03 | Parcialmente preparada — ainda não iniciada no Focus | A tela real de Uma proporção já existe como resultado técnico da F01. Falta somente a escolha didática do exemplo, pergunta, sucesso, denominador e unidade observada; não há aprovação científica desse exemplo. Agente verificou em 21/09/2026 `EAPADados::lagostas_kelp_sexo`: 1.457 lagostas (663 fêmeas, 794 machos), origem documentada e limite de armadilhas/sítios. |
 
 **Registro da retomada — 21/09/2026.** O agente preparou as propostas de F01 e
 F02 sem alterar código. Verificação técnica não equivale à aprovação científica ou
@@ -178,12 +189,103 @@ se uma decisão não for tomada, registrar a preferência já definida e retomar
 ponto restante em outro bloco. F01 foi iniciada pelo autor como teste de Preparar
 Dados; F02 fica reservada como a próxima atividade, sem criar outras pendências.
 
-**Preparação visual autorizada — 21/09/2026.** Antes de F01/F02, o agente
-adicionou somente a estrutura vazia de **Frequências e Proporções** após
-Preparar Dados (ícone de gráfico de pizza) e moveu o atalho de Ajuda ao lado de
-Sobre. Não foram criadas análises nem módulos. A sintaxe de `app.R` foi conferida;
-aguardar a conferência visual do autor na CatalyseR local. Esta verificação técnica
-não aprova a ordem pedagógica do catálogo.
+**Preparação visual — 21/09/2026.** Antes de F01/F02, o agente adicionou somente
+a estrutura vazia de **Frequências e Proporções** após **Descrevendo Dados**
+(ícone de gráfico de pizza) e moveu o atalho de Ajuda ao lado de Sobre. Não foram
+criadas análises nem módulos. Agente verificou a sintaxe de `app.R`; o autor
+aprovou a aparência, a exposição dos menus e o ícone. Esta aprovação visual não
+aprova ainda a ordem pedagógica das análises dentro do grupo.
+
+**Marco de trajetória — 21/09/2026.** O commit `6add73f` (`docs: registrar
+roteiro Focus v1`) registra o plano de prioridades e este roteiro. Ele não inclui
+as outras mudanças pendentes do repositório. Próximo passo técnico de F01,
+somente se o autor autorizar: executar a CatalyseR local e o carregamento de
+`registro_tratamentos.R` para reproduzir o percurso, sem editar arquivos.
+
+**Verificação técnica de F01 — 21/09/2026.** O autor autorizou a execução sem
+edição. O registro de tratamentos foi carregado e expôs os 12 tratamentos. Neste
+terminal, o carregamento padrão falha ao interpretar o símbolo `µ` por causa da
+localidade; a leitura UTF-8 explícita carregou o mesmo arquivo, com um aviso de
+tradução. O acesso ao Qui-quadrado de independência/Fisher foi movido sem mudar
+seus identificadores de módulo, registro ou exportação. Os menus foram ordenados
+como Paramétricos → Não Paramétricos → Regressão → Regressão Não Linear. Próximo
+passo pequeno do autor: conferir essa sequência e abrir o Qui-quadrado em
+Frequências e Proporções; o agente confirma que não há acesso duplicado antes de
+propor as três análises novas.
+
+**Implementação autorizada de F01 — 21/09/2026.** O autor autorizou a
+implementação completa de Uma proporção, Duas proporções e Qui-quadrado de
+aderência. O agente criou três telas em Frequências e Proporções, um motor comum
+de cálculo e replay, registro de execução e código passo a passo para o Projeto
+R. Uma proporção usa `binom.test()`; duas proporções exige dois grupos
+independentes e mostra Fisher como referência quando a frequência esperada é
+pequena; aderência exige proporções esperadas que somem 100% e impede o p-valor
+assintótico quando há frequência esperada menor que 1 ou mais de 20% menores que
+5. O agente verificou a sintaxe das telas e da exportação, calculou as três
+análises em dados de referência e confirmou o bloqueio de aderência inadequada.
+Neste terminal, a verificação integral por `source()` do motor continua limitada
+pela localidade UTF-8 já registrada; ao definir `LC_CTYPE` como `pt_BR.UTF-8`,
+a CatalyseR completou o carregamento inicial. Isso não equivale a aprovação do
+autor. Próximo passo pequeno: o autor abre uma tela com uma base conhecida e
+avalia se as entradas, alertas e narrativa estão claros.
+
+**Encerramento de F01 — 21/09/2026.** O autor abriu e testou a CatalyseR pelo
+caminho local, após trocar a porta ocupada, e aprovou Frequências e Proporções:
+Uma proporção, Duas proporções, Qui-quadrado de aderência e Qui-quadrado de
+independência. A F01 está concluída por aprovação do autor e evidência técnica
+anterior do agente. O autor observou corretamente que McNemar ainda não é um
+módulo disponível; permanece uma entrega futura em Testes Não Paramétricos.
+A atividade de exemplo aparece como F03 no Focus do autor; no roteiro ela fica
+parcialmente preparada, sem ser oferecida novamente até pedido explícito.
+
+**Retirada de Aplicações Bioestatísticas — 21/09/2026.** O autor concluiu que
+o menu e suas subabas criariam redundância: seus percursos pertencem aos módulos
+analíticos próprios da CatalyseR. O menu foi retirado, sem iniciar cálculos de
+bioecologia, fator de condição, estrutura de tamanhos, razão sexual ou CPUE.
+Comunicação de Resultados volta a suceder Mapas. O Laboratório de Conceitos
+continua no atalho da faixa direita; a remoção do logo da UFPA permanece.
+
+**Regressões de contagem — 21/09/2026.** Por solicitação do autor, entraram em
+Modelos de Regressão, depois da Regressão Logística Binária, a Regressão de
+Poisson e a Regressão Binomial Negativa. Ambas aceitam múltiplos preditores e
+offset opcional de esforço, área ou volume. Poisson calcula obrigatoriamente a
+dispersão de Pearson e, quando ela fica bem acima de 1, encaminha explicitamente
+para Binomial Negativa. As duas entregam razões de taxas com intervalo de
+confiança, AIC, dispersão e gráfico de resíduos; o código e o replay do Projeto
+R foram incluídos. Agente verificou o motor em cenários Poisson e
+superdisperso, o teste focal, a sintaxe e a abertura da aplicação. A aprovação
+visual e didática do autor ainda é necessária.
+
+**Séries Temporais como família própria — 21/09/2026.** Por solicitação do
+autor, Séries Temporais saiu de Modelos de Regressão e tornou-se menu de topo,
+entre Regressão Não Linear e Estatística Multivariada. O conteúdo continua
+exploratório e descritivo, exposto diretamente em três opções do menu:
+Visualizar e suavizar, Decomposição e Autocorrelação. Os cálculos usam `ts()`,
+`decompose()` e `acf()` do R base; os objetos são desenhados em `ggplot2` pelo
+método do `ggfortify`, com tema Ocean. ETS, ARIMA e previsão ficam
+explicitamente para a v2. Agente verificou a série mensal, os três objetos, as
+três entradas do menu, a sintaxe e a abertura da aplicação. A aprovação visual
+e didática do autor ainda é necessária.
+
+**Reserva de k-means — 21/09/2026.** Por decisão do autor, Estatística
+Multivariada agora exibe **Agrupamentos por k-means** após a Análise de
+Agrupamentos hierárquicos. É somente uma entrada de percurso futuro: não há
+cálculo, configuração, registro ou exportação implementados. A futura análise
+será independente do dendrograma e pedirá ao aluno um número de grupos; seu
+recorte de implementação continua dependente de autorização específica.
+
+**Exploração Visual dos Dados — 21/09/2026.** Por solicitação do autor, o
+antigo menu Visualizando Dados passou a se chamar **Exploração Visual dos
+Dados** e foi movido para depois de Explorando os Dados. A coleção reúne
+Histograma e densidade, Boxplot e violino, Dispersão e tendência, Duplo eixo Y,
+Barras, Rosca, Matriz de dispersão e Mapa de calor de correlação. Linhas para
+eixo ordenado foi preservado como apoio, sem duplicar a leitura temporal. As
+telas novas limitam o gráfico a uma coluna central de até 960 px e oferecem
+facetas onde a comparação por grupo faz sentido. O duplo eixo reescala a
+segunda série e traz alerta explícito contra comparar alturas entre escalas.
+Agente verificou sintaxe, posição do menu, interfaces e reescalonamento; falta
+aprovação visual e didática do autor. O capítulo de visualização do livro EAPA
+recebeu o crédito a *R for Data Science* (2ª ed.).
 
 Atualizar esta seção ao retomar: data, atividade, avanço, evidência e próximo passo.
 Separar “agente verificou” de “autor aprovou”. Não marcar conclusão por decurso de

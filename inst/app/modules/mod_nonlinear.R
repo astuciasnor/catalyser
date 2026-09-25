@@ -384,7 +384,7 @@ mod_nonlinear_server <- function(id, data_rv, import_info, model_type) {
       
       ggplot(diag_data, aes(sample = ResiduosStd)) +
         stat_qq(color = "#495057", alpha = 0.7, size = 2.5) +
-        stat_qq_line(color = "#0d6efd", size = 1) +
+        stat_qq_line(color = "#0d6efd", linewidth = 1) +
         g_theme +
         labs(
           title = title_val,
@@ -530,7 +530,7 @@ mod_nonlinear_server <- function(id, data_rv, import_info, model_type) {
           "grid <- curva_predita(fit_res)",
           sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", input$var_x, input$var_y),
           "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', size = 1.2) +", input$var_x, input$var_y),
+          sprintf("  geom_line(data = grid, aes(x = `%s`, y = `%s`), color = '#0d6efd', linewidth = 1.2) +", input$var_x, input$var_y),
           sprintf("  %s +", theme_code),
           "  labs(",
           sprintf("    title = '%s',", title_val),
@@ -553,8 +553,8 @@ mod_nonlinear_server <- function(id, data_rv, import_info, model_type) {
           "diag_data <- data.frame(Ajustados = fitted(fit_res$modelo), Residuos = residuals(fit_res$modelo))",
           "ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +",
           "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', size = 1) +",
-          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, size = 1) +",
+          "  geom_hline(yintercept = 0, linetype = 'dashed', color = '#dc3545', linewidth = 1) +",
+          "  geom_smooth(method = 'loess', formula = y ~ x, color = '#198754', fill = '#d1e7dd', se = FALSE, linewidth = 1) +",
           sprintf("  %s +", theme_code),
           "  labs(title = 'Resíduos vs Valores Ajustados', x = 'Valores Ajustados', y = 'Resíduos') +",
           "  theme(plot.title = element_text(face = 'bold'))",
@@ -563,7 +563,7 @@ mod_nonlinear_server <- function(id, data_rv, import_info, model_type) {
           "diag_data_qq <- data.frame(ResiduosStd = as.numeric(scale(residuals(fit_res$modelo))))",
           "ggplot(diag_data_qq, aes(sample = ResiduosStd)) +",
           "  stat_qq(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  stat_qq_line(color = '#0d6efd', size = 1) +",
+          "  stat_qq_line(color = '#0d6efd', linewidth = 1) +",
           sprintf("  %s +", theme_code),
           "  labs(title = 'Normal Q-Q Plot', x = 'Quantis Teóricos', y = 'Resíduos Padronizados') +",
           "  theme(plot.title = element_text(face = 'bold'))"

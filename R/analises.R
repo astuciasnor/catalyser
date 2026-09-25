@@ -520,12 +520,14 @@ catalyser_regressao <- function(dados, p, logistica = FALSE) {
       ggplot2::geom_smooth(
         method = if (logistica) "glm" else "lm",
         method.args = if (logistica) list(family = "binomial") else list(),
+        formula = y ~ x,
         se = TRUE
       )
     } else {
       ggplot2::geom_smooth(
         method = if (logistica) "glm" else "lm",
         method.args = if (logistica) list(family = "binomial") else list(),
+        formula = y ~ x,
         se = TRUE, color = "#E76F51"
       )
     }
@@ -543,6 +545,176 @@ catalyser_regressao <- function(dados, p, logistica = FALSE) {
     diagnosticos = diagnosticos,
     console = console,
     objeto = objeto
+  )
+}
+
+#' Regressão de Poisson ou Binomial Negativa para uma contagem
+#'
+#' Uma contagem não se comporta como uma medida contínua: zero é possível, os
+#' valores são inteiros e a variabilidade costuma crescer junto com a média.
+#' Esta função ajusta Poisson como ponto de partida e Binomial Negativa quando a
+#' dispersão observada pede uma margem de variação maior.
+#'
+#' @param dados Um data.frame.
+#' @param p Lista com `resposta`, `preditores`, `offset` opcional e
+#'   `nivel_confianca`.
+#' @param familia `"poisson"` ou `"binomial_negativa"`.
+#' @return Lista com narrativa, tabela de coeficientes, diagnóstico, gráfico,
+#'   pressupostos, console e o objeto do modelo.
+#' @export
+catalyser_regressao_contagem <- function(dados, p,
+                                          familia = c("poisson", "binomial_negativa")) {
+  # Escolha explicitamente qual motor estatístico será usado.
+  familia <- match.arg(familia)
+  # Leia os nomes escolhidos na interface e descarte repetições acidentais.
+  resposta <- as.character(catalyser_ou(p$resposta, ""))
+  preditores <- unique(as.character(catalyser_ou(p$preditores, character())))
+  offset <- as.character(catalyser_ou(p$offset, ""))
+  usar_offset <- isTRUE(p$usar_offset) && nzchar(offset)
+  # A resposta e pelo menos um preditor são necessários para a pergunta proposta.
+  if (!nzchar(resposta)) stop("Escolha a variável de contagem.", call. = FALSE)
+  if (!length(preditores)) stop("Escolha ao menos um preditor.", call. = FALSE)
+  if (resposta %in% preditores) {
+    stop("A resposta não pode ser usada também como preditor.", call. = FALSE)
+  }
+  if (usar_offset && offset %in% preditores) {
+    stop("O offset representa exposição e não deve ser usado também como preditor.", call. = FALSE)
+  }
+  # Confira todos os nomes antes de filtrar linhas da base.
+  colunas <- c(resposta, preditores, if (usar_offset) offset)
+  catalyser_colunas(dados, colunas)
+  # Remova somente os casos incompletos nas variáveis que entram neste ajuste.
+  preparo <- catalyser_completos(dados, colunas)
+  d <- preparo$dados
+  if (nrow(d) < 3L) {
+    stop("A regressão de contagem precisa de pelo menos três observações completas.", call. = FALSE)
+  }
+  # Garanta que a resposta realmente seja uma contagem inteira e não negativa.
+  y <- d[[resposta]]
+  if (!is.numeric(y) || any(!is.finite(y)) || any(y < 0) || any(abs(y - round(y)) > 1e-8)) {
+    stop("A resposta deve conter contagens inteiras não negativas, como número de indivíduos ou ocorrências.", call. = FALSE)
+  }
+  # O offset representa exposição e, por isso, precisa ser numérico e estritamente positivo.
+  offset_log <- NULL
+  if (usar_offset) {
+    exposicao <- d[[offset]]
+    if (!is.numeric(exposicao) || any(!is.finite(exposicao)) || any(exposicao <= 0)) {
+      stop("O offset precisa ser numérico e maior que zero em todas as linhas usadas no modelo.", call. = FALSE)
+    }
+    offset_log <- log(exposicao)
+    d$.catalyser_offset_log <- offset_log
+  }
+  # Monte a fórmula com os nomes reais das colunas, sem concatenar texto inseguro.
+  termos_formula <- c(preditores, if (usar_offset) "offset(.catalyser_offset_log)")
+  formula_modelo <- stats::reformulate(termos_formula, response = resposta)
+  # Ajuste o Poisson ou a Binomial Negativa com o offset explicitamente na fórmula.
+  modelo <- tryCatch(
+    if (identical(familia, "poisson")) {
+      stats::glm(formula_modelo, data = d, family = stats::poisson())
+    } else {
+      MASS::glm.nb(formula_modelo, data = d)
+    },
+    error = function(e) {
+      stop(sprintf("Não foi possível ajustar o modelo de contagem: %s", conditionMessage(e)), call. = FALSE)
+    }
+  )
+  # A dispersão de Pearson compara a variação residual com a esperada pelo modelo.
+  graus_liberdade <- stats::df.residual(modelo)
+  if (graus_liberdade <= 0L) {
+    stop("Faltam graus de liberdade residuais. Reduza o número de preditores ou use mais observações.", call. = FALSE)
+  }
+  residuos_pearson <- stats::residuals(modelo, type = "pearson")
+  dispersao <- sum(residuos_pearson^2, na.rm = TRUE) / graus_liberdade
+  # Construa intervalos de Wald na escala do log e depois volte à razão de taxas.
+  nivel <- as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
+  if (!is.finite(nivel) || nivel <= 0 || nivel >= 1) nivel <- 0.95
+  z_critico <- stats::qnorm((1 + nivel) / 2)
+  coeficientes_brutos <- as.data.frame(summary(modelo)$coefficients, check.names = FALSE)
+  nomes_colunas <- names(coeficientes_brutos)
+  estimativa <- coeficientes_brutos[[1]]
+  erro_padrao <- coeficientes_brutos[[2]]
+  estatistica_z <- coeficientes_brutos[[3]]
+  p_valor <- coeficientes_brutos[[length(nomes_colunas)]]
+  tabela <- data.frame(
+    Termo = rownames(coeficientes_brutos),
+    Estimativa = estimativa,
+    `Erro-padrão` = erro_padrao,
+    `z` = estatistica_z,
+    `p-valor` = p_valor,
+    `Razão de taxas` = exp(estimativa),
+    `IC 95% inferior` = exp(estimativa - z_critico * erro_padrao),
+    `IC 95% superior` = exp(estimativa + z_critico * erro_padrao),
+    check.names = FALSE
+  )
+  rownames(tabela) <- NULL
+  # Resuma ajuste e dispersão em uma tabela que também segue para o Projeto R.
+  indicadores <- c("N", "Linhas excluídas", "AIC", "Desvio residual", "GL residuais", "Dispersão de Pearson")
+  valores <- c(nrow(d), preparo$descartadas, stats::AIC(modelo), stats::deviance(modelo), graus_liberdade, dispersao)
+  if (identical(familia, "binomial_negativa")) {
+    indicadores <- c(indicadores, "Theta")
+    valores <- c(valores, modelo$theta)
+  }
+  diagnosticos <- data.frame(Indicador = indicadores, Valor = valores, check.names = FALSE)
+  # Traduza a dispersão em uma próxima decisão, sem declarar que o modelo é verdade final.
+  if (identical(familia, "poisson")) {
+    orientacao <- dplyr::case_when(
+      dispersao <= 1.5 ~ sprintf("A dispersão de Pearson foi %s, próxima de 1. Não há sinal forte de superdispersão por este diagnóstico; ainda examine o desenho e os resíduos.", catalyser_num(dispersao, 2L)),
+      dispersao <= 2 ~ sprintf("A dispersão de Pearson foi %s, acima de 1. Há variação residual extra; compare com a Regressão Binomial Negativa antes de concluir.", catalyser_num(dispersao, 2L)),
+      TRUE ~ sprintf("A dispersão de Pearson foi %s, bem acima de 1. O Poisson pode subestimar a incerteza; ajuste também a Regressão Binomial Negativa.", catalyser_num(dispersao, 2L))
+    )
+  } else {
+    orientacao <- sprintf("A Binomial Negativa permite variação maior que a média. A dispersão de Pearson foi %s; interprete-a junto aos resíduos, ao theta e ao delineamento.", catalyser_num(dispersao, 2L))
+  }
+  # Descreva o que foi ajustado sem transformar associação estatística em causalidade.
+  nome_familia <- if (identical(familia, "poisson")) "Poisson" else "Binomial Negativa"
+  narrativa <- sprintf(
+    "A regressão de %s para '%s' foi ajustada com %d observações e %d preditor(es)%s. AIC = %s e dispersão de Pearson = %s. %s",
+    nome_familia, resposta, nrow(d), length(preditores),
+    if (usar_offset) sprintf(", com offset log(%s)", offset) else "",
+    catalyser_num(stats::AIC(modelo), 2L), catalyser_num(dispersao, 2L), orientacao
+  )
+  # Liste as verificações que dependem de ciência do estudo, não apenas de software.
+  pressupostos <- c(
+    "Cada linha deve representar uma unidade de contagem definida pelo delineamento.",
+    "A independência vem da amostragem, do experimento ou do tratamento de agrupamentos, não de um p-valor.",
+    "A forma log-linear e a ausência de padrões fortes nos resíduos devem ser avaliadas antes da interpretação final.",
+    if (usar_offset) sprintf("O offset '%s' precisa representar exposição mensurada sem erro relevante.", offset),
+    if (identical(familia, "poisson")) "A dispersão de Pearson orienta a comparação com Binomial Negativa." else "A Binomial Negativa acomoda superdispersão, mas não corrige dependência entre observações."
+  )
+  # Desenhe os resíduos de Pearson contra os valores ajustados com a paleta Ocean.
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    dados_grafico <- data.frame(
+      ajustados = stats::fitted(modelo),
+      residuos_pearson = residuos_pearson
+    )
+    grafico <- ggplot2::ggplot(dados_grafico, ggplot2::aes(x = .data$ajustados, y = .data$residuos_pearson)) +
+      ggplot2::geom_hline(yintercept = 0, color = "#0F3B5F", linewidth = 0.6) +
+      ggplot2::geom_point(color = "#2E7D8F", alpha = 0.78, size = 2.3) +
+      ggplot2::geom_smooth(method = "loess", formula = y ~ x, se = FALSE, color = "#E76F51", linewidth = 0.9) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(
+        title = paste("Diagnóstico de resíduos:", nome_familia),
+        subtitle = "Resíduos de Pearson versus contagens ajustadas",
+        x = "Contagem ajustada",
+        y = "Resíduo de Pearson"
+      )
+  }
+  # Preserve a saída original para quem quiser conferir o ajuste no console.
+  console <- utils::capture.output(summary(modelo))
+  # Entregue componentes separados para a interface, o relatório e o Projeto R.
+  list(
+    narrativa = narrativa,
+    tabela = tabela,
+    grafico = grafico,
+    pressupostos = pressupostos,
+    diagnosticos = diagnosticos,
+    console = console,
+    objeto = modelo,
+    dispersao = dispersao,
+    orientacao_dispersao = orientacao,
+    resumo = list(n = nrow(d), aic = stats::AIC(modelo), dispersao = dispersao,
+                  theta = if (identical(familia, "binomial_negativa")) modelo$theta else NA_real_)
   )
 }
 
@@ -640,6 +812,442 @@ catalyser_teste_t <- function(dados, p) {
     diagnosticos = data.frame(Indicador = "Estimativa", Valor = unname(teste$estimate)[1]),
     console = utils::capture.output(print(teste)), objeto = teste
   )
+}
+
+#' ANOVA de medidas repetidas
+#'
+#' Compara a média da mesma unidade em duas ou mais ocasiões ou condições. Os
+#' dados devem estar em formato longo, com uma linha por unidade e ocasião.
+#' @param dados Um data.frame.
+#' @param p Lista com `resposta`, `sujeito`, `momento` e `nivel_confianca`.
+#' @return Lista com narrativa, tabela, gráfico, pressupostos e modelo.
+#' @export
+catalyser_anova_medidas_repetidas <- function(dados, p) {
+  resposta <- as.character(catalyser_ou(p$resposta, ""))
+  sujeito <- as.character(catalyser_ou(p$sujeito, ""))
+  momento <- as.character(catalyser_ou(p$momento, ""))
+  catalyser_colunas(dados, c(resposta, sujeito, momento))
+  if (length(unique(c(resposta, sujeito, momento))) != 3L) {
+    stop("Resposta, unidade e ocasião precisam ser três variáveis diferentes.", call. = FALSE)
+  }
+  if (!is.numeric(dados[[resposta]])) {
+    stop("A resposta da ANOVA de medidas repetidas precisa ser numérica.", call. = FALSE)
+  }
+  preparo <- catalyser_completos(dados, c(resposta, sujeito, momento))
+  d <- preparo$dados[c(resposta, sujeito, momento)]
+  names(d) <- c("valor", "sujeito", "momento")
+  d$sujeito <- droplevels(as.factor(d$sujeito))
+  d$momento <- droplevels(as.factor(d$momento))
+  if (nlevels(d$momento) < 2L) stop("Escolha uma ocasião com pelo menos dois níveis.", call. = FALSE)
+  if (any(duplicated(d[c("sujeito", "momento")]))) {
+    stop("Cada unidade deve ter uma única observação em cada ocasião. Agregue réplicas internas antes da ANOVA.", call. = FALSE)
+  }
+  presencas <- stats::xtabs(~ sujeito + momento, data = d) > 0
+  sujeitos_completos <- rownames(presencas)[rowSums(presencas) == ncol(presencas)]
+  linhas_antes_completude <- nrow(d)
+  d <- droplevels(d[d$sujeito %in% sujeitos_completos, , drop = FALSE])
+  if (nlevels(d$sujeito) < 2L) stop("São necessárias pelo menos duas unidades medidas em todas as ocasiões.", call. = FALSE)
+
+  modelo <- stats::aov(valor ~ sujeito + momento, data = d)
+  resumo <- summary(modelo)[[1]]
+  linha_momento <- match("momento", trimws(rownames(resumo)))
+  linha_residuo <- nrow(resumo)
+  f_valor <- resumo[["F value"]][linha_momento]
+  p_valor <- resumo[["Pr(>F)"]][linha_momento]
+  gl_momento <- resumo[["Df"]][linha_momento]
+  gl_residuo <- resumo[["Df"]][linha_residuo]
+  ss_momento <- resumo[["Sum Sq"]][linha_momento]
+  ss_residuo <- resumo[["Sum Sq"]][linha_residuo]
+  eta_parcial <- ss_momento / (ss_momento + ss_residuo)
+  tabela <- data.frame(
+    `Fonte de variação` = c("Ocasião ou condição", "Erro dentro das unidades"),
+    `Graus de liberdade` = c(gl_momento, gl_residuo),
+    `Soma de quadrados` = c(ss_momento, ss_residuo),
+    `Quadrado médio` = c(resumo[["Mean Sq"]][linha_momento], resumo[["Mean Sq"]][linha_residuo]),
+    F = c(f_valor, NA_real_), `p-valor` = c(p_valor, NA_real_),
+    check.names = FALSE
+  )
+  residuos <- stats::residuals(modelo)
+  shapiro <- if (length(residuos) >= 3L && length(residuos) <= 5000L && stats::sd(residuos) > 0) {
+    stats::shapiro.test(residuos)
+  } else NULL
+  pressupostos <- data.frame(
+    Verificação = c("Unidades completas", "Normalidade dos resíduos", "Esfericidade"),
+    Resultado = c(
+      sprintf("%d unidades em %d ocasiões", nlevels(d$sujeito), nlevels(d$momento)),
+      if (is.null(shapiro)) "Não estimável" else sprintf("W = %s; %s", catalyser_num(shapiro$statistic), catalyser_p(shapiro$p.value)),
+      if (nlevels(d$momento) == 2L) "Automática com duas ocasiões" else "Precisa ser avaliada antes da conclusão; correções de Greenhouse-Geisser ficam para a versão avançada"
+    ), check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    medias <- stats::aggregate(valor ~ momento, d, mean)
+    grafico <- ggplot2::ggplot(d, ggplot2::aes(x = .data$momento, y = .data$valor, group = .data$sujeito)) +
+      ggplot2::geom_line(color = "#62B6B7", alpha = 0.35) +
+      ggplot2::geom_point(color = "#2E7D8F", alpha = 0.55) +
+      ggplot2::geom_line(data = medias, ggplot2::aes(x = .data$momento, y = .data$valor, group = 1),
+                         color = "#E76F51", linewidth = 1.2, inherit.aes = FALSE) +
+      ggplot2::geom_point(data = medias, ggplot2::aes(x = .data$momento, y = .data$valor),
+                          color = "#E76F51", size = 3, inherit.aes = FALSE) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(title = "Trajetórias das unidades e média em cada ocasião", x = momento, y = resposta)
+  }
+  narrativa <- sprintf(
+    "A ANOVA de medidas repetidas comparou %d ocasiões em %d unidades completas: F(%d, %d) = %s, %s. Eta quadrado parcial = %s.",
+    nlevels(d$momento), nlevels(d$sujeito), gl_momento, gl_residuo,
+    catalyser_num(f_valor), catalyser_p(p_valor), catalyser_num(eta_parcial)
+  )
+  list(narrativa = narrativa, tabela = tabela, grafico = grafico,
+       pressupostos = pressupostos,
+       diagnosticos = data.frame(Indicador = c("Linhas excluídas", "Unidades completas", "Eta quadrado parcial"),
+                                 Valor = c(preparo$descartadas + linhas_antes_completude - nrow(d),
+                                           nlevels(d$sujeito), eta_parcial)),
+       console = utils::capture.output(summary(modelo)), objeto = modelo)
+}
+
+#' Teste de Friedman para k condições pareadas
+#'
+#' Compara três ou mais condições observadas nos mesmos indivíduos ou blocos.
+#' É o correspondente não paramétrico da ANOVA de medidas repetidas. A base deve
+#' estar no formato longo e completa: cada bloco precisa aparecer uma vez em cada
+#' condição.
+#'
+#' @param dados Um data.frame no formato longo.
+#' @param p Lista com `resposta`, `condicao`, `bloco`, `posteste` e
+#'   `nivel_confianca`.
+#' @return Lista com narrativa, tabela, comparações, gráfico e diagnóstico.
+#' @export
+catalyser_friedman <- function(dados, p) {
+  resposta <- as.character(catalyser_ou(p$resposta, ""))
+  condicao <- as.character(catalyser_ou(p$condicao, ""))
+  bloco <- as.character(catalyser_ou(p$bloco, ""))
+  catalyser_colunas(dados, c(resposta, condicao, bloco))
+  if (length(unique(c(resposta, condicao, bloco))) != 3L) {
+    stop("Resposta, condição e bloco precisam ser três variáveis diferentes.", call. = FALSE)
+  }
+  if (!is.numeric(dados[[resposta]])) {
+    stop("A resposta do teste de Friedman precisa ser numérica.", call. = FALSE)
+  }
+
+  d <- dados[c(resposta, condicao, bloco)]
+  names(d) <- c("valor", "condicao", "bloco")
+  incompletas <- !stats::complete.cases(d) | !is.finite(d$valor)
+  if (any(incompletas)) {
+    stop(sprintf(
+      "Há %d linha(s) incompleta(s). O Friedman exige cada bloco completo em todas as condições; complete ou retire o bloco antes de analisar.",
+      sum(incompletas)
+    ), call. = FALSE)
+  }
+  d$condicao <- droplevels(as.factor(d$condicao))
+  d$bloco <- droplevels(as.factor(d$bloco))
+  if (nlevels(d$condicao) < 3L) {
+    stop("O Friedman compara pelo menos três condições pareadas.", call. = FALSE)
+  }
+  if (nlevels(d$bloco) < 2L) {
+    stop("São necessários ao menos dois blocos ou indivíduos repetidos.", call. = FALSE)
+  }
+  if (any(duplicated(d[c("bloco", "condicao")]))) {
+    stop("Cada bloco deve ter apenas uma observação por condição. Agregue subamostras antes do Friedman.", call. = FALSE)
+  }
+  presencas <- stats::xtabs(~ bloco + condicao, data = d) > 0
+  blocos_incompletos <- rownames(presencas)[rowSums(presencas) != ncol(presencas)]
+  if (length(blocos_incompletos)) {
+    exemplos <- paste(utils::head(blocos_incompletos, 5L), collapse = ", ")
+    complemento <- if (length(blocos_incompletos) > 5L) ", ..." else ""
+    stop(sprintf(
+      "Os blocos precisam ser balanceados: %d bloco(s) não têm todas as condições (%s%s).",
+      length(blocos_incompletos), exemplos, complemento
+    ), call. = FALSE)
+  }
+
+  d <- d[order(d$bloco, d$condicao), , drop = FALSE]
+  teste <- stats::friedman.test(y = d$valor, groups = d$condicao, blocks = d$bloco)
+  alfa <- 1 - as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
+  if (!is.finite(alfa) || alfa <= 0 || alfa >= 1) alfa <- 0.05
+  posteste <- NULL
+  pares <- NULL
+  metodo_posteste <- "Não aplicado: o teste global não indicou diferença."
+  if (is.finite(teste$p.value) && teste$p.value < alfa) {
+    metodo_escolhido <- as.character(catalyser_ou(p$posteste, "holm"))
+    usar_nemenyi <- identical(metodo_escolhido, "nemenyi") &&
+      requireNamespace("PMCMRplus", quietly = TRUE)
+    if (usar_nemenyi) {
+      pares <- PMCMRplus::frdAllPairsNemenyiTest(
+        y = d$valor, groups = d$condicao, blocks = d$bloco
+      )
+      matriz_p <- pares$p.value
+      metodo_posteste <- "Nemenyi para todas as comparações pareadas."
+    } else {
+      pares <- stats::pairwise.wilcox.test(
+        d$valor, d$condicao, paired = TRUE, p.adjust.method = "holm"
+      )
+      matriz_p <- pares$p.value
+      metodo_posteste <- if (identical(metodo_escolhido, "nemenyi")) {
+        "Holm com Wilcoxon pareado: PMCMRplus não está instalado para executar Nemenyi."
+      } else {
+        "Wilcoxon pareado, com correção de Holm."
+      }
+    }
+    posicoes <- which(!is.na(matriz_p), arr.ind = TRUE)
+    if (nrow(posicoes)) {
+      posteste <- data.frame(
+        `Condição 1` = rownames(matriz_p)[posicoes[, 1]],
+        `Condição 2` = colnames(matriz_p)[posicoes[, 2]],
+        `p ajustado` = matriz_p[posicoes],
+        `Leitura` = ifelse(matriz_p[posicoes] < alfa, "Há evidência de diferença", "Sem evidência de diferença"),
+        check.names = FALSE, row.names = NULL
+      )
+    }
+  }
+  tabela <- data.frame(
+    `Qui-quadrado de Friedman` = unname(teste$statistic),
+    `Graus de liberdade` = unname(teste$parameter),
+    `p-valor` = teste$p.value,
+    `Condições` = nlevels(d$condicao),
+    `Blocos completos` = nlevels(d$bloco),
+    check.names = FALSE
+  )
+  pressupostos <- data.frame(
+    Verificação = c("Formato da base", "Blocos balanceados", "Independência entre blocos", "Escala da resposta"),
+    Resultado = c(
+      "Formato longo: uma linha por bloco e condição",
+      sprintf("%d blocos, todos com %d condições", nlevels(d$bloco), nlevels(d$condicao)),
+      "Depende do delineamento e da coleta",
+      "Ao menos ordinal; o teste trabalha com postos e não exige normalidade"
+    ), check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    medias <- stats::aggregate(valor ~ condicao, d, mean)
+    grafico <- ggplot2::ggplot(d, ggplot2::aes(x = .data$condicao, y = .data$valor, group = .data$bloco)) +
+      ggplot2::geom_line(color = "#62B6B7", alpha = 0.38) +
+      ggplot2::geom_point(color = "#2E7D8F", alpha = 0.62) +
+      ggplot2::geom_line(data = medias, ggplot2::aes(x = .data$condicao, y = .data$valor, group = 1),
+                          inherit.aes = FALSE, color = "#E76F51", linewidth = 1.2) +
+      ggplot2::geom_point(data = medias, ggplot2::aes(x = .data$condicao, y = .data$valor),
+                           inherit.aes = FALSE, color = "#E76F51", size = 3) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(
+        title = "Condições pareadas: trajetórias dos blocos e médias",
+        subtitle = "Linhas claras: blocos individuais. Linha coral: média por condição.",
+        x = condicao, y = resposta
+      )
+  }
+  houve_diferenca <- is.finite(teste$p.value) && teste$p.value < alfa
+  leitura <- if (houve_diferenca) {
+    "Há evidência de que ao menos uma condição difere; consulte o pós-teste para identificar os pares."
+  } else {
+    "Não há evidência de diferença entre as condições."
+  }
+  narrativa <- sprintf(
+    "O teste de Friedman, correspondente não paramétrico da ANOVA de medidas repetidas, comparou %d condições em %d blocos completos: qui-quadrado(%d) = %s e %s. %s",
+    nlevels(d$condicao), nlevels(d$bloco), as.integer(teste$parameter),
+    catalyser_num(teste$statistic), catalyser_p(teste$p.value), leitura
+  )
+  list(
+    narrativa = narrativa, tabela = tabela, comparacoes = posteste, grafico = grafico,
+    pressupostos = pressupostos,
+    diagnosticos = data.frame(
+      Indicador = c("Linhas analisadas", "Blocos completos", "Condições", "Pós-teste"),
+      Valor = c(nrow(d), nlevels(d$bloco), nlevels(d$condicao), metodo_posteste),
+      check.names = FALSE
+    ),
+    console = c(utils::capture.output(print(teste)), "", "Pós-teste:",
+                if (is.null(posteste)) metodo_posteste else utils::capture.output(print(posteste))),
+    objeto = list(friedman = teste, comparacoes = pares)
+  )
+}
+
+#' Teste de McNemar para duas respostas binárias pareadas
+#'
+#' Compara proporções em duas medições feitas nas mesmas unidades, como antes e
+#' depois ou dois métodos aplicados ao mesmo indivíduo.
+#'
+#' @param dados Um data.frame, com uma linha por par.
+#' @param p Lista com `variavel_1`, `variavel_2` e `correcao`.
+#' @return Lista com narrativa, tabela, gráfico e resultado do teste.
+#' @export
+catalyser_mcnemar <- function(dados, p) {
+  variavel_1 <- as.character(catalyser_ou(p$variavel_1, ""))
+  variavel_2 <- as.character(catalyser_ou(p$variavel_2, ""))
+  catalyser_colunas(dados, c(variavel_1, variavel_2))
+  if (identical(variavel_1, variavel_2)) {
+    stop("Escolha duas variáveis binárias diferentes.", call. = FALSE)
+  }
+  d <- dados[stats::complete.cases(dados[c(variavel_1, variavel_2)]), c(variavel_1, variavel_2), drop = FALSE]
+  if (!nrow(d)) stop("Não há pares completos para o teste de McNemar.", call. = FALSE)
+  antes <- as.character(d[[variavel_1]])
+  depois <- as.character(d[[variavel_2]])
+  niveis <- sort(unique(c(antes, depois)))
+  if (length(niveis) != 2L) {
+    stop("As duas respostas precisam compartilhar exatamente duas categorias.", call. = FALSE)
+  }
+  tabela_pares <- table(factor(antes, levels = niveis), factor(depois, levels = niveis))
+  if (any(dim(tabela_pares) != 2L)) stop("O McNemar exige uma tabela 2 por 2.", call. = FALSE)
+  teste <- stats::mcnemar.test(tabela_pares, correct = isTRUE(p$correcao))
+  discordantes <- tabela_pares[1, 2] + tabela_pares[2, 1]
+  tabela <- as.data.frame.matrix(tabela_pares, stringsAsFactors = FALSE, check.names = FALSE)
+  tabela <- data.frame(`Primeira medição` = rownames(tabela), tabela,
+                       row.names = NULL, check.names = FALSE)
+  names(tabela)[-1L] <- paste0("Segunda: ", names(tabela)[-1L])
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    proporcoes <- data.frame(
+      Medição = c(variavel_1, variavel_2),
+      Categoria = niveis[2],
+      `Proporção` = c(mean(antes == niveis[2]), mean(depois == niveis[2])),
+      check.names = FALSE
+    )
+    grafico <- ggplot2::ggplot(proporcoes, ggplot2::aes(x = .data$Medição, y = .data$Proporção, fill = .data$Medição)) +
+      ggplot2::geom_col(show.legend = FALSE) +
+      ggplot2::scale_fill_manual(values = c("#0F3B5F", "#2E7D8F")) +
+      ggplot2::scale_y_continuous(labels = function(x) paste0(round(100 * x), "%"), limits = c(0, 1)) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(title = "Proporção da segunda categoria em duas medições pareadas", x = NULL, y = "Proporção")
+  }
+  leitura <- if (teste$p.value < 0.05) {
+    "Há evidência de mudança nas proporções marginais entre as duas medições."
+  } else {
+    "Não há evidência de mudança nas proporções marginais entre as duas medições."
+  }
+  list(
+    narrativa = sprintf("O teste de McNemar comparou %d pares completos: qui-quadrado(1) = %s e %s. %s",
+                        nrow(d), catalyser_num(teste$statistic), catalyser_p(teste$p.value), leitura),
+    tabela = tabela, grafico = grafico,
+    pressupostos = data.frame(
+      Verificação = c("Pares completos", "Resposta binária", "Independência entre pares"),
+      Resultado = c(nrow(d), paste(niveis, collapse = " e "), "Depende do planejamento da coleta"),
+      check.names = FALSE
+    ),
+    diagnosticos = data.frame(Indicador = c("Pares discordantes", "Correção de continuidade"),
+                              Valor = c(discordantes, if (isTRUE(p$correcao)) "Usada" else "Não usada")),
+    console = utils::capture.output(print(teste)), objeto = teste
+  )
+}
+
+#' Teste qui-quadrado para uma variância
+#' @param dados Um data.frame.
+#' @param p Lista com `variavel`, `desvio_hipotetico`, `alternativa` e `nivel_confianca`.
+#' @return Lista com narrativa, tabela, gráfico, pressupostos e estatísticas do teste.
+#' @export
+catalyser_variancia_uma <- function(dados, p) {
+  variavel <- as.character(catalyser_ou(p$variavel, ""))
+  catalyser_colunas(dados, variavel)
+  if (!is.numeric(dados[[variavel]])) stop("Escolha uma variável numérica.", call. = FALSE)
+  x <- dados[[variavel]]
+  x <- x[is.finite(x)]
+  if (length(x) < 2L || stats::sd(x) == 0) stop("São necessários pelo menos dois valores e variação observada.", call. = FALSE)
+  desvio0 <- as.numeric(catalyser_ou(p$desvio_hipotetico, NA_real_))
+  if (!is.finite(desvio0) || desvio0 <= 0) stop("O desvio padrão de referência precisa ser maior que zero.", call. = FALSE)
+  alternativa <- as.character(catalyser_ou(p$alternativa, "two.sided"))
+  if (!alternativa %in% c("two.sided", "less", "greater")) stop("Escolha uma hipótese alternativa válida.", call. = FALSE)
+  conf <- as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
+  n <- length(x); gl <- n - 1L; variancia <- stats::var(x)
+  estatistica <- gl * variancia / desvio0^2
+  p_inferior <- stats::pchisq(estatistica, gl)
+  p_superior <- stats::pchisq(estatistica, gl, lower.tail = FALSE)
+  p_valor <- switch(alternativa, less = p_inferior, greater = p_superior,
+                    two.sided = min(1, 2 * min(p_inferior, p_superior)))
+  alfa <- 1 - conf
+  ic_var <- c(gl * variancia / stats::qchisq(1 - alfa / 2, gl),
+              gl * variancia / stats::qchisq(alfa / 2, gl))
+  tabela <- data.frame(
+    n = n, `Desvio padrão amostral` = sqrt(variancia), `Desvio padrão de referência` = desvio0,
+    `Qui-quadrado` = estatistica, `Graus de liberdade` = gl, `p-valor` = p_valor,
+    `IC da variância inferior` = ic_var[1], `IC da variância superior` = ic_var[2],
+    check.names = FALSE
+  )
+  shapiro <- if (n >= 3L && n <= 5000L) stats::shapiro.test(x) else NULL
+  pressupostos <- data.frame(
+    Pressuposto = c("Observações independentes", "Normalidade da variável"),
+    Leitura = c("Depende do planejamento e da unidade amostral",
+                if (is.null(shapiro)) "Shapiro-Wilk não calculado" else sprintf("W = %s; %s", catalyser_num(shapiro$statistic), catalyser_p(shapiro$p.value))),
+    check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    limite <- max(stats::qchisq(0.995, gl), estatistica * 1.15)
+    curva <- data.frame(x = seq(0, limite, length.out = 500L))
+    curva$densidade <- stats::dchisq(curva$x, gl)
+    grafico <- ggplot2::ggplot(curva, ggplot2::aes(x = .data$x, y = .data$densidade)) +
+      ggplot2::geom_area(fill = "#62B6B7", alpha = 0.55) +
+      ggplot2::geom_line(color = "#0F3B5F", linewidth = 0.9) +
+      ggplot2::geom_vline(xintercept = estatistica, color = "#E76F51", linewidth = 1) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(title = "Distribuição qui-quadrado sob a hipótese nula", x = "Qui-quadrado", y = "Densidade")
+  }
+  narrativa <- sprintf(
+    "O teste qui-quadrado para a variância de '%s' comparou o desvio padrão amostral %s com %s: χ²(%d) = %s e %s.",
+    variavel, catalyser_num(sqrt(variancia)), catalyser_num(desvio0), gl,
+    catalyser_num(estatistica), catalyser_p(p_valor)
+  )
+  objeto <- list(statistic = c(`X-squared` = estatistica), parameter = c(df = gl),
+                 p.value = p_valor, estimate = c(variance = variancia), null.value = c(variance = desvio0^2),
+                 alternative = alternativa, method = "Qui-quadrado para uma variância")
+  class(objeto) <- "htest"
+  list(narrativa = narrativa, tabela = tabela, grafico = grafico,
+       pressupostos = pressupostos,
+       diagnosticos = data.frame(Indicador = c("Valores válidos", "Ausentes ou não finitos"),
+                                 Valor = c(n, length(dados[[variavel]]) - n)),
+       console = utils::capture.output(print(objeto)), objeto = objeto)
+}
+
+#' Teste F para a razão de duas variâncias
+#' @param dados Um data.frame.
+#' @param p Lista com `resposta`, `grupo`, `alternativa` e `nivel_confianca`.
+#' @return Lista com narrativa, tabela, gráfico, pressupostos e objeto `htest`.
+#' @export
+catalyser_variancias_duas <- function(dados, p) {
+  resposta <- as.character(catalyser_ou(p$resposta, ""))
+  grupo <- as.character(catalyser_ou(p$grupo, ""))
+  catalyser_colunas(dados, c(resposta, grupo))
+  if (!is.numeric(dados[[resposta]])) stop("A resposta precisa ser numérica.", call. = FALSE)
+  preparo <- catalyser_completos(dados, c(resposta, grupo))
+  d <- preparo$dados[c(resposta, grupo)]
+  names(d) <- c("resposta", "grupo")
+  d$grupo <- droplevels(as.factor(d$grupo))
+  if (nlevels(d$grupo) != 2L) stop("O teste F compara exatamente dois grupos.", call. = FALSE)
+  if (any(table(d$grupo) < 2L)) stop("Cada grupo precisa de pelo menos duas observações.", call. = FALSE)
+  alternativa <- as.character(catalyser_ou(p$alternativa, "two.sided"))
+  conf <- as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
+  teste <- stats::var.test(resposta ~ grupo, data = d, ratio = 1,
+                           alternative = alternativa, conf.level = conf)
+  partes <- split(d$resposta, d$grupo)
+  variancias <- vapply(partes, stats::var, numeric(1))
+  tabela <- data.frame(
+    `Primeiro grupo` = names(partes)[1], `Segundo grupo` = names(partes)[2],
+    `Variância do primeiro` = variancias[1], `Variância do segundo` = variancias[2],
+    `Razão de variâncias` = unname(teste$estimate), F = unname(teste$statistic),
+    `GL numerador` = unname(teste$parameter[1]), `GL denominador` = unname(teste$parameter[2]),
+    `p-valor` = teste$p.value, `IC inferior` = teste$conf.int[1], `IC superior` = teste$conf.int[2],
+    check.names = FALSE
+  )
+  p_shapiro <- vapply(partes, function(x) {
+    if (length(x) >= 3L && length(x) <= 5000L && stats::sd(x) > 0) stats::shapiro.test(x)$p.value else NA_real_
+  }, numeric(1))
+  pressupostos <- data.frame(
+    Grupo = names(partes), n = lengths(partes), `p (Shapiro-Wilk)` = p_shapiro,
+    Leitura = ifelse(is.na(p_shapiro), "Normalidade não estimável", ifelse(p_shapiro < 0.05,
+      "Há sinal de desvio da normalidade; o teste F é sensível", "Sem sinal forte de desvio pelo Shapiro-Wilk")),
+    check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    grafico <- ggplot2::ggplot(d, ggplot2::aes(x = .data$grupo, y = .data$resposta, fill = .data$grupo)) +
+      ggplot2::geom_boxplot(alpha = 0.78, show.legend = FALSE, outlier.color = "#E76F51") +
+      ggplot2::scale_fill_manual(values = c("#2E7D8F", "#E89B3C")) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(title = "Dispersão observada nos dois grupos", x = grupo, y = resposta)
+  }
+  narrativa <- sprintf(
+    "O teste F comparou as variâncias de '%s' entre %s e %s: F(%d, %d) = %s e %s. Razão estimada = %s.",
+    resposta, names(partes)[1], names(partes)[2], unname(teste$parameter[1]), unname(teste$parameter[2]),
+    catalyser_num(teste$statistic), catalyser_p(teste$p.value), catalyser_num(teste$estimate)
+  )
+  list(narrativa = narrativa, tabela = tabela, grafico = grafico,
+       pressupostos = pressupostos,
+       diagnosticos = data.frame(Indicador = "Linhas excluídas", Valor = preparo$descartadas),
+       console = utils::capture.output(print(teste)), objeto = teste)
 }
 
 #' ANOVA de um fator
@@ -1424,6 +2032,184 @@ catalyser_qui_quadrado <- function(dados, p) {
   )
 }
 
+#' Uma proporcao com intervalo de confianca e teste binomial
+#'
+#' @param dados Um data.frame com uma variavel categórica binária.
+#' @param p Lista com `variavel`, `sucesso`, `referencia`, `confianca`,
+#'   `alternativa` e `desenho`.
+#' @return Lista com narrativa, tabela, grafico, diagnosticos, console e objeto.
+catalyser_proporcao_uma <- function(dados, p) {
+  if (!identical(p$desenho, "independente"))
+    stop("Esta análise atende somente unidades independentes; pares, blocos e agrupamentos precisam de outro caminho.", call. = FALSE)
+  catalyser_colunas(dados, p$variavel)
+  x <- dados[[p$variavel]]
+  x <- as.character(x[!is.na(x)])
+  niveis <- unique(x)
+  if (length(niveis) != 2L)
+    stop("Uma proporção exige uma variável categórica com exatamente duas categorias válidas.", call. = FALSE)
+  if (!p$sucesso %in% niveis)
+    stop("Escolha qual categoria representa o sucesso.", call. = FALSE)
+  n <- length(x)
+  sucessos <- sum(x == p$sucesso)
+  referencia <- as.numeric(p$referencia)
+  confianca <- as.numeric(p$confianca)
+  if (!is.finite(referencia) || referencia < 0 || referencia > 1)
+    stop("A proporção de referência deve estar entre 0 e 1.", call. = FALSE)
+  if (!is.finite(confianca) || confianca <= 0 || confianca >= 1)
+    stop("O nível de confiança deve estar entre 0 e 1.", call. = FALSE)
+  teste <- stats::binom.test(sucessos, n, p = referencia,
+                             alternative = catalyser_ou(p$alternativa, "two.sided"),
+                             conf.level = confianca)
+  proporcao <- sucessos / n
+  tabela <- data.frame(
+    Resultado = c(p$sucesso, setdiff(niveis, p$sucesso)),
+    Contagem = c(sucessos, n - sucessos),
+    `Proporção` = c(proporcao, 1 - proporcao),
+    check.names = FALSE
+  )
+  diagnosticos <- data.frame(
+    Indicador = c("Unidades válidas", "Sucessos", "Denominador", "Referência", "Método do IC e teste"),
+    Valor = c(n, sucessos, n, referencia, "Binomial exato"),
+    check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    grafico <- ggplot2::ggplot(tabela, ggplot2::aes(x = .data$Resultado, y = .data$Proporção, fill = .data$Resultado)) +
+      ggplot2::geom_col(show.legend = FALSE) +
+      ggplot2::geom_hline(yintercept = referencia, linetype = 2, colour = "#E76F51") +
+      ggplot2::scale_y_continuous(labels = function(z) paste0(round(100 * z), "%"), limits = c(0, 1)) +
+      ggplot2::scale_fill_manual(values = c("#2E7D8F", "#62B6B7")) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(x = NULL, y = "Proporção", title = "Uma proporção", subtitle = "Linha tracejada: proporção de referência")
+  }
+  list(
+    narrativa = sprintf("Entre %d unidades independentes válidas, %d foram classificadas como %s (%s%%; IC de %d%%: %s a %s). Contra a referência de %s, o teste binomial exato %s.",
+      n, sucessos, p$sucesso, catalyser_num(100 * proporcao, 1L), round(100 * confianca),
+      catalyser_num(100 * teste$conf.int[1], 1L), catalyser_num(100 * teste$conf.int[2], 1L),
+      catalyser_num(referencia, 3L), catalyser_p(teste$p.value)),
+    tabela = tabela, grafico = grafico, diagnosticos = diagnosticos,
+    console = utils::capture.output(print(teste)), objeto = teste
+  )
+}
+
+#' Comparacao entre duas proporcoes independentes
+#'
+#' @param dados Um data.frame com resposta binária e dois grupos independentes.
+#' @param p Lista com `resposta`, `grupo`, `sucesso`, `confianca`, `correcao` e
+#'   `desenho`.
+#' @return Lista com narrativa, tabela, grafico, diagnosticos, console e objeto.
+catalyser_proporcao_duas <- function(dados, p) {
+  if (!identical(p$desenho, "independente"))
+    stop("Esta análise atende dois grupos independentes; pares, blocos e agrupamentos precisam de outro caminho.", call. = FALSE)
+  catalyser_colunas(dados, c(p$resposta, p$grupo))
+  d <- dados[stats::complete.cases(dados[c(p$resposta, p$grupo)]), c(p$resposta, p$grupo), drop = FALSE]
+  resposta <- as.character(d[[p$resposta]])
+  grupo <- as.character(d[[p$grupo]])
+  niveis_resposta <- unique(resposta)
+  niveis_grupo <- unique(grupo)
+  if (length(niveis_resposta) != 2L)
+    stop("A resposta deve ter exatamente duas categorias válidas.", call. = FALSE)
+  if (length(niveis_grupo) != 2L)
+    stop("A comparação exige exatamente dois grupos independentes.", call. = FALSE)
+  if (!p$sucesso %in% niveis_resposta)
+    stop("Escolha qual categoria representa o sucesso.", call. = FALSE)
+  contagens <- vapply(niveis_grupo, function(g) sum(grupo == g), numeric(1))
+  sucessos <- vapply(niveis_grupo, function(g) sum(grupo == g & resposta == p$sucesso), numeric(1))
+  if (any(contagens == 0)) stop("Cada grupo precisa ter ao menos uma unidade válida.", call. = FALSE)
+  confianca <- as.numeric(p$confianca)
+  if (!is.finite(confianca) || confianca <= 0 || confianca >= 1)
+    stop("O nível de confiança deve estar entre 0 e 1.", call. = FALSE)
+  teste <- stats::prop.test(sucessos, contagens, correct = isTRUE(p$correcao), conf.level = confianca)
+  tab <- rbind(sucessos, contagens - sucessos)
+  rownames(tab) <- c(p$sucesso, setdiff(niveis_resposta, p$sucesso))
+  colnames(tab) <- niveis_grupo
+  fisher <- stats::fisher.test(tab)
+  proporcoes <- sucessos / contagens
+  tabela <- data.frame(
+    Grupo = niveis_grupo, Sucessos = sucessos, Denominador = contagens,
+    `Proporção` = proporcoes, check.names = FALSE
+  )
+  esperado_minimo <- min(stats::chisq.test(tab, correct = FALSE)$expected)
+  usar_fisher <- esperado_minimo < 5
+  diagnosticos <- data.frame(
+    Indicador = c("Diferença (primeiro − segundo)", "Menor frequência esperada", "Teste de Fisher (p)", "Método principal"),
+    Valor = c(proporcoes[1] - proporcoes[2], esperado_minimo, fisher$p.value,
+              if (usar_fisher) "Teste exato de Fisher para o p; teste de duas proporções para IC" else if (isTRUE(p$correcao)) "Teste de duas proporções com correção de continuidade" else "Teste de duas proporções sem correção de continuidade"),
+    check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    grafico <- ggplot2::ggplot(tabela, ggplot2::aes(x = .data$Grupo, y = .data$Proporção, fill = .data$Grupo)) +
+      ggplot2::geom_col(show.legend = FALSE) +
+      ggplot2::scale_y_continuous(labels = function(z) paste0(round(100 * z), "%"), limits = c(0, 1)) +
+      ggplot2::scale_fill_manual(values = c("#0F3B5F", "#E89B3C")) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(x = NULL, y = "Proporção de sucesso", title = "Comparação entre duas proporções")
+  }
+  alerta <- if (usar_fisher) sprintf(" Como há frequência esperada menor que 5, o p do teste exato de Fisher (%s) é a referência para a decisão; o intervalo da diferença continua sendo apresentado como aproximação.", catalyser_p(fisher$p.value)) else ""
+  list(
+    narrativa = sprintf("A proporção de %s foi %s%% em %s e %s%% em %s; a diferença estimada (primeiro − segundo) foi %s ponto(s) percentual(is) (IC de %d%%: %s a %s). O teste de duas proporções %s.%s",
+      p$sucesso, catalyser_num(100 * proporcoes[1], 1L), niveis_grupo[1], catalyser_num(100 * proporcoes[2], 1L), niveis_grupo[2],
+      catalyser_num(100 * (proporcoes[1] - proporcoes[2]), 1L), round(100 * confianca),
+      catalyser_num(100 * teste$conf.int[1], 1L), catalyser_num(100 * teste$conf.int[2], 1L), catalyser_p(teste$p.value), alerta),
+    tabela = tabela, grafico = grafico, diagnosticos = diagnosticos,
+    console = c(utils::capture.output(print(teste)), "", "Teste exato de Fisher:", utils::capture.output(print(fisher))),
+    objeto = list(teste_proporcoes = teste, fisher = fisher)
+  )
+}
+
+#' Qui-quadrado de aderencia
+#'
+#' @param dados Um data.frame com uma variável categórica.
+#' @param p Lista com `variavel`, `esperadas` e `desenho`.
+#' @return Lista com narrativa, tabela, grafico, diagnosticos, console e objeto.
+catalyser_aderencia <- function(dados, p) {
+  if (!identical(p$desenho, "independente"))
+    stop("Esta análise atende unidades independentes; pares, blocos e agrupamentos precisam de outro caminho.", call. = FALSE)
+  catalyser_colunas(dados, p$variavel)
+  x <- as.character(dados[[p$variavel]])
+  x <- x[!is.na(x)]
+  categorias <- unique(x)
+  if (length(categorias) < 2L) stop("A aderência exige ao menos duas categorias válidas.", call. = FALSE)
+  esperadas <- as.numeric(p$esperadas[categorias])
+  if (length(esperadas) != length(categorias) || any(!is.finite(esperadas)) || any(esperadas < 0))
+    stop("Informe uma proporção esperada não negativa para cada categoria.", call. = FALSE)
+  if (abs(sum(esperadas) - 1) > 1e-8)
+    stop("As proporções esperadas devem somar 1 (ou 100%).", call. = FALSE)
+  observadas <- as.numeric(table(factor(x, levels = categorias)))
+  teste <- stats::chisq.test(observadas, p = esperadas)
+  esperadas_n <- as.numeric(teste$expected)
+  if (any(esperadas_n < 1) || mean(esperadas_n < 5) > .2) {
+    stop("A aproximação qui-quadrado não é adequada: há frequência esperada menor que 1 ou mais de 20% das frequências esperadas são menores que 5. Reúna categorias de modo justificável ou use outro procedimento.", call. = FALSE)
+  }
+  tabela <- data.frame(
+    Categoria = categorias, Observada = observadas, Esperada = esperadas_n,
+    `Proporção esperada` = esperadas, check.names = FALSE
+  )
+  diagnosticos <- data.frame(
+    Indicador = c("Unidades válidas", "Menor frequência esperada", "Regra de aproximação"),
+    Valor = c(sum(observadas), min(esperadas_n), if (min(esperadas_n) < 5) "Aproximação qui-quadrado fragilizada" else "Frequências esperadas não menores que 5"),
+    check.names = FALSE
+  )
+  grafico <- NULL
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    longo <- rbind(data.frame(Categoria = categorias, Tipo = "Observada", Frequência = observadas),
+                   data.frame(Categoria = categorias, Tipo = "Esperada", Frequência = esperadas_n))
+    grafico <- ggplot2::ggplot(longo, ggplot2::aes(x = .data$Categoria, y = .data$Frequência, fill = .data$Tipo)) +
+      ggplot2::geom_col(position = "dodge") +
+      ggplot2::scale_fill_manual(values = c("Observada" = "#2E7D8F", "Esperada" = "#E89B3C")) +
+      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::labs(x = NULL, y = "Frequência", title = "Contagens observadas e esperadas")
+  }
+  alerta <- if (min(esperadas_n) < 5) " Atenção: há frequência esperada menor que 5; interprete a aproximação com cautela." else ""
+  list(
+    narrativa = sprintf("O qui-quadrado de aderência comparou %d unidades independentes às proporções esperadas definidas pela pergunta: χ² = %s, gl = %d e %s.%s",
+      sum(observadas), catalyser_num(teste$statistic), as.integer(teste$parameter), catalyser_p(teste$p.value), alerta),
+    tabela = tabela, grafico = grafico, diagnosticos = diagnosticos,
+    console = utils::capture.output(print(teste)), objeto = teste
+  )
+}
+
 #' Analise de componentes principais
 #'
 #' @param dados Um data.frame.
@@ -1535,16 +2321,28 @@ catalyser_executar <- function(execucao, dados = NULL) {
   }
   resultado <- switch(
     tipo,
+    descricao_exploratoria = catalyser_descricao(dados, p),
     estatistica_descritiva = catalyser_resumo_descritivo(dados, p),
     regressao_linear = catalyser_regressao(dados, p, logistica = FALSE),
     regressao_logistica = catalyser_regressao(dados, p, logistica = TRUE),
+    regressao_poisson = catalyser_regressao_contagem(dados, p, familia = "poisson"),
+    regressao_binomial_negativa = catalyser_regressao_contagem(dados, p, familia = "binomial_negativa"),
     teste_t_one_val = catalyser_teste_t(dados, p),
     teste_t_two_ind = catalyser_teste_t(dados, p),
     teste_t_paired = catalyser_teste_t(dados, p),
     anova_um_fator = catalyser_anova(dados, p),
+    anova_mista_subamostras = catalyser_anova_mista(dados, p),
+    anova_medidas_repetidas = catalyser_anova_medidas_repetidas(dados, p),
+    friedman = catalyser_friedman(dados, p),
     anova_dois_fatores = catalyser_anova_dois_fatores(dados, p),
+    qui_quadrado_variancia = catalyser_variancia_uma(dados, p),
+    teste_f_variancias = catalyser_variancias_duas(dados, p),
     grafico_linhas = catalyser_linhas(dados, p),
     qui_quadrado = catalyser_qui_quadrado(dados, p),
+    proporcao_uma = catalyser_proporcao_uma(dados, p),
+    proporcao_duas = catalyser_proporcao_duas(dados, p),
+    qui_quadrado_aderencia = catalyser_aderencia(dados, p),
+    mcnemar = catalyser_mcnemar(dados, p),
     pca = catalyser_pca(dados, p),
     hca = catalyser_hca(dados, p),
     stop(sprintf("O tipo de execução '%s' ainda não possui replay no exportador integrado.", tipo), call. = FALSE)

@@ -138,20 +138,33 @@ for (caso in casos) {
     for (script in c(TRUE, FALSE)) {
       arquivo <- if (script) "R/analise.R" else "relatorios/relatorio.qmd"
       linhas <- readLines(file.path(projeto, arquivo), encoding = "UTF-8")
-      stopifnot(!any(grepl("^converter_datas? <- function", linhas)),
-                any(grepl("catalyser::converter_datas(", linhas, fixed = TRUE)))
+      stopifnot(!any(grepl("^converter_datas? <- function", linhas)))
+      if (script) {
+        # O script reconstrói a base e deve usar a conversão canônica.
+        stopifnot(any(grepl("catalyser::converter_datas(", linhas, fixed = TRUE)))
+      }
       env <- new.env(parent = globalenv())
       env$here <- function(...) file.path(projeto, ...)
       sys.source(file.path(projeto, "R/funcoes.R"), envir = env)
-      invisible(capture.output(eval(parse(text = extrair(linhas,
-        if (anova && !script) "importar-e-conferir" else "importar", script)), env)))
-      invisible(capture.output(eval(parse(text = extrair(linhas,
-        if (anova && !script) "preparo" else "tratar", script)), env)))
-      obtida <- if (anova) env$base_compartilhada else env$dados_analise
-      stopifnot(isTRUE(all.equal(obtida, compartilhada, check.attributes = FALSE)),
+      if (script) {
+        invisible(capture.output(eval(parse(text = extrair(linhas, "importar", TRUE)), env)))
+        invisible(capture.output(eval(parse(text = extrair(linhas, "tratar", TRUE)), env)))
+      } else {
+        # O relatório adota a fotografia preparada, sem refazer a importação.
+        # RDS preserva Date; a igualdade abaixo confere valores e classes.
+        carregar <- extrair(linhas, if (anova) "carregar-bases" else "carregar-compartilhada", FALSE)
+        stopifnot(any(grepl("readRDS(", carregar, fixed = TRUE)))
+        invisible(capture.output(eval(parse(text = carregar), env)))
+      }
+      obtida <- if (anova && !script) env$dados else if (anova) env$base_compartilhada else env$dados_analise
+      referencia <- if (anova && !script) caches$base_0001$df else compartilhada
+      stopifnot(isTRUE(all.equal(obtida, referencia, check.attributes = FALSE)),
         all(vapply(obtida[datas], inherits, logical(1), "Date")),
-        all(vapply(obtida[datas], iguais, logical(1), b = esperadas)))
-      if (!anova) {
+        all(vapply(datas, function(coluna) iguais(obtida[[coluna]], referencia[[coluna]]), logical(1))))
+      if (anova) {
+        invisible(capture.output(eval(parse(text = extrair(linhas,
+          if (script) "preparar-analise" else "preparo", script)), env)))
+      } else {
         raiz <- unname(exportacao_raizes_chunk(manifesto$execucoes)[[1]])
         bloco <- extrair(linhas, if (script) paste0(raiz, "-base") else raiz, script)
         if (!script) bloco <- head(bloco, grep("^dados_da_analise <-", bloco)[1])

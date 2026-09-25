@@ -59,6 +59,9 @@ Nesse caso, copie para o navegador o endereço local exibido no console.
 
 ## 📚 Documentação do projeto
 
+Comece pelo [mapa da arquitetura](ARQUITETURA.md): ele localiza os módulos,
+define os contratos entre telas e identifica as rotas de exportação legadas.
+
 O [índice da documentação](docs/README.md) reúne as decisões vigentes, o
 pipeline canônico, os roteiros de homologação, o histórico e a skill usada para
 refinar duas análises por ciclo.

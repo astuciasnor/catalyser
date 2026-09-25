@@ -203,7 +203,8 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
                                    dados_brutos_rv = NULL,
                                    base_resolvida_rv = NULL,
                                    pipeline_rv = NULL,
-                                   base_externa_rv = NULL) {
+                                   base_externa_rv = NULL,
+                                   ficha_rv = NULL) {
   moduleServer(id, function(input, output, session) {
     estado_editorial_rv <- reactiveVal(comunicacao_estado_vazio())
     observadores_instalados_rv <- reactiveVal(character())
@@ -502,7 +503,9 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         manifesto = manifesto(),
         revisao_origem = revisao_origem_rv(),
         import_info = import_info() %||% list(),
-        templates_dir = "templates"
+        templates_dir = "templates",
+        # A ficha de planejamento, se houver, entra no projeto em dados/.
+        ficha_planejamento = valor_reativo(ficha_rv, NULL)
       )
     })
 

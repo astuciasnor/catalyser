@@ -99,7 +99,7 @@ mod_correlacao_server <- function(id, data_rv, import_info) {
       }
       ggplot2::ggplot(df, ggplot2::aes(x = .data[[input$var_x]], y = .data[[input$var_y]])) +
         ggplot2::geom_point(color = "#2E7D8F", size = 2.4, alpha = 0.8) +
-        ggplot2::geom_smooth(method = "lm", se = TRUE, color = "#E76F51", fill = "#F2C9BE") +
+        ggplot2::geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#E76F51", fill = "#F2C9BE") +
         ggplot2::labs(title = sprintf("Dispersão: %s vs %s", input$var_x, input$var_y),
                       subtitle = relatar_cor(r, metodo_lbl(), input$var_x, input$var_y),
                       x = input$var_x, y = input$var_y) +
@@ -124,7 +124,7 @@ mod_correlacao_server <- function(id, data_rv, import_info) {
         "print(r)", "",
         sprintf('ggplot(dados, aes(x = `%s`, y = `%s`)) +', input$var_x, input$var_y),
         '  geom_point(color = "#2E7D8F") +',
-        '  geom_smooth(method = "lm", se = TRUE, color = "#E76F51") +',
+        '  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "#E76F51") +',
         '  theme_minimal()'
       ), collapse = "\n")
     })
