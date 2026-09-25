@@ -756,11 +756,27 @@ catalyser_teste_t <- function(dados, p) {
       var.equal = isTRUE(p$variancias_iguais), alternative = alternativa, conf.level = conf
     )
     grupos <- split(dados[[p$resposta]], dados[[p$grupo]], drop = TRUE)
+    # Normalidade dentro de cada grupo (Shapiro-Wilk): um p-valor por grupo.
     sh <- lapply(grupos, function(x) {
       x <- x[!is.na(x)]
       if (length(x) >= 3L && length(x) <= 5000L) stats::shapiro.test(x)$p.value else NA_real_
     })
-    pressupostos <- data.frame(Grupo = names(sh), `p (Shapiro-Wilk)` = unlist(sh), check.names = FALSE)
+    # Homocedasticidade: teste F de igualdade de variancias entre os dois grupos.
+    # So se aplica a exatamente dois grupos. Quando a igualdade de variancias for
+    # duvidosa, o t de Welch (var.equal = FALSE) e a escolha segura.
+    p_variancia <- if (length(sh) == 2L) {
+      tryCatch(
+        stats::var.test(catalyser_formula(p$resposta, p$grupo), data = dados)$p.value,
+        error = function(e) NA_real_
+      )
+    } else NA_real_
+    # Reune normalidade (por grupo) e homocedasticidade numa so tabela de pressupostos.
+    pressupostos <- data.frame(
+      Pressuposto = c(paste0("Normalidade (Shapiro-Wilk) - grupo ", names(sh)),
+                      "Homocedasticidade (teste F)"),
+      `p-valor` = c(unlist(sh), p_variancia),
+      check.names = FALSE
+    )
     if (requireNamespace("ggplot2", quietly = TRUE)) {
       grafico <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[p$grupo]], y = .data[[p$resposta]], fill = .data[[p$grupo]])) +
         ggplot2::geom_boxplot(alpha = 0.75, show.legend = FALSE) +
