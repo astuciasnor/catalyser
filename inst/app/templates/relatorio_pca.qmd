@@ -185,7 +185,7 @@ A @fig-pca-individuos posiciona as observações no plano 1–2. Quando há vari
 print(grafico_pca_individuos(r, ellipse_type = "convex"))
 ```
 
-A @fig-pca-biplot combina indivíduos e variáveis no mesmo plano. **Leia o biplot pela direção das setas**: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta (Settanni & Srai, 2026).
+A @fig-pca-biplot combina indivíduos e variáveis no mesmo plano. **Leia o biplot pela direção das setas**: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta.
 
 ```{r}
 #| label: fig-pca-biplot
@@ -198,7 +198,7 @@ print(grafico_pca_biplot(r, versao = "classica", ellipse_type = "norm"))
 
 ## Cargas com limite de permutação
 
-A @fig-pca-cargas compara o índice de carga observado de cada variável com o limite superior (97,5 %) das cargas obtidas em dados permutados. Uma carga é considerada significativa quando supera esse limite nulo. A @tbl-pca-cargas traz os valores; quando a permutação não está disponível, a tabela apresenta as correlações com os eixos.
+A @fig-pca-cargas compara o índice de carga observado de cada variável (a correlação da variável com o eixo, elevada ao quadrado e ponderada pelo autovalor — sempre positiva, pois o sinal dos eixos é arbitrário) com o limite superior (97,5 %) dos índices obtidos em 999 permutações dos dados. Uma carga é considerada significativa quando supera esse limite nulo, isto é, quando contribui para o eixo mais do que se esperaria pelo acaso. A @tbl-pca-cargas traz os valores; quando a permutação não está disponível, a tabela apresenta as correlações com os eixos.
 
 ```{r}
 #| label: fig-pca-cargas

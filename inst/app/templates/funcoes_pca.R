@@ -6,10 +6,16 @@
 # fluxo: correlações -> PCA padronizada (FactoMineR) -> retenção por três
 # critérios (Kaiser apenas como referência; bastão quebrado; permutação em
 # destaque) -> círculo de correlações, contribuições, mapa de indivíduos e
-# biplot -> cargas com limite de permutação (PCAtest) -> comparação com
-# imputação (missMDA), quando houver dados faltantes.
+# biplot -> cargas com limite de permutação -> comparação com imputação
+# (missMDA), quando houver dados faltantes.
+#
+# A permutação (teste de significância dos eixos e das cargas) é implementada
+# aqui mesmo, em R base, na função permutar_pca() — reproduz a lógica de
+# Camargo (2022), sem depender do pacote PCAtest (que saiu do CRAN). Assim o
+# projeto fica 100 % CRAN e a permutação está sempre disponível.
 #
 # Arquitetura (fonte canônica única):
+#   permutar_pca()      -> teste de permutação dos eixos e das cargas (R base).
 #   calcular_pca()      -> executa tudo; devolve uma lista com os resultados.
 #   mostrar_pca_*()     -> tabelas formatadas para exibição e relatório.
 #   grafico_pca_*()     -> figuras prontas no padrão Ocean Gradient.
@@ -29,14 +35,8 @@ library(factoextra)
 library(ggcorrplot)
 library(patchwork)
 
-# O PCAtest saiu do CRAN e é instalado pelo GitHub (arleyc/PCAtest). A
-# permutação é o critério em destaque, mas o motor continua funcionando sem o
-# pacote: nesse caso emite um aviso e recorre ao bastão quebrado e ao Kaiser.
-if (requireNamespace("PCAtest", quietly = TRUE)) {
-  library(PCAtest)
-}
-
 # O missMDA só entra em cena quando o usuário pede a comparação com imputação.
+# É o único opcional: a PCA e a permutação rodam sem ele (a permutação é R base).
 if (requireNamespace("missMDA", quietly = TRUE)) {
   library(missMDA)
 }
@@ -60,6 +60,10 @@ pca_ocean <- c("#0F3B5F", "#2E7D8F", "#62B6B7", "#E89B3C", "#E76F51")
 pca_cores_trecho <- c("Alto curso" = "#0F3B5F", "Médio curso" = "#E76F51",
                       "Baixo curso" = "#E89B3C", "Trecho impactado" = "#2E7D8F")
 
+# As suplementares quantitativas não definem os eixos: fora dos gradientes de
+# contribuição e cos2, elas entram em cinza neutro, com seta tracejada.
+pca_cor_suplementar <- "grey40"
+
 # Definimos um tema limpo, de fundo branco, para todas as figuras.
 pca_tema <- theme_minimal(base_size = 12) +
   theme(plot.title = element_text(face = "bold", color = "#0F3B5F"),
@@ -73,6 +77,133 @@ paleta_grupos <- function(niveis) {
   }
   if (length(niveis) <= length(pca_ocean)) return(pca_ocean[seq_along(niveis)])
   grDevices::colorRampPalette(pca_ocean)(length(niveis))
+}
+
+#' Teste de permutação da PCA em R base — substitui o pacote PCAtest.
+#'
+#' Reproduz a lógica de Camargo (2022): embaralha cada variável de forma
+#' independente, recalcula a PCA sobre os dados permutados e compara os
+#' autovalores e as cargas observados com a distribuição nula obtida. Serve
+#' para duas perguntas: (1) quantos eixos carregam mais estrutura do que o
+#' acaso? (2) quais cargas (variáveis) pesam mais do que o acaso em cada eixo?
+#'
+#' @param dados data.frame ou matriz apenas com as variáveis ativas e as linhas
+#'   completas (as mesmas que entram na PCA).
+#' @param padronizar TRUE padroniza as colunas (PCA de correlação); FALSE apenas
+#'   centraliza (PCA de covariância). Deve espelhar o que a PCA fizer.
+#' @param nperm número de permutações (padrão 999).
+#' @param seed semente registrada, para o teste ser reprodutível.
+#' @param n_eixos_cargas quantos eixos terão as cargas testadas (padrão 2).
+#' @return lista com autovalores e percentuais observados, p-valor por eixo,
+#'   limites nulos da variância (2,5 % e 97,5 %), índice de carga observado e
+#'   limite permutado das cargas (97,5 %). Tudo em R base, sem pacotes extras.
+permutar_pca <- function(dados, padronizar = TRUE, nperm = 999L, seed = 2026L,
+                         n_eixos_cargas = 2L) {
+  # Convertemos a entrada em matriz numérica, que é o que a PCA consome.
+  X <- as.matrix(dados)
+  # Guardamos o número de observações (linhas) e de variáveis ativas (colunas).
+  n <- nrow(X)
+  p <- ncol(X)
+  # Número de eixos que a PCA realmente produz: o posto da matriz centrada é
+  # no máximo n - 1, e nunca há mais eixos do que variáveis. Usar esse limite
+  # evita erros quando há mais variáveis do que observações completas (n <= p),
+  # situação comum depois da remoção de linhas com dados faltantes.
+  n_axes <- min(p, n - 1L)
+  # Sem ao menos um eixo (n < 2), não há o que permutar.
+  if (n_axes < 1L) {
+    stop("Observações insuficientes para o teste de permutação.", call. = FALSE)
+  }
+
+  # Preparamos a matriz exatamente como a PCA a vê: padronizada (correlação)
+  # ou apenas centralizada (covariância). Permutar colunas preserva média e
+  # desvio de cada uma, então padronizar antes ou depois dá o mesmo resultado.
+  Z <- if (isTRUE(padronizar)) scale(X) else scale(X, center = TRUE, scale = FALSE)
+
+  # Função auxiliar que faz uma PCA por decomposição em valores singulares (SVD),
+  # o método mais estável e disponível no R base (sem depender de pacote).
+  pca_svd <- function(Zm) {
+    # Decompomos a matriz preparada: Zm = u %*% diag(d) %*% t(v).
+    sv <- svd(Zm)
+    # Os autovalores são os desvios ao quadrado, na convenção de variância (n - 1).
+    eig <- sv$d^2 / (nrow(Zm) - 1)
+    # Recortamos para o número de eixos viáveis (posto da matriz).
+    eig <- eig[seq_len(min(n_axes, length(eig)))]
+    # Recortamos os autovetores (cargas) para os mesmos eixos.
+    rot <- sv$v[, seq_len(min(n_axes, ncol(sv$v))), drop = FALSE]
+    # Devolvemos autovalores e autovetores: é o suficiente para o teste.
+    list(eig = eig, rot = rot)
+  }
+
+  # Calculamos a PCA observada uma única vez, sobre os dados reais.
+  obs <- pca_svd(Z)
+  # O percentual de variância de cada eixo é o autovalor dividido pelo total.
+  pct_obs <- obs$eig / sum(obs$eig) * 100
+
+  # Índice de carga observado: autovetor ao quadrado vezes o autovalor ao
+  # quadrado. É o mesmo que (correlação da variável com o eixo)² vezes o
+  # autovalor — uma grandeza SEM SINAL, o que já resolve a indeterminação de
+  # sinal dos eixos (o sinal de um autovetor é arbitrário; o quadrado, não).
+  # Fica organizado como variáveis nas linhas e eixos nas colunas.
+  idx_obs <- sweep(obs$rot^2, 2, obs$eig^2, "*")
+
+  # Fixamos a semente antes do laço, para as permutações serem reprodutíveis.
+  set.seed(as.integer(seed))
+  # Preparamos os recipientes que guardam os resultados de cada permutação.
+  eig_null <- matrix(NA_real_, nrow = nperm, ncol = n_axes)     # autovalores nulos
+  pct_null <- matrix(NA_real_, nrow = nperm, ncol = n_axes)     # percentuais nulos
+  idx_null <- array(NA_real_, dim = c(p, n_axes, nperm))        # cargas nulas (var x eixo x perm)
+
+  # Repetimos o sorteio nperm vezes, cada vez com uma permutação independente.
+  for (b in seq_len(nperm)) {
+    # Embaralhamos CADA coluna de forma independente: é isso que destrói a
+    # estrutura de correlação e cria um dado nulo (só o acaso, sem padrão).
+    Zp <- apply(Z, 2, sample)
+    # Recalculamos a PCA sobre a matriz permutada.
+    pb <- pca_svd(Zp)
+    # Guardamos os autovalores e o percentual de variância desta permutação.
+    eig_null[b, ] <- pb$eig
+    pct_null[b, ] <- pb$eig / sum(pb$eig) * 100
+    # Guardamos o índice de carga nulo com a MESMA fórmula do observado, mas
+    # usando os autovetores e autovalores da própria PCA permutada.
+    idx_null[, , b] <- sweep(pb$rot^2, 2, pb$eig^2, "*")
+  }
+
+  # p-valor de cada eixo: quantas permutações tiveram autovalor >= o observado,
+  # com a correção de pseudo-contagem (+1 no numerador e no denominador), que
+  # evita p-valor exatamente zero — a prática padrão recomendada em testes de
+  # permutação. É a mesma fórmula pedida para reproduzir a lógica do PCAtest.
+  p_valor <- (1 + colSums(sweep(eig_null, 2, obs$eig, ">="))) / (nperm + 1)
+
+  # Limites nulos da variância explicada: o intervalo de 95 % (2,5 % e 97,5 %)
+  # da distribuição permutada. O limite superior (97,5 %) é a linha de
+  # referência no gráfico de retenção — acima dela, o eixo supera o acaso.
+  limite_pct <- t(apply(pct_null, 2, stats::quantile, probs = c(0.025, 0.975)))
+
+  # Limite permutado das cargas: para cada variável (linha) e cada eixo
+  # (coluna), o quantil 97,5 % do índice de carga nulo. Uma carga observada é
+  # significativa quando supera esse limite — ou seja, quando é maior do que
+  # 97,5 % das cargas que o acaso produziu para aquela variável naquele eixo.
+  n_eixos_cargas <- min(n_eixos_cargas, n_axes)
+  limite_cargas <- matrix(NA_real_, nrow = p, ncol = n_axes)
+  for (j in seq_len(p)) {
+    for (k in seq_len(n_eixos_cargas)) {
+      limite_cargas[j, k] <- stats::quantile(idx_null[j, k, ], 0.975)
+    }
+  }
+
+  # Devolvemos tudo numa lista organizada, sem guardar as permutações brutas
+  # (que ocupariam memória à toa): só os resumos que as tabelas e figuras usam.
+  list(
+    nperm = as.integer(nperm),
+    seed = as.integer(seed),
+    eig_obs = obs$eig,
+    pct_obs = pct_obs,
+    p_valor = p_valor,
+    limite_pct = limite_pct,
+    idx_obs = idx_obs,
+    limite_cargas = limite_cargas,
+    n_eixos_cargas = as.integer(n_eixos_cargas)
+  )
 }
 
 #' Executa a PCA completa: retenção de eixos, permutação, descrição dos eixos e,
@@ -237,47 +368,34 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   # O Kaiser é apenas uma referência: autovalor médio 1 equivale a 100/p %.
   kaiser_referencia <- 100 / p
 
-  # Iniciamos os campos da permutação com o estado "indisponível".
-  teste_pca <- NULL
+  # ---- Permutação: significância dos eixos e das cargas (R base) -------------
+  # A permutação é o critério em destaque. Ela roda em R base (permutar_pca),
+  # então está sempre disponível; só um erro inesperado (base degenerada) a
+  # derruba, e nesse caso recuamos para o bastão quebrado com um aviso.
   limite_permutacao <- rep(NA_real_, ncp_val)
   p_permutacao <- rep(NA_real_, ncp_val)
-  permutacao_disponivel <- requireNamespace("PCAtest", quietly = TRUE)
+  permutacao <- NULL
   permutacao_mensagem <- NULL
+  permutacao_disponivel <- FALSE
 
-  # Rodamos o PCAtest: permutação para os eixos e bootstrap para os intervalos.
-  if (permutacao_disponivel) {
-    # Aplicamos a mesma transformação da PCA: padroniza ou só centraliza.
-    matriz_permutacao <- if (isTRUE(scale)) {
-      scale(ativas_ok)
-    } else {
-      as.matrix(ativas_ok)
-    }
-    # Fixamos a semente para que as permutações sejam reprodutíveis.
-    set.seed(as.integer(seed))
-    # Envolvemos em tryCatch: bases muito pequenas podem não suportar o bootstrap.
-    teste_pca <- tryCatch(
-      PCAtest::PCAtest(matriz_permutacao, nperm = 999, nboot = 999,
-                       counter = FALSE, plot = FALSE),
-      error = function(e) NULL
-    )
-    if (!is.null(teste_pca)) {
-      # Pegamos o limite superior (95 %) da variância explicada por dados permutados.
-      limite_permutacao <- teste_pca[["Randomized confidence intervals of percentage of variation"]][2, ]
-      limite_permutacao <- limite_permutacao[seq_len(ncp_val)]
-      # Calculamos um p-valor por eixo: quantas permutações superam o observado.
-      pct_aleatorio <- teste_pca[["Percentage of variation of randomized data"]]
-      obs_pct <- autovalores$pct_variancia[seq_len(ncol(pct_aleatorio))]
-      p_permutacao[seq_len(ncol(pct_aleatorio))] <-
-        (1 + colSums(sweep(pct_aleatorio, 2, obs_pct, ">="))) / (nrow(pct_aleatorio) + 1)
-    } else {
-      # A permutação falhou; avisamos e seguimos com os critérios clássicos.
-      permutacao_mensagem <- "A permutação (PCAtest) falhou para esta base; a retenção usa apenas o bastão quebrado e o Kaiser (referência)."
-      avisos <- c(avisos, permutacao_mensagem)
-      permutacao_disponivel <- FALSE
-    }
+  # Rodamos a permutação sobre as mesmas linhas completas que entraram na PCA,
+  # com o mesmo preparo (padronizar ou só centralizar) e a semente registrada.
+  permutacao <- tryCatch(
+    permutar_pca(ativas_ok, padronizar = isTRUE(scale), nperm = 999L,
+                 seed = as.integer(seed), n_eixos_cargas = min(2L, ncp_val)),
+    error = function(e) NULL
+  )
+
+  # Se a permutação rodou, extraímos o limite superior (97,5 %) da variância e
+  # o p-valor de cada eixo; senão, avisamos e seguimos com o bastão quebrado.
+  if (!is.null(permutacao)) {
+    permutacao_disponivel <- TRUE
+    n_eixos_disp <- min(ncp_val, length(permutacao$p_valor))
+    limite_permutacao[seq_len(n_eixos_disp)] <-
+      permutacao$limite_pct[seq_len(n_eixos_disp), 2]
+    p_permutacao[seq_len(n_eixos_disp)] <- permutacao$p_valor[seq_len(n_eixos_disp)]
   } else {
-    # O pacote não está instalado; avisamos sem interromper a análise.
-    permutacao_mensagem <- "O pacote PCAtest não está instalado (remotes::install_github('arleyc/PCAtest')). A retenção usa apenas o bastão quebrado e o Kaiser (referência)."
+    permutacao_mensagem <- "A permutação não pôde ser calculada para esta base; a retenção usa apenas o bastão quebrado e o Kaiser (referência)."
     avisos <- c(avisos, permutacao_mensagem)
   }
 
@@ -290,36 +408,38 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     p_permutacao = p_permutacao,
     kaiser = kaiser_referencia
   )
-  # Marcamos a decisão: permutação em destaque quando disponível; senão, bastão.
-  retencao$decisao <- if (permutacao_disponivel && any(!is.na(p_permutacao))) {
-    ifelse(!is.na(p_permutacao) & p_permutacao < 0.05, "Reter", "Não reter")
-  } else {
-    ifelse(retencao$observado > retencao$bastao, "Reter (bastão)", "Não reter (bastão)")
-  }
+  # Decidimos a retenção com case_when: a permutação manda quando disponível;
+  # sem ela, recuamos para o bastão quebrado. O Kaiser fica só como referência.
+  retencao$decisao <- dplyr::case_when(
+    !permutacao_disponivel & retencao$observado > retencao$bastao ~ "Reter (bastão)",
+    !permutacao_disponivel                                        ~ "Não reter (bastão)",
+    is.na(retencao$p_permutacao)                                  ~ "Sem teste",
+    retencao$p_permutacao < 0.05                                  ~ "Reter",
+    TRUE                                                          ~ "Não reter"
+  )
   # Contamos quantos eixos a permutação sustenta (p < 0,05).
-  eixos_significativos <- if (permutacao_disponivel && any(!is.na(p_permutacao))) {
+  eixos_significativos <- if (permutacao_disponivel) {
     sum(!is.na(p_permutacao) & p_permutacao < 0.05)
   } else {
     NULL
   }
 
-  # Montamos a tabela de cargas com limite de permutação, quando disponível.
+  # Montamos a tabela de cargas com o limite permutado (97,5 %), quando houver.
   cargas_df <- NULL
-  if (!is.null(teste_pca)) {
-    # Pegamos o índice de carga observado (linhas = eixos, colunas = variáveis).
-    indice_carga <- teste_pca[["Index loadings of empirical PCs"]]
-    # Viramos a tabela para ficar variáveis nas linhas e guardamos os eixos 1 e 2.
-    cargas <- t(indice_carga)[, 1:2]
-    # Pegamos o limite superior (97,5 %) das cargas obtidas com dados permutados.
-    limites_nulos <- teste_pca[["Randomized confidence intervals of index loadings"]][, 2]
-    # Organizamos os limites numa matriz variável x eixo (o PCAtest empilha por eixo).
-    limites_nulos <- matrix(limites_nulos, nrow = p)[, 1:2]
-    # Montamos a tabela: carga significativa quando supera o limite permutado.
+  if (!is.null(permutacao)) {
+    # Quantos eixos tiveram as cargas testadas (em geral, os dois primeiros).
+    n_eixos_cargas <- permutacao$n_eixos_cargas
+    nomes_eixos <- paste("Eixo", seq_len(n_eixos_cargas))
+    # Índice de carga observado: variáveis nas linhas, eixos nas colunas.
+    cargas_obs <- permutacao$idx_obs[, seq_len(n_eixos_cargas), drop = FALSE]
+    # Limite permutado (97,5 %) das cargas, na mesma disposição.
+    limites_obs <- permutacao$limite_cargas[, seq_len(n_eixos_cargas), drop = FALSE]
+    # Empilhamos variável x eixo numa tabela longa; carga supera o limite = significativa.
     cargas_df <- data.frame(
-      variavel = rep(colnames(ativas_ok), 2),
-      eixo = rep(c("Eixo 1", "Eixo 2"), each = p),
-      carga = as.numeric(cargas),
-      limite = as.numeric(limites_nulos)
+      variavel = rep(colnames(ativas_ok), n_eixos_cargas),
+      eixo = rep(nomes_eixos, each = p),
+      carga = as.numeric(cargas_obs),
+      limite = as.numeric(limites_obs)
     ) |>
       mutate(significativa = case_when(
         carga > limite ~ "Significativa",
@@ -435,7 +555,6 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     eixos_significativos = eixos_significativos,
     permutacao_disponivel = permutacao_disponivel,
     permutacao_mensagem = permutacao_mensagem,
-    teste_pca = teste_pca,
     cargas = cargas_df,
     descricao_eixos = descricao_eixos,
     correlacoes = correlacoes,
@@ -614,13 +733,65 @@ grafico_pca_retencao <- function(r) {
     pca_tema + theme(legend.position = "top")
 }
 
+#' Monta as camadas das suplementares quantitativas: seta tracejada em cor
+#' neutra, rótulo na ponta e entrada própria ("suplementar") na legenda.
+#' Como elas não contribuem para os eixos, não entram no gradiente de
+#' contribuição nem no de cos2. `fator` reproduz a escala das setas ativas no
+#' biplot; no círculo de correlações vale 1.
+camadas_sup_quanti <- function(r, fator = 1) {
+  sup <- r$variaveis_suplementares
+  if (!length(sup) || is.null(r$pca$quanti.sup)) return(NULL)
+  cor <- as.data.frame(r$pca$quanti.sup$cor[, 1:2, drop = FALSE])
+  names(cor) <- c("x", "y")
+  cor$variavel <- rownames(cor)
+  # Levamos as suplementares à mesma escala das setas ativas do biplot.
+  cor$x <- cor$x * fator
+  cor$y <- cor$y * fator
+  # Rótulo um pouco além da ponta, do lado para onde a seta aponta.
+  cor$hjust <- ifelse(cor$x >= 0, -0.2, 1.2)
+  cor$vjust <- ifelse(cor$y >= 0, -0.4, 1.3)
+  list(
+    geom_segment(data = cor,
+                 aes(x = 0, y = 0, xend = x, yend = y,
+                     linetype = "suplementar"),
+                 color = pca_cor_suplementar, linewidth = 0.7,
+                 arrow = grid::arrow(length = grid::unit(0.08, "inches"))),
+    geom_text(data = cor, aes(x = x, y = y, label = variavel),
+              color = pca_cor_suplementar, size = 3.6,
+              hjust = cor$hjust, vjust = cor$vjust),
+    scale_linetype_manual(name = NULL, values = c("suplementar" = "dashed"))
+  )
+}
+
+#' Recupera do gráfico pronto o fator de escala que o factoextra aplica às
+#' setas das variáveis ativas no biplot (ponta da seta dividido pela correlação
+#' com os eixos). Sem ele, as suplementares cairiam numa escala diferente das
+#' ativas; com ele, todas compartilham o mesmo plano.
+fator_setas_biplot <- function(p, r) {
+  cor_var <- r$pca$var$cor[, 1:2, drop = FALSE]
+  for (camada in p$layers) {
+    d <- camada$data
+    if (!inherits(camada$geom, "GeomSegment")) next
+    if (!is.data.frame(d) || !all(c("name", "x", "y") %in% names(d))) next
+    if (!all(d$name %in% rownames(cor_var))) next
+    # A variável mais bem representada no plano evita divisão por valor ~zero.
+    i <- which.max(cor_var[d$name, 1]^2 + cor_var[d$name, 2]^2)
+    norma_seta <- sqrt(d$x[i]^2 + d$y[i]^2)
+    norma_cor <- sqrt(sum(cor_var[d$name[i], 1:2]^2))
+    if (norma_cor > 1e-8) return(norma_seta / norma_cor)
+  }
+  1
+}
+
 #' Desenha o círculo de correlações, colorido pela qualidade de representação
-#' (cos2); as suplementares quantitativas entram em destaque, fora do gradiente.
+#' (cos2); as suplementares quantitativas entram como setas tracejadas neutras,
+#' com entrada própria na legenda.
 grafico_pca_circulo <- function(r) {
-  fviz_pca_var(r$pca, col.var = "cos2",
-               gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
-               col.quanti.sup = "#E76F51", repel = TRUE) +
+  p <- fviz_pca_var(r$pca, col.var = "cos2",
+                    gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
+                    repel = TRUE) +
     labs(title = "Círculo de correlações", color = "cos2") + pca_tema
+  p + camadas_sup_quanti(r)
 }
 
 #' Desenha as contribuições das variáveis aos eixos 1 e 2, lado a lado.
@@ -671,50 +842,54 @@ grafico_pca_individuos <- function(r, ellipse_type = "convex") {
 
 #' Desenha o biplot em duas versões: a clássica (setas cinza) e a avançada
 #' (pontos preenchidos pelo grupo e setas coloridas pela contribuição).
+#' Em ambas, as suplementares quantitativas entram como setas tracejadas
+#' neutras — elas não contribuem para os eixos, então não podem ser coloridas
+#' pela escala de contribuição.
 grafico_pca_biplot <- function(r, versao = "classica", ellipse_type = "norm") {
   # Versão avançada exige grupo para preencher os pontos; sem grupo, clássica.
   if (identical(versao, "contribuicao") && !is.null(r$grupo_fator)) {
     cores <- paleta_grupos(levels(r$grupo_fator))
-    fviz_pca_biplot(r$pca,
-                    geom.ind = "point",
-                    fill.ind = r$grupo_fator,
-                    col.ind = "black",
-                    pointshape = 21,
-                    pointsize = 2.8,
-                    palette = cores,
-                    addEllipses = TRUE,
-                    ellipse.type = ellipse_type,
-                    ellipse.level = 0.95,
-                    ellipse.alpha = 0.12,
-                    col.var = "contrib",
-                    gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
-                    repel = TRUE,
-                    invisible = "quali",
-                    legend.title = list(fill = r$variavel_grupo,
-                                        color = "Contribuição (%)")) +
+    p <- fviz_pca_biplot(r$pca,
+                         geom.ind = "point",
+                         fill.ind = r$grupo_fator,
+                         col.ind = "black",
+                         pointshape = 21,
+                         pointsize = 2.8,
+                         palette = cores,
+                         addEllipses = TRUE,
+                         ellipse.type = ellipse_type,
+                         ellipse.level = 0.95,
+                         ellipse.alpha = 0.12,
+                         col.var = "contrib",
+                         gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
+                         repel = TRUE,
+                         invisible = "quali",
+                         legend.title = list(fill = r$variavel_grupo,
+                                             color = "Contribuição (%)")) +
       labs(title = "Biplot com elipses e contribuição das variáveis") + pca_tema
   } else if (!is.null(r$grupo_fator)) {
     # Versão clássica do Kassambara: pontos coloridos pelo grupo e elipses.
     cores <- paleta_grupos(levels(r$grupo_fator))
-    fviz_pca_biplot(r$pca,
-                    col.ind = r$grupo_fator,
-                    palette = cores,
-                    addEllipses = TRUE,
-                    ellipse.type = ellipse_type,
-                    ellipse.level = 0.95,
-                    ellipse.alpha = 0.12,
-                    label = "var",
-                    col.var = "grey20",
-                    repel = TRUE,
-                    invisible = "quali",
-                    legend.title = r$variavel_grupo) +
+    p <- fviz_pca_biplot(r$pca,
+                         col.ind = r$grupo_fator,
+                         palette = cores,
+                         addEllipses = TRUE,
+                         ellipse.type = ellipse_type,
+                         ellipse.level = 0.95,
+                         ellipse.alpha = 0.12,
+                         label = "var",
+                         col.var = "grey20",
+                         repel = TRUE,
+                         invisible = "quali",
+                         legend.title = r$variavel_grupo) +
       labs(title = "Biplot com elipses dos grupos") + pca_tema
   } else {
     # Sem grupo: biplot simples, só variáveis e indivíduos.
-    fviz_pca_biplot(r$pca, label = "var", col.var = "grey20",
-                    repel = TRUE) +
+    p <- fviz_pca_biplot(r$pca, label = "var", col.var = "grey20",
+                         repel = TRUE) +
       labs(title = "Biplot (indivíduos e variáveis)") + pca_tema
   }
+  p + camadas_sup_quanti(r, fator = fator_setas_biplot(p, r))
 }
 
 #' Desenha as cargas das variáveis com o limite nulo marcado.

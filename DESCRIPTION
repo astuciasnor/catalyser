@@ -56,7 +56,6 @@ Imports:
     ggcorrplot,
     missMDA,
     patchwork,
-    PCAtest,
     EAPADados (>= 0.1.10)
 Suggests:
     here,
@@ -69,8 +68,7 @@ Suggests:
     hexbin,
     multcompView
 Remotes:
-    astuciasnor/EAPADados,
-    arleyc/PCAtest
+    astuciasnor/EAPADados
 Depends: R (>= 4.3.0)
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

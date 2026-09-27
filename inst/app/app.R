@@ -4679,8 +4679,8 @@ RCatalyst::run_ide()</pre>
         pca_script_content <- c(
           "# --- SCRIPT DE COMPONENTES PRINCIPAIS (PCA) ---",
           "# Pacotes necessarios:",
-          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'missMDA', 'patchwork'))",
-          "#   remotes::install_github('arleyc/PCAtest')  # permutacao (opcional)",
+          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'patchwork'))",
+          "#   install.packages('missMDA')  # so se for usar a comparacao com imputacao",
           "source('scripts/funcoes_pca.R')",
           "load('dados/dados_limpos.rda')",
           "dados <- df_clean",
@@ -4705,7 +4705,7 @@ RCatalyst::run_ide()</pre>
         quanti_str_qmd <- paste(paste0("'", quanti_sel, "'"), collapse = ", ")
         qmd_sections[["pca"]] <- c(
           "## Análise de Componentes Principais (PCA)",
-          "Redução de dimensionalidade linear (FactoMineR), com retenção por permutação (PCAtest).",
+          "Redução de dimensionalidade linear (FactoMineR), com retenção por permutação (teste próprio em R base).",
           "",
           "```{r}",
           "#| label: pca-consolidado",

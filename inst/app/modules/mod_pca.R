@@ -2,9 +2,9 @@
 # -----------------------------------------------------------------------------
 # Adaptado do roteiro didático da curadoria (Multivariada_02_PCA): PCA
 # padronizada com variáveis suplementares (FactoMineR), retenção por três
-# critérios com a permutação em destaque (PCAtest), círculo de correlações por
-# cos², contribuições, mapa de indivíduos, biplot com elipses, cargas com
-# limite de permutação e comparação com imputação (missMDA).
+# critérios com a permutação em destaque (teste próprio em R base), círculo de
+# correlações por cos², contribuições, mapa de indivíduos, biplot com elipses,
+# cargas com limite de permutação e comparação com imputação (missMDA).
 library(shiny)
 library(bslib)
 library(ggplot2)
@@ -39,6 +39,34 @@ opcoes_elipse_pca <- c(
 mod_pca_ui <- function(id) {
   ns <- NS(id)
   tagList(
+    # Cabeçalho do painel em duas linhas: o título fica sozinho na primeira e
+    # as oito abas, compactas e com quebra de linha, na segunda.
+    tags$style(HTML("
+      .pca-painel .bslib-navs-card-title {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 2px !important;
+        padding: 8px 12px 4px !important;
+      }
+      .pca-painel .bslib-navs-card-title > span {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #0F3B5F;
+      }
+      .pca-painel .bslib-navs-card-title > .nav {
+        flex-wrap: wrap;
+        row-gap: 2px;
+        margin: 0;
+      }
+      .pca-painel .bslib-navs-card-title > .nav .nav-link {
+        padding: 3px 8px !important;
+        font-size: 0.8rem !important;
+      }
+      .pca-painel .bslib-navs-card-title > .nav .nav-link i {
+        margin-right: 4px;
+      }
+    ")),
     layout_columns(
       col_widths = c(1, 1, 1),
       style = "grid-template-columns: 2.5fr 7fr 2.5fr !important;",
@@ -49,16 +77,21 @@ mod_pca_ui <- function(id) {
           card_header("Configuração da PCA"),
           card_body(
             style = "padding: 12px 15px;",
-            checkboxGroupInput(ns("vars_selected"), "Variáveis ativas (numéricas, mínimo 2):", choices = NULL),
-            actionButton(ns("sel_all_num"), "Selecionar todas as numéricas",
+            helpText(HTML("As <b>ativas</b> formam os eixos da PCA. As <b>suplementares</b> são projetadas depois, só para interpretação, sem influenciar os eixos. Uma variável marcada em um campo sai do outro.")),
+            layout_columns(
+              col_widths = c(6, 6),
+              style = "gap: 10px;",
+              checkboxGroupInput(ns("vars_selected"), "Variáveis ativas:", choices = NULL),
+              checkboxGroupInput(ns("quanti_sup"), "Suplementares quantitativas:", choices = NULL)
+            ),
+            actionButton(ns("sel_all_num"), "Selecionar todas as numéricas como ativas",
                          icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
-            checkboxGroupInput(ns("quanti_sup"), "Suplementares quantitativas (opcional):", choices = NULL),
             selectInput(ns("quali_sup"), "Variável de grupo (opcional):", choices = NULL),
             checkboxInput(ns("scale"), "Padronizar variáveis (PCA de correlação)", value = TRUE),
             numericInput(ns("seed"), "Semente da permutação:", value = 2026,
                          min = 1, max = 999999, step = 1),
             checkboxInput(ns("comparar_imputacao"), "Comparar com imputação (missMDA) se houver NA", value = FALSE),
-            helpText(HTML("As variáveis <b>ativas</b> formam os eixos. As <b>suplementares</b> não influenciam a PCA: são projetadas depois, para interpretação (ex.: riqueza e trecho do rio Doubs). A permutação (999 repetições) testa a significância dos eixos e das cargas.")),
+            helpText(HTML("Em bases do EAPADados com papéis documentados (ex.: riqueza e trecho do rio Doubs), o painel abre com a configuração sugerida. A permutação (999 repetições) testa a significância dos eixos e das cargas.")),
             execucao_explicita_controles_ui(ns)
           )
         ),
@@ -77,9 +110,11 @@ mod_pca_ui <- function(id) {
       ),
 
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
-      execucao_explicita_resultados_ui(ns, navset_card_tab(
-        id = ns("active_tab"),
-        title = "Painel de Resultados da PCA",
+      execucao_explicita_resultados_ui(ns, div(
+        class = "pca-painel",
+        navset_card_tab(
+          id = ns("active_tab"),
+          title = "Painel de Resultados da PCA",
         nav_panel(
           title = "Correlações",
           icon = icon("table-cells"),
@@ -98,7 +133,7 @@ mod_pca_ui <- function(id) {
           title = "Círculo",
           icon = icon("circle-dot"),
           card_body(
-            plotOutput(ns("grafico_circulo"), height = "420px"),
+            plotOutput(ns("grafico_circulo"), height = "380px"),
             helpText(HTML("A cor de cada seta é a qualidade de representação (cos²). Uma seta <b>curta não é irrelevante</b>: indica que a variável varia em outras direções — veja o cos² antes de descartar."))
           )
         ),
@@ -138,6 +173,7 @@ mod_pca_ui <- function(id) {
             uiOutput(ns("imputacao_ui"))
           )
         )
+        )
       )),
 
       # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
@@ -175,49 +211,85 @@ mod_pca_server <- function(id, data_rv, import_info) {
     revisao_execucao <- execucao_revisao_dados(data_rv)
     gatilho_execucao <- reactiveVal(0L)
 
-    # Atualiza a lista de variáveis ativas (só numéricas) na interface.
-    observe({
+    # Bases do EAPADados com papéis documentados na curadoria: ao carregar a
+    # base, abrimos com a configuração registrada (o usuário pode mudar).
+    # Não usamos critério automático (ex.: valores inteiros) para sugerir
+    # suplementares: só vale o que a curadoria documentou.
+    papeis_sugeridos_pca <- function(info) {
+      if (is.null(info) || !identical(info$source, "package")) return(NULL)
+      list(
+        doubs_ambiente = list(quanti_sup = "riqueza", quali_sup = "trecho")
+      )[[info$package_dataset %||% ""]]
+    }
+
+    # Guarda a sugestão de papéis da base atual para o observador do grupo.
+    papeis_base_rv <- reactiveVal(NULL)
+
+    # Quando a base muda, atualiza os dois campos de variáveis (ambos listam
+    # todas as numéricas) e aplica a sugestão de papéis, quando houver.
+    observeEvent(data_rv(), {
       df <- data_rv()
       req(df)
       numericas <- names(df)[vapply(df, is.numeric, logical(1))]
       numericas <- setdiff(numericas, c("id", "ID"))
-      atuais <- isolate(input$vars_selected) %||% character()
-      selecionadas <- intersect(atuais, numericas)
-      if (length(selecionadas) < 2) selecionadas <- head(numericas, min(3, length(numericas)))
-      updateCheckboxGroupInput(session, "vars_selected", choices = numericas, selected = selecionadas)
-    })
+      papeis <- papeis_sugeridos_pca(import_info())
+      if (!is.null(papeis)) {
+        sup_q <- intersect(papeis$quanti_sup, numericas)
+        ativas <- setdiff(numericas, sup_q)
+        if (length(ativas) < 2) ativas <- head(numericas, min(3, length(numericas)))
+      } else {
+        ativas <- intersect(isolate(input$vars_selected) %||% character(), numericas)
+        if (length(ativas) < 2) ativas <- head(numericas, min(3, length(numericas)))
+        sup_q <- setdiff(intersect(isolate(input$quanti_sup) %||% character(), numericas), ativas)
+      }
+      updateCheckboxGroupInput(session, "vars_selected", choices = numericas, selected = ativas)
+      updateCheckboxGroupInput(session, "quanti_sup", choices = numericas, selected = sup_q)
+      papeis_base_rv(papeis)
+    }, ignoreInit = FALSE, priority = 500)
 
-    # Botão: selecionar todas as numéricas.
+    # Botão: selecionar todas as numéricas como ativas, respeitando as
+    # suplementares já escolhidas (elas permanecem suplementares).
     observeEvent(input$sel_all_num, {
       df <- data_rv()
       req(df)
       numericas <- names(df)[vapply(df, is.numeric, logical(1))]
-      updateCheckboxGroupInput(session, "vars_selected", selected = numericas)
+      numericas <- setdiff(numericas, c("id", "ID"))
+      sup <- isolate(input$quanti_sup) %||% character()
+      updateCheckboxGroupInput(session, "vars_selected", selected = setdiff(numericas, sup))
     })
 
-    # Atualiza as suplementares quantitativas: numéricas fora das ativas.
-    observe({
-      df <- data_rv()
-      req(df)
-      numericas <- names(df)[vapply(df, is.numeric, logical(1))]
-      ativas <- input$vars_selected %||% character()
-      livres <- setdiff(numericas, ativas)
-      atuais <- isolate(input$quanti_sup) %||% character()
-      selecionadas <- intersect(atuais, livres)
-      updateCheckboxGroupInput(session, "quanti_sup", choices = livres, selected = selecionadas)
-    })
+    # Exclusão mútua: uma variável não fica nos dois campos ao mesmo tempo.
+    # Quem entra nas ativas sai das suplementares...
+    observeEvent(input$vars_selected, {
+      sup <- isolate(input$quanti_sup) %||% character()
+      conflito <- intersect(input$vars_selected, sup)
+      if (length(conflito))
+        updateCheckboxGroupInput(session, "quanti_sup", selected = setdiff(sup, conflito))
+    }, ignoreInit = TRUE)
+    # ...e quem entra nas suplementares sai das ativas.
+    observeEvent(input$quanti_sup, {
+      ativas <- isolate(input$vars_selected) %||% character()
+      conflito <- intersect(input$quanti_sup, ativas)
+      if (length(conflito))
+        updateCheckboxGroupInput(session, "vars_selected", selected = setdiff(ativas, conflito))
+    }, ignoreInit = TRUE)
 
-    # Atualiza a variável de grupo: colunas categóricas da base.
+    # Atualiza a variável de grupo: colunas categóricas da base; se a curadoria
+    # sugerir um grupo para a base carregada, a sugestão vence uma vez.
     observe({
       df <- data_rv()
       req(df)
       categorias <- names(df)[vapply(df, function(x) is.factor(x) || is.character(x), logical(1))]
       categorias <- setdiff(categorias, c("id", "ID"))
+      papeis <- papeis_base_rv()
+      sugerida <- if (!is.null(papeis)) papeis$quali_sup %||% "" else ""
       atuais <- isolate(input$quali_sup) %||% ""
-      if (!atuais %in% categorias) atuais <- ""
+      escolhida <- if (nzchar(sugerida) && sugerida %in% categorias) sugerida
+        else if (atuais %in% categorias) atuais
+        else ""
       updateSelectInput(session, "quali_sup",
                         choices = c("(nenhuma)" = "", stats::setNames(categorias, categorias)),
-                        selected = atuais)
+                        selected = escolhida)
     })
 
     assinatura_execucao <- reactive({
@@ -361,7 +433,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
       req(r)
       tagList(
         alerta_grupos_pequenos(r),
-        plotOutput(ns("grafico_individuos"), height = "400px"),
+        plotOutput(ns("grafico_individuos"), height = "380px"),
         helpText(HTML("Quando a variável de grupo tem os níveis do guia de HCA (trechos do rio), as cores são <b>as mesmas do dendrograma</b> — as leituras dos dois menus se correspondem."))
       )
     })
@@ -378,8 +450,8 @@ mod_pca_server <- function(id, data_rv, import_info) {
       req(r)
       tagList(
         alerta_grupos_pequenos(r),
-        plotOutput(ns("grafico_biplot"), height = "420px"),
-        helpText(HTML("Leia o biplot pela <b>direção das setas</b>: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta (Settanni &amp; Srai, 2026)."))
+        plotOutput(ns("grafico_biplot"), height = "380px"),
+        helpText(HTML("Leia o biplot pela <b>direção das setas</b>: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta."))
       )
     })
 
@@ -398,12 +470,13 @@ mod_pca_server <- function(id, data_rv, import_info) {
         tagList(
           div(class = "alert alert-info py-2 mb-2", style = "font-size: 0.85rem;",
               icon("circle-info"),
-              " A permutação (PCAtest) não está disponível: as cargas são exibidas como correlações com os eixos, sem teste de significância."),
+              " A permutação não pôde ser calculada para esta base: as cargas são exibidas como correlações com os eixos, sem teste de significância."),
           tableOutput(ns("tabela_cargas"))
         )
       } else {
         tagList(
           plotOutput(ns("grafico_cargas"), height = "400px"),
+          helpText(HTML("O <b>índice de carga</b> mede quanto cada variável contribui para o eixo: é a correlação da variável com o eixo elevada ao quadrado e ponderada pelo autovalor. Por ser ao quadrado, é sempre positivo — o <b>sinal do eixo é arbitrário</b>, então o que importa é a magnitude. O <b>limite permutado (97,5 %)</b> vem de 999 PCA sobre dados com as colunas embaralhadas: só 2,5 % das cargas do acaso o ultrapassam. Uma variável acima do limite contribui mais do que se esperaria pelo acaso.")),
           tableOutput(ns("tabela_cargas")),
           hr(),
           h6("Descrição automática dos eixos (dimdesc, p < 0,05)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
@@ -549,8 +622,8 @@ mod_pca_server <- function(id, data_rv, import_info) {
         r_script_content <- c(
           "# --- SCRIPT DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA) ---",
           "# Pacotes necessários (instale uma vez):",
-          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'missMDA', 'patchwork'))",
-          "#   remotes::install_github('arleyc/PCAtest')   # permutação (opcional, mas recomendada)",
+          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'patchwork'))",
+          "#   install.packages('missMDA')   # só se for usar a comparação com imputação",
           "source('scripts/funcoes_pca.R')",
           "",
           "# 1. CARREGAR OS DADOS LIMPOS",
