@@ -4667,39 +4667,65 @@ RCatalyst::run_ide()</pre>
         file.copy("templates/funcoes_pca.R", file.path(dir_scripts, "funcoes_pca.R"), overwrite = TRUE)
         vars_sel <- input[["pca-vars_selected"]]
         scale_val <- input[["pca-scale"]]
+        quanti_sel <- input[["pca-quanti_sup"]] %||% character(0)
+        quali_sel <- input[["pca-quali_sup"]] %||% ""
+        seed_val <- input[["pca-seed"]]
+        comp_imp <- input[["pca-comparar_imputacao"]]
         if (is.null(scale_val)) scale_val <- TRUE
+        if (is.null(seed_val)) seed_val <- 2026
+        if (is.null(comp_imp)) comp_imp <- FALSE
         vars_str <- paste(paste0("'", vars_sel, "'"), collapse = ", ")
-        
+
         pca_script_content <- c(
           "# --- SCRIPT DE COMPONENTES PRINCIPAIS (PCA) ---",
+          "# Pacotes necessarios:",
+          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'missMDA', 'patchwork'))",
+          "#   remotes::install_github('arleyc/PCAtest')  # permutacao (opcional)",
           "source('scripts/funcoes_pca.R')",
           "load('dados/dados_limpos.rda')",
           "dados <- df_clean",
           "",
           sprintf("vars_sel <- c(%s)", vars_str),
-          sprintf("r_pca <- calcular_pca(dados, vars_sel, scale = %s)", as.character(scale_val)),
+          sprintf("quanti_sup <- %s", if (length(quanti_sel)) {
+            paste0("c(", paste(paste0("'", quanti_sel, "'"), collapse = ", "), ")")
+          } else "NULL"),
+          sprintf("quali_sup <- %s", if (nzchar(quali_sel)) sprintf("'%s'", quali_sel) else "NULL"),
+          sprintf("r_pca <- calcular_pca(dados, vars_sel, scale = %s, quanti_sup = quanti_sup,", as.character(scale_val)),
+          sprintf("                      quali_sup = quali_sup, seed = %d, comparar_imputacao = %s)", as.integer(seed_val), as.character(comp_imp)),
           "print(mostrar_pca_var(r_pca))",
-          "print(mostrar_pca_loadings(r_pca))"
+          "print(mostrar_pca_retencao(r_pca))",
+          "print(mostrar_pca_cargas(r_pca))",
+          "print(grafico_pca_retencao(r_pca))",
+          "print(grafico_pca_biplot(r_pca, versao = 'classica', ellipse_type = 'norm'))"
         )
         writeLines(pca_script_content, file.path(dir_scripts, "11_analise_pca.R"))
         scripts_incluidos <- c(scripts_incluidos, "scripts/11_analise_pca.R")
-        
+
         vars_str_qmd <- paste(paste0("'", vars_sel, "'"), collapse = ", ")
+        quanti_str_qmd <- paste(paste0("'", quanti_sel, "'"), collapse = ", ")
         qmd_sections[["pca"]] <- c(
           "## Análise de Componentes Principais (PCA)",
-          "Redução de dimensionalidade linear.",
+          "Redução de dimensionalidade linear (FactoMineR), com retenção por permutação (PCAtest).",
           "",
           "```{r}",
           "#| label: pca-consolidado",
           "source('../scripts/funcoes_pca.R')",
-          sprintf("r_pca <- calcular_pca(dados, c(%s), scale = %s)", vars_str_qmd, as.character(scale_val)),
+          sprintf("r_pca <- calcular_pca(dados, c(%s), scale = %s, quanti_sup = %s, quali_sup = %s, seed = %d, comparar_imputacao = %s)",
+                  vars_str_qmd, as.character(scale_val),
+                  if (length(quanti_sel)) sprintf("c(%s)", quanti_str_qmd) else "NULL",
+                  if (nzchar(quali_sel)) sprintf("'%s'", quali_sel) else "NULL",
+                  as.integer(seed_val), as.character(comp_imp)),
           "knitr::kable(mostrar_pca_var(r_pca), digits = 3, caption = 'Variância Explicada por Componente')",
+          "knitr::kable(mostrar_pca_retencao(r_pca), caption = 'Critérios de Retenção')",
           "```",
           "",
-          "### Cargas dos Componentes (Loadings)",
+          "### Retenção e biplot",
           "```{r}",
-          "#| label: pca-loadings-consolidado",
-          "knitr::kable(mostrar_pca_loadings(r_pca), digits = 4, caption = 'Cargas dos Componentes Principais')",
+          "#| label: pca-figs-consolidado",
+          "#| fig-width: 6.5",
+          "#| fig-height: 4.5",
+          "print(grafico_pca_retencao(r_pca))",
+          "print(grafico_pca_biplot(r_pca, versao = 'classica', ellipse_type = 'norm'))",
           "```",
           ""
         )

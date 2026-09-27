@@ -50,8 +50,8 @@ cat("R          :", as.character(getRversion()),
 cat("Pacotes    :", length(exigidos), "exigidos pelo DESCRIPTION\n")
 
 # --- 2. CRAN ------------------------------------------------------------------
-# EAPADados nao esta no CRAN; e tratado no passo 3.
-do_cran <- setdiff(exigidos, "EAPADados")
+# EAPADados e PCAtest nao estao no CRAN; sao tratados no passo 3.
+do_cran <- setdiff(exigidos, c("EAPADados", "PCAtest"))
 faltando <- do_cran[!vapply(do_cran, requireNamespace, logical(1), quietly = TRUE)]
 
 if (length(faltando)) {
@@ -68,11 +68,18 @@ if (length(faltando)) {
   cat("\nCRAN       : os", length(do_cran), "pacotes ja estao instalados.\n")
 }
 
-# --- 3. EAPADados (GitHub) ----------------------------------------------------
-if ("EAPADados" %in% exigidos && !requireNamespace("EAPADados", quietly = TRUE)) {
-  cat("\nInstalando EAPADados (nao esta no CRAN)...\n")
-  if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
-  remotes::install_github("astuciasnor/EAPADados")
+# --- 3. GitHub ----------------------------------------------------------------
+# EAPADados (IDE de dados do EAPA) e PCAtest (permutacao da PCA; saiu do CRAN).
+github_pacotes <- list(
+  "EAPADados" = "astuciasnor/EAPADados",
+  "PCAtest" = "arleyc/PCAtest"
+)
+for (pkg in names(github_pacotes)) {
+  if (pkg %in% exigidos && !requireNamespace(pkg, quietly = TRUE)) {
+    cat("\nInstalando", pkg, "(nao esta no CRAN)...\n")
+    if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+    remotes::install_github(github_pacotes[[pkg]])
+  }
 }
 
 # --- 4. Opcionais -------------------------------------------------------------

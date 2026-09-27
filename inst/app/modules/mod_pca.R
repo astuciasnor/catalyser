@@ -1,4 +1,10 @@
-# Módulo de Análise de Componentes Principais (PCA) para IDE_R
+# Módulo de Análise de Componentes Principais (PCA / ACP) para IDE_R
+# -----------------------------------------------------------------------------
+# Adaptado do roteiro didático da curadoria (Multivariada_02_PCA): PCA
+# padronizada com variáveis suplementares (FactoMineR), retenção por três
+# critérios com a permutação em destaque (PCAtest), círculo de correlações por
+# cos², contribuições, mapa de indivíduos, biplot com elipses, cargas com
+# limite de permutação e comparação com imputação (missMDA).
 library(shiny)
 library(bslib)
 library(ggplot2)
@@ -9,12 +15,26 @@ if (file.exists("templates/funcoes_pca.R")) {
 }
 
 # Helper para customizar parâmetros do relatório Quarto de PCA
-customize_pca_qmd_params <- function(qmd_path, vars_selected, scale) {
+customize_pca_qmd_params <- function(qmd_path, vars_selected, scale,
+                                     quanti_sup = "", quali_sup = "",
+                                     seed = 2026, comparar_imputacao = FALSE) {
   lines <- readLines(qmd_path, warn = FALSE)
   lines <- gsub('vars_selected: ".*"', sprintf('vars_selected: "%s"', vars_selected), lines)
-  lines <- gsub('scale: .*', sprintf('scale: %s', tolower(as.character(scale))), lines)
+  lines <- gsub('quanti_sup: ".*"', sprintf('quanti_sup: "%s"', quanti_sup), lines)
+  lines <- gsub('quali_sup: ".*"', sprintf('quali_sup: "%s"', quali_sup), lines)
+  lines <- gsub('seed: .*', sprintf('seed: %s', as.integer(seed)), lines)
+  lines <- gsub('comparar_imputacao: .*', sprintf('comparar_imputacao: %s', tolower(as.character(isTRUE(comparar_imputacao)))), lines)
+  lines <- gsub('scale: .*', sprintf('scale: %s', tolower(as.character(isTRUE(scale)))), lines)
   return(lines)
 }
+
+# Opções de envoltória/elipse para indivíduos e biplot (guia da curadoria).
+opcoes_elipse_pca <- c(
+  "Elipse de concentração (normal, 95 %)" = "norm",
+  "Elipse robusta (t)" = "t",
+  "Elipse de confiança" = "confidence",
+  "Envoltória convexa" = "convex"
+)
 
 mod_pca_ui <- function(id) {
   ns <- NS(id)
@@ -22,15 +42,23 @@ mod_pca_ui <- function(id) {
     layout_columns(
       col_widths = c(1, 1, 1),
       style = "grid-template-columns: 2.5fr 7fr 2.5fr !important;",
-      
+
       # COLUNA 1: CONFIGURAÇÃO DO MODELO
       div(
         card(
           card_header("Configuração da PCA"),
           card_body(
             style = "padding: 12px 15px;",
-            checkboxGroupInput(ns("vars_selected"), "Selecione as Variáveis Numéricas (mínimo 2):", choices = NULL),
-            checkboxInput(ns("scale"), "Padronizar Variáveis (Escala Unitária)", value = TRUE),
+            checkboxGroupInput(ns("vars_selected"), "Variáveis ativas (numéricas, mínimo 2):", choices = NULL),
+            actionButton(ns("sel_all_num"), "Selecionar todas as numéricas",
+                         icon = icon("list-check"), class = "btn-outline-secondary btn-sm w-100 mb-2"),
+            checkboxGroupInput(ns("quanti_sup"), "Suplementares quantitativas (opcional):", choices = NULL),
+            selectInput(ns("quali_sup"), "Variável de grupo (opcional):", choices = NULL),
+            checkboxInput(ns("scale"), "Padronizar variáveis (PCA de correlação)", value = TRUE),
+            numericInput(ns("seed"), "Semente da permutação:", value = 2026,
+                         min = 1, max = 999999, step = 1),
+            checkboxInput(ns("comparar_imputacao"), "Comparar com imputação (missMDA) se houver NA", value = FALSE),
+            helpText(HTML("As variáveis <b>ativas</b> formam os eixos. As <b>suplementares</b> não influenciam a PCA: são projetadas depois, para interpretação (ex.: riqueza e trecho do rio Doubs). A permutação (999 repetições) testa a significância dos eixos e das cargas.")),
             execucao_explicita_controles_ui(ns)
           )
         ),
@@ -47,60 +75,93 @@ mod_pca_ui <- function(id) {
           )
         )
       ),
-      
+
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
         title = "Painel de Resultados da PCA",
         nav_panel(
-          title = "Variância Explicada",
-          icon = icon("chart-pie"),
+          title = "Correlações",
+          icon = icon("table-cells"),
           card_body(
-            uiOutput(ns("variancia_ui"))
+            uiOutput(ns("correlacoes_ui"))
           )
         ),
         nav_panel(
-          title = "Cargas dos Componentes",
-          icon = icon("table"),
+          title = "Autovalores",
+          icon = icon("chart-pie"),
+          card_body(
+            uiOutput(ns("autovalores_ui"))
+          )
+        ),
+        nav_panel(
+          title = "Círculo",
+          icon = icon("circle-dot"),
+          card_body(
+            plotOutput(ns("grafico_circulo"), height = "420px"),
+            helpText(HTML("A cor de cada seta é a qualidade de representação (cos²). Uma seta <b>curta não é irrelevante</b>: indica que a variável varia em outras direções — veja o cos² antes de descartar."))
+          )
+        ),
+        nav_panel(
+          title = "Contribuições",
+          icon = icon("chart-bar"),
+          card_body(
+            plotOutput(ns("grafico_contribuicoes"), height = "360px"),
+            helpText(HTML("A linha tracejada vermelha marca a contribuição esperada se todas as variáveis contribuíssem igualmente (100/p %). Variáveis acima dela são as que mais constroem cada eixo."))
+          )
+        ),
+        nav_panel(
+          title = "Indivíduos",
+          icon = icon("users"),
+          card_body(
+            uiOutput(ns("individuos_ui"))
+          )
+        ),
+        nav_panel(
+          title = "Biplot",
+          icon = icon("diagram-project"),
+          card_body(
+            uiOutput(ns("biplot_ui"))
+          )
+        ),
+        nav_panel(
+          title = "Cargas",
+          icon = icon("list-check"),
           card_body(
             uiOutput(ns("cargas_ui"))
           )
         ),
         nav_panel(
-          title = "Biplot Bidimensional",
-          icon = icon("diagram-project"),
+          title = "Imputação",
+          icon = icon("droplet"),
           card_body(
-            plotOutput(ns("biplot"), height = "450px")
-          )
-        ),
-        nav_panel(
-          title = "Escores dos Indivíduos",
-          icon = icon("list"),
-          card_body(
-            DTOutput(ns("scores_table"))
+            uiOutput(ns("imputacao_ui"))
           )
         )
       )),
-      
+
       # COLUNA 3: CONFIGURAÇÕES DE EXIBIÇÃO
       card(
         card_header("Configurações de Exibição"),
         card_body(
           conditionalPanel(
-            condition = sprintf("input['%s'] == 'Biplot Bidimensional'", ns("active_tab")),
-            checkboxInput(ns("show_labels"), "Exibir Rótulos de Cargas", value = TRUE),
-            checkboxInput(ns("show_points"), "Exibir Observações", value = TRUE),
-            selectInput(ns("graph_theme"), "Tema do Gráfico:", 
-                        choices = c("Mínimo" = "minimal", 
-                                    "Clássico" = "classic", 
-                                    "Preto e Branco" = "bw", 
-                                    "Cinza" = "gray", 
-                                    "Light" = "light"), 
-                        selected = "minimal")
+            condition = sprintf("input['%s'] == 'Indivíduos'", ns("active_tab")),
+            selectInput(ns("ellipse_ind"), "Tipo de envoltória:",
+                        choices = opcoes_elipse_pca, selected = "convex"),
+            helpText("Elipses de concentração (norm) e de confiança exigem ao menos 3 unidades por grupo; a envoltória convexa ajusta qualquer grupo.")
           ),
           conditionalPanel(
-            condition = sprintf("input['%s'] != 'Biplot Bidimensional'", ns("active_tab")),
-            helpText("As tabelas de autovalores e cargas são calculadas de forma exata e não dependem de configurações gráficas.")
+            condition = sprintf("input['%s'] == 'Biplot'", ns("active_tab")),
+            selectInput(ns("versao_biplot"), "Versão do biplot:",
+                        choices = c("Clássica (setas cinza)" = "classica",
+                                    "Avançada (setas pela contribuição)" = "contribuicao")),
+            selectInput(ns("ellipse_biplot"), "Tipo de elipse:",
+                        choices = opcoes_elipse_pca, selected = "norm")
+          ),
+          conditionalPanel(
+            condition = sprintf("input['%s'] != 'Indivíduos' && input['%s'] != 'Biplot'",
+                                ns("active_tab"), ns("active_tab")),
+            helpText("As tabelas de autovalores, cargas e descrições são calculadas de forma exata e não dependem de configurações gráficas.")
           )
         )
       )
@@ -113,34 +174,75 @@ mod_pca_server <- function(id, data_rv, import_info) {
     ns <- session$ns
     revisao_execucao <- execucao_revisao_dados(data_rv)
     gatilho_execucao <- reactiveVal(0L)
-    
-    # Atualiza lista de variáveis numéricas na interface
+
+    # Atualiza a lista de variáveis ativas (só numéricas) na interface.
     observe({
       df <- data_rv()
       req(df)
-      num_cols <- names(df)[sapply(df, is.numeric)]
-      # Remove a coluna id se existir para não poluir
-      num_cols <- setdiff(num_cols, c("id", "ID"))
-      atuais <- isolate(input$vars_selected)
-      selecionadas <- intersect(atuais %||% character(), num_cols)
-      if (length(selecionadas) < 2) selecionadas <- head(num_cols, 3)
-      updateCheckboxGroupInput(session, "vars_selected", choices = num_cols, selected = selecionadas)
+      numericas <- names(df)[vapply(df, is.numeric, logical(1))]
+      numericas <- setdiff(numericas, c("id", "ID"))
+      atuais <- isolate(input$vars_selected) %||% character()
+      selecionadas <- intersect(atuais, numericas)
+      if (length(selecionadas) < 2) selecionadas <- head(numericas, min(3, length(numericas)))
+      updateCheckboxGroupInput(session, "vars_selected", choices = numericas, selected = selecionadas)
+    })
+
+    # Botão: selecionar todas as numéricas.
+    observeEvent(input$sel_all_num, {
+      df <- data_rv()
+      req(df)
+      numericas <- names(df)[vapply(df, is.numeric, logical(1))]
+      updateCheckboxGroupInput(session, "vars_selected", selected = numericas)
+    })
+
+    # Atualiza as suplementares quantitativas: numéricas fora das ativas.
+    observe({
+      df <- data_rv()
+      req(df)
+      numericas <- names(df)[vapply(df, is.numeric, logical(1))]
+      ativas <- input$vars_selected %||% character()
+      livres <- setdiff(numericas, ativas)
+      atuais <- isolate(input$quanti_sup) %||% character()
+      selecionadas <- intersect(atuais, livres)
+      updateCheckboxGroupInput(session, "quanti_sup", choices = livres, selected = selecionadas)
+    })
+
+    # Atualiza a variável de grupo: colunas categóricas da base.
+    observe({
+      df <- data_rv()
+      req(df)
+      categorias <- names(df)[vapply(df, function(x) is.factor(x) || is.character(x), logical(1))]
+      categorias <- setdiff(categorias, c("id", "ID"))
+      atuais <- isolate(input$quali_sup) %||% ""
+      if (!atuais %in% categorias) atuais <- ""
+      updateSelectInput(session, "quali_sup",
+                        choices = c("(nenhuma)" = "", stats::setNames(categorias, categorias)),
+                        selected = atuais)
     })
 
     assinatura_execucao <- reactive({
       req(length(input$vars_selected) >= 2)
       execucao_assinatura(
         input,
-        c("vars_selected", "scale"),
+        c("vars_selected", "scale", "quanti_sup", "quali_sup", "seed",
+          "comparar_imputacao"),
         revisao_execucao()
       )
     })
-    
+
     # Executa a PCA apenas após confirmação explícita.
     result_rv <- eventReactive(gatilho_execucao(), {
       df <- data_rv()
       req(df, length(input$vars_selected) >= 2)
-      calcular_pca(df, input$vars_selected, input$scale)
+      calcular_pca(
+        df = df,
+        vars_selected = input$vars_selected,
+        scale = isTRUE(input$scale),
+        quanti_sup = input$quanti_sup %||% character(0),
+        quali_sup = input$quali_sup %||% "",
+        seed = input$seed,
+        comparar_imputacao = isTRUE(input$comparar_imputacao)
+      )
     }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
@@ -148,129 +250,225 @@ mod_pca_server <- function(id, data_rv, import_info) {
       nome_analise = "A PCA",
       gatilho_rv = gatilho_execucao
     )
-    
-    # Tabela de variância explicada e gráfico de cotovelo
-    output$variancia_ui <- renderUI({
+
+    # Avisos do motor (variáveis constantes, exclusões, permutação indisponível...).
+    alerta_avisos <- function(r) {
+      avisos <- r$avisos
+      if (!length(avisos)) return(NULL)
+      tagList(lapply(avisos, function(a) {
+        div(class = "alert alert-warning py-2 mb-2", style = "font-size: 0.85rem;",
+            icon("triangle-exclamation"), " ", a)
+      }))
+    }
+
+    # Aviso automático quando algum grupo tem menos de três unidades.
+    alerta_grupos_pequenos <- function(r) {
+      gp <- r$grupos_pequenos
+      if (is.null(gp) || !length(gp)) return(NULL)
+      frases <- vapply(seq_along(gp), function(i) {
+        sprintf("O grupo '%s' tem apenas %d unidade(s): elipses de concentração e de confiança não podem ser estimadas com menos de três pontos.",
+                names(gp)[i], gp[[i]])
+      }, character(1))
+      div(class = "alert alert-warning py-2 mb-2", style = "font-size: 0.85rem;",
+          icon("triangle-exclamation"), " ", paste(frases, collapse = " "))
+    }
+
+    # ---- Aba 1: correlações antes da PCA ------------------------------------
+    output$correlacoes_ui <- renderUI({
       r <- result_rv()
       req(r)
-      relato <- relatar_pca(r)
-      
       tagList(
+        alerta_avisos(r),
+        plotOutput(ns("grafico_correlacoes"), height = "420px"),
+        helpText(HTML("Matriz de correlações de Pearson, ordenada por agrupamento hierárquico e com o triângulo inferior. É o diagnóstico pré-PCA: variáveis muito correlacionadas antecipam eixos com alta variância explicada."))
+      )
+    })
+
+    output$grafico_correlacoes <- renderPlot({
+      r <- result_rv()
+      req(r)
+      g <- grafico_pca_correlacoes(r)
+      validate(need(!is.null(g), "A matriz de correlações não pôde ser desenhada (variável constante?)."))
+      g
+    })
+
+    # ---- Aba 2: autovalores e retenção --------------------------------------
+    output$autovalores_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      tagList(
+        alerta_avisos(r),
         layout_columns(
           col_widths = c(6, 6),
           card_body(
-            h6("Autovalores e Proporção de Variabilidade", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
-            tableOutput(ns("variancia_table"))
+            h6("Gráfico de retenção", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+            plotOutput(ns("grafico_retencao"), height = "300px")
           ),
           card_body(
-            h6("Gráfico de Cotovelo (Scree Plot)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
-            plotOutput(ns("scree_plot"), height = "250px")
+            h6("Autovalores e variância explicada", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+            tableOutput(ns("tabela_variancia")),
+            h6("Conferência FactoMineR × prcomp", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 10px;"),
+            tableOutput(ns("tabela_conferencia"))
           )
         ),
-        hr(),
-        h6("Relato Científico Automatizado", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
-        div(class = "alert alert-secondary", style = "font-size: 0.9rem; line-height: 1.4;", relato)
+        h6("Retenção: três critérios juntos", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 12px;"),
+        tableOutput(ns("tabela_retencao")),
+        helpText(HTML("A <b>permutação</b> (999 repetições, semente fixa) é o critério em destaque: retém-se o eixo cujo p &lt; 0,05. O bastão quebrado é um critério de referência e o <b>Kaiser (autovalor = 1) é apenas referência</b> — sozinho, ele costuma reter eixos demais."))
       )
     })
-    
-    output$variancia_table <- renderTable({
+
+    output$tabela_variancia <- renderTable({
       r <- result_rv()
       req(r)
       mostrar_pca_var(r)
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
-    
-    output$scree_plot <- renderPlot({
+
+    output$tabela_conferencia <- renderTable({
       r <- result_rv()
       req(r)
-      
-      scree_data <- data.frame(
-        PC = factor(r$var_df$PC, levels = r$var_df$PC),
-        Variancia = r$var_df$Variancia_Pct
-      )
-      
-      ggplot(scree_data, aes(x = PC, y = Variancia)) +
-        geom_bar(stat = "identity", fill = "#0F3B5F", width = 0.6) +
-        geom_line(group = 1, color = "#E76F51", linewidth = 1) +
-        geom_point(color = "#E76F51", size = 2) +
-        theme_minimal(base_size = 11) +
-        labs(x = "Componentes Principais", y = "Variância Explicada (%)")
+      mostrar_pca_conferencia(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    output$tabela_retencao <- renderTable({
+      r <- result_rv()
+      req(r)
+      mostrar_pca_retencao(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    output$grafico_retencao <- renderPlot({
+      r <- result_rv()
+      req(r)
+      grafico_pca_retencao(r)
     })
-    
-    # Cargas dos componentes
+
+    # ---- Aba 3: círculo de correlações --------------------------------------
+    output$grafico_circulo <- renderPlot({
+      r <- result_rv()
+      req(r)
+      grafico_pca_circulo(r)
+    })
+
+    # ---- Aba 4: contribuições -----------------------------------------------
+    output$grafico_contribuicoes <- renderPlot({
+      r <- result_rv()
+      req(r)
+      grafico_pca_contribuicoes(r)
+    })
+
+    # ---- Aba 5: mapa dos indivíduos -----------------------------------------
+    output$individuos_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      tagList(
+        alerta_grupos_pequenos(r),
+        plotOutput(ns("grafico_individuos"), height = "400px"),
+        helpText(HTML("Quando a variável de grupo tem os níveis do guia de HCA (trechos do rio), as cores são <b>as mesmas do dendrograma</b> — as leituras dos dois menus se correspondem."))
+      )
+    })
+
+    output$grafico_individuos <- renderPlot({
+      r <- result_rv()
+      req(r)
+      grafico_pca_individuos(r, ellipse_type = input$ellipse_ind %||% "convex")
+    })
+
+    # ---- Aba 6: biplot ------------------------------------------------------
+    output$biplot_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      tagList(
+        alerta_grupos_pequenos(r),
+        plotOutput(ns("grafico_biplot"), height = "420px"),
+        helpText(HTML("Leia o biplot pela <b>direção das setas</b>: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta (Settanni &amp; Srai, 2026)."))
+      )
+    })
+
+    output$grafico_biplot <- renderPlot({
+      r <- result_rv()
+      req(r)
+      grafico_pca_biplot(r, versao = input$versao_biplot %||% "classica",
+                         ellipse_type = input$ellipse_biplot %||% "norm")
+    })
+
+    # ---- Aba 7: cargas com limite de permutação e dimdesc -------------------
     output$cargas_ui <- renderUI({
       r <- result_rv()
       req(r)
-      
-      tagList(
-        h6("Cargas dos Componentes Principais (Autovetores)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 5px;"),
-        tableOutput(ns("cargas_table")),
-        helpText("As cargas representam o peso linear (correlação) de cada variável original com os respectivos Componentes Principais. Valores mais altos (positivos ou negativos) indicam maior importância.")
-      )
+      if (is.null(r$cargas)) {
+        tagList(
+          div(class = "alert alert-info py-2 mb-2", style = "font-size: 0.85rem;",
+              icon("circle-info"),
+              " A permutação (PCAtest) não está disponível: as cargas são exibidas como correlações com os eixos, sem teste de significância."),
+          tableOutput(ns("tabela_cargas"))
+        )
+      } else {
+        tagList(
+          plotOutput(ns("grafico_cargas"), height = "400px"),
+          tableOutput(ns("tabela_cargas")),
+          hr(),
+          h6("Descrição automática dos eixos (dimdesc, p < 0,05)", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+          uiOutput(ns("tabela_dimdesc"))
+        )
+      }
     })
-    
-    output$cargas_table <- renderTable({
+
+    output$grafico_cargas <- renderPlot({
       r <- result_rv()
       req(r)
-      mostrar_pca_loadings(r)
+      g <- grafico_pca_cargas(r)
+      validate(need(!is.null(g), "Sem permutação não há limite nulo para desenhar."))
+      g
+    })
+
+    output$tabela_cargas <- renderTable({
+      r <- result_rv()
+      req(r)
+      mostrar_pca_cargas(r)
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
-    
-    # DT escores
-    output$scores_table <- renderDT({
+
+    output$tabela_dimdesc <- renderUI({
       r <- result_rv()
       req(r)
-      datatable(round(r$scores, 4), options = list(pageLength = 10, scrollX = TRUE))
+      tab <- mostrar_pca_dimdesc(r)
+      if (is.null(tab)) {
+        return(helpText("Nenhuma variável ou grupo foi significativo (p < 0,05) na descrição automática dos eixos."))
+      }
+      tableOutput(ns("tabela_dimdesc_inner"))
     })
-    
-    # Biplot de PCA
-    output$biplot <- renderPlot({
+
+    output$tabela_dimdesc_inner <- renderTable({
       r <- result_rv()
       req(r)
-      
-      g_theme <- switch(input$graph_theme,
-                        "minimal" = theme_minimal(base_size = 14),
-                        "classic" = theme_classic(base_size = 14),
-                        "bw"      = theme_bw(base_size = 14),
-                        "gray"    = theme_gray(base_size = 14),
-                        "light"   = theme_light(base_size = 14),
-                        theme_minimal(base_size = 14))
-      
-      scores_df <- r$scores
-      loadings_mat <- r$rotation
-      
-      # Escalar as setas para o gráfico
-      scaling <- max(abs(scores_df[,1:2])) / max(abs(loadings_mat[,1:2])) * 0.75
-      
-      arrow_df <- data.frame(
-        Variable = rownames(loadings_mat),
-        x = 0, y = 0,
-        vx = loadings_mat[,1] * scaling,
-        vy = loadings_mat[,2] * scaling
-      )
-      
-      p <- ggplot()
-      
-      # Adicionar observações
-      if (input$show_points) {
-        p <- p + geom_point(data = scores_df, aes(x = PC1, y = PC2), color = "#62B6B7", alpha = 0.6, size = 2.5)
+      mostrar_pca_dimdesc(r)
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    # ---- Aba 8: comparação com imputação (missMDA) --------------------------
+    output$imputacao_ui <- renderUI({
+      r <- result_rv()
+      req(r)
+      if (!is.null(r$imputacao)) {
+        tagList(
+          plotOutput(ns("grafico_imputacao"), height = "360px"),
+          div(class = "alert alert-light",
+              style = "border-left: 4px solid #2E7D8F; background-color: #f8f9fa; color: #333333; font-size: 0.9rem; line-height: 1.5; padding: 12px 15px;",
+              sprintf("Foram imputadas %d célula(s) com %d eixo(s) (missMDA). Concordância do eixo 1 com os dados completos: r = %s. A imputação não cria informação nova: serve para aproveitar observações incompletas e estabilizar a projeção.",
+                      r$imputacao$n_faltantes, r$imputacao$n_eixos,
+                      fmt_pca(r$imputacao$concordancia)))
+        )
       }
-      
-      # Adicionar cargas/setas
-      p <- p + geom_segment(data = arrow_df, aes(x = x, y = y, xend = vx, yend = vy),
-                           arrow = arrow(length = unit(0.25, "cm")), color = "#E76F51", linewidth = 1.2)
-      
-      # Adicionar rótulos das variáveis
-      if (input$show_labels) {
-        p <- p + ggrepel::geom_text_repel(data = arrow_df, aes(x = vx, y = vy, label = Variable),
-                                         color = "#0F3B5F", fontface = "bold", size = 4.5)
-      }
-      
-      p + g_theme +
-        labs(title = "Biplot Bidimensional (PC1 vs PC2)",
-             x = paste0("PC1 (", round(r$var_df$Variancia_Pct[1], 1), "%)"),
-             y = paste0("PC2 (", round(r$var_df$Variancia_Pct[2], 1), "%)")) +
-        theme(plot.title = element_text(face = "bold", color = "#0F3B5F"))
+      motivo <- r$imputacao_mensagem %||%
+        "A comparação com imputação não foi solicitada (marque a opção na configuração)."
+      div(class = "alert alert-info", icon("circle-info"), " ", motivo)
     })
-    
+
+    output$grafico_imputacao <- renderPlot({
+      r <- result_rv()
+      req(r)
+      g <- grafico_pca_imputacao(r)
+      validate(need(!is.null(g), "Sem comparação de imputação disponível."))
+      g
+    })
+
     # Handlers de Download
     output$download_report_docx <- downloadHandler(
       filename = function() {
@@ -278,33 +476,39 @@ mod_pca_server <- function(id, data_rv, import_info) {
       },
       content = function(file) {
         req(data_rv())
-        
+
         temp_dir <- tempdir()
         temp_qmd <- file.path(temp_dir, "relatorio_pca.qmd")
         temp_ref <- file.path(temp_dir, "custom-reference.docx")
         temp_func <- file.path(temp_dir, "funcoes_pca.R")
         temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
+
         file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
         file.copy("templates/funcoes_pca.R", temp_func, overwrite = TRUE)
         file.copy("templates/relatorio_pca.qmd", temp_qmd, overwrite = TRUE)
-        
+
         df_clean <- data_rv()
         save(df_clean, file = temp_data)
-        
+
         vars_str <- paste(input$vars_selected, collapse = ",")
+        sup_str <- paste(input$quanti_sup %||% character(0), collapse = ",")
+        quali_str <- input$quali_sup %||% ""
         custom_qmd_lines <- customize_pca_qmd_params(
           temp_qmd,
           vars_selected = vars_str,
-          scale = input$scale
+          scale = input$scale,
+          quanti_sup = sup_str,
+          quali_sup = quali_str,
+          seed = input$seed %||% 2026,
+          comparar_imputacao = input$comparar_imputacao %||% FALSE
         )
         writeLines(custom_qmd_lines, temp_qmd)
-        
+
         old_wd <- getwd()
         setwd(temp_dir)
         system2("quarto", args = c("render", "relatorio_pca.qmd", "--to", "docx"))
         setwd(old_wd)
-        
+
         generated_docx <- file.path(temp_dir, "relatorio_pca.docx")
         if (file.exists(generated_docx)) {
           file.copy(generated_docx, file, overwrite = TRUE)
@@ -313,7 +517,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
         }
       }
     )
-    
+
     output$download_project_zip <- downloadHandler(
       filename = function() {
         paste0("projeto_pca_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
@@ -323,80 +527,91 @@ mod_pca_server <- function(id, data_rv, import_info) {
         proj_dir_name <- paste0("projeto_pca_", format(Sys.Date(), "%Y-%m-%d"))
         temp_dir <- tempdir()
         proj_dir <- file.path(temp_dir, proj_dir_name)
-        
+
         dir.create(proj_dir, showWarnings = FALSE)
         dir_dados <- file.path(proj_dir, "dados")
         dir_scripts <- file.path(proj_dir, "scripts")
         dir_relatorios <- file.path(proj_dir, "relatorios")
-        
+
         dir.create(dir_dados, showWarnings = FALSE)
         dir.create(dir_scripts, showWarnings = FALSE)
         dir.create(dir_relatorios, showWarnings = FALSE)
-        
+
         df_clean <- data_rv()
         save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
         write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
         ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
         export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
+
         vars_str <- paste(paste0("'", input$vars_selected, "'"), collapse = ", ")
+        quanti_sel <- input$quanti_sup %||% character(0)
+        quali_sel <- input$quali_sup %||% ""
         r_script_content <- c(
           "# --- SCRIPT DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl', 'ggrepel'))",
-          "library(ggplot2)",
+          "# Pacotes necessários (instale uma vez):",
+          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'missMDA', 'patchwork'))",
+          "#   remotes::install_github('arleyc/PCAtest')   # permutação (opcional, mas recomendada)",
           "source('scripts/funcoes_pca.R')",
           "",
           "# 1. CARREGAR OS DADOS LIMPOS",
           "load('dados/dados_limpos.rda')",
           "dados <- df_clean",
           "",
-          "# 2. EXECUTAR PCA E MOSTRAR ESTATÍSTICAS",
-          sprintf("vars_selected <- c(%s)", vars_str),
-          sprintf("r <- calcular_pca(dados, vars_selected, scale = %s)", 
-                  as.character(input$scale)),
-          "print(mostrar_pca_var(r))",
-          "print(mostrar_pca_loadings(r))",
-          "cat(relatar_pca(r))",
+          "# 2. EXECUTAR A PCA (semente fixa = permutação reprodutível)",
+          sprintf("vars_sel <- c(%s)", vars_str),
+          sprintf("quanti_sup <- %s", if (length(quanti_sel)) {
+            paste0("c(", paste(paste0("'", quanti_sel, "'"), collapse = ", "), ")")
+          } else "NULL"),
+          sprintf("quali_sup <- %s", if (nzchar(quali_sel)) sprintf("'%s'", quali_sel) else "NULL"),
+          sprintf("r_pca <- calcular_pca(dados, vars_sel, scale = %s, quanti_sup = quanti_sup,", as.character(isTRUE(input$scale))),
+          sprintf("                      quali_sup = quali_sup, seed = %d, comparar_imputacao = %s)", as.integer(input$seed %||% 2026), as.character(isTRUE(input$comparar_imputacao))),
           "",
-          "# 3. GERAR O PLOT DO BIPLOT",
-          "scores_df <- r$scores",
-          "loadings_mat <- r$rotation",
-          "scaling <- max(abs(scores_df[,1:2])) / max(abs(loadings_mat[,1:2])) * 0.75",
-          "arrow_df <- data.frame(Variable = rownames(loadings_mat), x = 0, y = 0,",
-          "                       vx = loadings_mat[,1] * scaling, vy = loadings_mat[,2] * scaling)",
-          "ggplot(scores_df, aes(x = PC1, y = PC2)) +",
-          "  geom_point(color = '#62B6B7', alpha = 0.6) +",
-          "  geom_segment(data = arrow_df, aes(x = x, y = y, xend = vx, yend = vy),",
-          "               arrow = arrow(length = unit(0.2, 'cm')), color = '#E76F51', linewidth = 1) +",
-          "  geom_text(data = arrow_df, aes(x = vx, y = vy, label = Variable), color = '#0F3B5F', fontface = 'bold') +",
-          "  theme_minimal() +",
-          "  labs(title = 'PCA: Biplot PC1 vs PC2')"
+          "# 3. TABELAS E RELATO",
+          "print(mostrar_pca_var(r_pca))",
+          "print(mostrar_pca_retencao(r_pca))",
+          "print(mostrar_pca_cargas(r_pca))",
+          "cat(relatar_pca(r_pca))",
+          "",
+          "# 4. FIGURAS PRINCIPAIS",
+          "print(grafico_pca_correlacoes(r_pca))",
+          "print(grafico_pca_retencao(r_pca))",
+          "print(grafico_pca_circulo(r_pca))",
+          "print(grafico_pca_contribuicoes(r_pca))",
+          sprintf("print(grafico_pca_individuos(r_pca, ellipse_type = '%s'))", input$ellipse_ind %||% "convex"),
+          sprintf("print(grafico_pca_biplot(r_pca, versao = '%s', ellipse_type = '%s'))", input$versao_biplot %||% "classica", input$ellipse_biplot %||% "norm"),
+          "print(grafico_pca_cargas(r_pca))",
+          "print(grafico_pca_imputacao(r_pca))"
         )
-        
+
         writeLines(r_script_content, file.path(dir_scripts, "analise_pca.R"))
         file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
         file.copy("templates/funcoes_pca.R", file.path(dir_scripts, "funcoes_pca.R"), overwrite = TRUE)
-        
+
         vars_str_qmd <- paste(input$vars_selected, collapse = ",")
+        sup_str_qmd <- paste(quanti_sel, collapse = ",")
         custom_qmd_lines <- customize_pca_qmd_params(
           "templates/relatorio_pca.qmd",
           vars_selected = vars_str_qmd,
-          scale = input$scale
+          scale = input$scale,
+          quanti_sup = sup_str_qmd,
+          quali_sup = quali_sel,
+          seed = input$seed %||% 2026,
+          comparar_imputacao = input$comparar_imputacao %||% FALSE
         )
         writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_pca.qmd"))
-        
+
         rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
         writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
+
         readme_content <- c(
           "PACOTE DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA)",
           "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
           "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/analise_pca.R : Script contendo o cálculo da PCA e biplot."
+          "- scripts/analise_pca.R : Script com a PCA completa (permutação, figuras, relato).",
+          "- relatorios/           : relatorio_pca.qmd para compilar em .docx com Quarto."
         )
         writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
+
         old_wd <- getwd()
         setwd(temp_dir)
         zip::zip(file, files = proj_dir_name)
@@ -415,15 +630,22 @@ mod_pca_server <- function(id, data_rv, import_info) {
         parametros = list(
           variaveis = input$vars_selected,
           padronizar = isTRUE(input$scale),
-          mostrar_rotulos = isTRUE(input$show_labels),
-          tema = input$graph_theme
+          suplementares_quantitativas = input$quanti_sup %||% character(0),
+          variavel_grupo = if (nzchar(input$quali_sup %||% "")) input$quali_sup else NULL,
+          semente = as.integer(input$seed),
+          comparar_imputacao = isTRUE(input$comparar_imputacao),
+          tipo_elipse = input$ellipse_biplot %||% "norm",
+          versao_biplot = input$versao_biplot %||% "classica"
         ),
         saidas_disponiveis = c("narrativa", "tabela", "grafico", "diagnosticos"),
         resultado_resumo = list(
-          n = r$N,
-          variancia_pc1 = r$var_df$Variancia_Pct[1],
-          variancia_pc2 = if (nrow(r$var_df) >= 2L) r$var_df$Variancia_Pct[2] else NA_real_,
-          variancia_acumulada_pc2 = if (nrow(r$var_df) >= 2L) r$var_df$Acumulada_Pct[2] else NA_real_
+          n = r$n_usados,
+          n_excluidos = r$n_excluidos,
+          variancia_pc1 = r$autovalores$pct_variancia[1],
+          variancia_pc2 = if (nrow(r$autovalores) >= 2L) r$autovalores$pct_variancia[2] else NA_real_,
+          variancia_acumulada_pc2 = if (nrow(r$autovalores) >= 2L) r$autovalores$pct_acumulada[2] else NA_real_,
+          eixos_significativos = r$eixos_significativos,
+          concordancia_imputacao = if (!is.null(r$imputacao)) r$imputacao$concordancia else NULL
         )
       )
     })

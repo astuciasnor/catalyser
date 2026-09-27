@@ -1,6 +1,6 @@
 ---
-title: "Relatório de Análise: Componentes Principais (PCA / ACP)"
-subtitle: "Redução de Dimensionalidade e Padrões Multivariados"
+title: "Relatório de Análise de Componentes Principais (PCA / ACP)"
+subtitle: "Redução de dimensionalidade e padrões multivariados"
 author:
   - "IDE CatalyseR"
 date: today
@@ -8,11 +8,11 @@ date-format: "DD/MM/YYYY"
 lang: pt
 abstract-title: "Resumo"
 abstract: |
-  Este relatório apresenta os resultados obtidos por meio de uma Análise de
-  Componentes Principais (PCA) para avaliar a estrutura de covariância de um conjunto
-  de variáveis numéricas. São reportados os autovalores, variância explicada acumulada,
-  matriz de cargas rotacionais, escores dos componentes e gráficos de biplot e scree plot
-  para subsidiar as análises ambientais e biológicas.
+  Este relatório apresenta a Análise de Componentes Principais (PCA) realizada
+  sobre um conjunto de variáveis numéricas, com retenção de eixos avaliada por
+  três critérios (permutação em destaque, bastão quebrado e Kaiser apenas como
+  referência) e interpretação por círculo de correlações, contribuições, mapa
+  de indivíduos, biplot e cargas com limite dos dados permutados.
 format:
   docx:
     reference-doc: custom-reference.docx
@@ -27,7 +27,11 @@ format:
     toc: true
     toc-title: "Sumário"
 params:
-  vars_selected: "LC,CC"
+  vars_selected: "dfs,alt"
+  quanti_sup: ""
+  quali_sup: ""
+  seed: 2026
+  comparar_imputacao: false
   scale: true
 execute:
   echo: false
@@ -40,20 +44,15 @@ editor_options:
 ```{r setup}
 #| include: false
 
-# ---- Pacotes -------------------------------------------------------------
-library(tibble)
-library(flextable)
-library(ggplot2)
-
 # ---- Carregar Funções Auxiliares -----------------------------------------
-if (requireNamespace("EAPADados", quietly = TRUE)) {
-  library(EAPADados)
-} else if (file.exists("funcoes_pca.R")) {
+if (file.exists("funcoes_pca.R")) {
   source("funcoes_pca.R")
 } else if (file.exists("../scripts/funcoes_pca.R")) {
   source("../scripts/funcoes_pca.R")
 } else if (file.exists("scripts/funcoes_pca.R")) {
   source("scripts/funcoes_pca.R")
+} else {
+  stop("funcoes_pca.R não encontrado ao lado do relatório.")
 }
 
 # ---- Carregar Dados ------------------------------------------------------
@@ -67,113 +66,204 @@ if (file.exists("dados_limpos.rda")) {
   load("dados/dados_limpos.rda")
   dados <- df_clean
 } else {
-  # Fallback: gerar dados artificiais coerentes
-  set.seed(2026)
-  dados <- data.frame(
-    LC = rnorm(50, 45, 5),
-    CC = rnorm(50, 38, 4),
-    Peso = rnorm(50, 150, 20)
-  )
-  df_clean <- dados
+  stop("dados_limpos.rda não encontrado (esperado em dados/ ou ao lado do relatório).")
 }
 
 # ---- Processar PCA ------------------------------------------------------
 vars_list <- strsplit(params$vars_selected, ",")[[1]]
-r <- calcular_pca(dados, vars_list, scale = params$scale)
+quanti_list <- if (nzchar(params$quanti_sup)) strsplit(params$quanti_sup, ",")[[1]] else character(0)
+r <- calcular_pca(
+  dados, vars_list, scale = params$scale,
+  quanti_sup = quanti_list,
+  quali_sup = if (nzchar(params$quali_sup)) params$quali_sup else NULL,
+  seed = params$seed,
+  comparar_imputacao = params$comparar_imputacao
+)
 ```
 
 # Introdução
 
-A Análise de Componentes Principais (PCA) é uma técnica multivariada que visa condensar as informações contidas em uma matriz de dados contendo variáveis inter-relacionadas em um conjunto menor de eixos sintéticos ortogonais (não correlacionados), denominados Componentes Principais (PCs). Nas ciências biológicas e da pesca, é fundamental para avaliar padrões de desenvolvimento biométrico ou perfis ambientais complexos.
+A Análise de Componentes Principais (PCA) é uma técnica multivariada que condensa as informações de um conjunto de variáveis inter-relacionadas em poucos eixos sintéticos ortogonais, os Componentes Principais (PCs). Cada eixo é uma combinação linear das variáveis originais, e a variância explicada por cada eixo mede quanta informação ele preserva.
 
 # Material e Métodos
 
-O conjunto de dados inicial contendo $N = `r r$N`$ observações foi analisado com base nas variáveis numéricas selecionadas: **`r paste(vars_list, collapse = ', ')`**.
+O conjunto de dados inicial contendo $N = `r r$n_original`$ observações foi analisado com base nas variáveis numéricas ativas: **`r paste(vars_list, collapse = ', ')`**.
 
-A análise de componentes principais utilizou a matriz de `r ifelse(r$scale, "correlação (dados padronizados para escala unitária)", "covariância (dados não padronizados)")`. A seleção de componentes relevantes para discussão baseou-se nos autovalores (critério de Kaiser de autovalores superiores a 1) e na proporção acumulada de variabilidade explicada.
+`r if (r$n_excluidos > 0) paste0("Foram excluídas ", r$n_excluidos, " observações por dados faltantes nas variáveis ativas (análise por casos completos). A amostra final tem N = ", r$n_usados, ".") else "Não havia dados faltantes nas variáveis ativas."`
+
+A análise utilizou a matriz de `r ifelse(r$padronizar, "correlação (dados padronizados para escala unitária)", "covariância (dados apenas centralizados)")`. A padronização dá o mesmo peso a variáveis de unidades diferentes; a escolha está declarada nos parâmetros do relatório. A semente `r r$seed` foi fixada antes das permutações, garantindo reprodutibilidade.
+
+`r if (length(r$variaveis_suplementares)) paste0("As variáveis suplementares quantitativas **", paste(r$variaveis_suplementares, collapse = ', '), "** e a variável de grupo **", r$variavel_grupo, "** foram projetadas nos eixos **sem** influenciar o cálculo da PCA.") else ""`
 
 # Resultados
 
-## Tabela de Variância Explicada (Autovalores)
+## Correlações antes da PCA
 
-A @tbl-pca-var apresenta a contribuição de cada Componente Principal para a explicação da variabilidade total dos dados.
+A @fig-pca-correlacoes mostra a matriz de correlações de Pearson entre as variáveis ativas, ordenada por agrupamento hierárquico. Correlações fortes antecipam os eixos de maior variância.
+
+```{r}
+#| label: fig-pca-correlacoes
+#| fig-cap: "Matriz de correlações entre as variáveis ativas (triângulo inferior)."
+#| fig-width: 6
+#| fig-height: 5
+#| eval: !expr length(grafico_pca_correlacoes(r)) > 0
+
+print(grafico_pca_correlacoes(r))
+```
+
+## Autovalores e retenção de componentes
+
+A @tbl-pca-var apresenta a contribuição de cada componente para a variabilidade total, e a @tbl-pca-retencao compara o observado com os três critérios de retenção. A **permutação** (999 repetições) é o critério em destaque: retém-se o eixo cujo percentual observado supera o limite de 95 % dos dados permutados (p < 0,05). O bastão quebrado é um critério de referência, e o **Kaiser (autovalor = 1) é apresentado apenas como referência** — sozinho, ele costuma reter eixos demais.
 
 ```{r}
 #| label: tbl-pca-var
-#| tbl-cap: "Contribuição e Variância Explicada por Componente Principal."
+#| tbl-cap: "Autovalores e variância explicada por componente."
 #| output: asis
 
-tab_var <- mostrar_pca_var(r)
-flextable_ocean(tab_var)
+flextable_ocean_pca(mostrar_pca_var(r))
 ```
 
-## Cargas dos Componentes (Eigenvectors)
+```{r}
+#| label: fig-pca-retencao
+#| fig-cap: "Variância explicada observada e os três critérios de retenção."
+#| fig-width: 6.5
+#| fig-height: 4
 
-As relações lineares e o peso de cada variável na composição dos novos eixos de projeção são representadas pelas cargas exibidas na @tbl-pca-cargas.
+print(grafico_pca_retencao(r))
+```
+
+```{r}
+#| label: tbl-pca-retencao
+#| tbl-cap: "Critérios de retenção de componentes e decisão."
+#| output: asis
+
+flextable_ocean_pca(mostrar_pca_retencao(r))
+```
+
+A conferência entre o FactoMineR e a função básica `prcomp` consta na @tbl-pca-conferencia: os autovalores devem ser idênticos.
+
+```{r}
+#| label: tbl-pca-conferencia
+#| tbl-cap: "Conferência dos autovalores: FactoMineR × prcomp."
+#| output: asis
+
+flextable_ocean_pca(mostrar_pca_conferencia(r))
+```
+
+## As variáveis: círculo de correlações e contribuições
+
+A @fig-pca-circulo mostra as variáveis no círculo de correlações, coloridas pela qualidade de representação (cos²). Uma seta curta não é irrelevante: indica que a variável varia em outras direções.
+
+```{r}
+#| label: fig-pca-circulo
+#| fig-cap: "Círculo de correlações, colorido pelo cos²."
+#| fig-width: 5.5
+#| fig-height: 4.5
+
+print(grafico_pca_circulo(r))
+```
+
+```{r}
+#| label: fig-pca-contribuicoes
+#| fig-cap: "Contribuições das variáveis aos eixos 1 e 2."
+#| fig-width: 9
+#| fig-height: 4
+
+print(grafico_pca_contribuicoes(r))
+```
+
+## Os indivíduos: mapa e biplot
+
+A @fig-pca-individuos posiciona as observações no plano 1–2. Quando há variável de grupo, as cores seguem o guia de HCA (para os trechos do rio Doubs) e as envoltórias marcam a dispersão de cada grupo. Grupos com menos de três unidades não possuem elipse de concentração ou de confiança.
+
+```{r}
+#| label: fig-pca-individuos
+#| fig-cap: "Indivíduos no plano da PCA, com envoltórias por grupo."
+#| fig-width: 6.5
+#| fig-height: 5
+
+print(grafico_pca_individuos(r, ellipse_type = "convex"))
+```
+
+A @fig-pca-biplot combina indivíduos e variáveis no mesmo plano. **Leia o biplot pela direção das setas**: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta (Settanni & Srai, 2026).
+
+```{r}
+#| label: fig-pca-biplot
+#| fig-cap: "Biplot com elipses dos grupos."
+#| fig-width: 6.5
+#| fig-height: 5.5
+
+print(grafico_pca_biplot(r, versao = "classica", ellipse_type = "norm"))
+```
+
+## Cargas com limite de permutação
+
+A @fig-pca-cargas compara o índice de carga observado de cada variável com o limite superior (97,5 %) das cargas obtidas em dados permutados. Uma carga é considerada significativa quando supera esse limite nulo. A @tbl-pca-cargas traz os valores; quando a permutação não está disponível, a tabela apresenta as correlações com os eixos.
+
+```{r}
+#| label: fig-pca-cargas
+#| fig-cap: "Cargas das variáveis e limite dos dados permutados (eixos 1 e 2)."
+#| fig-width: 7
+#| fig-height: 4.5
+#| eval: !expr length(grafico_pca_cargas(r)) > 0
+
+print(grafico_pca_cargas(r))
+```
 
 ```{r}
 #| label: tbl-pca-cargas
-#| tbl-cap: "Cargas e Contribuições das Variáveis nos Componentes Principais."
+#| tbl-cap: "Índices de carga e significância por permutação."
 #| output: asis
 
-tab_cargas <- mostrar_pca_loadings(r)
-flextable_ocean(tab_cargas)
+flextable_ocean_pca(mostrar_pca_cargas(r))
 ```
 
-## Relato Estatístico Formal
+A @tbl-pca-dimdesc resume a descrição automática dos eixos (dimdesc): variáveis e grupos significativamente associados a cada eixo (p < 0,05).
+
+```{r}
+#| label: tbl-pca-dimdesc
+#| tbl-cap: "Descrição automática dos eixos (dimdesc)."
+#| output: asis
+
+if (!is.null(mostrar_pca_dimdesc(r))) flextable_ocean_pca(mostrar_pca_dimdesc(r))
+```
+
+```{r}
+#| label: sec-pca-imputacao
+#| output: asis
+
+# A seção inteira só existe quando há comparação a mostrar; o texto com o
+# crossref acompanha a figura, para não apontar para um gráfico inexistente.
+if (length(grafico_pca_imputacao(r)) > 0) {
+  cat("## Comparação com imputação (missMDA)\n\n")
+  cat("Quando há dados faltantes e a opção foi marcada, a PCA sobre os dados imputados pela PCA iterativa (missMDA) é comparada com a PCA dos dados completos. A @fig-pca-imputacao mostra a concordância das coordenadas do eixo 1.\n\n")
+}
+```
+
+```{r}
+#| label: fig-pca-imputacao
+#| fig-cap: "Eixo 1: coordenadas com dados completos vs. imputados."
+#| fig-width: 5.5
+#| fig-height: 4.5
+#| eval: !expr length(grafico_pca_imputacao(r)) > 0
+
+print(grafico_pca_imputacao(r))
+```
+
+```{r}
+#| label: txt-pca-imputacao
+
+if (!is.null(r$imputacao)) {
+  cat(sprintf(
+    "Foram imputadas %d célula(s) com %d eixo(s) (missMDA). A concordância das coordenadas do eixo 1 com os dados completos foi r = %s. A imputação não cria informação nova: serve para aproveitar observações incompletas e estabilizar a projeção.\n\n",
+    r$imputacao$n_faltantes, r$imputacao$n_eixos,
+    formatC(r$imputacao$concordancia, format = "f", digits = 3, decimal.mark = ",")
+  ))
+} else {
+  cat("A comparação com imputação não foi realizada (opção não marcada, ausência de dados faltantes nas variáveis ativas ou pacote missMDA indisponível).\n\n")
+}
+```
+
+# Relato estatístico
 
 > **Relato:** `r relatar_pca(r)`
-
-# Gráficos Diagnósticos e Biplot
-
-Abaixo estão expostos o Gráfico de Cotovelo (*Scree Plot*) e o *Biplot* bidimensional (PC1 vs PC2) integrando a distribuição de observações e vetores de cargas.
-
-```{r}
-#| label: fig-scree
-#| fig-cap: "Gráfico de Cotovelo (Scree Plot) dos Autovalores."
-#| fig-width: 5
-#| fig-height: 3.5
-
-scree_data <- data.frame(
-  PC = factor(r$var_df$PC, levels = r$var_df$PC),
-  Variancia = r$var_df$Variancia_Pct
-)
-ggplot(scree_data, aes(x = PC, y = Variancia)) +
-  geom_bar(stat = "identity", fill = "#0F3B5F") +
-  geom_line(group = 1, color = "#E76F51", linewidth = 1.2) +
-  geom_point(color = "#E76F51", size = 3) +
-  theme_minimal() +
-  labs(x = "Componentes Principais", y = "Variância Explicada (%)")
-```
-
-```{r}
-#| label: fig-biplot
-#| fig-cap: "Gráfico de Biplot Bidimensional (PC1 vs PC2)."
-#| fig-width: 6
-#| fig-height: 5
-
-# Extrair escores e cargas para o biplot
-scores_df <- r$scores
-loadings_mat <- r$rotation
-sdevs <- r$sdev
-
-# Escalar as cargas para o gráfico
-scaling <- max(abs(scores_df[,1:2])) / max(abs(loadings_mat[,1:2])) * 0.7
-
-arrow_df <- data.frame(
-  Variable = rownames(loadings_mat),
-  x = 0, y = 0,
-  vx = loadings_mat[,1] * scaling,
-  vy = loadings_mat[,2] * scaling
-)
-
-ggplot(scores_df, aes(x = PC1, y = PC2)) +
-  geom_point(color = "#62B6B7", alpha = 0.6, size = 2) +
-  geom_segment(data = arrow_df, aes(x = x, y = y, xend = vx, yend = vy),
-               arrow = arrow(length = unit(0.2, "cm")), color = "#E76F51", linewidth = 1) +
-  ggrepel::geom_text_repel(data = arrow_df, aes(x = vx, y = vy, label = Variable),
-                           color = "#0F3B5F", fontface = "bold", size = 4) +
-  theme_minimal() +
-  labs(x = paste0("PC1 (", round(r$var_df$Variancia_Pct[1], 1), "%)"),
-       y = paste0("PC2 (", round(r$var_df$Variancia_Pct[2], 1), "%)"))
-```

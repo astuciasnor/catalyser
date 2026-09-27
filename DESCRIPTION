@@ -51,6 +51,12 @@ Imports:
     rstatix,
     rcompanion,
     vistributions,
+    FactoMineR,
+    factoextra,
+    ggcorrplot,
+    missMDA,
+    patchwork,
+    PCAtest,
     EAPADados (>= 0.1.10)
 Suggests:
     here,
@@ -63,7 +69,8 @@ Suggests:
     hexbin,
     multcompView
 Remotes:
-    astuciasnor/EAPADados
+    astuciasnor/EAPADados,
+    arleyc/PCAtest
 Depends: R (>= 4.3.0)
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

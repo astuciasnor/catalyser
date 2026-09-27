@@ -1,125 +1,823 @@
 # =============================================================================
 # funcoes_pca.R
 # -----------------------------------------------------------------------------
-# Funções de apoio para Análise de Componentes Principais (PCA / ACP).
+# Motor da Análise de Componentes Principais (PCA / ACP) da CatalyseR.
+# Adaptado do roteiro didático da curadoria (Multivariada_02_PCA), seguindo o
+# fluxo: correlações -> PCA padronizada (FactoMineR) -> retenção por três
+# critérios (Kaiser apenas como referência; bastão quebrado; permutação em
+# destaque) -> círculo de correlações, contribuições, mapa de indivíduos e
+# biplot -> cargas com limite de permutação (PCAtest) -> comparação com
+# imputação (missMDA), quando houver dados faltantes.
 #
 # Arquitetura (fonte canônica única):
-#   calcular_pca()        -> executa o prcomp, extrai autovalores e cargas.
-#   mostrar_pca_var()     -> formata a tabela de variância explicada.
-#   mostrar_pca_loadings()-> formata a tabela de cargas dos componentes.
-#   relatar_pca()         -> frase-relatório em português sintetizando os resultados.
+#   calcular_pca()      -> executa tudo; devolve uma lista com os resultados.
+#   mostrar_pca_*()     -> tabelas formatadas para exibição e relatório.
+#   grafico_pca_*()     -> figuras prontas no padrão Ocean Gradient.
+#   relatar_pca()       -> síntese dos resultados em português.
+#
+# Este arquivo é copiado para os pacotes de estudo exportados pela IDE e deve
+# rodar sozinho; por isso os pacotes usados são carregados aqui no topo.
 # =============================================================================
 
+library(ggplot2)
+library(dplyr)
+library(tidyr)
 library(tibble)
 library(flextable)
+library(FactoMineR)
+library(factoextra)
+library(ggcorrplot)
+library(patchwork)
 
-# Evitar erros de 'req' não encontrado fora do Shiny
-if (!exists("req", mode = "function")) {
-  req <- function(...) {
-    invisible(TRUE)
+# O PCAtest saiu do CRAN e é instalado pelo GitHub (arleyc/PCAtest). A
+# permutação é o critério em destaque, mas o motor continua funcionando sem o
+# pacote: nesse caso emite um aviso e recorre ao bastão quebrado e ao Kaiser.
+if (requireNamespace("PCAtest", quietly = TRUE)) {
+  library(PCAtest)
+}
+
+# O missMDA só entra em cena quando o usuário pede a comparação com imputação.
+if (requireNamespace("missMDA", quietly = TRUE)) {
+  library(missMDA)
+}
+
+if (!exists("%||%")) `%||%` <- function(a, b) if (is.null(a) || !length(a)) b else a
+
+# ---- Utilitário: Formato numérico brasileiro ---------------------------------
+fmt_pca <- function(x, dig = 2) {
+  vapply(x, function(v) {
+    if (is.null(v) || length(v) == 0 || is.na(v)) return("-")
+    formatC(v, format = "f", digits = dig, decimal.mark = ",")
+  }, character(1))
+}
+
+# ---- Paleta e tema (identidade visual da curadoria) --------------------------
+# Guardamos a paleta Ocean Gradient usada em todas as figuras. Os nomes usam o
+# prefixo pca_ para não colidir com as funções de tema globais da IDE.
+pca_ocean <- c("#0F3B5F", "#2E7D8F", "#62B6B7", "#E89B3C", "#E76F51")
+
+# Fixamos uma cor por trecho do rio, as mesmas do guia de agrupamento hierárquico.
+pca_cores_trecho <- c("Alto curso" = "#0F3B5F", "Médio curso" = "#E76F51",
+                      "Baixo curso" = "#E89B3C", "Trecho impactado" = "#2E7D8F")
+
+# Definimos um tema limpo, de fundo branco, para todas as figuras.
+pca_tema <- theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", color = "#0F3B5F"),
+        panel.grid.minor = element_blank())
+
+# Escolhemos cores estáveis para os níveis do grupo: se os níveis forem os
+# trechos do rio, usamos as cores fixas do guia de HCA; senão, a paleta ocean.
+paleta_grupos <- function(niveis) {
+  if (all(niveis %in% names(pca_cores_trecho))) {
+    return(pca_cores_trecho[niveis])
+  }
+  if (length(niveis) <= length(pca_ocean)) return(pca_ocean[seq_along(niveis)])
+  grDevices::colorRampPalette(pca_ocean)(length(niveis))
+}
+
+#' Executa a PCA completa: retenção de eixos, permutação, descrição dos eixos e,
+#' quando solicitado, comparação com a imputação por missMDA.
+#'
+#' @param df data.frame com a base de análise.
+#' @param vars_selected nomes das variáveis ativas (numéricas, mínimo 2).
+#' @param scale TRUE padroniza as variáveis (PCA de correlação); FALSE usa
+#'   apenas a centralização (PCA de covariância).
+#' @param quanti_sup nomes de variáveis suplementares quantitativas (opcional).
+#' @param quali_sup nome da variável suplementar de grupo (opcional).
+#' @param seed semente gravada para a permutação (reprodutibilidade).
+#' @param comparar_imputacao quando TRUE e houver NA nas ativas, compara o eixo 1
+#'   da PCA completa com o eixo 1 da PCA sobre dados imputados (missMDA).
+calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
+                         quali_sup = NULL, seed = 2026,
+                         comparar_imputacao = FALSE) {
+  # Exigimos uma base de dados em formato de tabela.
+  if (!is.data.frame(df)) {
+    stop("A base de dados precisa ser um data.frame.", call. = FALSE)
+  }
+  # Exigimos uma semente válida: a permutação depende dela para ser reprodutível.
+  if (length(seed) != 1 || is.na(seed)) {
+    stop("Informe uma semente válida para a permutação.", call. = FALSE)
+  }
+  # Exigimos pelo menos duas variáveis ativas para existir um plano de projeção.
+  if (length(vars_selected) < 2) {
+    stop("Selecione pelo menos duas variáveis ativas.", call. = FALSE)
+  }
+  # Mantemos apenas variáveis ativas que existem na base; as demais são ignoradas.
+  ativas_nomes <- intersect(vars_selected, names(df))
+  # Recusamos nomes que não são numéricos, pois a PCA exige variáveis contínuas.
+  ativas_nomes <- ativas_nomes[vapply(ativas_nomes, function(nm) is.numeric(df[[nm]]), logical(1))]
+  if (length(ativas_nomes) < 2) {
+    stop("As variáveis ativas precisam ser numéricas e existir na base.", call. = FALSE)
+  }
+  # Guardamos o número de variáveis ativas para os critérios de retenção.
+  p <- length(ativas_nomes)
+
+  # Separamos as suplementares quantitativas válidas (numéricas e fora das ativas).
+  suplementares_nomes <- intersect(quanti_sup %||% character(), names(df))
+  suplementares_nomes <- setdiff(suplementares_nomes, ativas_nomes)
+  suplementares_nomes <- suplementares_nomes[
+    vapply(suplementares_nomes, function(nm) is.numeric(df[[nm]]), logical(1))
+  ]
+  # Guardamos a variável de grupo (uma única coluna), se alguma foi escolhida.
+  variavel_grupo <- if (is.null(quali_sup) || !nzchar(quali_sup)) NULL else quali_sup
+  if (!is.null(variavel_grupo) && !variavel_grupo %in% names(df)) {
+    variavel_grupo <- NULL
+  }
+
+  # Montamos a tabela com as variáveis ativas, preservando as linhas originais.
+  ativas_bruto <- as.data.frame(lapply(df[, ativas_nomes, drop = FALSE], as.numeric))
+  names(ativas_bruto) <- ativas_nomes
+  # Contamos as células faltantes antes de qualquer remoção de linhas.
+  n_faltantes <- sum(is.na(ativas_bruto))
+
+  # Localizamos as linhas completas: a PCA não imputa sozinha, então removemos
+  # por lista (listwise) e informamos quantas observações ficaram de fora.
+  linhas_ok <- stats::complete.cases(ativas_bruto)
+  ativas_ok <- ativas_bruto[linhas_ok, , drop = FALSE]
+  # Guardamos o tamanho final da amostra analisada.
+  n_usados <- nrow(ativas_ok)
+  # Exigimos pelo menos três observações completas para a PCA ser estável.
+  if (n_usados < 3) {
+    stop("Após remover as linhas com dados faltantes restaram menos de três observações.",
+         call. = FALSE)
+  }
+  # Guardamos quantas linhas foram excluídas por dados faltantes.
+  n_excluidos <- nrow(df) - n_usados
+
+  # Iniciamos a lista de avisos que acompanhará o resultado.
+  avisos <- character()
+  # Avisamos sobre variáveis constantes, que não carregam informação na PCA.
+  variaveis_constantes <- ativas_nomes[
+    vapply(ativas_ok, function(x) stats::sd(x) == 0, logical(1))
+  ]
+  if (length(variaveis_constantes)) {
+    avisos <- c(avisos, sprintf(
+      "Variável(is) constante(s) detectada(s): %s. Elas não contribuem para a PCA.",
+      paste(variaveis_constantes, collapse = ", ")
+    ))
+  }
+  # Avisamos sobre exclusões por dados faltantes.
+  if (n_excluidos > 0) {
+    avisos <- c(avisos, sprintf(
+      "%d observação(ões) foi(ram) excluída(s) por dados faltantes nas variáveis ativas (%d célula(s) com NA).",
+      n_excluidos, n_faltantes
+    ))
+  }
+
+  # Definimos quantos eixos o FactoMineR deve guardar: no máximo p, e nunca
+  # mais do que o posto da matriz (n - 1). Sem esse limite explícito, versões
+  # recentes do FactoMineR truncam a tabela de autovalores em 5 eixos.
+  ncp_val <- min(p, n_usados - 1L)
+
+  # Montamos a tabela de trabalho: ativas + suplementares quantitativas + grupo.
+  dados_pca <- ativas_ok
+  # Acrescentamos as suplementares quantitativas, nas mesmas linhas completas.
+  if (length(suplementares_nomes)) {
+    suplementares_ok <- df[linhas_ok, suplementares_nomes, drop = FALSE]
+    suplementares_ok <- as.data.frame(
+      lapply(suplementares_ok, as.numeric)
+    )
+    names(suplementares_ok) <- suplementares_nomes
+    dados_pca <- cbind(dados_pca, suplementares_ok)
+  }
+  # Guardamos os índices das suplementares dentro da tabela de trabalho.
+  indices_quanti <- if (length(suplementares_nomes)) {
+    p + seq_along(suplementares_nomes)
+  } else {
+    NULL
+  }
+  # Transformamos o grupo em fator; valores ausentes viram um nível explícito,
+  # porque o dimdesc ignora grupos com NA.
+  grupo_fator <- NULL
+  indice_grupo <- NULL
+  if (!is.null(variavel_grupo)) {
+    grupo_bruto <- as.character(df[[variavel_grupo]][linhas_ok])
+    grupo_bruto[is.na(grupo_bruto)] <- "(sem informação)"
+    grupo_fator <- as.factor(grupo_bruto)
+    # Exigimos pelo menos duas categorias para o grupo fazer sentido.
+    if (nlevels(grupo_fator) < 2) {
+      stop("A variável de grupo precisa ter pelo menos duas categorias.", call. = FALSE)
+    }
+    dados_pca[[variavel_grupo]] <- grupo_fator
+    # Guardamos o índice da coluna de grupo na tabela de trabalho.
+    indice_grupo <- ncol(dados_pca)
+  }
+
+  # Rodamos a PCA padronizada (ou só centralizada), com o grupo e as demais
+  # suplementares declaradas como tal — elas não influenciam os eixos.
+  args_pca <- list(
+    X = dados_pca, scale.unit = isTRUE(scale), ncp = ncp_val, graph = FALSE
+  )
+  # Só passamos os índices das suplementares quando elas existem de fato.
+  if (!is.null(indices_quanti)) args_pca$quanti.sup <- indices_quanti
+  if (!is.null(indice_grupo)) args_pca$quali.sup <- indice_grupo
+  pca <- do.call(FactoMineR::PCA, args_pca)
+
+  # Guardamos a tabela de autovalores (variância de cada componente).
+  autovalores <- data.frame(
+    componente = seq_len(ncp_val),
+    autovalor = pca$eig[, 1],
+    pct_variancia = pca$eig[, 2],
+    pct_acumulada = pca$eig[, 3]
+  )
+
+  # Conferimos com a função básica do R: os autovalores são os desvios ao quadrado.
+  pca_base <- stats::prcomp(ativas_ok, center = TRUE, scale. = isTRUE(scale))
+  # Comparamos as duas contas lado a lado (devem ser iguais).
+  n_conf <- min(ncp_val, 4)
+  conferencia <- data.frame(
+    componente = seq_len(n_conf),
+    factominer = pca$eig[seq_len(n_conf), 1],
+    prcomp = pca_base$sdev[seq_len(n_conf)]^2
+  )
+
+  # Calculamos o modelo do bastão quebrado (broken stick) para cada componente.
+  bastao_quebrado <- sapply(seq_len(ncp_val), function(j) sum(1 / (j:p)) / p * 100)
+
+  # O Kaiser é apenas uma referência: autovalor médio 1 equivale a 100/p %.
+  kaiser_referencia <- 100 / p
+
+  # Iniciamos os campos da permutação com o estado "indisponível".
+  teste_pca <- NULL
+  limite_permutacao <- rep(NA_real_, ncp_val)
+  p_permutacao <- rep(NA_real_, ncp_val)
+  permutacao_disponivel <- requireNamespace("PCAtest", quietly = TRUE)
+  permutacao_mensagem <- NULL
+
+  # Rodamos o PCAtest: permutação para os eixos e bootstrap para os intervalos.
+  if (permutacao_disponivel) {
+    # Aplicamos a mesma transformação da PCA: padroniza ou só centraliza.
+    matriz_permutacao <- if (isTRUE(scale)) {
+      scale(ativas_ok)
+    } else {
+      as.matrix(ativas_ok)
+    }
+    # Fixamos a semente para que as permutações sejam reprodutíveis.
+    set.seed(as.integer(seed))
+    # Envolvemos em tryCatch: bases muito pequenas podem não suportar o bootstrap.
+    teste_pca <- tryCatch(
+      PCAtest::PCAtest(matriz_permutacao, nperm = 999, nboot = 999,
+                       counter = FALSE, plot = FALSE),
+      error = function(e) NULL
+    )
+    if (!is.null(teste_pca)) {
+      # Pegamos o limite superior (95 %) da variância explicada por dados permutados.
+      limite_permutacao <- teste_pca[["Randomized confidence intervals of percentage of variation"]][2, ]
+      limite_permutacao <- limite_permutacao[seq_len(ncp_val)]
+      # Calculamos um p-valor por eixo: quantas permutações superam o observado.
+      pct_aleatorio <- teste_pca[["Percentage of variation of randomized data"]]
+      obs_pct <- autovalores$pct_variancia[seq_len(ncol(pct_aleatorio))]
+      p_permutacao[seq_len(ncol(pct_aleatorio))] <-
+        (1 + colSums(sweep(pct_aleatorio, 2, obs_pct, ">="))) / (nrow(pct_aleatorio) + 1)
+    } else {
+      # A permutação falhou; avisamos e seguimos com os critérios clássicos.
+      permutacao_mensagem <- "A permutação (PCAtest) falhou para esta base; a retenção usa apenas o bastão quebrado e o Kaiser (referência)."
+      avisos <- c(avisos, permutacao_mensagem)
+      permutacao_disponivel <- FALSE
+    }
+  } else {
+    # O pacote não está instalado; avisamos sem interromper a análise.
+    permutacao_mensagem <- "O pacote PCAtest não está instalado (remotes::install_github('arleyc/PCAtest')). A retenção usa apenas o bastão quebrado e o Kaiser (referência)."
+    avisos <- c(avisos, permutacao_mensagem)
+  }
+
+  # Juntamos os três critérios numa tabela única de retenção.
+  retencao <- data.frame(
+    componente = seq_len(ncp_val),
+    observado = autovalores$pct_variancia,
+    bastao = bastao_quebrado,
+    permutacao = limite_permutacao,
+    p_permutacao = p_permutacao,
+    kaiser = kaiser_referencia
+  )
+  # Marcamos a decisão: permutação em destaque quando disponível; senão, bastão.
+  retencao$decisao <- if (permutacao_disponivel && any(!is.na(p_permutacao))) {
+    ifelse(!is.na(p_permutacao) & p_permutacao < 0.05, "Reter", "Não reter")
+  } else {
+    ifelse(retencao$observado > retencao$bastao, "Reter (bastão)", "Não reter (bastão)")
+  }
+  # Contamos quantos eixos a permutação sustenta (p < 0,05).
+  eixos_significativos <- if (permutacao_disponivel && any(!is.na(p_permutacao))) {
+    sum(!is.na(p_permutacao) & p_permutacao < 0.05)
+  } else {
+    NULL
+  }
+
+  # Montamos a tabela de cargas com limite de permutação, quando disponível.
+  cargas_df <- NULL
+  if (!is.null(teste_pca)) {
+    # Pegamos o índice de carga observado (linhas = eixos, colunas = variáveis).
+    indice_carga <- teste_pca[["Index loadings of empirical PCs"]]
+    # Viramos a tabela para ficar variáveis nas linhas e guardamos os eixos 1 e 2.
+    cargas <- t(indice_carga)[, 1:2]
+    # Pegamos o limite superior (97,5 %) das cargas obtidas com dados permutados.
+    limites_nulos <- teste_pca[["Randomized confidence intervals of index loadings"]][, 2]
+    # Organizamos os limites numa matriz variável x eixo (o PCAtest empilha por eixo).
+    limites_nulos <- matrix(limites_nulos, nrow = p)[, 1:2]
+    # Montamos a tabela: carga significativa quando supera o limite permutado.
+    cargas_df <- data.frame(
+      variavel = rep(colnames(ativas_ok), 2),
+      eixo = rep(c("Eixo 1", "Eixo 2"), each = p),
+      carga = as.numeric(cargas),
+      limite = as.numeric(limites_nulos)
+    ) |>
+      mutate(significativa = case_when(
+        carga > limite ~ "Significativa",
+        TRUE           ~ "Não significativa"
+      ))
+  }
+
+  # Pedimos ao FactoMineR a descrição automática dos dois primeiros eixos.
+  descricao_eixos <- tryCatch(
+    dimdesc(pca, axes = 1:2, proba = 0.05),
+    error = function(e) NULL
+  )
+
+  # Guardamos a matriz de correlações entre as variáveis ativas.
+  correlacoes <- suppressWarnings(stats::cor(ativas_ok))
+
+  # Montamos a tabela de correlações das variáveis (ativas e suplementares) com os eixos.
+  correlacoes_eixos <- as.data.frame(pca$var$cor[, 1:2, drop = FALSE])
+  # Acrescentamos a linha de cada suplementar quantitativa, quando houver.
+  if (!is.null(indices_quanti)) {
+    linhas_sup <- as.data.frame(pca$quanti.sup$cor[, 1:2, drop = FALSE])
+    rownames(linhas_sup) <- suplementares_nomes
+    correlacoes_eixos <- rbind(correlacoes_eixos, linhas_sup)
+  }
+  names(correlacoes_eixos) <- c("Eixo 1", "Eixo 2")
+
+  # Guardamos a razão de correlação (eta2) do grupo com cada eixo, se houver grupo.
+  eta2 <- if (!is.null(indice_grupo)) pca$quali.sup$eta2 else NULL
+
+  # Listamos os grupos com menos de três unidades: sem elipse possível.
+  grupos_pequenos <- NULL
+  if (!is.null(grupo_fator)) {
+    contagem <- table(grupo_fator)
+    grupos_pequenos <- contagem[contagem < 3]
+    if (!length(grupos_pequenos)) grupos_pequenos <- NULL
+  }
+
+  # Comparamos a PCA completa com a PCA imputada, quando pedido e possível.
+  imputacao <- NULL
+  imputacao_mensagem <- NULL
+  if (isTRUE(comparar_imputacao)) {
+    if (n_faltantes == 0) {
+      # Sem NA não há o que imputar; registramos o motivo.
+      imputacao_mensagem <- "Não há dados faltantes nas variáveis ativas; a comparação com imputação não se aplica."
+    } else if (!requireNamespace("missMDA", quietly = TRUE)) {
+      # Sem o pacote, registramos o motivo.
+      imputacao_mensagem <- "O pacote missMDA não está instalado (install.packages('missMDA')); a comparação com imputação foi ignorada."
+    } else {
+      # Estimamos, por validação cruzada, quantos eixos usar na imputação.
+      n_eixos_imp <- tryCatch(
+        missMDA::estim_ncpPCA(as.matrix(ativas_bruto), scale = TRUE,
+                              ncp.max = min(5, p, nrow(ativas_bruto) - 2))$ncp,
+        error = function(e) 2
+      )
+      # Preenchemos as falhas com a PCA iterativa regularizada.
+      imputado_ok <- tryCatch(
+        missMDA::imputePCA(as.matrix(ativas_bruto), ncp = n_eixos_imp,
+                           scale = TRUE)$completeObs,
+        error = function(e) NULL
+      )
+      if (!is.null(imputado_ok)) {
+        # Rodamos a PCA na tabela imputada, sem suplementares.
+        pca_imputada <- tryCatch(
+          FactoMineR::PCA(imputado_ok, scale.unit = TRUE, ncp = ncp_val, graph = FALSE),
+          error = function(e) NULL
+        )
+        if (!is.null(pca_imputada)) {
+          # Comparamos as coordenadas do eixo 1 nas mesmas linhas completas.
+          comparacao_imputacao <- data.frame(
+            completo = pca$ind$coord[, 1],
+            imputado = pca_imputada$ind$coord[linhas_ok, 1]
+          )
+          # Medimos a concordância (o sinal do eixo é arbitrário, por isso o abs).
+          concordancia_imputacao <- abs(stats::cor(
+            comparacao_imputacao$completo, comparacao_imputacao$imputado
+          ))
+          # Guardamos tudo num único objeto para a figura e para o relato.
+          imputacao <- list(
+            n_faltantes = n_faltantes,
+            n_eixos = n_eixos_imp,
+            concordancia = concordancia_imputacao,
+            comparacao = comparacao_imputacao
+          )
+        } else {
+          imputacao_mensagem <- "A imputação (missMDA) não convergiu para esta base."
+          avisos <- c(avisos, imputacao_mensagem)
+        }
+      } else {
+        imputacao_mensagem <- "A imputação (missMDA) não convergiu para esta base."
+        avisos <- c(avisos, imputacao_mensagem)
+      }
+    }
+  }
+
+  # Devolvemos todos os resultados num único objeto organizado.
+  list(
+    variaveis = ativas_nomes,
+    variaveis_suplementares = suplementares_nomes,
+    variavel_grupo = variavel_grupo,
+    padronizar = isTRUE(scale),
+    seed = as.integer(seed),
+    comparar_imputacao = isTRUE(comparar_imputacao),
+    n_original = nrow(df),
+    n_usados = n_usados,
+    n_excluidos = n_excluidos,
+    n_faltantes = n_faltantes,
+    p = p,
+    n_eixos = ncp_val,
+    pca = pca,
+    conferencia = conferencia,
+    autovalores = autovalores,
+    retencao = retencao,
+    eixos_significativos = eixos_significativos,
+    permutacao_disponivel = permutacao_disponivel,
+    permutacao_mensagem = permutacao_mensagem,
+    teste_pca = teste_pca,
+    cargas = cargas_df,
+    descricao_eixos = descricao_eixos,
+    correlacoes = correlacoes,
+    correlacoes_eixos = correlacoes_eixos,
+    eta2 = eta2,
+    grupo_fator = grupo_fator,
+    indice_grupo = indice_grupo,
+    grupos_pequenos = grupos_pequenos,
+    imputacao = imputacao,
+    imputacao_mensagem = imputacao_mensagem,
+    avisos = avisos
+  )
+}
+
+#' Formata a tabela de autovalores e variância explicada.
+mostrar_pca_var <- function(r) {
+  tibble::tibble(
+    `Componente` = paste0("PC", r$autovalores$componente),
+    `Autovalor` = round(r$autovalores$autovalor, 4),
+    `Variância explicada (%)` = round(r$autovalores$pct_variancia, 2),
+    `Variância acumulada (%)` = round(r$autovalores$pct_acumulada, 2)
+  )
+}
+
+#' Formata a conferência entre FactoMineR e a função básica prcomp.
+mostrar_pca_conferencia <- function(r) {
+  tibble::tibble(
+    `Componente` = paste0("PC", r$conferencia$componente),
+    `Autovalor (FactoMineR)` = round(r$conferencia$factominer, 4),
+    `Autovalor (prcomp)` = round(r$conferencia$prcomp, 4)
+  )
+}
+
+#' Formata a tabela de retenção com os três critérios e a decisão.
+mostrar_pca_retencao <- function(r) {
+  tibble::tibble(
+    `Componente` = paste0("PC", r$retencao$componente),
+    `Observado (%)` = round(r$retencao$observado, 2),
+    `Bastão quebrado (%)` = round(r$retencao$bastao, 2),
+    `Permutação (95 %)` = ifelse(is.na(r$retencao$permutacao), "-",
+                                 fmt_pca(r$retencao$permutacao)),
+    `p (permutação)` = ifelse(is.na(r$retencao$p_permutacao), "-",
+                              formatC(r$retencao$p_permutacao, format = "f",
+                                      digits = 3, decimal.mark = ",")),
+    `Kaiser (referência) (%)` = round(r$retencao$kaiser, 2),
+    `Decisão` = r$retencao$decisao
+  )
+}
+
+#' Formata a tabela de cargas com o limite dos dados permutados; sem permutação,
+#' recorre às correlações das variáveis com os dois primeiros eixos.
+mostrar_pca_cargas <- function(r) {
+  if (!is.null(r$cargas)) {
+    tibble::tibble(
+      `Eixo` = r$cargas$eixo,
+      `Variável` = r$cargas$variavel,
+      `Índice de carga` = round(r$cargas$carga, 3),
+      `Limite permutado (97,5 %)` = round(r$cargas$limite, 3),
+      `Significância` = r$cargas$significativa
+    )
+  } else {
+    tab <- as.data.frame(r$correlacoes_eixos)
+    tab$Variável <- rownames(tab)
+    rownames(tab) <- NULL
+    tibble::as_tibble(tab[, c("Variável", "Eixo 1", "Eixo 2")]) |>
+      dplyr::rename(`Correlação com o eixo 1` = `Eixo 1`,
+                    `Correlação com o eixo 2` = `Eixo 2`)
   }
 }
 
-# ---- Utilitário: Formato numérico brasileiro ---------------------------------
-fmt <- function(x, dig = 2) {
-  if (is.null(x) || length(x) == 0 || is.na(x)) return("-")
-  formatC(x, format = "f", digits = dig, decimal.mark = ",")
+#' Formata a descrição automática dos eixos (dimdesc) numa tabela única.
+mostrar_pca_dimdesc <- function(r) {
+  dd <- r$descricao_eixos
+  if (is.null(dd)) return(NULL)
+  linhas <- list()
+  # Percorremos os dois eixos descritos pelo dimdesc.
+  for (eixo in c("Dim.1", "Dim.2")) {
+    bloco <- dd[[eixo]]
+    # Pulamos eixos sem descrição (não deveria acontecer, mas protege).
+    if (is.null(bloco)) next
+    # Juntamos as variáveis quantitativas significativas do eixo.
+    if (!is.null(bloco$quanti) && nrow(bloco$quanti) > 0) {
+      linhas[[length(linhas) + 1]] <- data.frame(
+        Eixo = eixo,
+        Tipo = "Variável",
+        Item = rownames(bloco$quanti),
+        `Correlação` = round(bloco$quanti$correlation, 3),
+        `p-valor` = round(bloco$quanti$p.value, 4),
+        check.names = FALSE
+      )
+    }
+    # Juntamos os grupos significativos do eixo (R² da variável de grupo).
+    if (!is.null(bloco$quali)) {
+      # Com uma única variável de grupo o dimdesc devolve um vetor c(R2, p.value).
+      tab_quali <- if (is.numeric(bloco$quali)) {
+        data.frame(R2 = bloco$quali[["R2"]], p.value = bloco$quali[["p.value"]],
+                   row.names = r$variavel_grupo %||% "grupo")
+      } else {
+        as.data.frame(bloco$quali)
+      }
+      if (nrow(tab_quali) > 0 && all(c("R2", "p.value") %in% names(tab_quali))) {
+        linhas[[length(linhas) + 1]] <- data.frame(
+          Eixo = eixo,
+          Tipo = "Grupo",
+          Item = rownames(tab_quali),
+          `Correlação` = round(tab_quali$R2, 3),
+          `p-valor` = round(tab_quali$p.value, 4),
+          check.names = FALSE
+        )
+      }
+    }
+  }
+  # Devolvemos a tabela empilhada (ou NULL se nada foi significativo).
+  if (!length(linhas)) return(NULL)
+  do.call(rbind, linhas)
 }
 
-#' Executa a PCA, extrai autovalores, variância explicada e cargas dos componentes
-calcular_pca <- function(df, vars_selected, scale = TRUE) {
-  req(df, length(vars_selected) >= 2)
-  
-  # Filtrar e escalar dados
-  X <- df[, vars_selected, drop = FALSE]
-  
-  # Executa PCA
-  fit <- prcomp(X, center = TRUE, scale. = scale)
-  
-  # Autovalores (variâncias dos componentes)
-  eigenvals <- fit$sdev^2
-  var_pct <- (eigenvals / sum(eigenvals)) * 100
-  cum_var_pct <- cumsum(var_pct)
-  
-  # Tabela de variância explicada
-  var_df <- data.frame(
-    PC = paste0("PC", 1:length(eigenvals)),
-    Autovalor = eigenvals,
-    Variancia_Pct = var_pct,
-    Acumulada_Pct = cum_var_pct,
-    stringsAsFactors = FALSE
-  )
-  
-  # Matriz de cargas (rotation)
-  loadings_mat <- fit$rotation
-  loadings_df <- as.data.frame(loadings_mat)
-  loadings_df <- cbind(Variavel = rownames(loadings_mat), loadings_df)
-  rownames(loadings_df) <- NULL
-  
-  list(
-    vars = vars_selected,
-    scale = scale,
-    var_df = var_df,
-    loadings_df = loadings_df,
-    scores = as.data.frame(fit$x),
-    rotation = fit$rotation,
-    sdev = fit$sdev,
-    N = nrow(X)
-  )
+#' Desenha a matriz de correlações ordenada, só com o triângulo inferior.
+grafico_pca_correlacoes <- function(r) {
+  # Sem correlações válidas (ex.: variável constante) não há figura.
+  if (any(!is.finite(r$correlacoes))) return(NULL)
+  ggcorrplot(r$correlacoes, hc.order = TRUE, type = "lower",
+             lab = TRUE, lab_size = 2.6,
+             colors = c("#0F3B5F", "white", "#E76F51"),
+             outline.color = "white", legend.title = "r") +
+    labs(title = "Correlações entre as variáveis ativas") +
+    theme(plot.title = element_text(face = "bold", color = "#0F3B5F"))
 }
 
-#' Formata a tabela de variância explicada pelos componentes
-mostrar_pca_var <- function(r) {
-  tibble::tibble(
-    `Componente Principal` = r$var_df$PC,
-    `Autovalor (Variância)` = round(r$var_df$Autovalor, 4),
-    `Variância Explicada (%)` = round(r$var_df$Variancia_Pct, 2),
-    `Variância Acumulada (%)` = round(r$var_df$Acumulada_Pct, 2)
-  )
+#' Desenha o gráfico de sedimentação com os três critérios sobrepostos, com a
+#' permutação em destaque (linha mais grossa e cor principal da paleta).
+grafico_pca_retencao <- function(r) {
+  # Passamos os três critérios de referência para o formato longo.
+  criterios <- r$retencao |>
+    select(componente, bastao, permutacao, kaiser) |>
+    pivot_longer(-componente, names_to = "criterio", values_to = "limite") |>
+    filter(!is.na(limite)) |>
+    mutate(criterio = case_when(
+      criterio == "bastao"     ~ "Bastão quebrado",
+      criterio == "permutacao" ~ "Permutação (95 %)",
+      criterio == "kaiser"     ~ "Kaiser (autovalor = 1)"
+    ))
+  # Separamos a permutação das demais linhas para dar a ela o destaque visual.
+  criterios_perm <- filter(criterios, criterio == "Permutação (95 %)")
+  criterios_outros <- filter(criterios, criterio != "Permutação (95 %)")
+  # Desenhamos as barras observadas.
+  fig <- ggplot(r$retencao, aes(x = componente, y = observado)) +
+    geom_col(fill = "#2E7D8F", width = 0.7)
+  # Acrescentamos as linhas dos critérios de referência (bastão e Kaiser).
+  if (nrow(criterios_outros)) {
+    fig <- fig +
+      geom_line(data = criterios_outros,
+                aes(y = limite, color = criterio, group = criterio),
+                linewidth = 0.9) +
+      geom_point(data = criterios_outros,
+                 aes(y = limite, color = criterio), size = 1.8)
+  }
+  # Acrescentamos a linha da permutação, mais grossa e em cor de destaque.
+  if (nrow(criterios_perm)) {
+    fig <- fig +
+      geom_line(data = criterios_perm,
+                aes(y = limite, color = criterio, group = criterio),
+                linewidth = 1.4) +
+      geom_point(data = criterios_perm,
+                 aes(y = limite, color = criterio), size = 2.4)
+  }
+  # Fixamos as cores das linhas e aplicamos o tema da curadoria.
+  fig +
+    scale_color_manual(values = c(
+      "Bastão quebrado" = "#E76F51",
+      "Kaiser (autovalor = 1)" = "#E89B3C",
+      "Permutação (95 %)" = "#0F3B5F"
+    )) +
+    labs(title = "Quantos componentes reter?",
+         x = "Componente principal", y = "Variância explicada (%)", color = NULL) +
+    pca_tema + theme(legend.position = "top")
 }
 
-#' Formata a tabela de cargas dos componentes (primeiros PCs)
-mostrar_pca_loadings <- function(r) {
-  # Limita a exibição até as colunas correspondentes aos PCs calculados
-  tab <- r$loadings_df
-  # Arredondar valores numéricos
-  num_cols <- names(tab)[-1]
-  tab[num_cols] <- lapply(tab[num_cols], function(x) round(x, 4))
-  names(tab)[1] <- "Variável"
-  
-  tibble::as_tibble(tab)
+#' Desenha o círculo de correlações, colorido pela qualidade de representação
+#' (cos2); as suplementares quantitativas entram em destaque, fora do gradiente.
+grafico_pca_circulo <- function(r) {
+  fviz_pca_var(r$pca, col.var = "cos2",
+               gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
+               col.quanti.sup = "#E76F51", repel = TRUE) +
+    labs(title = "Círculo de correlações", color = "cos2") + pca_tema
 }
 
-#' Gera o relato estatístico de PCA em português
+#' Desenha as contribuições das variáveis aos eixos 1 e 2, lado a lado.
+grafico_pca_contribuicoes <- function(r) {
+  # Contribuições ao eixo 1.
+  fig_contrib_1 <- fviz_contrib(r$pca, choice = "var", axes = 1,
+                                fill = "#2E7D8F", color = "#2E7D8F") +
+    labs(title = "Contribuições ao eixo 1", x = NULL, y = "Contribuição (%)") +
+    pca_tema + theme(axis.text.x = element_text(angle = 0))
+  # Contribuições ao eixo 2.
+  fig_contrib_2 <- fviz_contrib(r$pca, choice = "var", axes = 2,
+                                fill = "#E89B3C", color = "#E89B3C") +
+    labs(title = "Contribuições ao eixo 2", x = NULL, y = "Contribuição (%)") +
+    pca_tema + theme(axis.text.x = element_text(angle = 0))
+  # Juntamos as duas contribuições lado a lado.
+  fig_contrib_1 + fig_contrib_2
+}
+
+#' Desenha os indivíduos no plano 1-2; com grupo, pinta pelos níveis e desenha
+#' as envoltórias escolhidas. Se a envoltória falhar (grupos muito pequenos),
+#' recua para o mapa sem envoltórias em vez de interromper a análise.
+grafico_pca_individuos <- function(r, ellipse_type = "convex") {
+  # Com grupo: colorimos os pontos e desenhamos as envoltórias.
+  if (!is.null(r$grupo_fator)) {
+    cores <- paleta_grupos(levels(r$grupo_fator))
+    fig_com_elipses <- tryCatch(
+      fviz_pca_ind(r$pca, habillage = r$indice_grupo, addEllipses = TRUE,
+                   ellipse.type = ellipse_type, palette = cores,
+                   repel = TRUE, labelsize = 3, pointsize = 2) +
+        labs(title = "Indivíduos no plano da PCA",
+             color = r$variavel_grupo, fill = r$variavel_grupo,
+             shape = r$variavel_grupo) + pca_tema,
+      error = function(e) NULL
+    )
+    # Se as envoltórias falharam, desenhamos só os pontos coloridos.
+    if (!is.null(fig_com_elipses)) return(fig_com_elipses)
+    fviz_pca_ind(r$pca, habillage = r$indice_grupo, addEllipses = FALSE,
+                 palette = cores, repel = TRUE, labelsize = 3, pointsize = 2) +
+      labs(title = "Indivíduos no plano da PCA",
+           color = r$variavel_grupo, fill = r$variavel_grupo,
+           shape = r$variavel_grupo) + pca_tema
+  }
+  # Sem grupo: pontos uniformes na cor principal da paleta.
+  fviz_pca_ind(r$pca, col.ind = "#2E7D8F", repel = TRUE,
+               labelsize = 3, pointsize = 2) +
+    labs(title = "Indivíduos no plano da PCA") + pca_tema
+}
+
+#' Desenha o biplot em duas versões: a clássica (setas cinza) e a avançada
+#' (pontos preenchidos pelo grupo e setas coloridas pela contribuição).
+grafico_pca_biplot <- function(r, versao = "classica", ellipse_type = "norm") {
+  # Versão avançada exige grupo para preencher os pontos; sem grupo, clássica.
+  if (identical(versao, "contribuicao") && !is.null(r$grupo_fator)) {
+    cores <- paleta_grupos(levels(r$grupo_fator))
+    fviz_pca_biplot(r$pca,
+                    geom.ind = "point",
+                    fill.ind = r$grupo_fator,
+                    col.ind = "black",
+                    pointshape = 21,
+                    pointsize = 2.8,
+                    palette = cores,
+                    addEllipses = TRUE,
+                    ellipse.type = ellipse_type,
+                    ellipse.level = 0.95,
+                    ellipse.alpha = 0.12,
+                    col.var = "contrib",
+                    gradient.cols = c("#62B6B7", "#2E7D8F", "#0F3B5F"),
+                    repel = TRUE,
+                    invisible = "quali",
+                    legend.title = list(fill = r$variavel_grupo,
+                                        color = "Contribuição (%)")) +
+      labs(title = "Biplot com elipses e contribuição das variáveis") + pca_tema
+  } else if (!is.null(r$grupo_fator)) {
+    # Versão clássica do Kassambara: pontos coloridos pelo grupo e elipses.
+    cores <- paleta_grupos(levels(r$grupo_fator))
+    fviz_pca_biplot(r$pca,
+                    col.ind = r$grupo_fator,
+                    palette = cores,
+                    addEllipses = TRUE,
+                    ellipse.type = ellipse_type,
+                    ellipse.level = 0.95,
+                    ellipse.alpha = 0.12,
+                    label = "var",
+                    col.var = "grey20",
+                    repel = TRUE,
+                    invisible = "quali",
+                    legend.title = r$variavel_grupo) +
+      labs(title = "Biplot com elipses dos grupos") + pca_tema
+  } else {
+    # Sem grupo: biplot simples, só variáveis e indivíduos.
+    fviz_pca_biplot(r$pca, label = "var", col.var = "grey20",
+                    repel = TRUE) +
+      labs(title = "Biplot (indivíduos e variáveis)") + pca_tema
+  }
+}
+
+#' Desenha as cargas das variáveis com o limite nulo marcado.
+grafico_pca_cargas <- function(r) {
+  if (is.null(r$cargas)) return(NULL)
+  ggplot(r$cargas, aes(x = reorder(variavel, carga), y = carga,
+                       fill = significativa)) +
+    geom_col(width = 0.7) +
+    geom_point(aes(y = limite), shape = 124, size = 5, color = "grey20") +
+    coord_flip() +
+    facet_wrap(~ eixo) +
+    scale_fill_manual(values = c("Não significativa" = "grey75",
+                                 "Significativa" = "#2E7D8F")) +
+    labs(title = "Cargas das variáveis e limite dos dados permutados",
+         x = NULL, y = "Índice de carga", fill = NULL) +
+    pca_tema + theme(legend.position = "top")
+}
+
+#' Desenha a comparação entre o eixo 1 com dados completos e com imputação.
+grafico_pca_imputacao <- function(r) {
+  if (is.null(r$imputacao)) return(NULL)
+  comparacao <- r$imputacao$comparacao
+  ggplot(comparacao, aes(x = completo, y = imputado)) +
+    geom_abline(slope = sign(stats::cor(comparacao))[1, 2], intercept = 0,
+                color = "grey60", linetype = "dashed") +
+    geom_point(color = "#2E7D8F", size = 2.2) +
+    labs(title = sprintf("Eixo 1 com %d célula(s) imputada(s)",
+                         r$imputacao$n_faltantes),
+         x = "Coordenada com dados completos", y = "Coordenada com imputação") +
+    pca_tema
+}
+
+#' Gera a síntese dos resultados da PCA em português, sem concluir além do que
+#' a análise sustenta.
 relatar_pca <- function(r) {
-  # Determinar quantos componentes explicam >70% ou 80% da variância
-  cum_var <- r$var_df$Acumulada_Pct
-  num_pcs_70 <- which(cum_var >= 70)[1]
-  if(is.na(num_pcs_70)) num_pcs_70 <- length(cum_var)
-  
-  # Coletar informações do PC1 e PC2
-  var_pc1 <- r$var_df$Variancia_Pct[1]
-  var_pc2 <- if(length(cum_var) > 1) r$var_df$Variancia_Pct[2] else 0
-  
-  # Variável com maior carga absoluta no PC1
-  loadings_pc1 <- r$loadings_df[[2]] # PC1 está na col 2
-  max_var_pc1 <- r$loadings_df$Variavel[which.max(abs(loadings_pc1))]
-  
-  paste0(
-    "Foi realizada uma Análise de Componentes Principais (PCA) utilizando as variáveis numéricas [", 
-    paste(r$vars, collapse = "; "), "] com N = ", r$N, " observações. Os dados foram ", 
-    ifelse(r$scale, "padronizados (escala unitária) ", "centrados "), "antes da análise. ",
-    "Os resultados indicam que o primeiro Componente Principal (PC1) explica ", fmt(var_pc1), "% da variância total, ",
-    "sendo a variável '", max_var_pc1, "' a de maior contribuição linear neste eixo. ",
-    ifelse(length(cum_var) > 1, 
-           paste0("O segundo Componente Principal (PC2) responde por mais ", fmt(var_pc2), "% da variabilidade. "), ""),
-    "Conjuntamente, os primeiros ", num_pcs_70, " componentes explicam ", fmt(cum_var[num_pcs_70]), 
-    "% de toda a variância dos dados, fornecendo uma excelente redução de dimensionalidade do conjunto original."
+  # Frase de abertura: dimensão do problema e variáveis analisadas.
+  frases <- sprintf(
+    "Foi realizada uma Análise de Componentes Principais sobre %d variáveis ativas (%s) com N = %d observações.",
+    r$p, paste(r$variaveis, collapse = ", "), r$n_usados
   )
+  # Informamos as exclusões por dados faltantes, quando houve.
+  if (r$n_excluidos > 0) {
+    frases <- c(frases, sprintf(
+      "%d observação(ões) foi(ram) excluída(s) por dados faltantes nas variáveis ativas.",
+      r$n_excluidos
+    ))
+  }
+  # Declaramos a escolha de padronização, que muda a interpretação.
+  frases <- c(frases, if (r$padronizar) {
+    "Os dados foram padronizados (PCA de correlação), o que dá o mesmo peso a variáveis de unidades diferentes."
+  } else {
+    "Os dados foram apenas centralizados (PCA de covariância), preservando as unidades originais das variáveis."
+  })
+  # Conclusão de retenção guiada pela permutação, com os demais critérios como referência.
+  if (r$permutacao_disponivel) {
+    k <- r$eixos_significativos
+    if (!is.null(k) && k >= 1) {
+      frases <- c(frases, sprintf(
+        "A permutação (999 repetições, semente %d) sustenta a retenção de %d componente(s), que explicam conjuntamente %s %% da variância.",
+        r$seed, k, fmt_pca(sum(r$autovalores$pct_variancia[seq_len(k)]))
+      ))
+    } else {
+      frases <- c(frases,
+        "Nenhum componente superou o limite dos dados permutados; a estrutura linear dos dados é fraca e os eixos devem ser interpretados com reserva.")
+    }
+    frases <- c(frases,
+      "O bastão quebrado e o critério de Kaiser são apresentados apenas como referência.")
+  } else {
+    # Sem permutação, declaramos o critério substituto com transparência.
+    bastao_k <- sum(r$retencao$observado > r$retencao$bastao)
+    frases <- c(frases, sprintf(
+      "A permutação não pôde ser calculada; a retenção foi avaliada pelo bastão quebrado, que sugere %d componente(s), com o Kaiser apenas como referência.",
+      bastao_k
+    ))
+  }
+  # Mencionamos as variáveis suplementares quantitativas, quando houver.
+  if (length(r$variaveis_suplementares)) {
+    correlacao_e1 <- r$correlacoes_eixos[r$variaveis_suplementares[1], "Eixo 1"]
+    frases <- c(frases, sprintf(
+      "A variável suplementar %s correlacionou-se r = %s com o eixo 1.",
+      r$variaveis_suplementares[1], fmt_pca(correlacao_e1)
+    ))
+  }
+  # Mencionamos o grupo suplementar e sua razão de correlação, quando houver.
+  if (!is.null(r$variavel_grupo) && !is.null(r$eta2)) {
+    frases <- c(frases, sprintf(
+      "O grupo suplementar %s apresentou razão de correlação eta² = %s no eixo 1.",
+      r$variavel_grupo, fmt_pca(r$eta2[1, 1])
+    ))
+  }
+  # Mencionamos a concordância com a imputação, quando a comparação ocorreu.
+  if (!is.null(r$imputacao)) {
+    frases <- c(frases, sprintf(
+      "Com %d célula(s) imputada(s) pela PCA iterativa (missMDA, %d eixo(s)), a concordância das coordenadas do eixo 1 com os dados completos foi r = %s; a imputação não cria informação nova, apenas estabiliza a projeção.",
+      r$imputacao$n_faltantes, r$imputacao$n_eixos, fmt_pca(r$imputacao$concordancia)
+    ))
+  }
+  # Devolvemos o relato como um parágrafo único.
+  paste(frases, collapse = " ")
 }
 
 # ---- Formatação da tabela (identidade Ocean Gradient, saída docx) -----------
-flextable_ocean <- function(tab) {
+flextable_ocean_pca <- function(tab) {
   flextable::flextable(tab) |>
     flextable::theme_booktabs() |>
     flextable::bg(part = "header", bg = "#0F3B5F") |>
