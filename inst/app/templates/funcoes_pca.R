@@ -216,8 +216,10 @@ permutar_pca <- function(dados, padronizar = TRUE, nperm = 999L, seed = 2026L,
 #' @param quanti_sup nomes de variáveis suplementares quantitativas (opcional).
 #' @param quali_sup nome da variável suplementar de grupo (opcional).
 #' @param seed semente gravada para a permutação (reprodutibilidade).
-#' @param comparar_imputacao quando TRUE e houver NA nas ativas, compara o eixo 1
-#'   da PCA completa com o eixo 1 da PCA sobre dados imputados (missMDA).
+#' @param comparar_imputacao quando TRUE e houver NA nas ativas, a imputação
+#'   (missMDA) vira a análise principal, mantendo todas as observações, e a PCA
+#'   por casos completos passa a ser a verificação de robustez. Sem a opção (ou
+#'   sem NA), a análise segue por casos completos, com contagem de excluídos.
 calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
                          quali_sup = NULL, seed = 2026,
                          comparar_imputacao = FALSE) {
@@ -261,25 +263,71 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   # Contamos as células faltantes antes de qualquer remoção de linhas.
   n_faltantes <- sum(is.na(ativas_bruto))
 
-  # Localizamos as linhas completas: a PCA não imputa sozinha, então removemos
-  # por lista (listwise) e informamos quantas observações ficaram de fora.
+  # Localizamos as linhas completas: sem imputação marcada, elas continuam
+  # sendo a análise principal; com imputação, sustentam a comparação.
   linhas_ok <- stats::complete.cases(ativas_bruto)
   ativas_ok <- ativas_bruto[linhas_ok, , drop = FALSE]
-  # Guardamos o tamanho final da amostra analisada.
-  n_usados <- nrow(ativas_ok)
-  # Exigimos pelo menos três observações completas para a PCA ser estável.
-  if (n_usados < 3) {
-    stop("Após remover as linhas com dados faltantes restaram menos de três observações.",
-         call. = FALSE)
-  }
-  # Guardamos quantas linhas foram excluídas por dados faltantes.
-  n_excluidos <- nrow(df) - n_usados
+
+  # Contamos as falhas por variável: o aviso da imputação pesa as que têm mais
+  # de 20 % de ausentes, além do total acima de 10 % das células das ativas.
+  falt_por_var <- colSums(is.na(ativas_bruto))
+  pct_var_falt <- 100 * falt_por_var / nrow(df)
+  pct_total_falt <- 100 * n_faltantes / (nrow(df) * p)
 
   # Iniciamos a lista de avisos que acompanhará o resultado.
   avisos <- character()
+
+  # ---- Imputação (missMDA): com a opção marcada e havendo NA nas ativas, ela
+  # vira a análise principal (todas as observações entram); a PCA por casos
+  # completos passa a ser a verificação de robustez. Sem a opção, vale o
+  # caminho clássico de casos completos, com contagem de excluídos.
+  imputacao_parcial <- NULL
+  imputacao_mensagem <- NULL
+  matriz_analise <- ativas_ok
+  linhas_analise <- linhas_ok
+  if (isTRUE(comparar_imputacao) && n_faltantes > 0) {
+    if (!requireNamespace("missMDA", quietly = TRUE)) {
+      imputacao_mensagem <- "O pacote missMDA não está instalado (install.packages('missMDA')); a análise segue por casos completos."
+      avisos <- c(avisos, imputacao_mensagem)
+    } else {
+      # Estimamos, por validação cruzada, quantos eixos usar na imputação.
+      n_eixos_imp <- tryCatch(
+        missMDA::estim_ncpPCA(as.matrix(ativas_bruto), scale = TRUE,
+                              ncp.max = min(5, p, nrow(ativas_bruto) - 2))$ncp,
+        error = function(e) 2
+      )
+      # Preenchemos as falhas com a PCA iterativa regularizada. Só as ativas
+      # entram: suplementares não são imputadas nem influenciam a imputação.
+      imputado_mat <- tryCatch(
+        missMDA::imputePCA(as.matrix(ativas_bruto), ncp = n_eixos_imp,
+                           scale = TRUE)$completeObs,
+        error = function(e) NULL
+      )
+      if (is.null(imputado_mat)) {
+        imputacao_mensagem <- "A imputação (missMDA) não convergiu para esta base; a análise segue por casos completos."
+        avisos <- c(avisos, imputacao_mensagem)
+      } else {
+        matriz_analise <- as.data.frame(imputado_mat)
+        names(matriz_analise) <- ativas_nomes
+        linhas_analise <- rep(TRUE, nrow(df))
+        imputacao_parcial <- list(n_eixos = n_eixos_imp)
+      }
+    }
+  } else if (isTRUE(comparar_imputacao) && n_faltantes == 0) {
+    imputacao_mensagem <- "Não há dados faltantes nas variáveis ativas; a imputação não se aplica."
+  }
+
+  # Guardamos o tamanho final da amostra analisada e as exclusões.
+  n_usados <- nrow(matriz_analise)
+  n_excluidos <- nrow(df) - n_usados
+  # Exigimos pelo menos três observações na análise para a PCA ser estável.
+  if (n_usados < 3) {
+    stop("Restaram menos de três observações para a análise.", call. = FALSE)
+  }
+
   # Avisamos sobre variáveis constantes, que não carregam informação na PCA.
   variaveis_constantes <- ativas_nomes[
-    vapply(ativas_ok, function(x) stats::sd(x) == 0, logical(1))
+    vapply(matriz_analise, function(x) stats::sd(x) == 0, logical(1))
   ]
   if (length(variaveis_constantes)) {
     avisos <- c(avisos, sprintf(
@@ -287,12 +335,34 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
       paste(variaveis_constantes, collapse = ", ")
     ))
   }
-  # Avisamos sobre exclusões por dados faltantes.
+  # Avisamos sobre exclusões por dados faltantes, quando a análise é por casos
+  # completos (sem imputação marcada).
   if (n_excluidos > 0) {
     avisos <- c(avisos, sprintf(
       "%d observação(ões) foi(ram) excluída(s) por dados faltantes nas variáveis ativas (%d célula(s) com NA).",
       n_excluidos, n_faltantes
     ))
+  }
+  # Com a imputação como análise principal, declaramos quantas células foram
+  # estimadas e lembramos que valor estimado não é medida coletada.
+  if (!is.null(imputacao_parcial)) {
+    avisos <- c(avisos, sprintf(
+      "A análise principal usa %d célula(s) estimada(s) pela imputação (missMDA, %d eixo(s)); valores estimados não são medidas — aproveitam as observações incompletas, mas não substituem dados coletados.",
+      n_faltantes, imputacao_parcial$n_eixos
+    ))
+    # Proporção alta de ausentes: a imputação pesa demais na projeção.
+    altas <- names(pct_var_falt)[pct_var_falt > 20]
+    if (length(altas) || pct_total_falt > 10) {
+      detalhe <- if (length(altas)) {
+        sprintf(" — em %s, mais de 20 %% dos valores foram estimados", paste(altas, collapse = ", "))
+      } else {
+        ""
+      }
+      avisos <- c(avisos, sprintf(
+        "Atenção à proporção de valores estimados%s; no total, %s %% das células das ativas foram imputadas. Com essa proporção, a projeção reflete também o modelo de imputação, não apenas os dados coletados.",
+        detalhe, fmt_pca(pct_total_falt)
+      ))
+    }
   }
 
   # Definimos quantos eixos o FactoMineR deve guardar: no máximo p, e nunca
@@ -300,16 +370,27 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   # recentes do FactoMineR truncam a tabela de autovalores em 5 eixos.
   ncp_val <- min(p, n_usados - 1L)
 
-  # Montamos a tabela de trabalho: ativas + suplementares quantitativas + grupo.
-  dados_pca <- ativas_ok
-  # Acrescentamos as suplementares quantitativas, nas mesmas linhas completas.
+  # Montamos a tabela de trabalho: ativas (imputadas ou completas) +
+  # suplementares quantitativas + grupo, nas mesmas linhas da análise.
+  dados_pca <- matriz_analise
+  # Acrescentamos as suplementares quantitativas, nas linhas da análise.
   if (length(suplementares_nomes)) {
-    suplementares_ok <- df[linhas_ok, suplementares_nomes, drop = FALSE]
     suplementares_ok <- as.data.frame(
-      lapply(suplementares_ok, as.numeric)
+      lapply(df[linhas_analise, suplementares_nomes, drop = FALSE], as.numeric)
     )
     names(suplementares_ok) <- suplementares_nomes
-    dados_pca <- cbind(dados_pca, suplementares_ok)
+    # Suplementares com ausentes não são imputadas: ficam fora da projeção,
+    # com aviso, em vez de receberem valores estimados.
+    com_na <- names(suplementares_ok)[colSums(is.na(suplementares_ok)) > 0]
+    if (length(com_na)) {
+      avisos <- c(avisos, sprintf(
+        "A(s) suplementare(s) %s tem valores ausentes: não foi(foram) imputada(s) nem projetada(s) nos eixos.",
+        paste(com_na, collapse = ", ")
+      ))
+      suplementares_nomes <- setdiff(suplementares_nomes, com_na)
+      suplementares_ok <- suplementares_ok[, suplementares_nomes, drop = FALSE]
+    }
+    if (length(suplementares_nomes)) dados_pca <- cbind(dados_pca, suplementares_ok)
   }
   # Guardamos os índices das suplementares dentro da tabela de trabalho.
   indices_quanti <- if (length(suplementares_nomes)) {
@@ -322,7 +403,7 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   grupo_fator <- NULL
   indice_grupo <- NULL
   if (!is.null(variavel_grupo)) {
-    grupo_bruto <- as.character(df[[variavel_grupo]][linhas_ok])
+    grupo_bruto <- as.character(df[[variavel_grupo]][linhas_analise])
     grupo_bruto[is.na(grupo_bruto)] <- "(sem informação)"
     grupo_fator <- as.factor(grupo_bruto)
     # Exigimos pelo menos duas categorias para o grupo fazer sentido.
@@ -353,7 +434,7 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   )
 
   # Conferimos com a função básica do R: os autovalores são os desvios ao quadrado.
-  pca_base <- stats::prcomp(ativas_ok, center = TRUE, scale. = isTRUE(scale))
+  pca_base <- stats::prcomp(matriz_analise, center = TRUE, scale. = isTRUE(scale))
   # Comparamos as duas contas lado a lado (devem ser iguais).
   n_conf <- min(ncp_val, 4)
   conferencia <- data.frame(
@@ -378,10 +459,10 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
   permutacao_mensagem <- NULL
   permutacao_disponivel <- FALSE
 
-  # Rodamos a permutação sobre as mesmas linhas completas que entraram na PCA,
-  # com o mesmo preparo (padronizar ou só centralizar) e a semente registrada.
+  # Rodamos a permutação sobre a mesma matriz que entrou na PCA principal
+  # (imputada ou completa), com o mesmo preparo e a semente registrada.
   permutacao <- tryCatch(
-    permutar_pca(ativas_ok, padronizar = isTRUE(scale), nperm = 999L,
+    permutar_pca(matriz_analise, padronizar = isTRUE(scale), nperm = 999L,
                  seed = as.integer(seed), n_eixos_cargas = min(2L, ncp_val)),
     error = function(e) NULL
   )
@@ -436,7 +517,7 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     limites_obs <- permutacao$limite_cargas[, seq_len(n_eixos_cargas), drop = FALSE]
     # Empilhamos variável x eixo numa tabela longa; carga supera o limite = significativa.
     cargas_df <- data.frame(
-      variavel = rep(colnames(ativas_ok), n_eixos_cargas),
+      variavel = rep(colnames(matriz_analise), n_eixos_cargas),
       eixo = rep(nomes_eixos, each = p),
       carga = as.numeric(cargas_obs),
       limite = as.numeric(limites_obs)
@@ -453,8 +534,12 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     error = function(e) NULL
   )
 
-  # Guardamos a matriz de correlações entre as variáveis ativas.
-  correlacoes <- suppressWarnings(stats::cor(ativas_ok))
+  # Guardamos a matriz de correlações entre as variáveis ativas: é o
+  # diagnóstico pré-PCA, por isso usa os dados observados (pares completos),
+  # mesmo quando a análise principal roda sobre valores imputados.
+  correlacoes <- suppressWarnings(
+    stats::cor(ativas_bruto, use = "pairwise.complete.obs")
+  )
 
   # Montamos a tabela de correlações das variáveis (ativas e suplementares) com os eixos.
   correlacoes_eixos <- as.data.frame(pca$var$cor[, 1:2, drop = FALSE])
@@ -477,61 +562,45 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     if (!length(grupos_pequenos)) grupos_pequenos <- NULL
   }
 
-  # Comparamos a PCA completa com a PCA imputada, quando pedido e possível.
+  # Com a imputação como análise principal, a PCA dos casos completos vira a
+  # verificação de robustez: confrontamos as coordenadas do eixo 1 nas linhas
+  # que tinham todos os valores observados.
   imputacao <- NULL
-  imputacao_mensagem <- NULL
-  if (isTRUE(comparar_imputacao)) {
-    if (n_faltantes == 0) {
-      # Sem NA não há o que imputar; registramos o motivo.
-      imputacao_mensagem <- "Não há dados faltantes nas variáveis ativas; a comparação com imputação não se aplica."
-    } else if (!requireNamespace("missMDA", quietly = TRUE)) {
-      # Sem o pacote, registramos o motivo.
-      imputacao_mensagem <- "O pacote missMDA não está instalado (install.packages('missMDA')); a comparação com imputação foi ignorada."
-    } else {
-      # Estimamos, por validação cruzada, quantos eixos usar na imputação.
-      n_eixos_imp <- tryCatch(
-        missMDA::estim_ncpPCA(as.matrix(ativas_bruto), scale = TRUE,
-                              ncp.max = min(5, p, nrow(ativas_bruto) - 2))$ncp,
-        error = function(e) 2
-      )
-      # Preenchemos as falhas com a PCA iterativa regularizada.
-      imputado_ok <- tryCatch(
-        missMDA::imputePCA(as.matrix(ativas_bruto), ncp = n_eixos_imp,
-                           scale = TRUE)$completeObs,
+  if (!is.null(imputacao_parcial)) {
+    comparacao_imputacao <- NULL
+    concordancia_imputacao <- NA_real_
+    if (nrow(ativas_ok) >= 3) {
+      pca_completos <- tryCatch(
+        FactoMineR::PCA(ativas_ok, scale.unit = isTRUE(scale),
+                        ncp = min(p, nrow(ativas_ok) - 1L), graph = FALSE),
         error = function(e) NULL
       )
-      if (!is.null(imputado_ok)) {
-        # Rodamos a PCA na tabela imputada, sem suplementares.
-        pca_imputada <- tryCatch(
-          FactoMineR::PCA(imputado_ok, scale.unit = TRUE, ncp = ncp_val, graph = FALSE),
-          error = function(e) NULL
+      if (!is.null(pca_completos)) {
+        # Comparamos as coordenadas do eixo 1 nas mesmas linhas completas.
+        comparacao_imputacao <- data.frame(
+          completo = pca_completos$ind$coord[, 1],
+          imputado = pca$ind$coord[linhas_ok, 1]
         )
-        if (!is.null(pca_imputada)) {
-          # Comparamos as coordenadas do eixo 1 nas mesmas linhas completas.
-          comparacao_imputacao <- data.frame(
-            completo = pca$ind$coord[, 1],
-            imputado = pca_imputada$ind$coord[linhas_ok, 1]
-          )
-          # Medimos a concordância (o sinal do eixo é arbitrário, por isso o abs).
-          concordancia_imputacao <- abs(stats::cor(
-            comparacao_imputacao$completo, comparacao_imputacao$imputado
-          ))
-          # Guardamos tudo num único objeto para a figura e para o relato.
-          imputacao <- list(
-            n_faltantes = n_faltantes,
-            n_eixos = n_eixos_imp,
-            concordancia = concordancia_imputacao,
-            comparacao = comparacao_imputacao
-          )
-        } else {
-          imputacao_mensagem <- "A imputação (missMDA) não convergiu para esta base."
-          avisos <- c(avisos, imputacao_mensagem)
-        }
-      } else {
-        imputacao_mensagem <- "A imputação (missMDA) não convergiu para esta base."
-        avisos <- c(avisos, imputacao_mensagem)
+        # Medimos a concordância (o sinal do eixo é arbitrário, por isso o abs).
+        concordancia_imputacao <- abs(stats::cor(
+          comparacao_imputacao$completo, comparacao_imputacao$imputado
+        ))
       }
     }
+    # Guardamos tudo num único objeto para a figura, a tabela e o relato.
+    imputacao <- list(
+      n_faltantes = n_faltantes,
+      n_eixos = imputacao_parcial$n_eixos,
+      concordancia = concordancia_imputacao,
+      comparacao = comparacao_imputacao,
+      falt_por_variavel = data.frame(
+        variavel = ativas_nomes,
+        faltantes = as.integer(falt_por_var),
+        pct = round(pct_var_falt, 1)
+      ),
+      pct_total = round(pct_total_falt, 1),
+      principal = TRUE
+    )
   }
 
   # Devolvemos todos os resultados num único objeto organizado.
@@ -546,6 +615,7 @@ calcular_pca <- function(df, vars_selected, scale = TRUE, quanti_sup = NULL,
     n_usados = n_usados,
     n_excluidos = n_excluidos,
     n_faltantes = n_faltantes,
+    n_casos_completos = nrow(ativas_ok),
     p = p,
     n_eixos = ncp_val,
     pca = pca,
@@ -908,17 +978,19 @@ grafico_pca_cargas <- function(r) {
     pca_tema + theme(legend.position = "top")
 }
 
-#' Desenha a comparação entre o eixo 1 com dados completos e com imputação.
+#' Desenha a verificação de robustez: o eixo 1 da análise principal (imputada)
+#' contra o eixo 1 da PCA por casos completos, nas linhas observadas.
 grafico_pca_imputacao <- function(r) {
-  if (is.null(r$imputacao)) return(NULL)
+  if (is.null(r$imputacao) || is.null(r$imputacao$comparacao)) return(NULL)
   comparacao <- r$imputacao$comparacao
   ggplot(comparacao, aes(x = completo, y = imputado)) +
     geom_abline(slope = sign(stats::cor(comparacao))[1, 2], intercept = 0,
                 color = "grey60", linetype = "dashed") +
     geom_point(color = "#2E7D8F", size = 2.2) +
-    labs(title = sprintf("Eixo 1 com %d célula(s) imputada(s)",
+    labs(title = sprintf("Robustez: eixo 1 com %d célula(s) estimada(s)",
                          r$imputacao$n_faltantes),
-         x = "Coordenada com dados completos", y = "Coordenada com imputação") +
+         x = "Coordenada com casos completos",
+         y = "Coordenada da análise principal (imputada)") +
     pca_tema
 }
 
@@ -980,12 +1052,24 @@ relatar_pca <- function(r) {
       r$variavel_grupo, fmt_pca(r$eta2[1, 1])
     ))
   }
-  # Mencionamos a concordância com a imputação, quando a comparação ocorreu.
+  # Com imputação como análise principal, declaramos quantas células foram
+  # estimadas (e em quais variáveis), os eixos usados e a concordância com os
+  # casos completos, que passam a ser a verificação de robustez.
   if (!is.null(r$imputacao)) {
+    falt <- r$imputacao$falt_por_variavel
+    falt <- falt[falt$faltantes > 0, , drop = FALSE]
+    detalhe <- paste(sprintf("%s (%d)", falt$variavel, falt$faltantes),
+                     collapse = ", ")
     frases <- c(frases, sprintf(
-      "Com %d célula(s) imputada(s) pela PCA iterativa (missMDA, %d eixo(s)), a concordância das coordenadas do eixo 1 com os dados completos foi r = %s; a imputação não cria informação nova, apenas estabiliza a projeção.",
-      r$imputacao$n_faltantes, r$imputacao$n_eixos, fmt_pca(r$imputacao$concordancia)
+      "Como havia dados faltantes e a imputação estava marcada, a análise principal usou os valores estimados pela PCA iterativa regularizada (missMDA, %d eixo(s)), mantendo as %d observações: %d célula(s) estimada(s) em %s.",
+      r$imputacao$n_eixos, r$n_usados, r$imputacao$n_faltantes, detalhe
     ))
+    if (!is.na(r$imputacao$concordancia)) {
+      frases <- c(frases, sprintf(
+        "Na verificação de robustez, o eixo 1 da análise imputada concordou com o da PCA por casos completos (n = %d) em r = %s; valores estimados não são medidas — apenas aproveitam as observações incompletas.",
+        r$n_casos_completos, fmt_pca(r$imputacao$concordancia)
+      ))
+    }
   }
   # Devolvemos o relato como um parágrafo único.
   paste(frases, collapse = " ")

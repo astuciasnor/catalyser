@@ -6,6 +6,7 @@ author:
 date: today
 date-format: "DD/MM/YYYY"
 lang: pt
+bibliography: referencias.bib
 abstract-title: "Resumo"
 abstract: |
   Este relatório apresenta a Análise de Componentes Principais (PCA) realizada
@@ -44,13 +45,17 @@ editor_options:
 ```{r setup}
 #| include: false
 
-# ---- Carregar Funções Auxiliares -----------------------------------------
+# ---- Locale e Funções Auxiliares -----------------------------------------
+# Em renders fora do RStudio o R pode abrir em locale C, que não lê os acentos
+# dos comentários; pedimos um locale UTF-8 antes de carregar as funções (sem
+# efeito onde o locale já é adequado, como no RStudio do pesquisador).
+try(Sys.setlocale("LC_CTYPE", "English_United States.utf8"), silent = TRUE)
 if (file.exists("funcoes_pca.R")) {
-  source("funcoes_pca.R")
+  source("funcoes_pca.R", encoding = "UTF-8")
 } else if (file.exists("../scripts/funcoes_pca.R")) {
-  source("../scripts/funcoes_pca.R")
+  source("../scripts/funcoes_pca.R", encoding = "UTF-8")
 } else if (file.exists("scripts/funcoes_pca.R")) {
-  source("scripts/funcoes_pca.R")
+  source("scripts/funcoes_pca.R", encoding = "UTF-8")
 } else {
   stop("funcoes_pca.R não encontrado ao lado do relatório.")
 }
@@ -89,7 +94,7 @@ A Análise de Componentes Principais (PCA) é uma técnica multivariada que cond
 
 O conjunto de dados inicial contendo $N = `r r$n_original`$ observações foi analisado com base nas variáveis numéricas ativas: **`r paste(vars_list, collapse = ', ')`**.
 
-`r if (r$n_excluidos > 0) paste0("Foram excluídas ", r$n_excluidos, " observações por dados faltantes nas variáveis ativas (análise por casos completos). A amostra final tem N = ", r$n_usados, ".") else "Não havia dados faltantes nas variáveis ativas."`
+`r if (!is.null(r$imputacao)) paste0("Como havia dados faltantes nas variáveis ativas e a imputação estava marcada, a análise principal usou os valores estimados pela PCA iterativa regularizada (missMDA, ", r$imputacao$n_eixos, " eixo(s) escolhidos por validação cruzada), mantendo as N = ", r$n_usados, " observações. Foram estimadas ", r$imputacao$n_faltantes, " célula(s) (", r$imputacao$pct_total, " % das células das ativas); valores estimados não são medidas coletadas, apenas aproveitam as observações incompletas. A PCA por casos completos (n = ", r$n_casos_completos, ") aparece adiante como verificação de robustez.") else if (r$n_excluidos > 0) paste0("Foram excluídas ", r$n_excluidos, " observações por dados faltantes nas variáveis ativas (análise por casos completos). A amostra final tem N = ", r$n_usados, ".") else "Não havia dados faltantes nas variáveis ativas."`
 
 A análise utilizou a matriz de `r ifelse(r$padronizar, "correlação (dados padronizados para escala unitária)", "covariância (dados apenas centralizados)")`. A padronização dá o mesmo peso a variáveis de unidades diferentes; a escolha está declarada nos parâmetros do relatório. A semente `r r$seed` foi fixada antes das permutações, garantindo reprodutibilidade.
 
@@ -113,7 +118,7 @@ print(grafico_pca_correlacoes(r))
 
 ## Autovalores e retenção de componentes
 
-A @tbl-pca-var apresenta a contribuição de cada componente para a variabilidade total, e a @tbl-pca-retencao compara o observado com os três critérios de retenção. A **permutação** (999 repetições) é o critério em destaque: retém-se o eixo cujo percentual observado supera o limite de 95 % dos dados permutados (p < 0,05). O bastão quebrado é um critério de referência, e o **Kaiser (autovalor = 1) é apresentado apenas como referência** — sozinho, ele costuma reter eixos demais.
+A @tbl-pca-var apresenta a contribuição de cada componente para a variabilidade total, e a @tbl-pca-retencao compara o observado com os três critérios de retenção. A **permutação** (999 repetições) é o critério em destaque: retém-se o eixo cujo percentual observado supera o limite de 95 % dos dados permutados (p < 0,05). O teste reproduz, em implementação própria em R base, a lógica de @camargo2022. O bastão quebrado é um critério de referência, e o **Kaiser (autovalor = 1) é apresentado apenas como referência** — sozinho, ele costuma reter eixos demais.
 
 ```{r}
 #| label: tbl-pca-var
@@ -185,7 +190,7 @@ A @fig-pca-individuos posiciona as observações no plano 1–2. Quando há vari
 print(grafico_pca_individuos(r, ellipse_type = "convex"))
 ```
 
-A @fig-pca-biplot combina indivíduos e variáveis no mesmo plano. **Leia o biplot pela direção das setas**: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta.
+A @fig-pca-biplot combina indivíduos e variáveis no mesmo plano. **Leia o biplot pela direção das setas**: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta. A leitura geométrica segue @settanni2026, que revisita a implementação de biplots de componentes principais em R.
 
 ```{r}
 #| label: fig-pca-biplot
@@ -232,17 +237,17 @@ if (!is.null(mostrar_pca_dimdesc(r))) flextable_ocean_pca(mostrar_pca_dimdesc(r)
 #| label: sec-pca-imputacao
 #| output: asis
 
-# A seção inteira só existe quando há comparação a mostrar; o texto com o
+# A seção inteira só existe quando há verificação a mostrar; o texto com o
 # crossref acompanha a figura, para não apontar para um gráfico inexistente.
 if (length(grafico_pca_imputacao(r)) > 0) {
-  cat("## Comparação com imputação (missMDA)\n\n")
-  cat("Quando há dados faltantes e a opção foi marcada, a PCA sobre os dados imputados pela PCA iterativa (missMDA) é comparada com a PCA dos dados completos. A @fig-pca-imputacao mostra a concordância das coordenadas do eixo 1.\n\n")
+  cat("## Verificação de robustez: casos completos × imputados\n\n")
+  cat("Com a imputação marcada, a análise principal usa os valores estimados pela PCA iterativa regularizada (missMDA, @josse2016). A @fig-pca-imputacao confronta o eixo 1 da análise principal (imputada) com o da PCA por casos completos, nas linhas sem nenhum NA: quanto mais próxima de 1 a concordância, menos a projeção depende dos valores estimados.\n\n")
 }
 ```
 
 ```{r}
 #| label: fig-pca-imputacao
-#| fig-cap: "Eixo 1: coordenadas com dados completos vs. imputados."
+#| fig-cap: "Robustez: eixo 1 com casos completos vs. análise principal imputada."
 #| fig-width: 5.5
 #| fig-height: 4.5
 #| eval: !expr length(grafico_pca_imputacao(r)) > 0
@@ -252,15 +257,39 @@ print(grafico_pca_imputacao(r))
 
 ```{r}
 #| label: txt-pca-imputacao
+#| output: asis
 
 if (!is.null(r$imputacao)) {
+  falt <- r$imputacao$falt_por_variavel
+  falt <- falt[falt$faltantes > 0, , drop = FALSE]
+  detalhe <- paste(sprintf(
+    "%s (%d célula(s), %s %%)", falt$variavel, falt$faltantes,
+    formatC(falt$pct, format = "f", digits = 1, decimal.mark = ",")
+  ), collapse = "; ")
   cat(sprintf(
-    "Foram imputadas %d célula(s) com %d eixo(s) (missMDA). A concordância das coordenadas do eixo 1 com os dados completos foi r = %s. A imputação não cria informação nova: serve para aproveitar observações incompletas e estabilizar a projeção.\n\n",
-    r$imputacao$n_faltantes, r$imputacao$n_eixos,
+    "Foram estimadas %d célula(s) com %d eixo(s) (missMDA): %s. Na verificação de robustez, a concordância do eixo 1 com os casos completos (n = %d) foi r = %s. Valores estimados não são medidas coletadas: aproveitam as observações incompletas e estabilizam a projeção, mas não acrescentam informação observada.\n\n",
+    r$imputacao$n_faltantes, r$imputacao$n_eixos, detalhe,
+    r$n_casos_completos,
     formatC(r$imputacao$concordancia, format = "f", digits = 3, decimal.mark = ",")
   ))
+  # Proporção alta de valores estimados: aviso explícito, como no app.
+  tab_falt <- r$imputacao$falt_por_variavel
+  altas <- tab_falt[tab_falt$pct > 20, , drop = FALSE]
+  if (nrow(altas) > 0 || r$imputacao$pct_total > 10) {
+    sujeito <- if (nrow(altas) > 0) {
+      paste0("em ", paste(altas$variavel, collapse = ", "),
+             ", mais de 20 % dos valores foram estimados")
+    } else {
+      "o total de células estimadas passou de 10 %"
+    }
+    cat(sprintf(
+      "**Aviso:** %s (total de %s %% das células das ativas). Com essa proporção, a projeção reflete também o modelo de imputação: valores estimados não são medidas, e os eixos devem ser lidos com essa reserva.\n\n",
+      sujeito,
+      formatC(r$imputacao$pct_total, format = "f", digits = 1, decimal.mark = ",")
+    ))
+  }
 } else {
-  cat("A comparação com imputação não foi realizada (opção não marcada, ausência de dados faltantes nas variáveis ativas ou pacote missMDA indisponível).\n\n")
+  cat("A imputação não foi realizada (opção não marcada, ausência de dados faltantes nas variáveis ativas ou pacote missMDA indisponível); a análise é por casos completos.\n\n")
 }
 ```
 

@@ -4680,7 +4680,7 @@ RCatalyst::run_ide()</pre>
           "# --- SCRIPT DE COMPONENTES PRINCIPAIS (PCA) ---",
           "# Pacotes necessarios:",
           "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'patchwork'))",
-          "#   install.packages('missMDA')  # so se for usar a comparacao com imputacao",
+          "#   install.packages('missMDA')  # so se for usar imputacao como analise principal",
           "source('scripts/funcoes_pca.R')",
           "load('dados/dados_limpos.rda')",
           "dados <- df_clean",

@@ -90,7 +90,8 @@ mod_pca_ui <- function(id) {
             checkboxInput(ns("scale"), "Padronizar variáveis (PCA de correlação)", value = TRUE),
             numericInput(ns("seed"), "Semente da permutação:", value = 2026,
                          min = 1, max = 999999, step = 1),
-            checkboxInput(ns("comparar_imputacao"), "Comparar com imputação (missMDA) se houver NA", value = FALSE),
+            checkboxInput(ns("comparar_imputacao"), "Usar imputação (missMDA) como análise principal se houver NA", value = FALSE),
+            helpText(HTML("Com a opção marcada e havendo ausentes nas ativas, a PCA roda sobre os valores estimados pela PCA iterativa (missMDA), mantendo todas as observações, e os casos completos viram verificação de robustez. Sem a opção, a análise é por casos completos, com contagem de excluídas. Suplementares com ausentes não são imputadas.")),
             helpText(HTML("Em bases do EAPADados com papéis documentados (ex.: riqueza e trecho do rio Doubs), o painel abre com a configuração sugerida. A permutação (999 repetições) testa a significância dos eixos e das cargas.")),
             execucao_explicita_controles_ui(ns)
           )
@@ -451,7 +452,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
       tagList(
         alerta_grupos_pequenos(r),
         plotOutput(ns("grafico_biplot"), height = "380px"),
-        helpText(HTML("Leia o biplot pela <b>direção das setas</b>: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta."))
+        helpText(HTML("Leia o biplot pela <b>direção das setas</b>: projete cada ponto sobre a reta da variável de interesse, não pela proximidade direta entre ponto e seta. A leitura geométrica do biplot segue Settanni e Srai (2026, <i>Quality &amp; Quantity</i>, v. 60, DOI 10.1007/s11135-025-02266-9)."))
       )
     })
 
@@ -521,18 +522,34 @@ mod_pca_server <- function(id, data_rv, import_info) {
       req(r)
       if (!is.null(r$imputacao)) {
         tagList(
+          div(class = "alert alert-light",
+              style = "border-left: 4px solid #2E7D8F; background-color: #f8f9fa; color: #333333; font-size: 0.9rem; line-height: 1.5; padding: 12px 15px;",
+              sprintf("A análise principal usou os valores estimados pela imputação (missMDA, %d eixo(s) escolhidos por validação cruzada): %d célula(s) estimada(s), %s %% das células das ativas. Todas as %d observações entraram na PCA; valores estimados não são medidas coletadas.",
+                      r$imputacao$n_eixos, r$imputacao$n_faltantes,
+                      fmt_pca(r$imputacao$pct_total), r$n_usados)),
+          h6("Células estimadas por variável", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F;"),
+          tableOutput(ns("tabela_imputacao_var")),
+          h6("Verificação de robustez: casos completos × imputados", style = "font-family: 'Outfit'; font-weight: 700; color: #0F3B5F; margin-top: 12px;"),
           plotOutput(ns("grafico_imputacao"), height = "360px"),
           div(class = "alert alert-light",
               style = "border-left: 4px solid #2E7D8F; background-color: #f8f9fa; color: #333333; font-size: 0.9rem; line-height: 1.5; padding: 12px 15px;",
-              sprintf("Foram imputadas %d célula(s) com %d eixo(s) (missMDA). Concordância do eixo 1 com os dados completos: r = %s. A imputação não cria informação nova: serve para aproveitar observações incompletas e estabilizar a projeção.",
-                      r$imputacao$n_faltantes, r$imputacao$n_eixos,
-                      fmt_pca(r$imputacao$concordancia)))
+              sprintf("Nas %d linha(s) sem nenhum NA, o eixo 1 da análise imputada concordou com o da PCA por casos completos em r = %s. Quanto mais próxima de 1, menos a projeção depende dos valores estimados.",
+                      r$n_casos_completos, fmt_pca(r$imputacao$concordancia)))
         )
       }
       motivo <- r$imputacao_mensagem %||%
-        "A comparação com imputação não foi solicitada (marque a opção na configuração)."
+        "A imputação não foi solicitada (marque a opção na configuração); a análise é por casos completos."
       div(class = "alert alert-info", icon("circle-info"), " ", motivo)
     })
+
+    output$tabela_imputacao_var <- renderTable({
+      r <- result_rv()
+      req(r, !is.null(r$imputacao))
+      tab <- r$imputacao$falt_por_variavel
+      tab <- tab[tab$faltantes > 0, , drop = FALSE]
+      names(tab) <- c("Variável", "Células estimadas", "% da variável")
+      tab
+    }, striped = TRUE, hover = TRUE, bordered = TRUE)
 
     output$grafico_imputacao <- renderPlot({
       r <- result_rv()
@@ -555,10 +572,14 @@ mod_pca_server <- function(id, data_rv, import_info) {
         temp_ref <- file.path(temp_dir, "custom-reference.docx")
         temp_func <- file.path(temp_dir, "funcoes_pca.R")
         temp_data <- file.path(temp_dir, "dados_limpos.rda")
+        temp_bib <- file.path(temp_dir, "referencias.bib")
 
         file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
         file.copy("templates/funcoes_pca.R", temp_func, overwrite = TRUE)
         file.copy("templates/relatorio_pca.qmd", temp_qmd, overwrite = TRUE)
+        # O .bib acompanha o relatório: o YAML declara bibliography e as
+        # citações do texto precisam dele para compilar.
+        file.copy("templates/referencias.bib", temp_bib, overwrite = TRUE)
 
         df_clean <- data_rv()
         save(df_clean, file = temp_data)
@@ -623,7 +644,7 @@ mod_pca_server <- function(id, data_rv, import_info) {
           "# --- SCRIPT DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA) ---",
           "# Pacotes necessários (instale uma vez):",
           "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'patchwork'))",
-          "#   install.packages('missMDA')   # só se for usar a comparação com imputação",
+          "#   install.packages('missMDA')   # só se for usar imputação como análise principal",
           "source('scripts/funcoes_pca.R')",
           "",
           "# 1. CARREGAR OS DADOS LIMPOS",
@@ -659,6 +680,9 @@ mod_pca_server <- function(id, data_rv, import_info) {
         writeLines(r_script_content, file.path(dir_scripts, "analise_pca.R"))
         file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
         file.copy("templates/funcoes_pca.R", file.path(dir_scripts, "funcoes_pca.R"), overwrite = TRUE)
+        # As citações do relatório vivem neste .bib; sem ele o Quarto não
+        # resolve as referências ao compilar o .docx fora da IDE.
+        file.copy("templates/referencias.bib", file.path(dir_relatorios, "referencias.bib"), overwrite = TRUE)
 
         vars_str_qmd <- paste(input$vars_selected, collapse = ",")
         sup_str_qmd <- paste(quanti_sel, collapse = ",")
@@ -681,7 +705,8 @@ mod_pca_server <- function(id, data_rv, import_info) {
           "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
           "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
           "- scripts/analise_pca.R : Script com a PCA completa (permutação, figuras, relato).",
-          "- relatorios/           : relatorio_pca.qmd para compilar em .docx com Quarto."
+          "- relatorios/           : relatorio_pca.qmd para compilar em .docx com Quarto,",
+          "                          com referencias.bib (citações) e custom-reference.docx (tema)."
         )
         writeLines(readme_content, file.path(proj_dir, "README.txt"))
 
