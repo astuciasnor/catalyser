@@ -8,16 +8,6 @@ if (file.exists("templates/funcoes_hca.R")) {
   source("templates/funcoes_hca.R")
 }
 
-# Helper para customizar parâmetros do relatório Quarto de HCA
-customize_hca_qmd_params <- function(qmd_path, vars_selected, distance_method, linkage_method, k_groups, scale) {
-  lines <- readLines(qmd_path, warn = FALSE)
-  lines <- gsub('vars_selected: ".*"', sprintf('vars_selected: "%s"', vars_selected), lines)
-  lines <- gsub('distance_method: ".*"', sprintf('distance_method: "%s"', distance_method), lines)
-  lines <- gsub('linkage_method: ".*"', sprintf('linkage_method: "%s"', linkage_method), lines)
-  lines <- gsub('k_groups: .*', sprintf('k_groups: %s', k_groups), lines)
-  lines <- gsub('scale: .*', sprintf('scale: %s', tolower(as.character(scale))), lines)
-  return(lines)
-}
 
 mod_hca_ui <- function(id) {
   ns <- NS(id)
@@ -55,15 +45,17 @@ mod_hca_ui <- function(id) {
           )
         ),
         card(
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            execucao_explicita_downloads_ui(ns, tagList(
-              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-              helpText("Gera relatórios de AAH e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
-            ))
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -263,140 +255,6 @@ mod_hca_server <- function(id, data_rv, import_info) {
       )
     })
     
-    # Handlers de Download
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_aah_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        req(data_rv())
-        
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_hca.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_hca.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_hca.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_hca.qmd", temp_qmd, overwrite = TRUE)
-        
-        df_clean <- data_rv()
-        save(df_clean, file = temp_data)
-        
-        vars_str <- paste(input$vars_selected, collapse = ",")
-        custom_qmd_lines <- customize_hca_qmd_params(
-          temp_qmd,
-          vars_selected = vars_str,
-          distance_method = input$distance_method,
-          linkage_method = input$linkage_method,
-          k_groups = input$k_groups,
-          scale = input$scale
-        )
-        writeLines(custom_qmd_lines, temp_qmd)
-        
-        old_wd <- getwd()
-        setwd(temp_dir)
-        system2("quarto", args = c("render", "relatorio_hca.qmd", "--to", "docx"))
-        setwd(old_wd)
-        
-        generated_docx <- file.path(temp_dir, "relatorio_hca.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro ao compilar o Word.", file)
-        }
-      }
-    )
-    
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_aah_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_aah_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        
-        dir.create(proj_dir, showWarnings = FALSE)
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        df_clean <- data_rv()
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        vars_str <- paste(paste0("'", input$vars_selected, "'"), collapse = ", ")
-        r_script_content <- c(
-          "# --- SCRIPT DE ANÁLISE DE AGRUPAMENTO HIERÁRQUICO (AAH / HCA) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "source('scripts/funcoes_hca.R')",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# 2. EXECUTAR AAH E MOSTRAR ESTATÍSTICAS",
-          sprintf("vars_selected <- c(%s)", vars_str),
-          sprintf("r <- calcular_hca(dados, vars_selected, distance_method = '%s', linkage_method = '%s', k_groups = %s, scale = %s, label_var = %s)", 
-                  input$distance_method, input$linkage_method, input$k_groups, as.character(input$scale),
-                  if (is.null(input$label_var) || !nzchar(input$label_var)) "NULL" else sprintf("'%s'", input$label_var)),
-          "print(mostrar_hca_perfil(r))",
-          "print(head(mostrar_hca_pertinencia(r), 20))",
-          "cat(relatar_hca(r))",
-          "",
-          "# 3. GERAR O DENDROGRAMA COLORIDO",
-          "ocean_cols <- c('#0F3B5F', '#2E7D8F', '#62B6B7', '#E89B3C', '#E76F51')",
-          sprintf("k_val <- %s", input$k_groups),
-          "border_cols <- ocean_cols[1:min(k_val, length(ocean_cols))]",
-          "if(k_val > length(ocean_cols)) { border_cols <- c(border_cols, rainbow(k_val - length(ocean_cols))) }",
-          "plot(r$fit, labels = FALSE, hang = -1, main = 'Dendrograma de Agrupamento Hierárquico',",
-          sprintf("     sub = 'Distância: %s | Ligação: %s',", input$distance_method, input$linkage_method),
-          "     xlab = 'Observações', ylab = 'Altura (Distância de Agregação)')",
-          "rect.hclust(r$fit, k = k_val, border = border_cols)"
-        )
-        
-        writeLines(r_script_content, file.path(dir_scripts, "analise_aah.R"))
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_hca.R", file.path(dir_scripts, "funcoes_hca.R"), overwrite = TRUE)
-        
-        vars_str_qmd <- paste(input$vars_selected, collapse = ",")
-        custom_qmd_lines <- customize_hca_qmd_params(
-          "templates/relatorio_hca.qmd",
-          vars_selected = vars_str_qmd,
-          distance_method = input$distance_method,
-          linkage_method = input$linkage_method,
-          k_groups = input$k_groups,
-          scale = input$scale
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_hca.qmd"))
-        
-        rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        readme_content <- c(
-          "PACOTE DE ANÁLISE DE AGRUPAMENTO HIERÁRQUICO (AAH / HCA)",
-          "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/analise_aah.R : Script contendo o cálculo da AAH e dendrograma."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
 
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())

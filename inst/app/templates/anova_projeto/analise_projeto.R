@@ -216,7 +216,7 @@ tabela_resumo_exibir <- tabela_resumo |>
     Média = fmt(media),
     DP = fmt(dp),
     EP = fmt(ep),
-    IC = str_glue("{fmt(ic_inf)} a {fmt(ic_sup)}"),
+    IC = stringr::str_glue("{fmt(ic_inf)} a {fmt(ic_sup)}"),
     Tukey = letra
   )
 names(tabela_resumo_exibir)[names(tabela_resumo_exibir) == "Grupo"] <- rotulo_fator
@@ -238,7 +238,7 @@ tabela_tukey_exibir <- tabela_tukey |>
   transmute(
     Comparação,
     Diferença = fmt(diff),
-    IC = str_glue("{fmt(lwr)} a {fmt(upr)}"),
+    IC = stringr::str_glue("{fmt(lwr)} a {fmt(upr)}"),
     `p ajustado` = formatar_p(`p adj`)
   )
 names(tabela_tukey_exibir)[names(tabela_tukey_exibir) == "IC"] <- paste0("IC ", ic_percentual, "%")
@@ -352,21 +352,21 @@ leitura_levene <- case_when(
 )
 
 # 10.3 Textos que serão usados nos relatórios
-texto_amostra <- str_glue(
+texto_amostra <- stringr::str_glue(
   "Após o preparo, havia {n_total} observações. A análise utilizou ",
   "{n_utilizado} casos completos em {n_grupos} grupos; {n_excluido} ",
   "observações foram excluídas por ausência de resposta ou grupo."
 )
 print(texto_amostra)
 
-texto_anova <- str_glue(
+texto_anova <- stringr::str_glue(
   "Em {rotulo_resposta}, {evidencia} de {rotulo_fator} ",
   "(F({gl_fator}, {gl_residuo}) = {fmt(f_anova)}; ",
   "{formatar_p(p_anova, no_texto = TRUE)})."
 )
 print(texto_anova)
 
-texto_efeito <- str_glue(
+texto_efeito <- stringr::str_glue(
   "O tamanho de efeito foi {classe_efeito} pela convenção de Cohen ",
   "(η² = {fmt(eta2, 3)}; ω² = {fmt(omega2, 3)}), uma referência estatística, ",
   "não biológica."
@@ -381,7 +381,7 @@ texto_tukey <- if (!is.na(p_anova) && p_anova < alfa) {
 print(texto_tukey)
 
 # O artigo recebe frases curtas; o caderno recebe também a orientação de leitura.
-texto_pressupostos_artigo <- str_glue(
+texto_pressupostos_artigo <- stringr::str_glue(
   "{leitura_shapiro} Shapiro-Wilk: W = {fmt(w_shapiro, 3)}; ",
   "{formatar_p(p_shapiro, no_texto = TRUE)}. {leitura_levene} ",
   "Levene: F({teste_levene$Df[1]}, {teste_levene$Df[2]}) = {fmt(f_levene)}; ",
@@ -405,7 +405,7 @@ alerta_modelo <- if (!is.na(p_levene) && p_levene < alfa) {
 print(alerta_modelo)
 
 # Síntese estatística: os argumentos científicos serão escritos no QMD.
-texto_sintese_estatistica <- str_glue(
+texto_sintese_estatistica <- stringr::str_glue(
   "Na amostra de {n_utilizado} observações em {n_grupos} grupos, {evidencia} ",
   "(F({gl_fator}, {gl_residuo}) = {fmt(f_anova)}; ",
   "{formatar_p(p_anova, no_texto = TRUE)}; η² = {fmt(eta2, 3)}). ",

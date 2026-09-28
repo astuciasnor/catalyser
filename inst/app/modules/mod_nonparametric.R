@@ -46,21 +46,6 @@ np_contingencia_tidy_matriz <- function(df, linha, coluna, frequencia = "n") {
   tab
 }
 
-# Ajusta os parâmetros do relatório Quarto dos testes não paramétricos
-customize_np_qmd_params <- function(qmd_path, test_type, var_y, var_x,
-                                    var1, var2, var_row, var_col, alternative, yates) {
-  lines <- readLines(qmd_path, warn = FALSE)
-  lines <- gsub('test_type: ".*"', sprintf('test_type: "%s"', test_type), lines)
-  lines <- gsub('var_y: ".*"', sprintf('var_y: "%s"', var_y), lines)
-  lines <- gsub('var_x: ".*"', sprintf('var_x: "%s"', var_x), lines)
-  lines <- gsub('var1: ".*"', sprintf('var1: "%s"', var1), lines)
-  lines <- gsub('var2: ".*"', sprintf('var2: "%s"', var2), lines)
-  lines <- gsub('var_row: ".*"', sprintf('var_row: "%s"', var_row), lines)
-  lines <- gsub('var_col: ".*"', sprintf('var_col: "%s"', var_col), lines)
-  lines <- gsub('alternative: ".*"', sprintf('alternative: "%s"', alternative), lines)
-  lines <- gsub('yates: .*', sprintf('yates: %s', tolower(as.character(yates))), lines)
-  lines
-}
 
 # Título curto do teste (para o cabeçalho do card)
 np_titulo <- function(fixed_test) {
@@ -165,15 +150,17 @@ mod_nonparametric_ui <- function(id, fixed_test = "quiquadrado") {
         ),
         card(
           fill = FALSE,
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            execucao_explicita_downloads_ui(ns, tagList(
-              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-              helpText("Gera o relatório em DOCX ou exporta um projeto Quarto completo.", style = "margin-top: 10px; font-size: 0.85rem;")
-            ), ativo = identical(fixed_test, "quiquadrado"))
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -640,44 +627,7 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
              wilcoxon = "wilcoxon", kruskal = "kruskal_wallis")
     })
 
-    # Salva a tabela do qui-quadrado (para o relatório reproduzir manual/preparada)
-    salvar_tabela_np <- function(dir) {
-      if (fixed_test == "quiquadrado") {
-        tab_np <- chi_input()$tab
-        save(tab_np, file = file.path(dir, "tabela_contingencia.rda"))
-      }
-    }
 
-    # ---- Download do Relatório Word (.docx) ----
-    output$download_report_docx <- downloadHandler(
-      filename = function() paste0("relatorio_", nome_teste(), "_", format(Sys.Date(), "%Y-%m-%d"), ".docx"),
-      content = function(file) {
-        req(data_rv())
-        temp_dir <- tempdir()
-        temp_qmd  <- file.path(temp_dir, "relatorio_nonparametric.qmd")
-        file.copy("templates/custom-reference.docx", file.path(temp_dir, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_nonparametric.R", file.path(temp_dir, "funcoes_nonparametric.R"), overwrite = TRUE)
-        file.copy("templates/relatorio_nonparametric.qmd", temp_qmd, overwrite = TRUE)
-
-        df_clean <- data_rv()
-        save(df_clean, file = file.path(temp_dir, "dados_limpos.rda"))
-        salvar_tabela_np(temp_dir)
-
-        pp <- export_params()
-        qmd_lines <- customize_np_qmd_params(temp_qmd, pp$test_type, pp$var_y, pp$var_x,
-                                             pp$var1, pp$var2, pp$var_row, pp$var_col,
-                                             pp$alternative, pp$yates)
-        writeLines(qmd_lines, temp_qmd)
-
-        old_wd <- getwd(); setwd(temp_dir)
-        system2("quarto", args = c("render", "relatorio_nonparametric.qmd", "--to", "docx"))
-        setwd(old_wd)
-
-        generated <- file.path(temp_dir, "relatorio_nonparametric.docx")
-        if (file.exists(generated)) file.copy(generated, file, overwrite = TRUE)
-        else writeLines("Erro: não foi possível renderizar o relatório .docx com o Quarto CLI.", file)
-      }
-    )
 
     # Código R reprodutível
     r_code_np <- reactive({
@@ -718,56 +668,6 @@ mod_nonparametric_server <- function(id, data_rv, import_info, contingency_share
       paste(code, collapse = "\n")
     })
 
-    # ---- Download do Projeto (.zip) ----
-    output$download_project_zip <- downloadHandler(
-      filename = function() paste0("projeto_", nome_teste(), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip"),
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_", nome_teste(), "_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-
-        df_clean <- data_rv()
-        req(df_clean)
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        tryCatch(export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx")),
-                 error = function(e) NULL)
-        salvar_tabela_np(dir_dados)
-
-        writeLines(r_code_np(), file.path(dir_scripts, paste0("analise_", nome_teste(), ".R")))
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_nonparametric.R", file.path(dir_scripts, "funcoes_nonparametric.R"), overwrite = TRUE)
-
-        pp <- export_params()
-        qmd_lines <- customize_np_qmd_params("templates/relatorio_nonparametric.qmd",
-                                             pp$test_type, pp$var_y, pp$var_x, pp$var1, pp$var2,
-                                             pp$var_row, pp$var_col, pp$alternative, pp$yates)
-        writeLines(qmd_lines, file.path(dir_relatorios, "relatorio_nonparametric.qmd"))
-
-        writeLines(c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8"),
-                   file.path(proj_dir, "projeto_analise.Rproj"))
-        writeLines(c(
-          "PACOTE DE ESTUDO: TESTES NÃO PARAMÉTRICOS (CatalyseR)",
-          "- projeto_analise.Rproj: duplo clique para abrir no RStudio.",
-          "- dados/     : dados limpos (.rda/.csv/.xlsx) e, no qui-quadrado, a tabela de contingência.",
-          "- scripts/   : script da análise e funções de apoio.",
-          "- relatorios/: relatório Quarto (.qmd) e template Word."
-        ), file.path(proj_dir, "README.txt"))
-
-        old_wd <- getwd(); setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
 
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())

@@ -51,15 +51,17 @@ mod_parametric_ui <- function(id) {
           )
         ),
         card(
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            execucao_explicita_downloads_ui(ns, tagList(
-              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-              helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
-            ))
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -842,214 +844,6 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       paste(code, collapse = "\n")
     })
     
-    # Função auxiliar para customizar os parâmetros do arquivo QMD
-    customize_qmd_params <- function(qmd_path, test_type, var_y, var_x, mu, conf_level, label_y, label_x) {
-      lines <- readLines(qmd_path, warn = FALSE)
-      lines <- gsub('test_type: ".*"', sprintf('test_type: "%s"', test_type), lines)
-      lines <- gsub('var_y: ".*"', sprintf('var_y: "%s"', var_y), lines)
-      lines <- gsub('var_x: ".*"', sprintf('var_x: "%s"', var_x), lines)
-      lines <- gsub('mu: .*', sprintf('mu: %s', mu), lines)
-      lines <- gsub('conf_level: .*', sprintf('conf_level: %s', conf_level), lines)
-      lines <- gsub('label_y: ".*"', sprintf('label_y: "%s"', label_y), lines)
-      lines <- gsub('label_x: ".*"', sprintf('label_x: "%s"', label_x), lines)
-      return(lines)
-    }
-
-    # Download do Relatório Word (.docx)
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_teste_t_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        req(data_rv())
-        
-        # Criar diretório temporário para compilação
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_teste_t.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_teste_t.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
-        # Copiar arquivos de templates para o diretório temporário
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_teste_t.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_teste_t.qmd", temp_qmd, overwrite = TRUE)
-        
-        # Salvar os dados limpos ativos
-        df_clean <- data_rv()
-        save(df_clean, file = temp_data)
-        
-        # Determinar os parâmetros de entrada com base no tipo de teste
-        t_type <- input$test_type
-        
-        var_y_val <- ""
-        var_x_val <- "NULL"
-        mu_val <- 0
-        label_y_val <- ""
-        label_x_val <- ""
-        
-        if (t_type == "one_val") {
-          var_y_val <- input$one_var_y
-          mu_val <- input$one_mu
-          label_y_val <- paste0("o ", var_y_val)
-        } else if (t_type == "two_ind") {
-          var_y_val <- input$two_var_y
-          var_x_val <- input$two_var_x
-          label_y_val <- paste0("a variável ", var_y_val)
-          label_x_val <- paste0("a variável ", var_x_val)
-        } else if (t_type == "paired") {
-          var_y_val <- input$pair_var_y1
-          var_x_val <- input$pair_var_y2
-          label_y_val <- paste0("a variável ", var_y_val)
-          label_x_val <- paste0("a variável ", var_x_val)
-        }
-        
-        conf_level_val <- input$conf_level / 100
-        
-        # Customizar e escrever o QMD
-        custom_qmd_lines <- customize_qmd_params(
-          temp_qmd,
-          test_type = t_type,
-          var_y = var_y_val,
-          var_x = var_x_val,
-          mu = mu_val,
-          conf_level = conf_level_val,
-          label_y = label_y_val,
-          label_x = label_x_val
-        )
-        writeLines(custom_qmd_lines, temp_qmd)
-        
-        # Renderizar o relatório usando quarto CLI
-        old_wd <- getwd()
-        setwd(temp_dir)
-        
-        # Renderização direta
-        system2("quarto", args = c("render", "relatorio_teste_t.qmd", "--to", "docx"))
-        
-        setwd(old_wd)
-        
-        # Copiar o arquivo final gerado para a saída
-        generated_docx <- file.path(temp_dir, "relatorio_teste_t.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          # Fallback error file
-          writeLines("Erro: Não foi possível renderizar o relatório .docx usando o Quarto CLI.", file)
-        }
-      }
-    )
-
-    # Download do zip
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_teste_t_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_teste_t_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # Salvar dados limpos (RDA, CSV e XLSX)
-        df_clean <- data_rv()
-        req(df_clean)
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        # Gerar o script R
-        writeLines(r_code_text(), file.path(dir_scripts, "teste_t.R"))
-        
-        # Copiar arquivos de templates
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_teste_t.R", file.path(dir_scripts, "funcoes_teste_t.R"), overwrite = TRUE)
-        
-        # Determinar os parâmetros de entrada com base no tipo de teste
-        t_type <- input$test_type
-        
-        var_y_val <- ""
-        var_x_val <- "NULL"
-        mu_val <- 0
-        label_y_val <- ""
-        label_x_val <- ""
-        
-        if (t_type == "one_val") {
-          var_y_val <- input$one_var_y
-          mu_val <- input$one_mu
-          label_y_val <- paste0("o ", var_y_val)
-        } else if (t_type == "two_ind") {
-          var_y_val <- input$two_var_y
-          var_x_val <- input$two_var_x
-          label_y_val <- paste0("a variável ", var_y_val)
-          label_x_val <- paste0("a variável ", var_x_val)
-        } else if (t_type == "paired") {
-          var_y_val <- input$pair_var_y1
-          var_x_val <- input$pair_var_y2
-          label_y_val <- paste0("a variável ", var_y_val)
-          label_x_val <- paste0("a variável ", var_x_val)
-        }
-        
-        conf_level_val <- input$conf_level / 100
-        
-        # Customizar e escrever o QMD
-        custom_qmd_lines <- customize_qmd_params(
-          "templates/relatorio_teste_t.qmd",
-          test_type = t_type,
-          var_y = var_y_val,
-          var_x = var_x_val,
-          mu = mu_val,
-          conf_level = conf_level_val,
-          label_y = label_y_val,
-          label_x = label_x_val
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_teste_t.qmd"))
-        
-        # Criar Rproj
-        rproj_content <- c(
-          "Version: 1.0",
-          "RestoreWorkspace: Default",
-          "SaveWorkspace: Default",
-          "AlwaysSaveHistory: Default",
-          "EnableCodeIndexing: Yes",
-          "UseSpacesForTab: Yes",
-          "NumSpacesForTab: 2",
-          "Encoding: UTF-8"
-        )
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        # README.txt
-        readme_content <- c(
-          "===========================================================",
-          " PACOTE DE ESTUDO: TESTE T DE STUDENT (IDE_R CIENTÍFICA)",
-          "===========================================================",
-          "",
-          "Estrutura do projeto:",
-          "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/             : Contém scripts e funções de apoio.",
-          "  - scripts/teste_t.R  : Script com o código de cálculo e gráficos.",
-          "  - scripts/funcoes_teste_t.R : Funções de formatação e relato.",
-          "- relatorios/relatorio_teste_t.qmd: Relatório em Quarto para compilação."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # Compactar
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
 
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())

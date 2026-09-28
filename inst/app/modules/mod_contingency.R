@@ -8,14 +8,6 @@ if (file.exists("templates/funcoes_contingency.R")) {
   source("templates/funcoes_contingency.R")
 }
 
-# Helper para customizar parâmetros do relatório Quarto de Contingência
-customize_contingency_qmd_params <- function(qmd_path, var_row, var_col, pct_type) {
-  lines <- readLines(qmd_path, warn = FALSE)
-  lines <- gsub('var_row: ".*"', sprintf('var_row: "%s"', var_row), lines)
-  lines <- gsub('var_col: ".*"', sprintf('var_col: "%s"', var_col), lines)
-  lines <- gsub('pct_type: ".*"', sprintf('pct_type: "%s"', pct_type), lines)
-  return(lines)
-}
 
 mod_contingency_ui <- function(id) {
   ns <- NS(id)
@@ -41,13 +33,17 @@ mod_contingency_ui <- function(id) {
           )
         ),
         card(
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera tabelas de contingência cruzadas e pacotes de análise.", style = "margin-top: 10px; font-size: 0.85rem;")
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -200,90 +196,7 @@ mod_contingency_server <- function(id, data_rv, import_info) {
         )
     })
     
-    # Customização do .qmd (parâmetros da análise) — compartilhada docx/zip
-    customizar_qmd_contingency <- function(qmd_path) {
-      customize_contingency_qmd_params(
-        qmd_path,
-        var_row  = input$var_row,
-        var_col  = input$var_col,
-        pct_type = input$pct_type
-      )
-    }
 
-    # Handlers de Download (migrados para os helpers de utils_export.R)
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_contingencia_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        req(data_rv())
-        render_relatorio_docx(
-          file           = file,
-          qmd_name       = "relatorio_contingency.qmd",
-          funcoes_name   = "funcoes_contingency.R",
-          df_clean       = data_rv(),
-          customizar_qmd = customizar_qmd_contingency
-        )
-      }
-    )
-
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_contingencia_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        req(data_rv())
-        r_script_content <- c(
-          "# --- SCRIPT DE TABELA DE CONTINGÊNCIA E TESTE QUI-QUADRADO ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "source('scripts/funcoes_contingency.R')",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# 2. EXECUTAR CONTINGÊNCIA E MOSTRAR ESTATÍSTICAS",
-          sprintf("var_row <- '%s'", input$var_row),
-          sprintf("var_col <- '%s'", input$var_col),
-          sprintf("r <- calcular_contingencia(dados, var_row, var_col, pct_type = '%s')", input$pct_type),
-          "print(mostrar_contingencia(r))",
-          "cat(relatar_contingencia(r))",
-          "",
-          "# 3. GERAR O PLOT DE FREQUÊNCIAS",
-          "library(ggplot2)",
-          "dados_plot <- dados[!is.na(dados[[var_row]]) & !is.na(dados[[var_col]]), ]",
-          "ocean_cols <- c('#0F3B5F', '#62B6B7', '#E89B3C', '#E76F51', '#2E7D8F')",
-          "levels_col <- length(unique(dados_plot[[var_col]]))",
-          "fill_cols <- ocean_cols[1:min(levels_col, length(ocean_cols))]",
-          "if(levels_col > length(ocean_cols)) { fill_cols <- c(fill_cols, rainbow(levels_col - length(ocean_cols))) }",
-          "ggplot(dados_plot, aes(x = as.factor(.data[[var_row]]), fill = as.factor(.data[[var_col]]))) +",
-          sprintf("  geom_bar(position = '%s', alpha = 0.85, color = 'white') +", input$bar_position),
-          "  scale_fill_manual(values = fill_cols) +",
-          "  theme_minimal() +",
-          "  labs(title = 'Distribuição de Frequências Cruzadas', x = var_row, y = 'Frequência Absoluta', fill = var_col)"
-        )
-
-        readme_content <- c(
-          "PACOTE DE TABELA DE CONTINGÊNCIA (CROSS-TAB & ASSOCIATIONS)",
-          "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/contingencia.R : Script contendo o cálculo da contingência e gráfico."
-        )
-
-        exportar_projeto_zip(
-          file           = file,
-          prefix         = "contingencia",
-          qmd_name       = "relatorio_contingency.qmd",
-          funcoes_name   = "funcoes_contingency.R",
-          df_clean       = data_rv(),
-          info           = import_info(),
-          r_code         = r_script_content,
-          customizar_qmd = customizar_qmd_contingency,
-          readme         = readme_content
-        )
-      }
-    )
 
     # Expõe a tabela de contingência calculada para outros módulos
     # (ex.: o qui-quadrado no menu de testes não paramétricos).

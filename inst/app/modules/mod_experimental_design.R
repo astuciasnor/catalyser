@@ -150,13 +150,17 @@ mod_experimental_design_ui <- function(id, variaveis_ui = NULL, tipo_fixo = NULL
       # COLUNA 3: EXPORTAÇÃO
       div(
         card(
-          card_header("Exportar Planejamento"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_report_docx"), "Relatório Word (.docx)", class = "btn-success w-100"),
-            div(style = "margin-top: 8px;"),
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera a ficha de campo no Word (com tabelas e croqui editáveis) ou exporta o projeto completo estruturado para o RStudio (contendo planilhas de coleta).", style = "margin-top: 10px; font-size: 0.85rem;")
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       )
@@ -354,188 +358,6 @@ mod_experimental_design_server <- function(id) {
       )
     })
     
-    # Handlers de Download
-    
-    # Download do Relatório Word (.docx)
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_planejamento_", tolower(input$design_type), "_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        res <- delineamento_rv()
-        req(res)
-        
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_experimental_design.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_experimental_design.R")
-        temp_data <- file.path(temp_dir, "delineamento_data.rda")
-        
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_experimental_design.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_experimental_design.qmd", temp_qmd, overwrite = TRUE)
-        
-        # Salva o objeto para compilação pelo Quarto
-        delineamento_res <- res
-        design_type <- input$design_type
-        save(delineamento_res, design_type, file = temp_data)
-        
-        old_wd <- getwd()
-        setwd(temp_dir)
-        system2("quarto", args = c("render", "relatorio_experimental_design.qmd", "--to", "docx"))
-        setwd(old_wd)
-        
-        generated_docx <- file.path(temp_dir, "relatorio_experimental_design.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro ao renderizar o Word pelo Quarto CLI.", file)
-        }
-      }
-    )
-    
-    # Download do Pacote ZIP (.zip)
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_delineamento_", tolower(input$design_type), "_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        res <- delineamento_rv()
-        req(res)
-        
-        proj_dir_name <- paste0("projeto_delineamento_", tolower(input$design_type), "_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        
-        dir.create(proj_dir, showWarnings = FALSE)
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # Dados limpos em formato longo e tidy
-        df_exp <- res$df
-        df_exp_clean <- df_exp
-        if ("Cor" %in% names(df_exp_clean)) {
-          df_exp_clean$Cor <- NULL
-        }
-        
-        # Salva dados
-        save(df_exp, file = file.path(dir_dados, "dados_experimento.rda"))
-        write.csv(df_exp_clean, file = file.path(dir_dados, "dados_experimento.csv"), row.names = FALSE)
-        writexl::write_xlsx(df_exp_clean, path = file.path(dir_dados, "dados_experimento.xlsx"))
-        
-        # Script de reprodução e análise futura (ANOVA)
-        r_script_content <- c(
-          sprintf("# --- SCRIPT DE REPRODUÇÃO: PLANEJAMENTO EXPERIMENTAL (%s) ---", input$design_type),
-          "# Instale os pacotes requeridos no RStudio:",
-          "# install.packages(c('ggplot2', 'flextable', 'writexl', 'readxl'))",
-          "library(ggplot2)",
-          "library(flextable)",
-          "source('scripts/funcoes_experimental_design.R')",
-          "",
-          "# 1. CARREGAR OS DADOS DO DELINEAMENTO",
-          "# Insira os valores da variável de resposta na coluna vazia no Excel",
-          "# 'dados/dados_experimento.xlsx' e salve o arquivo.",
-          "dados <- readxl::read_excel('dados/dados_experimento.xlsx')",
-          "head(dados)",
-          "",
-          "# 2. REGERAR O PLOT DO CROQUI",
-          "load('relatorios/delineamento_data.rda')",
-          "p <- plotar_croqui(delineamento_res, design_type)",
-          "print(p)",
-          "ggsave('relatorios/croqui_area.png', p, width = 7, height = 5, dpi = 300)",
-          "",
-          "# 3. EXIBIR A TABELA FORMATADA E COLORIDA",
-          "ft <- flextable_croqui(dados, design_type, delineamento_res$level_colors)",
-          "print(ft)",
-          "",
-          "# 4. EXEMPLO DE ANÁLISE DE VARIÂNCIA (ANOVA) APÓS A COLETA",
-          sprintf("# Quando você preencher a(s) coluna(s) %s, execute (repita a analise para cada resposta):",
-                  paste0("'", res$response_var, "'", collapse = ", ")),
-          sprintf("# fit <- aov(%s ~ Tratamento, data = dados)", res$response_var[1]),
-          "# summary(fit)"
-        )
-        
-        # Se for DBC ou Split-Plot, ajustar o exemplo de ANOVA no script
-        if (input$design_type == "DBC") {
-          r_script_content <- c(r_script_content,
-            sprintf("# fit_dbc <- aov(%s ~ Tratamento + factor(Bloco), data = dados)", res$response_var[1]),
-            "# summary(fit_dbc)"
-          )
-        } else if (input$design_type == "DQL") {
-          r_script_content <- c(r_script_content,
-            sprintf("# fit_dql <- aov(%s ~ Tratamento + factor(Linha) + factor(Coluna), data = dados)", res$response_var[1]),
-            "# summary(fit_dql)"
-          )
-        } else if (input$design_type == "fatorial") {
-          r_script_content <- c(r_script_content,
-            "# # Para fatorial, o tratamento é a combinação (Ex: Adubo-Irrigacao).",
-            "# # Mas podemos separar os fatores no R para testar efeitos principais e interações:",
-            "# # Separando os fatores:",
-            "dados$Fator_A <- sapply(strsplit(dados$Tratamento, '-'), function(x) x[1])",
-            "dados$Fator_B <- sapply(strsplit(dados$Tratamento, '-'), function(x) x[2])",
-            sprintf("# fit_fat <- aov(%s ~ Fator_A * Fator_B, data = dados)", res$response_var[1]),
-            "# summary(fit_fat)"
-          )
-        } else if (input$design_type == "split_plot") {
-          r_script_content <- c(r_script_content,
-            "# # Para parcelas subdivididas, usamos termo de erro para a parcela principal:",
-            sprintf("# fit_sp <- aov(%s ~ Fator_Main * Fator_Sub + Error(factor(Bloco)/Fator_Main), data = dados)", res$response_var[1]),
-            "# summary(fit_sp)"
-          )
-        }
-        
-        writeLines(r_script_content, file.path(dir_scripts, "analise_experimento.R"))
-        
-        # Copiar recursos do Quarto
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_experimental_design.R", file.path(dir_scripts, "funcoes_experimental_design.R"), overwrite = TRUE)
-        file.copy("templates/funcoes_experimental_design.R", file.path(dir_relatorios, "funcoes_experimental_design.R"), overwrite = TRUE)
-        file.copy("templates/relatorio_experimental_design.qmd", file.path(dir_relatorios, "relatorio_experimental_design.qmd"), overwrite = TRUE)
-        
-        # Salva dados do delineamento para uso local
-        delineamento_res <- res
-        design_type <- input$design_type
-        save(delineamento_res, design_type, file = file.path(dir_relatorios, "delineamento_data.rda"))
-        save(delineamento_res, design_type, file = file.path(proj_dir, "delineamento_data.rda"))
-        
-        # Adicionar o .Rproj
-        rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
-        writeLines(rproj_content, file.path(proj_dir, "projeto_experimento.Rproj"))
-        
-        # README.txt
-        readme_content <- c(
-          "PACOTE DE PLANEJAMENTO EXPERIMENTAL (CROQUI E SORTEIO)",
-          "-----------------------------------------------------",
-          "",
-          "Este pacote contém a ficha de campo e os scripts para reproduzir o planejamento.",
-          "",
-          "ESTRUTURA DE ARQUIVOS:",
-          "- projeto_experimento.Rproj      : Clique duplo para abrir no RStudio.",
-          "- dados/dados_experimento.xlsx  : Planilha para inserção dos dados de resposta.",
-          "- dados/dados_experimento.csv   : Ficha de dados em formato CSV.",
-          "- scripts/analise_experimento.R : Script R para plotar o croqui e gerar tabelas.",
-          "- relatorios/                   : Pasta com o arquivo Quarto (.qmd) do relatório.",
-          "",
-          "COMO PREENCHER E ANALISAR SEUS DADOS:",
-          sprintf("1. Abra a planilha Excel 'dados/dados_experimento.xlsx' e insira os valores da(s) variável(is) de resposta %s para cada Unidade Experimental (UE).", paste0("'", res$response_var, "'", collapse = ", ")),
-          "2. Salve o arquivo Excel.",
-          "3. Para analisar os dados, abra o projeto no RStudio, carregue os dados do Excel e execute a ANOVA (Análise de Variância):",
-          "   Execute o script 'scripts/analise_experimento.R' para ver exemplos prontos correspondentes ao seu delineamento!"
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # Zipar
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
     # Devolve o croqui para que o planejamento de variáveis reutilize fator, bloco e repetição.
     delineamento_rv
   })

@@ -14,19 +14,6 @@ if (file.exists("templates/funcoes_pca.R")) {
   source("templates/funcoes_pca.R")
 }
 
-# Helper para customizar parâmetros do relatório Quarto de PCA
-customize_pca_qmd_params <- function(qmd_path, vars_selected, scale,
-                                     quanti_sup = "", quali_sup = "",
-                                     seed = 2026, comparar_imputacao = FALSE) {
-  lines <- readLines(qmd_path, warn = FALSE)
-  lines <- gsub('vars_selected: ".*"', sprintf('vars_selected: "%s"', vars_selected), lines)
-  lines <- gsub('quanti_sup: ".*"', sprintf('quanti_sup: "%s"', quanti_sup), lines)
-  lines <- gsub('quali_sup: ".*"', sprintf('quali_sup: "%s"', quali_sup), lines)
-  lines <- gsub('seed: .*', sprintf('seed: %s', as.integer(seed)), lines)
-  lines <- gsub('comparar_imputacao: .*', sprintf('comparar_imputacao: %s', tolower(as.character(isTRUE(comparar_imputacao)))), lines)
-  lines <- gsub('scale: .*', sprintf('scale: %s', tolower(as.character(isTRUE(scale)))), lines)
-  return(lines)
-}
 
 # Opções de envoltória/elipse para indivíduos e biplot (guia da curadoria).
 opcoes_elipse_pca <- c(
@@ -97,15 +84,17 @@ mod_pca_ui <- function(id) {
           )
         ),
         card(
-          card_header("Relatório e Pacote de Estudo"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            execucao_explicita_downloads_ui(ns, tagList(
-              downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-              div(style = "margin-top: 8px;"),
-              downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-              helpText("Gera relatórios de PCA e pacotes para compilação local.", style = "margin-top: 10px; font-size: 0.85rem;")
-            ))
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -559,163 +548,6 @@ mod_pca_server <- function(id, data_rv, import_info) {
       g
     })
 
-    # Handlers de Download
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_pca_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        req(data_rv())
-
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_pca.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_pca.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        temp_bib <- file.path(temp_dir, "referencias.bib")
-
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_pca.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_pca.qmd", temp_qmd, overwrite = TRUE)
-        # O .bib acompanha o relatório: o YAML declara bibliography e as
-        # citações do texto precisam dele para compilar.
-        file.copy("templates/referencias.bib", temp_bib, overwrite = TRUE)
-
-        df_clean <- data_rv()
-        save(df_clean, file = temp_data)
-
-        vars_str <- paste(input$vars_selected, collapse = ",")
-        sup_str <- paste(input$quanti_sup %||% character(0), collapse = ",")
-        quali_str <- input$quali_sup %||% ""
-        custom_qmd_lines <- customize_pca_qmd_params(
-          temp_qmd,
-          vars_selected = vars_str,
-          scale = input$scale,
-          quanti_sup = sup_str,
-          quali_sup = quali_str,
-          seed = input$seed %||% 2026,
-          comparar_imputacao = input$comparar_imputacao %||% FALSE
-        )
-        writeLines(custom_qmd_lines, temp_qmd)
-
-        old_wd <- getwd()
-        setwd(temp_dir)
-        system2("quarto", args = c("render", "relatorio_pca.qmd", "--to", "docx"))
-        setwd(old_wd)
-
-        generated_docx <- file.path(temp_dir, "relatorio_pca.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro ao compilar o Word.", file)
-        }
-      }
-    )
-
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_pca_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_pca_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-
-        dir.create(proj_dir, showWarnings = FALSE)
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-
-        df_clean <- data_rv()
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-
-        vars_str <- paste(paste0("'", input$vars_selected, "'"), collapse = ", ")
-        quanti_sel <- input$quanti_sup %||% character(0)
-        quali_sel <- input$quali_sup %||% ""
-        r_script_content <- c(
-          "# --- SCRIPT DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA) ---",
-          "# Pacotes necessários (instale uma vez):",
-          "#   install.packages(c('FactoMineR', 'factoextra', 'ggcorrplot', 'patchwork'))",
-          "#   install.packages('missMDA')   # só se for usar imputação como análise principal",
-          "source('scripts/funcoes_pca.R')",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# 2. EXECUTAR A PCA (semente fixa = permutação reprodutível)",
-          sprintf("vars_sel <- c(%s)", vars_str),
-          sprintf("quanti_sup <- %s", if (length(quanti_sel)) {
-            paste0("c(", paste(paste0("'", quanti_sel, "'"), collapse = ", "), ")")
-          } else "NULL"),
-          sprintf("quali_sup <- %s", if (nzchar(quali_sel)) sprintf("'%s'", quali_sel) else "NULL"),
-          sprintf("r_pca <- calcular_pca(dados, vars_sel, scale = %s, quanti_sup = quanti_sup,", as.character(isTRUE(input$scale))),
-          sprintf("                      quali_sup = quali_sup, seed = %d, comparar_imputacao = %s)", as.integer(input$seed %||% 2026), as.character(isTRUE(input$comparar_imputacao))),
-          "",
-          "# 3. TABELAS E RELATO",
-          "print(mostrar_pca_var(r_pca))",
-          "print(mostrar_pca_retencao(r_pca))",
-          "print(mostrar_pca_cargas(r_pca))",
-          "cat(relatar_pca(r_pca))",
-          "",
-          "# 4. FIGURAS PRINCIPAIS",
-          "print(grafico_pca_correlacoes(r_pca))",
-          "print(grafico_pca_retencao(r_pca))",
-          "print(grafico_pca_circulo(r_pca))",
-          "print(grafico_pca_contribuicoes(r_pca))",
-          sprintf("print(grafico_pca_individuos(r_pca, ellipse_type = '%s'))", input$ellipse_ind %||% "convex"),
-          sprintf("print(grafico_pca_biplot(r_pca, versao = '%s', ellipse_type = '%s'))", input$versao_biplot %||% "classica", input$ellipse_biplot %||% "norm"),
-          "print(grafico_pca_cargas(r_pca))",
-          "print(grafico_pca_imputacao(r_pca))"
-        )
-
-        writeLines(r_script_content, file.path(dir_scripts, "analise_pca.R"))
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_pca.R", file.path(dir_scripts, "funcoes_pca.R"), overwrite = TRUE)
-        # As citações do relatório vivem neste .bib; sem ele o Quarto não
-        # resolve as referências ao compilar o .docx fora da IDE.
-        file.copy("templates/referencias.bib", file.path(dir_relatorios, "referencias.bib"), overwrite = TRUE)
-
-        vars_str_qmd <- paste(input$vars_selected, collapse = ",")
-        sup_str_qmd <- paste(quanti_sel, collapse = ",")
-        custom_qmd_lines <- customize_pca_qmd_params(
-          "templates/relatorio_pca.qmd",
-          vars_selected = vars_str_qmd,
-          scale = input$scale,
-          quanti_sup = sup_str_qmd,
-          quali_sup = quali_sel,
-          seed = input$seed %||% 2026,
-          comparar_imputacao = input$comparar_imputacao %||% FALSE
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_pca.qmd"))
-
-        rproj_content <- c("Version: 1.0", "RestoreWorkspace: Default", "SaveWorkspace: Default", "Encoding: UTF-8")
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-
-        readme_content <- c(
-          "PACOTE DE ANÁLISE DE COMPONENTES PRINCIPAIS (PCA)",
-          "- projeto_analise.Rproj: Duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/analise_pca.R : Script com a PCA completa (permutação, figuras, relato).",
-          "- relatorios/           : relatorio_pca.qmd para compilar em .docx com Quarto,",
-          "                          com referencias.bib (citações) e custom-reference.docx (tema)."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
 
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())

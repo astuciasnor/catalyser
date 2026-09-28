@@ -202,8 +202,11 @@ qmd_autoral <- exportacao_gerar_qmd(autoral)
 stopifnot(all(unlist(autoral$secoes_globais) %in% qmd_autoral),
   !any(grepl("`r texto_conclusao`", qmd_autoral, fixed = TRUE)),
   !any(grepl("morfometria_barbo", exportacao_gerar_qmd(manifesto), fixed = TRUE)))
+molde_autoral <- exportacao_molde_projeto_entrada(autoral)
+stopifnot(!is.null(molde_autoral))
 for (documento in documentos) {
-  texto <- exportacao_regressao_projeto_qmd(documento, autoral, "Teste", list(source = "local"))
+  texto <- exportacao_molde_projeto_qmd(molde_autoral, documento, autoral, "Teste",
+    import_info = list(source = "local"))
   stopifnot(all(unlist(autoral$secoes_globais) %in% texto),
             !any(grepl("cinco populações", texto, fixed = TRUE)))
 }

@@ -22,15 +22,17 @@ mod_descr_stats_ui <- function(id) {
                 selectInput(ns("var_group"), "Agrupar por (Categórica):", choices = c("Nenhuma" = "none"))),
             execucao_explicita_controles_ui(ns),
             card(
-              card_header("Relatório e Pacote de Estudo"),
+              card_header("Relatório e Projeto R"),
               card_body(
                 style = "padding: 12px 15px;",
-                execucao_explicita_downloads_ui(ns, tagList(
-                  downloadButton(ns("download_report_docx"), "Baixar Relatório Word (.docx)", class = "btn-success w-100"),
-                  div(style = "margin-top: 8px;"),
-                  downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-                  helpText("Gera os relatórios diretamente em DOCX ou exporta um projeto completo em Quarto.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
-                ))
+                div(
+                  class = "alert alert-light border small mb-0",
+                  icon("file-export"), " ",
+                  "Baixe o Projeto R em ",
+                  strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+                  strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+                  "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+                )
               )
             )
           )
@@ -172,207 +174,6 @@ mod_descr_stats_server <- function(id, data_rv, import_info) {
         formatRound(columns = which(num_cols_idx), digits = 3)
     })
     
-    # Função auxiliar para customizar os parâmetros do QMD descritivo
-    customize_descr_qmd_params <- function(qmd_path, vars_selected, grupo) {
-      lines <- readLines(qmd_path, warn = FALSE)
-      lines <- gsub('vars_selected: ".*"', sprintf('vars_selected: "%s"', vars_selected), lines)
-      lines <- gsub('grupo: ".*"', sprintf('grupo: "%s"', grupo), lines)
-      return(lines)
-    }
-
-    # Download do Relatório Word (.docx)
-    output$download_report_docx <- downloadHandler(
-      filename = function() {
-        paste0("relatorio_estatistica_descritiva_", format(Sys.Date(), "%Y-%m-%d"), ".docx")
-      },
-      content = function(file) {
-        req(data_rv())
-        
-        # Criar diretório temporário para compilação
-        temp_dir <- tempdir()
-        temp_qmd <- file.path(temp_dir, "relatorio_descritiva.qmd")
-        temp_ref <- file.path(temp_dir, "custom-reference.docx")
-        temp_func <- file.path(temp_dir, "funcoes_descritiva.R")
-        temp_data <- file.path(temp_dir, "dados_limpos.rda")
-        
-        # Copiar arquivos de templates para o diretório temporário
-        file.copy("templates/custom-reference.docx", temp_ref, overwrite = TRUE)
-        file.copy("templates/funcoes_descritiva.R", temp_func, overwrite = TRUE)
-        file.copy("templates/relatorio_descritiva.qmd", temp_qmd, overwrite = TRUE)
-        
-        # Salvar os dados limpos ativos
-        df_clean <- data_rv()
-        save(df_clean, file = temp_data)
-        
-        # Preparar variáveis selecionadas como string de parâmetros
-        vars_str <- paste(input$vars_selected, collapse = ",")
-        grupo_val <- input$var_group
-        
-        # Customizar e escrever o QMD
-        custom_qmd_lines <- customize_descr_qmd_params(
-          temp_qmd,
-          vars_selected = vars_str,
-          grupo = grupo_val
-        )
-        writeLines(custom_qmd_lines, temp_qmd)
-        
-        # Renderizar o relatório usando quarto CLI
-        old_wd <- getwd()
-        setwd(temp_dir)
-        
-        system2("quarto", args = c("render", "relatorio_descritiva.qmd", "--to", "docx"))
-        
-        setwd(old_wd)
-        
-        # Copiar o arquivo final gerado para a saída
-        generated_docx <- file.path(temp_dir, "relatorio_descritiva.docx")
-        if (file.exists(generated_docx)) {
-          file.copy(generated_docx, file, overwrite = TRUE)
-        } else {
-          writeLines("Erro: Não foi possível renderizar o relatório .docx usando o Quarto CLI.", file)
-        }
-      }
-    )
-
-    # Download do zip
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_estatistica_descritiva_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_estatistica_descritiva_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # 1. Salvar os dados limpos (RDA, CSV e XLSX)
-        df_clean <- data_rv()
-        req(df_clean)
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        # 2. Gerar o script R
-        vars_str <- paste(paste0("'", input$vars_selected, "'"), collapse = ", ")
-        r_script_content <- c(
-          "# --- SCRIPT DE ESTATÍSTICA DESCRITIVA (IDE_R) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "# (Carrega o arquivo RDA que preserva fatores e formatação)",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em formato aberto Excel (se preferir):",
-          "# library(readxl)",
-          "# dados <- as.data.frame(read_excel('dados/dados_limpos.xlsx', sheet = 'Dados'))",
-          "",
-          "# Alternativa em formato aberto CSV:",
-          "# dados <- read.csv('dados/dados_limpos.csv', stringsAsFactors = TRUE, check.names = FALSE)",
-          "",
-          "# 2. SELEÇÃO DE VARIÁVEIS",
-          sprintf("vars_selecionadas <- c(%s)", vars_str),
-          "",
-          "# 3. CÁLCULO DE ESTATÍSTICAS DESCRITIVAS",
-          "obter_resumo <- function(x) {",
-          "  c(N = sum(!is.na(x)),",
-          "    NAs = sum(is.na(x)),",
-          "    Media = mean(x, na.rm = TRUE),",
-          "    Mediana = median(x, na.rm = TRUE),",
-          "    Desvio_Padrao = sd(x, na.rm = TRUE),",
-          "    Variancia = var(x, na.rm = TRUE),",
-          "    Minimo = min(x, na.rm = TRUE),",
-          "    Maximo = max(x, na.rm = TRUE),",
-          "    Q25 = quantile(x, 0.25, na.rm = TRUE),",
-          "    Q75 = quantile(x, 0.75, na.rm = TRUE))",
-          "}",
-          "",
-          "cat('--- ESTATÍSTICAS GLOBAIS ---\\n')",
-          "for (v in vars_selecionadas) {",
-          "  cat('\\nVariável:', v, '\\n')",
-          "  print(obter_resumo(dados[[v]]))",
-          "}",
-          ""
-        )
-        
-        if (input$var_group != "none") {
-          r_script_content <- c(r_script_content,
-            "# 4. CÁLCULO DE ESTATÍSTICAS AGRUPADAS",
-            sprintf("cat('\\n--- ESTATÍSTICAS AGRUPADAS POR %s ---\\n')", input$var_group),
-            "for (v in vars_selecionadas) {",
-            "  cat('\\nVariável:', v, '\\n')",
-            sprintf("  print(tapply(dados[[v]], dados[['%s']], obter_resumo))", input$var_group),
-            "}"
-          )
-        }
-        
-        writeLines(r_script_content, file.path(dir_scripts, "descrever.R"))
-        
-        # Copiar arquivos de templates
-        file.copy("templates/custom-reference.docx", file.path(dir_relatorios, "custom-reference.docx"), overwrite = TRUE)
-        file.copy("templates/funcoes_descritiva.R", file.path(dir_scripts, "funcoes_descritiva.R"), overwrite = TRUE)
-        
-        # Customizar e escrever o QMD
-        vars_str_params <- paste(input$vars_selected, collapse = ",")
-        custom_qmd_lines <- customize_descr_qmd_params(
-          "templates/relatorio_descritiva.qmd",
-          vars_selected = vars_str_params,
-          grupo = input$var_group
-        )
-        writeLines(custom_qmd_lines, file.path(dir_relatorios, "relatorio_descritivo.qmd"))
-        
-        # 4. Criar arquivo de Projeto
-        rproj_content <- c(
-          "Version: 1.0",
-          "RestoreWorkspace: Default",
-          "SaveWorkspace: Default",
-          "AlwaysSaveHistory: Default",
-          "EnableCodeIndexing: Yes",
-          "UseSpacesForTab: Yes",
-          "NumSpacesForTab: 2",
-          "Encoding: UTF-8"
-        )
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        # 5. README.txt
-        readme_content <- c(
-          "===========================================================",
-          " PACOTE DE ESTATÍSTICA DESCRITIVA (IDE_R CIENTÍFICA)",
-          "===========================================================",
-          "",
-          "Estrutura do projeto:",
-          "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/             : Contém scripts e funções de apoio.",
-          "  - scripts/descrever.R: Script com o código de cálculo estatístico.",
-          "  - scripts/funcoes_descritiva.R : Funções de formatação e relato.",
-          "- relatorios/relatorio_descritivo.qmd: Relatório em Quarto para compilação.",
-          "",
-          "Instruções:",
-          "1. Abra o arquivo 'projeto_analise.Rproj'.",
-          "2. Abra 'scripts/descrever.R' e execute o código para verificar as estatísticas.",
-          "3. Para gerar o relatório final, abra 'relatorios/relatorio_descritivo.qmd' e clique no botão 'Render' do RStudio."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # 6. Compactar
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
 
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())
@@ -473,11 +274,17 @@ mod_histogram_ui <- function(id) {
           )
         ),
         card(
-          card_header("Pacote de Estudo R/Quarto"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera um pacote Quarto estruturado contendo o gráfico de distribuição correspondente.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -596,182 +403,6 @@ mod_histogram_server <- function(id, data_rv, import_info) {
       make_plot()
     })
     
-    # Download do zip do projeto para Histogramas
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_histograma_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_histograma_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # 1. Salvar os dados (RDA, CSV e XLSX)
-        df_clean <- data_rv()
-        req(df_clean)
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        # 2. Gerar o script R
-        theme_code <- switch(input$graph_theme,
-                             "minimal" = "theme_minimal(base_size = 14)",
-                             "classic" = "theme_classic(base_size = 14)",
-                             "bw"      = "theme_bw(base_size = 14)",
-                             "gray"    = "theme_gray(base_size = 14)",
-                             "light"   = "theme_light(base_size = 14)",
-                             "theme_minimal(base_size = 14)")
-        
-        title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Distribuição de", input$var_x)
-        x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
-        y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else (if (input$show_density) "Densidade" else "Frequência")
-        
-        r_script_content <- c(
-          "# --- SCRIPT DE HISTOGRAMA REPRODUTÍVEL (IDE_R) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "library(ggplot2)",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "# (Carrega o arquivo RDA que preserva fatores e formatação)",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em formato aberto Excel (se preferir):",
-          "# library(readxl)",
-          "# dados <- as.data.frame(read_excel('dados/dados_limpos.xlsx', sheet = 'Dados'))",
-          "",
-          "# Alternativa em formato aberto CSV:",
-          "# dados <- read.csv('dados/dados_limpos.csv', stringsAsFactors = TRUE, check.names = FALSE)",
-          "",
-          "# 2. GERAR O PLOT DO HISTOGRAMA"
-        )
-        
-        if (input$var_group != "none") {
-          r_script_content <- c(r_script_content,
-            sprintf("dados$`%s` <- as.factor(dados$`%s`)", input$var_group, input$var_group),
-            if (input$show_density) {
-              c(
-                sprintf("ggplot(dados, aes(x = `%s`, y = after_stat(density), fill = `%s`, color = `%s`)) +", input$var_x, input$var_group, input$var_group),
-                sprintf("  geom_histogram(bins = %d, alpha = 0.5, position = 'identity') +", input$bins),
-                "  geom_density(linewidth = 1, fill = NA) +"
-              )
-            } else {
-              c(
-                sprintf("ggplot(dados, aes(x = `%s`, fill = `%s`)) +", input$var_x, input$var_group),
-                sprintf("  geom_histogram(bins = %d, alpha = 0.7, position = 'dodge') +", input$bins)
-              )
-            }
-          )
-        } else {
-          if (input$show_density) {
-            r_script_content <- c(r_script_content,
-              sprintf("ggplot(dados, aes(x = `%s`, y = after_stat(density))) +", input$var_x),
-              sprintf("  geom_histogram(bins = %d, fill = '#cfe2ff', color = '#0d6efd', alpha = 0.7) +", input$bins),
-              "  geom_density(color = '#dc3545', linewidth = 1, fill = NA) +"
-            )
-          } else {
-            r_script_content <- c(r_script_content,
-              sprintf("ggplot(dados, aes(x = `%s`)) +", input$var_x),
-              sprintf("  geom_histogram(bins = %d, fill = '#cfe2ff', color = '#0d6efd', alpha = 0.8) +", input$bins)
-            )
-          }
-        }
-        
-        r_script_content <- c(r_script_content,
-          sprintf("  %s +", theme_code),
-          sprintf("  labs(title = '%s', x = '%s', y = '%s') +", title_val, x_label, y_label),
-          "  theme(plot.title = element_text(face = 'bold'))"
-        )
-        
-        writeLines(r_script_content, file.path(dir_scripts, "histograma.R"))
-        
-        # 3. Gerar o arquivo Quarto
-        start_idx <- grep("^# 2\\. GERAR", r_script_content)
-        if (length(start_idx) == 0) start_idx <- 8
-        qmd_lines <- c(
-          "---",
-          "title: \"Análise de Frequências (Histograma)\"",
-          "author: \"IDE CatalyseR - CatalyseR\"",
-          "date: today",
-          "editor_options:",
-          "  chunk_output_type: console",
-          "format:",
-          "  html:",
-          "    theme: cosmo",
-          "---",
-          "",
-          "## Histograma de Distribuição",
-          "Abaixo está o gráfico gerado dinamicamente para avaliar a simetria e distribuição de frequência.",
-          "",
-          "```{r}",
-          "#| label: setup",
-          "#| include: false",
-          "knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)",
-          "library(ggplot2)",
-          "",
-          "# Carrega os dados limpos (preservando fatores e tipagem)",
-          "load('../dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em CSV:",
-          "# library(readr)",
-          "# dados <- read_csv('../dados/dados_limpos.csv')",
-          "```",
-          "",
-          "```{r}",
-          "#| label: grafico-histograma",
-          paste(r_script_content[start_idx:length(r_script_content)], collapse = "\n"),
-          "```"
-        )
-        
-        writeLines(paste(qmd_lines, collapse = "\n"), file.path(dir_relatorios, "relatorio_histograma.qmd"))
-        
-        # 4. Criar projeto R
-        rproj_content <- c(
-          "Version: 1.0",
-          "RestoreWorkspace: Default",
-          "SaveWorkspace: Default",
-          "AlwaysSaveHistory: Default",
-          "EnableCodeIndexing: Yes",
-          "UseSpacesForTab: Yes",
-          "NumSpacesForTab: 2",
-          "Encoding: UTF-8"
-        )
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        # 5. README.txt
-        readme_content <- c(
-          "===========================================================",
-          " PACOTE DE HISTOGRAMA REPRODUTÍVEL (IDE_R CIENTÍFICA)",
-          "===========================================================",
-          "",
-          "Estrutura do projeto:",
-          "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/histograma.R : Script contendo o código de visualização.",
-          "- relatorios/relatorio_histograma.qmd: Relatório em Quarto para compilação."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # 6. Compactar
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
   })
 }
 
@@ -798,11 +429,17 @@ mod_boxplot_ui <- function(id) {
           )
         ),
         card(
-          card_header("Pacote de Estudo R/Quarto"),
+          card_header("Relatório e Projeto R"),
           card_body(
             style = "padding: 12px 15px;",
-            downloadButton(ns("download_project_zip"), "Exportar Projeto R (.zip)", class = "btn-primary w-100"),
-            helpText("Gera um pacote Quarto estruturado contendo o gráfico Boxplot correspondente.", style = "margin-top: 10px; margin-bottom: 0; font-size: 0.85rem;")
+            div(
+              class = "alert alert-light border small mb-0",
+              icon("file-export"), " ",
+              "Baixe o Projeto R em ",
+              strong("Comunicação de Resultados"), ". Execute a análise, clique em ",
+              strong("Adicionar ao Projeto R"), " e escolha lá os componentes do relatório. ",
+              "No RStudio, abra o projeto e use Render para gerar o caderno HTML e o Word."
+            )
           )
         )
       ),
@@ -965,218 +602,5 @@ mod_boxplot_server <- function(id, data_rv, import_info) {
       make_plot()
     })
     
-    # Download do zip do projeto para Boxplot
-    output$download_project_zip <- downloadHandler(
-      filename = function() {
-        paste0("projeto_boxplot_", format(Sys.Date(), "%Y-%m-%d"), ".zip")
-      },
-      content = function(file) {
-        info <- import_info()
-        proj_dir_name <- paste0("projeto_boxplot_", format(Sys.Date(), "%Y-%m-%d"))
-        temp_dir <- tempdir()
-        proj_dir <- file.path(temp_dir, proj_dir_name)
-        dir.create(proj_dir, showWarnings = FALSE)
-        
-        dir_dados <- file.path(proj_dir, "dados")
-        dir_scripts <- file.path(proj_dir, "scripts")
-        dir_relatorios <- file.path(proj_dir, "relatorios")
-        
-        dir.create(dir_dados, showWarnings = FALSE)
-        dir.create(dir_scripts, showWarnings = FALSE)
-        dir.create(dir_relatorios, showWarnings = FALSE)
-        
-        # 1. Salvar dados (RDA, CSV e XLSX)
-        df_clean <- data_rv()
-        req(df_clean)
-        save(df_clean, file = file.path(dir_dados, "dados_limpos.rda"))
-        write.csv(df_clean, file = file.path(dir_dados, "dados_limpos.csv"), row.names = FALSE)
-        ds_name <- if (info$source == "package") info$package_dataset else info$excel_sheet
-        export_to_xlsx(df_clean, dataset_name = ds_name, file_path = file.path(dir_dados, "dados_limpos.xlsx"))
-        
-        # 2. Gerar o script R
-        theme_code <- switch(input$graph_theme,
-                             "minimal" = "theme_minimal(base_size = 14)",
-                             "classic" = "theme_classic(base_size = 14)",
-                             "bw"      = "theme_bw(base_size = 14)",
-                             "gray"    = "theme_gray(base_size = 14)",
-                             "light"   = "theme_light(base_size = 14)",
-                             "theme_minimal(base_size = 14)")
-        
-        title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Boxplot de", input$var_y)
-        x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else (if (input$var_x == "none") "" else input$var_x)
-        y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
-        
-        r_script_content <- c(
-          "# --- SCRIPT DE BOXPLOT REPRODUTÍVEL (IDE_R) ---",
-          "# Instalação de pacotes recomendados no RStudio:",
-          "# install.packages(c('ggplot2', 'readxl', 'writexl'))",
-          "library(ggplot2)",
-          "",
-          "# 1. CARREGAR OS DADOS LIMPOS",
-          "# (Carrega o arquivo RDA que preserva fatores e formatação)",
-          "load('dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em formato aberto Excel (se preferir):",
-          "# library(readxl)",
-          "# dados <- as.data.frame(read_excel('dados/dados_limpos.xlsx', sheet = 'Dados'))",
-          "",
-          "# Alternativa em formato aberto CSV:",
-          "# dados <- read.csv('dados/dados_limpos.csv', stringsAsFactors = TRUE, check.names = FALSE)",
-          "",
-          "# 2. GERAR O PLOT DO BOXPLOT"
-        )
-        
-        var_x_active <- input$var_x != "none"
-        var_group_active <- input$var_group != "none"
-        
-        if (var_x_active) {
-          r_script_content <- c(r_script_content, sprintf("dados$`%s` <- as.factor(dados$`%s`)", input$var_x, input$var_x))
-        }
-        if (var_group_active) {
-          r_script_content <- c(r_script_content, sprintf("dados$`%s` <- as.factor(dados$`%s`)", input$var_group, input$var_group))
-        }
-        
-        aes_parts <- c(sprintf("y = `%s`", input$var_y))
-        
-        if (var_x_active && var_group_active) {
-          aes_parts <- c(aes_parts, sprintf("x = `%s`", input$var_x))
-          if (input$grp_fill) aes_parts <- c(aes_parts, sprintf("fill = `%s`", input$var_group))
-          if (input$grp_color) aes_parts <- c(aes_parts, sprintf("color = `%s`", input$var_group))
-          aes_parts <- c(aes_parts, sprintf("group = interaction(`%s`, `%s`)", input$var_x, input$var_group))
-          
-          aes_str <- paste(aes_parts, collapse = ", ")
-          r_script_content <- c(r_script_content,
-            sprintf("ggplot(dados, aes(%s)) +", aes_str),
-            "  geom_boxplot(alpha = 0.7, outlier.size = 2, position = position_dodge(0.8)) +"
-          )
-          if (input$show_points) {
-            r_script_content <- c(r_script_content,
-              "  geom_jitter(color = '#495057', alpha = 0.5, size = 1.8, position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8)) +"
-            )
-          }
-        } else if (var_x_active && !var_group_active) {
-          aes_parts <- c(aes_parts, sprintf("x = `%s`", input$var_x), sprintf("fill = `%s`", input$var_x))
-          aes_str <- paste(aes_parts, collapse = ", ")
-          r_script_content <- c(r_script_content,
-            sprintf("ggplot(dados, aes(%s)) +", aes_str),
-            "  geom_boxplot(alpha = 0.7, outlier.color = '#dc3545', outlier.size = 2) +"
-          )
-          if (input$show_points) {
-            r_script_content <- c(r_script_content,
-              "  geom_jitter(color = '#495057', width = 0.15, alpha = 0.5, size = 1.8) +"
-            )
-          }
-        } else if (!var_x_active && var_group_active) {
-          aes_parts <- c(aes_parts, sprintf("x = `%s`", input$var_group))
-          if (input$grp_fill) aes_parts <- c(aes_parts, sprintf("fill = `%s`", input$var_group))
-          if (input$grp_color) aes_parts <- c(aes_parts, sprintf("color = `%s`", input$var_group))
-          aes_str <- paste(aes_parts, collapse = ", ")
-          r_script_content <- c(r_script_content,
-            sprintf("ggplot(dados, aes(%s)) +", aes_str),
-            "  geom_boxplot(alpha = 0.7, outlier.size = 2) +"
-          )
-          if (input$show_points) {
-            r_script_content <- c(r_script_content,
-              "  geom_jitter(color = '#495057', width = 0.15, alpha = 0.5, size = 1.8) +"
-            )
-          }
-        } else {
-          aes_parts <- c(aes_parts, "x = ''")
-          aes_str <- paste(aes_parts, collapse = ", ")
-          r_script_content <- c(r_script_content,
-            sprintf("ggplot(dados, aes(%s)) +", aes_str),
-            "  geom_boxplot(fill = '#cfe2ff', color = '#0d6efd', alpha = 0.7, outlier.color = '#dc3545', outlier.size = 2) +"
-          )
-          if (input$show_points) {
-            r_script_content <- c(r_script_content,
-              "  geom_jitter(color = '#495057', width = 0.1, alpha = 0.5, size = 1.8) +"
-            )
-          }
-        }
-        
-        r_script_content <- c(r_script_content,
-          sprintf("  %s +", theme_code),
-          sprintf("  labs(title = '%s', x = '%s', y = '%s') +", title_val, x_label, y_label),
-          "  theme(plot.title = element_text(face = 'bold'))"
-        )
-        
-        writeLines(r_script_content, file.path(dir_scripts, "boxplot.R"))
-        
-        # 3. Gerar o arquivo Quarto
-        start_idx <- grep("^# 2\\. GERAR", r_script_content)
-        if (length(start_idx) == 0) start_idx <- 8
-        qmd_lines <- c(
-          "---",
-          "title: \"Diagrama de Caixa (Boxplot)\"",
-          "author: \"IDE CatalyseR - CatalyseR\"",
-          "date: today",
-          "editor_options:",
-          "  chunk_output_type: console",
-          "format:",
-          "  html:",
-          "    theme: cosmo",
-          "---",
-          "",
-          "## Gráfico Boxplot",
-          "Abaixo está o gráfico boxplot gerado dinamicamente para avaliação visual da dispersão, medianas e outliers.",
-          "",
-          "```{r}",
-          "#| label: setup",
-          "#| include: false",
-          "knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)",
-          "library(ggplot2)",
-          "",
-          "# Carrega os dados limpos (preservando fatores e tipagem)",
-          "load('../dados/dados_limpos.rda')",
-          "dados <- df_clean",
-          "",
-          "# Alternativa em CSV:",
-          "# library(readr)",
-          "# dados <- read_csv('../dados/dados_limpos.csv')",
-          "```",
-          "",
-          "```{r}",
-          "#| label: grafico-boxplot",
-          paste(r_script_content[start_idx:length(r_script_content)], collapse = "\n"),
-          "```"
-        )
-        
-        writeLines(paste(qmd_lines, collapse = "\n"), file.path(dir_relatorios, "relatorio_boxplot.qmd"))
-        
-        # 4. Criar projeto R
-        rproj_content <- c(
-          "Version: 1.0",
-          "RestoreWorkspace: Default",
-          "SaveWorkspace: Default",
-          "AlwaysSaveHistory: Default",
-          "EnableCodeIndexing: Yes",
-          "UseSpacesForTab: Yes",
-          "NumSpacesForTab: 2",
-          "Encoding: UTF-8"
-        )
-        writeLines(rproj_content, file.path(proj_dir, "projeto_analise.Rproj"))
-        
-        # 5. README.txt
-        readme_content <- c(
-          "===========================================================",
-          " PACOTE DE BOXPLOT REPRODUTÍVEL (IDE_R CIENTÍFICA)",
-          "===========================================================",
-          "",
-          "Estrutura do projeto:",
-          "- projeto_analise.Rproj: Dê duplo clique para abrir no RStudio.",
-          "- dados/               : Contém os dados limpos em .rda, .csv e .xlsx.",
-          "- scripts/boxplot.R    : Script contendo o código de visualização.",
-          "- relatorios/relatorio_boxplot.qmd: Relatório em Quarto para compilação."
-        )
-        writeLines(readme_content, file.path(proj_dir, "README.txt"))
-        
-        # 6. Compactar
-        old_wd <- getwd()
-        setwd(temp_dir)
-        zip::zip(file, files = proj_dir_name)
-        setwd(old_wd)
-      }
-    )
   })
 }
