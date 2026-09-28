@@ -29,12 +29,12 @@
 # Instale os pacotes uma única vez conforme o README, antes de executar.
 
 # 1. Preparar o ambiente ---------------------------------------------------
-# A importação, o preparo e a adoção da base escolhida aparecem acima deste
-# roteiro. A partir daqui, trabalhamos com dados_da_analise.
+library(here)
 # Declara: "este arquivo está em R/analise.R, dentro do meu projeto".
 # Assim, here() monta caminhos a partir da raiz do projeto, acima da pasta R/.
 # Não muda a pasta de trabalho como setwd(). Abra o projeto antes de rodar.
 here::i_am("R/analise.R")
+{{BIBLIOTECAS_PREPARO}}
 library(broom)
 library(performance)
 library(flextable)
@@ -42,8 +42,8 @@ library(stringr)
 # As funções abaixo cuidam da apresentação; os cálculos continuam neste script.
 source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 
-# 2. Definir as escolhas e organizar as saídas -----------------------------
-# Os nomes e rótulos abaixo vêm das escolhas feitas na CatalyseR.
+# 2. Definir as escolhas e ler os dados ------------------------------------
+# Nomes das colunas usadas na análise; devem existir na base preparada.
 variavel_resposta <- {{RESPOSTA_R}}
 variavel_preditor <- {{PREDITOR_R}}
 variavel_grupo <- {{GRUPO_R}}
@@ -79,7 +79,15 @@ for (pasta in c(
   )
 }
 
+# A planilha que viajou no projeto entra aqui, sem nenhuma alteração.
+# Sai dados_brutos, a tabela lida.
+{{TRECHO_IMPORTAR}}
+
 # 3. Preparar a base da regressão ------------------------------------------
+# Da planilha bruta à base adotada: operações estruturais, trilha de
+# tratamentos e conferência contra a fotografia que acompanha o projeto.
+# Sai dados_da_analise, a base desta análise.
+{{TRECHO_PREPARO}}
 # Mantemos identificação e medidas JUNTAS. O modelo usará só o par escolhido.
 # |> encaminha uma tabela para a próxima operação; mutate() cria/altera colunas.
 # linha_original conserva a posição na base preparada adotada pela análise.

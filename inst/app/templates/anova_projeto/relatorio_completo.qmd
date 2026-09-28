@@ -39,11 +39,11 @@ alimentam o relatório. Cada Render começa em uma sessão nova.
 com o script, mas a interpretação depende da pergunta, das unidades e do
 delineamento da pesquisa.
 
-# Introdução
+# Introdução: qual comparação queremos investigar?
 
 {{INTRODUCAO}}
 
-# Material e métodos
+# Material e métodos: o que entrou na comparação?
 
 {{METODOS}}
 
@@ -62,7 +62,12 @@ Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey, co
 intervalos de confiança de `r ic_percentual`%. Os pressupostos foram examinados
 pelos testes de Shapiro-Wilk e de Levene e pelos gráficos de resíduos.
 
-# Exploração
+# Exploração: conhecer os grupos antes do teste
+
+Os números da ANOVA só merecem leitura depois dos pressupostos: variâncias
+parecidas e resíduos aproximadamente normais são o que dá sentido ao teste F.
+Por isso esta seção explora os grupos e termina com o diagnóstico dos
+resíduos, antes de apresentar os resultados.
 
 ```{r}
 #| label: tbl-resumo-exploracao
@@ -76,17 +81,47 @@ flextable_ocean(tabela_resumo_exibir[, 1:5])
 grafico_boxplot
 ```
 
-# Resultados
+## Diagnósticos: até onde podemos confiar no teste F?
 
-## A saída bruta, uma vez
+### Independência e delineamento
 
-A saída abaixo ajuda você a reconhecer o resultado de `summary()` fora deste
-projeto. As tabelas seguintes apresentam os mesmos números de forma organizada.
+A independência não é comprovada por um gráfico ou teste. Confira a unidade
+experimental, medidas repetidas, tanques, locais e outras formas de
+agrupamento antes de interpretar a ANOVA.
+
+### Homogeneidade e normalidade
+
+A ANOVA supõe variâncias parecidas entre os grupos e resíduos aproximadamente
+normais. O primeiro gráfico compara os resíduos com os valores ajustados:
+faixas de alturas muito diferentes sugerem variâncias desiguais. O segundo,
+Q-Q, compara os resíduos padronizados com os quantis da normal; pontos que se
+afastam da reta indicam assimetria ou valores extremos.
 
 ```{r}
-#| label: console-modelo
-resumo_console
+#| label: fig-residuos
+#| fig-cap: "Resíduos versus valores ajustados; faixas de alturas muito diferentes sugerem variâncias desiguais."
+#| out-width: "75%"
+#| fig-align: center
+grafico_residuos
 ```
+
+```{r}
+#| label: fig-qq
+#| fig-cap: "Gráfico Q-Q dos resíduos padronizados do modelo."
+#| out-width: "75%"
+#| fig-align: center
+grafico_qq
+```
+
+```{r}
+#| label: tbl-testes
+#| tbl-cap: "Testes formais complementares à inspeção gráfica e ao delineamento."
+flextable_ocean(tabela_testes)
+```
+
+`r texto_pressupostos`
+
+# Resultados: o que a ANOVA responde?
 
 `r texto_anova`
 
@@ -126,39 +161,7 @@ flextable_ocean(tabela_resumo_exibir)
 grafico_barras
 ```
 
-# Diagnósticos
-
-## Independência e delineamento
-
-A independência não é comprovada por um gráfico ou teste. Confira a unidade
-experimental, medidas repetidas, tanques, locais e outras formas de
-agrupamento antes de interpretar a ANOVA.
-
-## Homogeneidade das variâncias
-
-```{r}
-#| label: fig-residuos
-#| fig-cap: "Resíduos versus valores ajustados; faixas de alturas muito diferentes sugerem variâncias desiguais."
-grafico_residuos
-```
-
-## Normalidade dos resíduos
-
-```{r}
-#| label: fig-qq
-#| fig-cap: "Gráfico Q-Q dos resíduos padronizados do modelo."
-grafico_qq
-```
-
-```{r}
-#| label: tbl-testes
-#| tbl-cap: "Testes formais complementares à inspeção gráfica e ao delineamento."
-flextable_ocean(tabela_testes)
-```
-
-`r texto_pressupostos`
-
-# Discussão
+# Discussão: voltar à pergunta biológica
 
 {{DISCUSSAO}}
 

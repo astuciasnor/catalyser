@@ -9,7 +9,7 @@
 # O sumário do editor (Ctrl+Shift+O) permite navegar entre as seções numeradas.
 #
 # MAPA DO ROTEIRO
-#  1–3. Preparar o ambiente, receber a base e organizar os dois grupos.
+#  1–3. Preparar o ambiente, ler a planilha e organizar os dois grupos.
 #  4–6. Explorar, conferir os pressupostos e aplicar o teste t.
 #  7–8. Preparar as tabelas e construir os gráficos.
 #    9. Preparar os textos que serão usados nos relatórios.
@@ -30,17 +30,18 @@
 # Instale os pacotes uma única vez conforme o README, antes de executar.
 
 # 1. Preparar o ambiente ---------------------------------------------------
-# A importação, o preparo e a adoção da base escolhida aparecem acima deste
-# roteiro. A partir daqui, trabalhamos com dados_da_analise.
-# here::i_am declara onde este arquivo está, para os caminhos partirem da raiz.
+library(here)
+# Declara: "este arquivo está em R/analise.R, dentro do meu projeto".
+# Assim, here() monta caminhos a partir da raiz do projeto, acima da pasta R/.
+# Não muda a pasta de trabalho como setwd(). Abra o projeto antes de rodar.
 here::i_am("R/analise.R")
-library(car)        # teste de Levene (homocedasticidade)
+{{BIBLIOTECAS_PREPARO}}
 library(stringr)    # str_glue monta as frases dos relatórios
 # As funções abaixo cuidam da apresentação; os cálculos continuam neste script.
 source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 
-# 2. Definir as escolhas e organizar as saídas -----------------------------
-# Os nomes e rótulos abaixo vêm das escolhas feitas na CatalyseR.
+# 2. Definir as escolhas e ler os dados ------------------------------------
+# Nomes das colunas usadas na análise; devem existir na base preparada.
 variavel_resposta <- {{RESPOSTA_R}}
 variavel_grupo <- {{GRUPO_R}}
 # Os rótulos são textos de apresentação: alterá-los não renomeia as colunas.
@@ -49,7 +50,7 @@ rotulo_grupo <- {{ROTULO_GRUPO_R}}
 nivel_confianca <- {{CONFIANCA}}
 alfa <- 1 - nivel_confianca
 titulo_grafico <- {{TITULO_R}}
-# Duas cores da paleta Ocean, uma por ração/grupo, com bom contraste.
+# Duas cores da paleta Ocean, uma por grupo, com bom contraste.
 cores_grupo <- c("#0F3B5F", "#E89B3C")
 
 # Estas pastas guardam produtos regeneráveis. Os dados brutos ficam intactos.
@@ -59,7 +60,15 @@ for (pasta in c("dados/processados", "saida/tabelas", "saida/figuras", "saida/re
   dir.create(here::here(pasta), showWarnings = FALSE, recursive = TRUE)
 }
 
+# A planilha que viajou no projeto entra aqui, sem nenhuma alteração.
+# Sai dados_brutos, a tabela lida.
+{{TRECHO_IMPORTAR}}
+
 # 3. Preparar a base -------------------------------------------------------
+# Da planilha bruta à base adotada: operações estruturais, trilha de
+# tratamentos e conferência contra a fotografia que acompanha o projeto.
+# Sai dados_da_analise, a base desta análise.
+{{TRECHO_PREPARO}}
 # Recebe a base preparada e adotada pela análise (dados_da_analise).
 dados <- as.data.frame(dados_da_analise)
 # factor() marca o grupo como categoria; numero_obs localiza cada linha depois.

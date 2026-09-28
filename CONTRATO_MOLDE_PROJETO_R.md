@@ -25,7 +25,8 @@ projeto/
 ├── R/
 │   ├── analise.R                  FONTE DA VERDADE da análise (seções numeradas)
 │   └── funcoes.R                  apresentação: fmt, formatar_p, tema_projeto, flextable_ocean
-├── imagens/                       fotos e esquemas do pesquisador (vazia)
+├── imagens/
+│   └── LEIA-ME.txt                para que serve a pasta (fotos e esquemas do pesquisador)
 ├── relatorios/
 │   ├── relatorio_completo.qmd     caderno HTML (percurso completo)
 │   ├── relatorio_artigo.qmd       documento Word (recorte de artigo)
@@ -33,7 +34,7 @@ projeto/
 │   ├── apa.csl                    estilo bibliográfico padrão (APA)
 │   ├── custom-reference.docx      modelo de página do Word (tema Ocean)
 │   └── ocean.scss                 tema HTML
-└── saida/
+└── saida/                         criada pelo script na 1ª execução; NÃO viaja no ZIP
     ├── tabelas/                   CSVs (cópias para consulta; não alimentam os QMDs)
     ├── figuras/                   PNGs (idem)
     ├── relatorios/                onde _quarto.yml entrega HTML e Word
@@ -42,18 +43,31 @@ projeto/
 
 Regras da árvore:
 
-- O prefixo de `R/analise.R` (cabeçalho, pacotes, importar, tratar, adoção da
-  base) é gerado pelo exportador; o restante vem do template da análise.
+- O exportador gera três blocos que entram DENTRO das seções numeradas do
+  `R/analise.R` (bibliotecas na seção 1, leitura da planilha na seção 2,
+  preparo e adoção da base na seção 3); o restante vem do template da análise.
+  O roteiro tem uma numeração contínua, sem cabeçalho ou prefixo antes dela.
 - `dados/brutos/` guarda somente a aba utilizada da planilha original. Os
   dados brutos nunca são editados pelo script.
 - `dados/processados/` guarda as fotografias para conferência
   (`base_compartilhada.rds` e `.xlsx`, `base_resolvida.rds` quando aplicável) e
   a base da análise em CSV no fim do roteiro.
-- `saida/` só guarda produtos regeneráveis. Os QMDs **não leem** nada de lá:
-  cada Render executa `R/analise.R` numa sessão nova e usa os objetos em
-  memória. Os CSVs e PNGs são cópias para consulta e compartilhamento.
+- `saida/` só guarda produtos regeneráveis e **não viaja no ZIP**: a seção 2
+  do script a cria na primeira execução (assim como `dados/processados/`). O
+  ZIP também não carrega `.quarto/` nem outros artefatos de build. Os QMDs
+  **não leem** nada de `saida/`: cada Render executa `R/analise.R` numa sessão
+  nova e usa os objetos em memória. Os CSVs e PNGs são cópias para consulta e
+  compartilhamento.
+- Pastas vazias do molde viajam com um `LEIA-ME.txt` curto explicando a função
+  da pasta (hoje: `imagens/`), para não serem perdidas pelo ZIP.
 - `funcoes.R`, `apa.csl` e `_quarto.yml` são únicos para todo o molde e moram
   em `templates/regressao_linear/`; o exportador os copia para qualquer análise.
+- **Regra do molde:** o projeto exportado usa **só pacotes do CRAN** — nada de
+  `EAPADados` nem de `catalyser`. Os dados de contexto do EAPADados viajam como
+  arquivos em `dados/brutos/`, e as funções de apoio (`conferir_base()`,
+  `moda()`, `converter_datas()`) viajam em `R/funcoes.R`. O exportador aplica
+  essa regra num ponto único (`exportacao_sanitizar_molde()`), antes de gravar
+  o script.
 - O estilo padrão é **APA** (`relatorios/apa.csl`). `abnt.csl` não é mais
   copiado para projetos novos.
 
@@ -78,17 +92,30 @@ Todo `analise_projeto.R` de template começa com o mesmo cabeçalho, nesta ordem
 
 As seções usam o formato de seção do RStudio (`# 1. Nome ------`), para o
 sumário do editor (Ctrl+Shift+O) navegar pelo roteiro. A ordem é obrigatória;
-o número total varia com a análise:
+o número total varia com a análise (12 na ANOVA, 11 na regressão e no teste t).
+A numeração é **contínua e única**: o preparo gerado pela IDE entra DENTRO
+dela, nos marcadores `{{BIBLIOTECAS_PREPARO}}`, `{{TRECHO_IMPORTAR}}` e
+`{{TRECHO_PREPARO}}` — nada de cabeçalho ou prefixo antes da seção 1, e
+`funcoes.R` é carregado uma única vez, na seção 1:
 
-1. **Preparar o ambiente** — `here::i_am("R/analise.R")`, `library()` dos
-   pacotes da análise e `source(here::here("R", "funcoes.R"), encoding = "UTF-8")`.
-2. **Definir as escolhas e organizar as saídas** — variáveis e fator escolhidos
+1. **Preparar o ambiente** — na ordem do barbo: `library(here)`, o comentário
+   que o explica, `here::i_am("R/analise.R")`, o bloco gerado de bibliotecas da
+   leitura e do preparo (readxl, dplyr, tidyr, lubridate, ggplot2, car,
+   multcompView, effectsize — todas do CRAN), os `library()` da análise e
+   `source(here::here("R", "funcoes.R"), encoding = "UTF-8")`, uma única vez.
+2. **Definir as escolhas e ler os dados** — variáveis e fator escolhidos
    na CatalyseR (com marcadores `{{..._R}}`), rótulos de apresentação, nível de
-   confiança, `alfa`, `ic_percentual`, paleta de cores e o laço que cria
-   `dados/processados` e `saida/{tabelas,figuras,relatorios}`.
-3. **Preparar a base** — validações com `stop()` (nomes presentes, resposta
+   confiança, `alfa`, `ic_percentual`, paleta de cores, o laço que cria
+   `dados/processados` e `saida/{tabelas,figuras,relatorios}` e, no fim, o
+   bloco gerado `{{TRECHO_IMPORTAR}}` (da planilha a `dados_brutos`).
+3. **Preparar a base** — o bloco gerado `{{TRECHO_PREPARO}}` (operações
+   estruturais, trilha de tratamentos, conferência de `dados_analise` contra a
+   fotografia, banner da análise e adoção de `dados_da_analise`) e, na
+   sequência do template, validações com `stop()` (nomes presentes, resposta
    numérica, grupos suficientes, etc.), casos completos, `n_total`,
-   `n_utilizado`, `n_excluido` e a base `base_<analise>`.
+   `n_utilizado`, `n_excluido` e a base `base_<analise>`. Os títulos internos
+   do preparo gerado não são numerados, para não colidirem com a numeração do
+   roteiro.
 4. **Explorar** — resumos por grupo/medidas (tabelas de exploração), com
    comentários sobre o que procurar.
 5. **Ajustar o modelo** — a chamada canônica (mesma da CatalyseR), `resumo_console`
@@ -122,6 +149,21 @@ por que `droplevels()`, por que o hífen não pode aparecer no nome de grupo).
 Não descrevem o óbvio. Uma vez por roteiro, o aluno é convidado a digitar
 `resumo_console` no console para conhecer a saída bruta — o console cru
 aparece pelo menos uma vez, de propósito.
+
+### 2.4 README do projeto
+
+O `README.md` do molde segue as seções do barbo: **Um convite a aprender
+programação**, **O que você encontra** (a árvore comentada), **Preparar o
+computador, uma vez** (com `install.packages({{PACOTES_INSTALAR}})` e a frase
+"Nenhum pacote é instalado automaticamente durante a análise."), **Gerar os
+documentos** (com o aviso de que o Render executa o script e de que
+`--no-execute` falha com `object not found`), as seções específicas da análise
+(**Dados e preparo** / **Como a análise decide o método**), **Como escrever e
+adaptar**, **Reprodutibilidade** e **Origem dos dados** conforme o tipo. O
+marcador `{{PACOTES_INSTALAR}}` recebe a **lista exata** de pacotes usados por
+`R/analise.R` e `R/funcoes.R` do projeto (`exportacao_molde_pacotes()` sobre o
+script recém-gerado e o `funcoes.R` da pasta de apoio), montada como
+`c("a", "b", ...)` quebrado em linhas — nunca uma lista fixa.
 
 ## 3. Objetos que os QMDs consomem
 
@@ -161,24 +203,55 @@ Os dois documentos têm o **mesmo** primeiro chunk — `executar-analise`, com
 executa `source(here::here("R", "analise.R"), encoding = "UTF-8")`. O corpo
 só apresenta objetos; não há `read.csv`, `readRDS` nem `ggsave` nos QMDs.
 
+**O Render exige execução.** Todas as expressões inline dos QMDs leem objetos
+que só existem depois do `source()` do chunk `executar-analise`. Renderizar sem
+execução (`quarto render --no-execute` ou qualquer modo que pule o código)
+produz `object '<nome>' not found` na primeira expressão inline — comportamento
+esperado, não um defeito do molde. Os três READMEs do molde avisam o aluno com
+essa mesma frase.
+
 ### 4.1 Caderno HTML (`relatorio_completo.qmd`)
 
 YAML: tema `[cosmo, ocean.scss]`, banner `#0F3B5F`, TOC com 2 níveis, seções
 numeradas, `code-fold`/`code-tools`, `embed-resources`, figuras 7 × 4,6 a 150
-dpi, `execute: echo: true`. Seções: **Como usar este caderno** (explica o
-percurso e que os textos são sugestões), **Introdução**, **Material e métodos**
-(com `## Dados e preparo` citando `dados/brutos/{{ARQUIVO_BRUTO}}` e
-`{{ARQUIVO_BASE}}`, e `## Modelo`), **Exploração**, **Resultados** (com a
-saída bruta do console uma vez), **Diagnósticos** (Independência e delineamento
-+ os gráficos de resíduos/Q-Q + `tabela_testes`), **Discussão**, **Conclusão**,
-**Reproduzir e adaptar**, **Ambiente computacional** (`cat(registro_ambiente)`),
-**Referências**.
+dpi, `execute: echo: true`. Os títulos de 1º nível seguem o **padrão
+título-pergunta** do barbo (decisão D1 desta rodada, 28/09): "Como usar este
+caderno", "Introdução: qual relação queremos investigar?" (adaptada à análise:
+"qual comparação queremos investigar?" na ANOVA), "Material e métodos: o que
+entrou na análise?", "Exploração: conhecer antes de ajustar" (adaptada),
+"Resultados: o que a ANOVA responde?" (adaptada: "o que a reta descreve?" na
+regressão, também no padrão do barbo), "Discussão: voltar à
+pergunta biológica", "Conclusão", "Reproduzir e adaptar" (com
+`## Ambiente computacional`), "Referências". A ordem das seções: **Como usar
+este caderno**, **Introdução**, **Material e métodos** (com `## Dados e
+preparo` citando `dados/brutos/{{ARQUIVO_BRUTO}}` e `{{ARQUIVO_BASE}}`, e
+`## Modelo`), **Exploração**, **Resultados** (que abre com a frase estatística
+dinâmica — `texto_anova` — seguida da tabela da ANOVA), **Discussão**,
+**Conclusão**, **Reproduzir e adaptar**, **Referências**.
 
-Só no HTML: a seção Exploração, os diagnósticos completos, a saída bruta do
-console, o "Como usar este caderno", o "Reproduzir e adaptar" e o ambiente
-computacional. No teste t há também cercas `.content-visible
-when-format="html"` com os avisos didáticos (H0/H1, Welch) — recurso do Quarto
-que o exportador usa quando a análise pede.
+**Regras do molde (decididas pelo professor, 28/09):**
+
+- os **Diagnósticos são subseção (`##`) da Exploração, antes dos Resultados** —
+  o aluno vê os grupos, confere os pressupostos e só então lê o teste F. Dentro
+  dela, a homogeneidade e a normalidade formam uma única subseção (`###`), cujos
+  dois gráficos (`grafico_residuos` e `grafico_qq`, objetos separados no script
+  e PNGs separados em `saida/figuras/`) saem **um depois do outro**, cada um no
+  seu chunk (`fig-residuos`, `fig-qq`) com o próprio `fig-cap`, seguidos da
+  tabela de testes. Os dois chunks usam `#| out-width: "75%"` e
+  `#| fig-align: center`, sem `layout-ncol`; as referências cruzadas são
+  `@fig-residuos` e `@fig-qq`.
+- **os relatórios não exibem saída bruta de console**; ela fica no script
+  (`resumo_console`, comentado na seção 5), e os relatórios apresentam os
+  resultados em tabelas e frases formatadas.
+
+O barbo e a regressão exportada ainda não seguem essas regras (no barbo,
+Diagnósticos é seção de 1º nível com gráficos separados e o console aparece no
+caderno; na regressão exportada, idem) e serão ajustados em rodada própria.
+
+Só no HTML: a seção Exploração, os diagnósticos completos, o "Como usar este
+caderno", o "Reproduzir e adaptar" e o ambiente computacional. No teste t há
+também cercas `.content-visible when-format="html"` com os avisos didáticos
+(H0/H1, Welch) — recurso do Quarto que o exportador usa quando a análise pede.
 
 ### 4.2 Artigo Word (`relatorio_artigo.qmd`)
 
@@ -186,11 +259,12 @@ YAML: `docx` com `reference-doc: custom-reference.docx`, sem TOC, seções
 numeradas, figuras 6 × 4 a 300 dpi. Depois do chunk de execução vem um bloco
 `{=html}` com o `GUIA DE EDIÇÃO` em comentário (não aparece no Word): altere
 cálculos no script e a argumentação aqui; revise os textos antes de usar como
-artigo. Seções: **Introdução**, **Material e métodos**, **Resultados**
-(apenas as tabelas e a figura principais, com `tbl-cap`/`fig-cap`, e os textos
-`*_artigo` — o recorte de artigo), **Discussão** (com `alerta_modelo`),
-**Conclusão** (`texto_sintese_estatistica`), **Disponibilidade dos dados e do
-código**, **Referências**.
+artigo. Os títulos são os **simples** do artigo do barbo (sem pergunta), e a
+ordem das seções é a do barbo: **Introdução**, **Material e métodos**,
+**Resultados** (apenas as tabelas e a figura principais, com `tbl-cap`/
+`fig-cap`, e os textos `*_artigo` — o recorte de artigo), **Discussão** (com
+`alerta_modelo`), **Conclusão** (`texto_sintese_estatistica`),
+**Disponibilidade dos dados e do código**, **Referências**.
 
 Só no Word: o recorte enxuto — a tabela-resumo/descritiva, a tabela do teste,
 a figura principal, a síntese dos pressupostos e a disponibilidade. As
@@ -204,9 +278,9 @@ uma linha, o valor entra no lugar. O catálogo por arquivo:
 
 | Arquivo | Marcadores |
 |---|---|
-| `analise_projeto.R` | `{{TITULO_COMENTARIO}}`, `{{PERGUNTA_COMENTARIO}}`, variáveis e rótulos (`{{RESPOSTA_R}}`, `{{PREDITOR_R}}`, `{{GRUPO_R}}`, `{{FATOR_R}}`, `{{ROTULO_*_R}}`), `{{CONFIANCA}}`, `{{TITULO_R}}`, `{{EQUACAO}}`, `{{AUTOCORRELACAO}}` (regressão) |
+| `analise_projeto.R` | `{{TITULO_COMENTARIO}}`, `{{PERGUNTA_COMENTARIO}}`, `{{BIBLIOTECAS_PREPARO}}` (bibliotecas da leitura/preparo, todas do CRAN, na seção 1), `{{TRECHO_IMPORTAR}}` (da planilha a `dados_brutos`, na seção 2), `{{TRECHO_PREPARO}}` (tratamentos, conferência da fotografia e adoção de `dados_da_analise`, na seção 3), variáveis e rótulos (`{{RESPOSTA_R}}`, `{{PREDITOR_R}}`, `{{GRUPO_R}}`, `{{FATOR_R}}`, `{{ROTULO_*_R}}`), `{{CONFIANCA}}`, `{{TITULO_R}}`, `{{EQUACAO}}`, `{{AUTOCORRELACAO}}` (regressão) |
 | `relatorio_completo.qmd` / `relatorio_artigo.qmd` | `{{TITULO}}`, `{{INTRODUCAO}}`, `{{METODOS}}`, `{{DISCUSSAO}}`, `{{CONCLUSAO}}`, `{{ARQUIVO_BRUTO}}`, `{{ARQUIVO_BASE}}` |
-| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}` |
+| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}`, `{{PACOTES_INSTALAR}}` |
 
 Regras dos marcadores:
 

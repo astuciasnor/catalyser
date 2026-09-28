@@ -1,21 +1,23 @@
 # {{TITULO}}
 
 Este Projeto R foi gerado pela CatalyseR para estudar e comunicar uma regressão
-linear simples. Abra **{{PROJETO_RPROJ}}** no RStudio.
+linear simples. Abra **{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a
+base local e pacotes do CRAN.
 
 ## Um convite a aprender programação
 
 O arquivo `R/analise.R` mostra como a base preparada se transforma em modelo,
 diagnósticos, tabelas, gráficos e textos estatísticos. Os comentários explicam
 as decisões e as operações menos familiares. Execute as seções em ordem e
-examine os objetos indicados no começo do script.
+examine os objetos indicados no começo do script. É o caminho do mouse ao código:
+quem começa pela CatalyseR encontra aqui a chance de entender o que a ferramenta
+faz e de modificar a análise com autonomia.
 
-## Estrutura
+## O que você encontra
 
 ```text
-projeto/
+{{PROJETO_RPROJ}}
 ├── _quarto.yml
-├── {{PROJETO_RPROJ}}
 ├── dados/
 │   ├── brutos/                    entrada preservada
 │   └── processados/               bases adotadas e base da regressão
@@ -37,14 +39,33 @@ projeto/
     └── sessionInfo.txt
 ```
 
-## Como executar
+O R calcula; os QMDs executam esse script e apresentam os objetos prontos.
+Você não precisa copiar código entre arquivos nem sincronizar chunks.
+O Render de cada documento recalcula a análise e recria as saídas. O projeto
+cria automaticamente as pastas necessárias. Não depende de objetos no console.
 
-1. Abra o arquivo `.Rproj`.
-2. Reinicie o R.
-3. Abra `relatorios/relatorio_completo.qmd` e clique em **Render** para gerar
-   o HTML.
-4. Abra `relatorios/relatorio_artigo.qmd` e clique em **Render** para gerar
-   o Word.
+Os QMDs **não leem** as tabelas CSV ou figuras PNG de `saida/`. Eles usam os
+objetos que o script acabou de criar na memória. Se você executar o script no
+RStudio, verá os objetos no Environment; se clicar em Render, o Quarto usa uma
+sessão própria. Não é preciso povoar o Environment manualmente antes do Render.
+
+## Preparar o computador, uma vez
+
+Instale R, RStudio e Quarto. No console do R, instale os pacotes:
+
+```r
+install.packages(
+{{PACOTES_INSTALAR}}
+)
+```
+
+Nenhum pacote é instalado automaticamente durante a análise.
+
+## Gerar os documentos
+
+1. Abra o `.Rproj` e reinicie o R para começar com uma sessão limpa.
+2. Abra `relatorios/relatorio_completo.qmd` e clique em **Render** para o HTML.
+3. Abra `relatorios/relatorio_artigo.qmd` e clique em **Render** para o Word.
 
 Também é possível gerar os dois documentos, na raiz do projeto, com:
 
@@ -52,8 +73,15 @@ Também é possível gerar os dois documentos, na raiz do projeto, com:
 quarto render
 ```
 
-Os dois QMDs executam o mesmo `R/analise.R` numa sessão nova. Eles usam os
-objetos recém-calculados; os CSVs e PNGs de `saida/` são cópias para consulta.
+O Render **executa** o `R/analise.R` antes de montar cada documento. Não use
+modos que pulam essa execução (como `quarto render --no-execute`): os
+relatórios leem objetos calculados pelo script e, sem a execução, param com
+`object '<nome>' not found` na primeira expressão.
+
+Os caminhos usam `here::i_am()` e `here::here()` para reconhecer este projeto,
+inclusive quando ele está dentro de outro projeto R. Abra o `.Rproj` antes de
+executar; se mover o arquivo para outra subpasta, atualize a declaração
+`here::i_am("R/analise.R")` no começo do script.
 
 ## Dados e preparo
 
@@ -69,14 +97,16 @@ A análise usa:
 - grupo exploratório: **{{GRUPO}}**;
 - intervalo de confiança: **{{IC}}%**.
 
-## O papel dos textos
+## Como escrever e adaptar
 
-Depois das tabelas e dos gráficos, a seção 9 reúne os resultados em frases e os
-mostra no console com `print()`. Os relatórios usam esses objetos, mas a
-discussão e a conclusão científica precisam ser revistas pelo pesquisador.
+Os dois QMDs trazem sugestões em Introdução, Material e métodos, Resultados,
+Discussão e Conclusão. O HTML documenta o percurso completo, com a exploração e
+os diagnósticos; o Word seleciona os resultados esperados em um artigo. Edite
+os cálculos no script e a argumentação nos QMDs.
 
-O HTML documenta o percurso completo. O Word seleciona os resultados esperados
-em um artigo. Edite os cálculos no script e a argumentação nos QMDs.
+Depois das tabelas e dos gráficos, a seção 9 do script reúne os resultados em
+frases e as mostra no console com `print()`. Os relatórios usam esses objetos,
+mas a discussão e a conclusão científica precisam ser revistas pelo pesquisador.
 
 ## Reprodutibilidade
 

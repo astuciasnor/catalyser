@@ -49,8 +49,9 @@ CSVs e PNGs de `saida/`: usam os objetos criados na memória da execução.
 Instale R, RStudio e Quarto. No console do R, instale os pacotes:
 
 ```r
-install.packages(c("here", "dplyr", "ggplot2", "car", "stringr",
-                   "flextable", "knitr", "rmarkdown"))
+install.packages(
+{{PACOTES_INSTALAR}}
+)
 ```
 
 Nenhum pacote é instalado automaticamente durante a análise.
@@ -62,6 +63,11 @@ Nenhum pacote é instalado automaticamente durante a análise.
 3. Abra `relatorios/relatorio_artigo.qmd` e clique em **Render** para o Word.
 
 Para gerar os dois pelo terminal, na raiz do projeto: `quarto render`.
+
+O Render **executa** o `R/analise.R` antes de montar cada documento. Não use
+modos que pulam essa execução (como `quarto render --no-execute`): os
+relatórios leem objetos calculados pelo script e, sem a execução, param com
+`object '<nome>' not found` na primeira expressão.
 
 ## Como a análise decide o método
 
@@ -77,6 +83,21 @@ rejeitá-lo.
 O tamanho do efeito é o **d de Cohen**, calculado com o desvio padrão combinado,
 com rótulos de referência (pequeno, médio, grande). A significância diz que a
 diferença existe; o d diz o quanto ela importa.
+
+## Como escrever e adaptar
+
+Os dois QMDs trazem sugestões em Introdução, Material e métodos, Resultados,
+Discussão e Conclusão. O HTML documenta o percurso completo, com a exploração e
+os pressupostos; o Word seleciona os resultados esperados em um artigo. Edite
+os cálculos no script e a argumentação nos QMDs.
+
+Depois das tabelas e dos gráficos, a seção 9 do script reúne os resultados em
+frases e as mostra no console com `print()`. Os relatórios usam esses objetos,
+mas a discussão e a conclusão científica precisam ser revistas pelo pesquisador.
+
+Os dados de entrada permanecem em `dados/brutos/`. Produtos regeneráveis ficam
+em `dados/processados/` e `saida/`. O arquivo `saida/sessionInfo.txt`
+registra as versões do R, dos pacotes e do Quarto usadas na execução.
 
 ## Origem dos dados
 

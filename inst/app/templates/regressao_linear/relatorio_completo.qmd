@@ -39,11 +39,11 @@ alimentam o relatório. Cada Render começa em uma sessão nova.
 com o script, mas a interpretação depende da pergunta, das unidades e do
 delineamento da pesquisa.
 
-# Introdução
+# Introdução: qual relação queremos investigar?
 
 {{INTRODUCAO}}
 
-# Material e métodos
+# Material e métodos: o que entrou na análise?
 
 {{METODOS}}
 
@@ -74,7 +74,7 @@ Ajustou-se uma regressão linear simples por mínimos quadrados ordinários, com
 intervalo de confiança de `r ic_percentual`%. A faixa ao redor da reta expressa
 a incerteza da resposta média; não é um intervalo de predição individual.
 
-# Exploração
+# Exploração: conhecer antes de ajustar
 
 ```{r}
 #| label: tbl-descritiva
@@ -88,7 +88,7 @@ flextable_ocean(tabela_descritiva_exibir)
 if (!is.null(grafico_grupos)) grafico_grupos
 ```
 
-# Resultados
+# Resultados: o que a reta descreve?
 
 ## A saída bruta, uma vez
 
@@ -122,7 +122,7 @@ flextable_ocean(tabela_ajuste)
 grafico_regressao
 ```
 
-# Diagnósticos
+# Diagnósticos: até onde podemos confiar na reta?
 
 ## Independência e delineamento
 
@@ -195,7 +195,7 @@ if (!is.null(grafico_residuos_grupo)) grafico_residuos_grupo
 flextable_ocean(tabela_influencia)
 ```
 
-# Discussão
+# Discussão: voltar à pergunta biológica
 
 {{DISCUSSAO}}
 

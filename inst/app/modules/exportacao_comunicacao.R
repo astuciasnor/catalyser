@@ -1267,9 +1267,13 @@ exportacao_sem_execucoes_repetidas <- function(manifesto) {
 }
 
 exportacao_anova_simples <- function(manifesto) {
+  itens <- manifesto$execucoes %||% list()
   inc <- exportacao_execucoes_incluidas(manifesto)
-  # Outras execuções desmarcadas continuam como código de estudo no script.
-  length(manifesto$execucoes) == 1L && length(inc) == 1L &&
+  # Como os seletores de regressão e teste t: uma única execução, incluída no
+  # Word, do tipo migrado. O isTRUE() é redundante (length(inc) == 1L já exige
+  # a marcação), mas mantém os três seletores com a mesma forma de ler.
+  length(itens) == 1L && length(inc) == 1L &&
+    isTRUE(itens[[1]]$incluir_word) &&
     identical(as.character(inc[[1]]$tipo %||% ""), "anova_um_fator")
 }
 
@@ -1805,9 +1809,100 @@ exportacao_preencher_template <- function(linhas, valores) {
   linhas
 }
 
-# A regressão reaproveita o preparo do exportador geral já homologado até o
-# ponto em que a base adotada fica disponível em dados_da_analise. A partir
-# daí entra o roteiro aprovado da análise.
+# Os trechos gerados nascem com marcadores "## ---- nome ----", da rota legada.
+# No molde eles entram DENTRO das seções numeradas do template; o marcador
+# perde o sentido e sai, ficando só o corpo comentado.
+exportacao_sem_marcador <- function(linhas) {
+  linhas[!grepl("^## ---- ", linhas)]
+}
+
+# Os blocos gerados herdam títulos internos numerados da rota legada
+# ("# 2. Operações estruturais", "# 4. Conferência"). Dentro das seções do
+# molde essa numeração colide com a do roteiro; aqui ela sai, fica o título.
+exportacao_preparo_sem_numeracao <- function(linhas) {
+  sub("^(# )([0-9]+)(\\. )", "\\1", linhas)
+}
+
+# No molde, o template já apresenta cada passo com uma frase; as frases
+# equivalentes dos trechos legados saem, para o aluno não ler a explicação
+# duas vezes (uma no template, outra no bloco gerado).
+exportacao_molde_importar <- function(import_info = list()) {
+  linhas <- exportacao_sem_marcador(exportacao_trecho_importar(import_info))
+  linhas[!grepl("^# Lê a planilha como ela veio", linhas)]
+}
+
+exportacao_molde_tratar <- function(pipeline, base_externa = NULL,
+                                    import_info = list()) {
+  linhas <- exportacao_preparo_sem_numeracao(exportacao_sem_marcador(
+    exportacao_preparo_sem_funcao_data(
+      exportacao_trecho_tratar(pipeline, base_externa, import_info = import_info))))
+  inicio <- grep("^# Transforma a planilha na Base Compartilhada", linhas)
+  if (length(inicio) && length(linhas) >= inicio[1] + 2L &&
+      grepl("^# CatalyseR: primeiro as operações estruturais", linhas[inicio[1] + 1L]) &&
+      grepl("^# ordem lógica registrada", linhas[inicio[1] + 2L])) {
+    linhas <- linhas[-(inicio[1]:(inicio[1] + 2L))]
+  }
+  linhas
+}
+
+# Bibliotecas da leitura e do preparo, para a seção 1 do roteiro. O template
+# carrega here() e declara o caminho; funcoes.R é carregado logo adiante,
+# uma única vez. Todos os pacotes abaixo vêm do CRAN; o README traz a linha
+# de instalação completa do projeto.
+exportacao_molde_bloco_bibliotecas <- function() {
+  c(
+    "# Bibliotecas da leitura e do preparo. Todas vêm do CRAN.",
+    "library(readxl)",
+    "library(dplyr)",
+    "library(tidyr)",
+    "library(lubridate)",
+    "library(ggplot2)",
+    "library(car)",
+    "library(multcompView)",
+    "library(effectsize)"
+  )
+}
+
+# O projeto exportado só usa pacotes do CRAN. As chamadas que a rota legada
+# escreve com o pacote local são reescritas aqui para as funções equivalentes
+# de R/funcoes.R (conferir_base, moda, converter_datas), antes de o script
+# ser gravado no projeto. A rota legada continua intacta.
+exportacao_sanitizar_molde <- function(linhas) {
+  linhas <- gsub("catalyser_conferir_base\\s*\\(", "conferir_base(", linhas)
+  linhas <- gsub("catalyser::catalyser_moda\\s*\\(", "moda(", linhas)
+  linhas <- gsub("catalyser::converter_datas\\s*\\(", "converter_datas(", linhas)
+  linhas <- gsub("trat_moda\\s*\\(", "moda(", linhas)
+  linhas <- gsub("\\bconverter_data\\s*\\(", "converter_datas(", linhas)
+  linhas <- gsub(
+    "# Datas: use catalyser::converter_datas\\(\\); ajuda em \\?catalyser::converter_datas\\.",
+    "# Datas: use converter_datas(), definida em R/funcoes.R.",
+    linhas
+  )
+  # Comentários dos trechos compartilhados que citam a IDE: o molde os
+  # reaproveita com texto neutro; o exportador legado mantém o original.
+  trocas <- c(
+    "# A CatalyseR também exportou uma fotografia de `dados_analise`. A função" =
+      "# O projeto traz uma fotografia de `dados_analise` em dados/processados/. A função",
+    "# Houve mudança estrutural promovida na CatalyseR (Pivotar/Separar ou" =
+      "# Houve mudança estrutural (Pivotar/Separar ou",
+    "# viu na tela, o script carrega a fotografia materializada na exportação." =
+      "# viu na tela, o script carrega a fotografia que acompanha o projeto.",
+    "# Escolhas da importação e reestruturações, na ordem registrada na IDE." =
+      "# Escolhas da importação e reestruturações, nesta ordem:",
+    "# a receita registrada na CatalyseR. Sai dados_da_analise, lido adiante." =
+      "# a receita registrada. Sai dados_da_analise, lido adiante."
+  )
+  for (alvo in names(trocas)) linhas[linhas == alvo] <- trocas[[alvo]]
+  linhas
+}
+
+# Os dois prefixos do molde devolvem três blocos, que o gerador único encaixa
+# nos marcadores do template: bibliotecas (seção 1), leitura da planilha
+# (seção 2) e preparo com a adoção da base desta análise (seção 3). Assim o
+# roteiro exportado tem UMA numeração contínua, como o EAPACaderno.
+
+# A regressão reaproveita os trechos homologados do exportador geral, sem o
+# cabeçalho nem a instalação, que pertencem ao template e ao README.
 exportacao_regressao_projeto_prefixo <- function(manifesto, nome_projeto,
                                                  registro_bases = list(), pipeline = list(),
                                                  base_externa = NULL, import_info = list(),
@@ -1815,55 +1910,25 @@ exportacao_regressao_projeto_prefixo <- function(manifesto, nome_projeto,
   item <- manifesto$execucoes[[1]]
   raizes <- exportacao_raizes_chunk(manifesto$execucoes)
   raiz <- unname(raizes[[item$id]])
-  legado <- exportacao_gerar_script(
-    manifesto, nome_projeto, registro_bases, pipeline, base_externa,
-    import_info, templates_dir
+  list(
+    bibliotecas = exportacao_molde_bloco_bibliotecas(),
+    importar = exportacao_molde_importar(import_info),
+    preparo = c(
+      exportacao_molde_tratar(pipeline, base_externa, import_info),
+      exportacao_sem_marcador(exportacao_trecho_carregar_base()),
+      "",
+      "# ========================================================================",
+      paste0("# REGRESSÃO LINEAR SIMPLES — ", item$titulo),
+      "# ========================================================================",
+      "",
+      exportacao_sem_marcador(exportacao_trecho_base(item, raiz, registro_bases)),
+      exportacao_sem_marcador(exportacao_trecho_carregar_base(item, raiz))
+    )
   )
-  inicio_antigo <- grep(
-    paste0("^## ---- ", raiz, "-configurar ----$"),
-    legado
-  )
-  if (length(inicio_antigo) != 1L) {
-    stop("O início do roteiro antigo da regressão não foi localizado.", call. = FALSE)
-  }
-  prefixo <- legado[seq_len(inicio_antigo - 1L)]
-
-  # Os dois relatórios novos executam R/analise.R inteiro em uma sessão limpa.
-  # Por isso, o bloco de instalação não pode permanecer no script: instalar
-  # pacotes é uma preparação feita uma única vez pelo pesquisador, não uma etapa
-  # repetida a cada Render. As instruções de instalação ficam no README.
-  inicio_instalar <- which(prefixo == "## ---- instalar ----")
-  inicio_pacotes <- which(prefixo == "## ---- pacotes ----")
-  if (length(inicio_instalar) != 1L || length(inicio_pacotes) != 1L ||
-      inicio_pacotes <= inicio_instalar) {
-    stop("Os trechos de instalação e pacotes não foram localizados.", call. = FALSE)
-  }
-  prefixo <- c(
-    prefixo[seq_len(inicio_instalar - 1L)],
-    prefixo[inicio_pacotes:length(prefixo)]
-  )
-
-  # O cabeçalho compartilhado descreve o relatório sincronizado da rota antiga.
-  # Nesta estrutura, os QMDs apenas executam o script, que é a fonte da verdade.
-  prefixo <- gsub(
-    "# Este script é o código do relatório \\(relatorios/relatorio\\.qmd\\) com as",
-    "# Este script é a fonte da verdade dos dois relatórios Quarto, com as",
-    prefixo
-  )
-  prefixo <- gsub(
-    "# explicações que o relatório não mostra\\. Aqui se aprende; lá se apresenta\\.",
-    "# explicações para estudar a análise. Aqui se aprende; lá se apresenta.",
-    prefixo
-  )
-  remover_cabecalho <- grepl(
-    "primeira linha de cada chunk|código se edita aqui|do relatório, que copia|Render para e avisa|O trecho instalar|instala pacotes ausentes",
-    prefixo
-  )
-  prefixo[!remover_cabecalho]
 }
 
-# ANOVA e teste t montam o prefixo peça por peça, com o banner da análise
-# separando o preparo (comum a todas) do roteiro aprovado.
+# ANOVA e teste t montam os mesmos três blocos peça por peça, com o banner da
+# análise separando o preparo (comum a todas) da adoção da base desta análise.
 exportacao_molde_projeto_prefixo_preparo <- function(manifesto, nome_projeto, banner,
                                                      registro_bases = list(),
                                                      pipeline = list(), base_externa = NULL,
@@ -1871,56 +1936,21 @@ exportacao_molde_projeto_prefixo_preparo <- function(manifesto, nome_projeto, ba
   item <- exportacao_execucoes_incluidas(manifesto)[[1]]
   raizes <- exportacao_raizes_chunk(manifesto$execucoes)
   raiz <- unname(raizes[[item$id]])
-
-  # O preparo é o mesmo do exportador geral, como na regressão: importar,
-  # tratar, ler a Base Compartilhada e adotar a base desta análise
-  # (dados_da_analise). O trecho de instalação fica de fora, porque os dois
-  # relatórios executam o script inteiro a cada Render; instalar vai no README.
-  prefixo <- c(
-    exportacao_cabecalho_script(nome_projeto),
-    exportacao_trecho_pacotes(), "",
-    exportacao_trecho_importar(import_info), "",
-    exportacao_preparo_sem_funcao_data(
-      exportacao_trecho_tratar(pipeline, base_externa, import_info = import_info)),
-    exportacao_trecho_carregar_base(), "",
-    "# ========================================================================",
-    paste0(banner, item$titulo),
-    "# ========================================================================",
-    "",
-    exportacao_trecho_base(item, raiz, registro_bases),
-    exportacao_trecho_carregar_base(item, raiz)
-  )
-  # O cabeçalho comum descreve a rota antiga, com relatório sincronizado.
-  # Nesta árvore, os QMDs apenas executam o script, que é a fonte da verdade.
-  prefixo <- gsub(
-    "# Este script é o código do relatório \\(relatorios/relatorio\\.qmd\\) com as",
-    "# Este script é a fonte da verdade dos dois relatórios Quarto, com as",
-    prefixo
-  )
-  prefixo <- gsub(
-    "# explicações que o relatório não mostra\\. Aqui se aprende; lá se apresenta\\.",
-    "# explicações para estudar a análise. Aqui se aprende; lá se apresenta.",
-    prefixo
-  )
-  remover_cabecalho <- grepl(
-    "primeira linha de cada chunk|código se edita aqui|do relatório, que copia|Render para e avisa|O trecho instalar|instala pacotes ausentes",
-    prefixo
-  )
-  prefixo <- prefixo[!remover_cabecalho]
-  # O bloco "SCRIPT E RELATÓRIO" descrevia a sincronização da rota antiga; aqui
-  # ele passa a dizer como o script e os dois relatórios se relacionam.
-  posicao <- which(prefixo == "# SCRIPT E RELATÓRIO")
-  if (length(posicao) == 1L) {
-    prefixo <- c(
-      prefixo[seq_len(posicao - 1L)],
-      "# SCRIPT E RELATÓRIOS",
-      "# Os dois documentos Quarto de relatorios/ executam este script inteiro a",
-      "# cada Render e apenas apresentam os objetos que ele cria. Edite os cálculos",
-      "# aqui e a argumentação científica nos documentos.",
-      prefixo[seq.int(posicao + 2L, length(prefixo))]
+  list(
+    bibliotecas = exportacao_molde_bloco_bibliotecas(),
+    importar = exportacao_molde_importar(import_info),
+    preparo = c(
+      exportacao_molde_tratar(pipeline, base_externa, import_info),
+      exportacao_sem_marcador(exportacao_trecho_carregar_base()),
+      "",
+      "# ========================================================================",
+      paste0(banner, item$titulo),
+      "# ========================================================================",
+      "",
+      exportacao_sem_marcador(exportacao_trecho_base(item, raiz, registro_bases)),
+      exportacao_sem_marcador(exportacao_trecho_carregar_base(item, raiz))
     )
-  }
-  prefixo
+  )
 }
 
 # ---- Geradores únicos --------------------------------------------------------
@@ -1940,12 +1970,14 @@ exportacao_molde_projeto_script <- function(entrada, manifesto, nome_projeto,
     file.path(templates_dir, entrada$pasta, "analise_projeto.R"),
     encoding = "UTF-8", warn = FALSE
   )
-  modelo <- exportacao_preencher_template(modelo, entrada$marcadores_script(item))
-  c(
-    entrada$prefixo(manifesto, nome_projeto, registro_bases, pipeline,
-                    base_externa, import_info, templates_dir),
-    modelo
-  )
+  blocos <- entrada$prefixo(manifesto, nome_projeto, registro_bases, pipeline,
+                            base_externa, import_info, templates_dir)
+  exportacao_sanitizar_molde(exportacao_preencher_template(modelo, c(
+    entrada$marcadores_script(item),
+    list(BIBLIOTECAS_PREPARO = blocos$bibliotecas,
+         TRECHO_IMPORTAR = blocos$importar,
+         TRECHO_PREPARO = blocos$preparo)
+  )))
 }
 
 exportacao_molde_projeto_qmd <- function(entrada, arquivo, manifesto, titulo_projeto,
@@ -1963,16 +1995,62 @@ exportacao_molde_projeto_qmd <- function(entrada, arquivo, manifesto, titulo_pro
   exportacao_preencher_template(linhas, valores)
 }
 
+# Pacotes que o projeto usa, lidos do script e das funções de apresentação:
+# library(pacote) e pacote::funcao(). A lista alimenta o install.packages()
+# do README; comentários não contam e os pacotes que acompanham o R
+# (base, recommended) ficam de fora.
+exportacao_molde_pacotes <- function(linhas) {
+  codigo <- sub("#.*$", "", linhas)
+  texto <- paste(codigo, collapse = "\n")
+  achados <- unlist(regmatches(texto,
+    gregexpr("library\\(\\s*[\"']?([A-Za-z][A-Za-z0-9.]*)", texto, perl = TRUE)),
+    use.names = FALSE)
+  achados <- sub("^library\\(\\s*[\"']?", "", achados)
+  qualificados <- unlist(regmatches(texto,
+    gregexpr("([A-Za-z][A-Za-z0-9.]*)::", texto, perl = TRUE)), use.names = FALSE)
+  achados <- c(achados, sub(":+$", "", qualificados))
+  base <- c("base", "stats", "graphics", "grDevices", "utils", "datasets",
+            "methods", "grid", "splines", "stats4", "tools", "parallel",
+            "compiler", "tcltk")
+  sort(setdiff(unique(achados[nzchar(achados)]), base))
+}
+
+# O mesmo vetor, pronto para o README: c("a", "b", ...) quebrado em linhas.
+# O marcador fica em linha própria no template, para o bloco manter as quebras.
+exportacao_molde_pacotes_texto <- function(pacotes) {
+  if (!length(pacotes)) return("character()")
+  resto <- paste(sprintf("\"%s\"", pacotes), collapse = ", ")
+  corpo <- character()
+  while (nchar(resto) > 66) {
+    cortes <- gregexpr(", ", resto, fixed = TRUE)[[1]]
+    cortes <- cortes[cortes > 0 & cortes < 66]
+    if (!length(cortes)) break
+    corte <- max(cortes)
+    corpo <- c(corpo, substr(resto, 1, corte))
+    resto <- trimws(substr(resto, corte + 2, nchar(resto)))
+  }
+  corpo <- c(corpo, resto)
+  saida <- c(
+    paste0("c(", corpo[1]),
+    if (length(corpo) > 1L) paste0("  ", corpo[-1]) else NULL
+  )
+  saida[length(saida)] <- paste0(saida[length(saida)], ")")
+  saida
+}
+
 exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
                                             import_info = list(),
-                                            templates_dir = "templates") {
+                                            templates_dir = "templates",
+                                            pacotes = NULL) {
   item <- exportacao_execucoes_incluidas(manifesto)[[1]]
   linhas <- readLines(
     file.path(templates_dir, entrada$pasta, "README.md"),
     encoding = "UTF-8", warn = FALSE
   )
-  exportacao_preencher_template(linhas,
-    entrada$marcadores_readme(item, nome_projeto, import_info))
+  exportacao_preencher_template(linhas, c(
+    entrada$marcadores_readme(item, nome_projeto, import_info),
+    list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes))
+  ))
 }
 
 # ---- Tabelas de marcadores por análise --------------------------------------
@@ -3004,14 +3082,23 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # Imagens recebe fotos e esquemas do pesquisador, também no caminho ANOVA.
   pastas <- c(file.path("dados", "brutos"),
               file.path("dados", "processados"), "R", "imagens", "relatorios")
-  if (!is.null(molde)) pastas <- c(
-    pastas,
-    file.path("saida", "tabelas"),
-    file.path("saida", "figuras"),
-    file.path("saida", "relatorios")
-  )
+  # A pasta saida/ nasce na primeira execução do script (seção 2), que cria
+  # dados/processados e saida/{tabelas,figuras,relatorios}. O projeto viaja sem
+  # ela para o ZIP não carregar pastas vazias nem artefatos de build.
   dirs <- file.path(projeto, pastas)
   vapply(dirs, dir.create, logical(1), recursive = TRUE, showWarnings = FALSE)
+  writeLines(
+    c(
+      "Esta pasta guarda fotos e esquemas do pesquisador (foto do local de",
+      "coleta, esquema do delineamento, mapa). Ela não é usada pelo código:",
+      "os arquivos entram nos relatórios com markdown, por exemplo:",
+      "",
+      "    ![](imagens/minha_foto.jpg)",
+      "",
+      "Nenhum arquivo daqui é alterado pela análise."
+    ),
+    file.path(projeto, "imagens", "LEIA-ME.txt"), useBytes = TRUE
+  )
 
   # A pasta `dados/` é deliberadamente enxuta:
   #
@@ -3117,19 +3204,24 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   titulo <- paste("Relatório de análise —", nome_projeto)
   caminho_script <- file.path(projeto, "R", "analise.R")
   if (!is.null(molde)) {
-    writeLines(
-      exportacao_molde_projeto_script(
-        molde, manifesto, nome_projeto, registro_bases, pipeline, base_externa,
-        import_info, templates_dir
-      ),
-      caminho_script, useBytes = TRUE
+    linhas_script <- exportacao_molde_projeto_script(
+      molde, manifesto, nome_projeto, registro_bases, pipeline, base_externa,
+      import_info, templates_dir
     )
+    writeLines(linhas_script, caminho_script, useBytes = TRUE)
     for (arquivo in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
       writeLines(
         exportacao_molde_projeto_qmd(molde, arquivo, manifesto, titulo, import_info, templates_dir),
         file.path(projeto, "relatorios", arquivo), useBytes = TRUE
       )
     }
+    # A lista exata de pacotes do projeto (script + funções) alimenta o
+    # install.packages() do README, para bater com o que o Render vai usar.
+    funcoes_molde <- file.path(templates_dir, molde$apoio %||% "regressao_linear", "funcoes.R")
+    pacotes_projeto <- exportacao_molde_pacotes(c(
+      linhas_script,
+      readLines(funcoes_molde, encoding = "UTF-8", warn = FALSE)
+    ))
   } else {
     caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
     writeLines(
@@ -3162,7 +3254,8 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     file.path(projeto, paste0(nome_projeto, ".Rproj")), useBytes = TRUE
   )
   leiame <- if (!is.null(molde)) {
-    exportacao_molde_projeto_readme(molde, manifesto, nome_projeto, import_info, templates_dir)
+    exportacao_molde_projeto_readme(molde, manifesto, nome_projeto, import_info,
+                                    templates_dir, pacotes = pacotes_projeto)
   } else if (exportacao_anova_simples(manifesto)) {
     exportacao_modelo_anova("README.md", manifesto, import_info, templates_dir, pipeline, registro_bases, base_externa)
   } else {

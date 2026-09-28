@@ -9,7 +9,7 @@
 # O sumário do editor (Ctrl+Shift+O) permite navegar entre as seções numeradas.
 #
 # MAPA DO ROTEIRO
-#  1–3. Preparar o ambiente, definir as escolhas e montar a base da ANOVA.
+#  1–3. Preparar o ambiente, ler a planilha e montar a base da ANOVA.
 #  4–6. Explorar os grupos, ajustar o modelo e examinar os pressupostos.
 #    7. Comparar os grupos dois a dois (Tukey) e medir o tamanho do efeito.
 #  8–9. Preparar as tabelas e construir os gráficos.
@@ -31,19 +31,20 @@
 # Instale os pacotes uma única vez conforme o README, antes de executar.
 
 # 1. Preparar o ambiente ---------------------------------------------------
-# A importação, o preparo e a adoção da base escolhida aparecem acima deste
-# roteiro. A partir daqui, trabalhamos com dados_da_analise.
+library(here)
 # Declara: "este arquivo está em R/analise.R, dentro do meu projeto".
 # Assim, here() monta caminhos a partir da raiz do projeto, acima da pasta R/.
+# Não muda a pasta de trabalho como setwd(). Abra o projeto antes de rodar.
 here::i_am("R/analise.R")
+{{BIBLIOTECAS_PREPARO}}
 library(broom)
 library(flextable)
 library(stringr)
 # As funções abaixo cuidam da apresentação; os cálculos continuam neste script.
 source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 
-# 2. Definir as escolhas e organizar as saídas -----------------------------
-# Os nomes e rótulos abaixo vêm das escolhas feitas na CatalyseR.
+# 2. Definir as escolhas e ler os dados ------------------------------------
+# Nomes das colunas usadas na análise; devem existir na base preparada.
 variavel_resposta <- {{RESPOSTA_R}}
 variavel_fator <- {{FATOR_R}}
 # Os rótulos são textos de apresentação: alterá-los não renomeia as colunas.
@@ -53,7 +54,7 @@ nivel_confianca <- {{CONFIANCA}}
 alfa <- 1 - nivel_confianca
 ic_percentual <- fmt(100 * nivel_confianca, 0)
 titulo_grafico <- {{TITULO_R}}
-# Paleta Ocean, a mesma da CatalyseR e do livro. Uma cor para cada grupo.
+# Paleta Ocean, a mesma do livro. Uma cor para cada grupo.
 cores_tratamento <- c("#0F3B5F", "#2E7D8F", "#62B6B7", "#E89B3C", "#E76F51",
                       "#8FB8C8", "#1F5673", "#B5654A")
 
@@ -75,7 +76,15 @@ for (pasta in c(
   )
 }
 
+# A planilha que viajou no projeto entra aqui, sem nenhuma alteração.
+# Sai dados_brutos, a tabela lida.
+{{TRECHO_IMPORTAR}}
+
 # 3. Preparar a base da ANOVA ----------------------------------------------
+# Da planilha bruta à base adotada: operações estruturais, trilha de
+# tratamentos e conferência contra a fotografia que acompanha o projeto.
+# Sai dados_da_analise, a base desta análise.
+{{TRECHO_PREPARO}}
 # Mantemos identificação e medidas JUNTAS. O modelo usará a resposta e o fator.
 # |> encaminha uma tabela para a próxima operação; mutate() cria/altera colunas.
 # linha_original conserva a posição na base preparada adotada pela análise.
@@ -151,7 +160,8 @@ tabela_resumo <- base_anova |>
 # pergunta global: a média difere entre os grupos? Ainda não diz quais diferem.
 modelo_anova <- aov(resposta ~ grupo, data = base_anova)
 resumo_console <- summary(modelo_anova)
-# Ao estudar o script, execute resumo_console para conhecer a saída bruta uma vez.
+# resumo_console é o que o R mostra no console: a saída bruta, uma vez. Os
+# relatórios não exibem essa saída; usam as tabelas formatadas construídas adiante.
 # tidy() transforma a tabela da ANOVA em um data.frame com nomes claros.
 tabela_anova <- broom::tidy(modelo_anova)
 gl_fator <- tabela_anova$df[1]
