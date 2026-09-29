@@ -74,7 +74,11 @@ grafico_barras
 
 A @tbl-welch compara a ANOVA clássica, usada na análise, com a ANOVA de
 Welch, que não supõe variâncias iguais. É uma comparação apenas informativa:
-mostra o quanto a conclusão dependeria dessa escolha [@delacre2019].
+mostra o quanto a conclusão dependeria dessa escolha [@delacre2019]. A
+@fig-barras, no mesmo espírito de transparência, mostra cada observação como
+ponto, em vez de resumir os grupos em barras [@weissgerber2015]. Os testes
+formais de pressupostos, por sua vez, complementam — sem substituir — a
+inspeção visual dos resíduos [@kozak2018].
 
 ```{r}
 #| label: tbl-welch
