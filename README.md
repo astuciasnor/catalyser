@@ -68,6 +68,22 @@ refinar duas análises por ciclo.
 
 ---
 
+## ✅ Testes automatizados
+
+A suíte oficial roda cada arquivo de teste em um processo R próprio e termina
+com o resumo `X/Y OK`. Comando (a partir da raiz do pacote):
+
+```r
+Rscript inst/app/tests/run_tests.R
+```
+
+Opções: `--diagnostico` (só confere o ambiente) e `--estrito` (lacuna de
+ambiente vira falha). A lista de arquivos vive no próprio `run_tests.R`; o
+contrato do molde de Projeto R (CONTRATO_MOLDE_PROJETO_R.md, seção 9) descreve
+o que a suíte cobre.
+
+---
+
 ## 📄 Licença
 
 Este projeto está licenciado sob a **Licença MIT** - consulte o arquivo [LICENSE.md](LICENSE.md) para obter mais detalhes.

@@ -42,7 +42,7 @@ mod_model_discovery_ui <- function(id) {
       
       # COLUNA 2: GRÁFICO E TABELA DE COMPARATIVO DE R²
       navset_card_tab(
-        title = "Explorador e Comparador de Modelos",
+        title = "Explorador e Comparador de Modelos:",
         nav_panel(
           title = "Comparativo de Modelos",
           icon = icon("chart-line"),

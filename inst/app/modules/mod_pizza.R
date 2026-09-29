@@ -36,7 +36,7 @@ mod_pizza_ui <- function(id) {
       # COLUNA 2: GRÁFICO
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico de Pizza",
+        title = "Gráfico de Pizza:",
         nav_panel(
           title = "Visualização",
           icon = icon("chart-pie"),

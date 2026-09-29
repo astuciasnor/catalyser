@@ -40,6 +40,25 @@ here::i_am("R/analise.R")
 library(broom)
 library(flextable)
 library(stringr)
+# Dois pacotes do ecossistema EAPA, hospedados no GitHub (não estão no CRAN).
+# EAPADados: dados de contexto da pesca e da aquicultura do curso.
+if (!requireNamespace("EAPADados", quietly = TRUE)) {
+  stop(
+    "Este projeto usa o pacote EAPADados, que não está instalado.",
+    " Instale uma vez, no console: remotes::install_github('astuciasnor/EAPADados')",
+    call. = FALSE
+  )
+}
+library(EAPADados)
+# catalyser: catalyser_conferir_base(), a conferência das bases na seção 3.
+if (!requireNamespace("catalyser", quietly = TRUE)) {
+  stop(
+    "Este projeto usa o pacote catalyser, que não está instalado.",
+    " Instale uma vez, no console: remotes::install_github('astuciasnor/catalyser')",
+    call. = FALSE
+  )
+}
+library(catalyser)
 # As funções abaixo cuidam da apresentação; os cálculos continuam neste script.
 source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 
@@ -81,8 +100,8 @@ for (pasta in c(
 {{TRECHO_IMPORTAR}}
 
 # 3. Preparar a base da ANOVA ----------------------------------------------
-# Da planilha bruta à base adotada: operações estruturais, trilha de
-# tratamentos e conferência contra a fotografia que acompanha o projeto.
+# Quatro etapas, um objeto por etapa: reconstruir o preparo, conferir com a
+# fotografia que acompanha o projeto, adotar a base e montar a base da análise.
 # Sai dados_da_analise, a base desta análise.
 {{TRECHO_PREPARO}}
 # Mantemos identificação e medidas JUNTAS. O modelo usará a resposta e o fator.

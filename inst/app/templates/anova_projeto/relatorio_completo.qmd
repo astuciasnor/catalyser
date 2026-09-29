@@ -69,6 +69,9 @@ parecidas e resíduos aproximadamente normais são o que dá sentido ao teste F.
 Por isso esta seção explora os grupos e termina com o diagnóstico dos
 resíduos, antes de apresentar os resultados.
 
+A @tbl-resumo-exploracao reúne os números de cada grupo e a @fig-boxplot
+mostra a distribuição das observações, antes de qualquer teste.
+
 ```{r}
 #| label: tbl-resumo-exploracao
 #| tbl-cap: "Resumo por grupo antes do teste: tamanho, centro e dispersão."
@@ -92,10 +95,11 @@ agrupamento antes de interpretar a ANOVA.
 ### Homogeneidade e normalidade
 
 A ANOVA supõe variâncias parecidas entre os grupos e resíduos aproximadamente
-normais. O primeiro gráfico compara os resíduos com os valores ajustados:
-faixas de alturas muito diferentes sugerem variâncias desiguais. O segundo,
-Q-Q, compara os resíduos padronizados com os quantis da normal; pontos que se
-afastam da reta indicam assimetria ou valores extremos.
+normais. A @fig-residuos compara os resíduos com os valores ajustados:
+faixas de alturas muito diferentes sugerem variâncias desiguais. A @fig-qq
+compara os resíduos padronizados com os quantis da normal; pontos que se
+afastam da reta indicam assimetria ou valores extremos. A @tbl-testes reúne
+os testes formais que complementam essa inspeção.
 
 ```{r}
 #| label: fig-residuos
@@ -123,6 +127,8 @@ flextable_ocean(tabela_testes)
 
 # Resultados: o que a ANOVA responde?
 
+A @tbl-anova resume a decomposição da variabilidade que sustenta o teste F.
+
 `r texto_anova`
 
 ```{r}
@@ -130,6 +136,8 @@ flextable_ocean(tabela_testes)
 #| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
 flextable_ocean(tabela_anova_exibir)
 ```
+
+A @tbl-efeito traz o tamanho do efeito medido pela análise.
 
 `r texto_efeito`
 
@@ -140,6 +148,9 @@ flextable_ocean(tabela_efeito)
 ```
 
 ## Comparações entre os grupos
+
+As comparações dois a dois estão na @tbl-tukey e o resumo com as letras na
+@tbl-resumo; a @fig-barras apresenta as médias com seus intervalos.
 
 `r texto_tukey`
 

@@ -2,8 +2,8 @@
 
 Este projeto compara a média de **{{RESPOSTA}}** entre os dois grupos de
 **{{GRUPO}}** por um teste t para amostras independentes. Abra
-**{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local e pacotes
-do CRAN.
+**{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local,
+pacotes do CRAN e dois pacotes do ecossistema instalados do GitHub.
 
 ## Um convite a aprender programação
 
@@ -44,9 +44,16 @@ O R calcula; os QMDs executam esse script e apresentam os objetos prontos.
 Cada Render recalcula a análise numa sessão limpa. Os QMDs **não leem** os
 CSVs e PNGs de `saida/`: usam os objetos criados na memória da execução.
 
+| No script R | No relatório | Cópia salva para compartilhar |
+|---|---|---|
+| `tabela_descritiva` contém os números; `tabela_descritiva_exibir` formata | `flextable_ocean(tabela_descritiva_exibir)` | `saida/tabelas/descritiva.csv` |
+| `tabela_teste` e `tabela_pressupostos` guardam os testes | `flextable_ocean(tabela_teste)` e `flextable_ocean(tabela_pressupostos)` | `saida/tabelas/teste.csv` e `pressupostos.csv` |
+| `grafico_caixa` e `grafico_medias` guardam as figuras | `grafico_caixa` e `grafico_medias` | `saida/figuras/caixa.png` e `medias.png` |
+| `texto_resultado`, `texto_efeito` e `texto_pressupostos` reúnem números em frases | Expressão R inline no parágrafo | As frases entram no HTML e no Word |
+
 ## Preparar o computador, uma vez
 
-Instale R, RStudio e Quarto. No console do R, instale os pacotes:
+Instale R, RStudio e Quarto. No console do R, instale os pacotes do CRAN:
 
 ```r
 install.packages(
@@ -54,7 +61,17 @@ install.packages(
 )
 ```
 
-Nenhum pacote é instalado automaticamente durante a análise.
+Depois, os dois pacotes do ecossistema, que não estão no CRAN e são
+instalados do GitHub:
+
+```r
+remotes::install_github("astuciasnor/catalyser")
+remotes::install_github("astuciasnor/EAPADados")
+```
+
+Nenhum pacote é instalado automaticamente durante a análise. Se um dos dois
+pacotes do GitHub faltar, o script para na seção 1 e mostra o comando de
+instalação.
 
 ## Gerar os documentos
 
@@ -95,12 +112,20 @@ Depois das tabelas e dos gráficos, a seção 9 do script reúne os resultados e
 frases e as mostra no console com `print()`. Os relatórios usam esses objetos,
 mas a discussão e a conclusão científica precisam ser revistas pelo pesquisador.
 
+## Reprodutibilidade
+
 Os dados de entrada permanecem em `dados/brutos/`. Produtos regeneráveis ficam
 em `dados/processados/` e `saida/`. O arquivo `saida/sessionInfo.txt`
 registra as versões do R, dos pacotes e do Quarto usadas na execução.
 
+O estilo bibliográfico fornecido é APA. Para outra revista, coloque o arquivo
+CSL correspondente em `relatorios/` e altere o caminho em `_quarto.yml`.
+
 ## Origem dos dados
 
-A base preparada foi adotada a partir da importação e dos tratamentos
-registrados na CatalyseR. A planilha original fica em `dados/brutos/` e não é
-alterada. O registro `saida/sessionInfo.txt` identifica o ambiente da execução.
+Registre aqui a origem da planilha, a licença e o período de coleta — a
+CatalyseR não conhece a proveniência dos seus dados e não a declara no lugar
+do pesquisador. A base preparada foi adotada a partir da importação e dos
+tratamentos registrados na CatalyseR. A planilha original fica em
+`dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
+`saida/sessionInfo.txt` identifica o ambiente da execução.

@@ -59,7 +59,7 @@ mod_anova_ui <- function(id) {
       # COLUNA 2: RESULTADOS (divulgação progressiva)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel de Resultados da ANOVA",
+        title = "Painel de Resultados da ANOVA:",
         nav_panel(
           title = "Resultado principal",
           icon = icon("square-poll-vertical"),

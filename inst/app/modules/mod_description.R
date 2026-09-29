@@ -41,7 +41,7 @@ mod_descr_stats_ui <- function(id) {
       
       # COLUNA 2: RESULTADOS (TABELA PRINCIPAL)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
-        title = "Tabela de Medidas Resumo",
+        title = "Tabela de Medidas Resumo:",
         nav_panel(
           title = "Estatísticas de Resumo",
           icon = icon("table"),
@@ -292,7 +292,7 @@ mod_histogram_ui <- function(id) {
       # COLUNA 2: RESULTADOS (GRÁFICO DO HISTOGRAMA)
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico do Histograma",
+        title = "Gráfico do Histograma:",
         nav_panel(
           title = "Visualização do Histograma",
           icon = icon("chart-bar"),
@@ -447,7 +447,7 @@ mod_boxplot_ui <- function(id) {
       # COLUNA 2: RESULTADOS (GRÁFICO DO BOXPLOT)
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico do Boxplot",
+        title = "Gráfico do Boxplot:",
         nav_panel(
           title = "Visualização do Boxplot",
           icon = icon("square-poll-vertical"),

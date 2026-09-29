@@ -66,6 +66,7 @@ mod_anova_mista_ui <- function(id) {
         )
       ),
       execucao_explicita_resultados_ui(ns, navset_card_tab(
+        title = "Painel da ANOVA mista:",
         nav_panel(
           "As duas análises", icon = icon("scale-balanced"),
           card_body(

@@ -37,6 +37,8 @@ usar este documento como artigo, monografia ou relatório científico. -->
 
 # Resultados
 
+A @tbl-descritiva resume a resposta em cada grupo.
+
 ```{r}
 #| label: tbl-descritiva
 #| tbl-cap: "Resumo da resposta por grupo. DP: desvio padrão; EP: erro padrão da média."
@@ -44,6 +46,9 @@ flextable_ocean(tabela_descritiva_exibir)
 ```
 
 `r texto_amostra`
+
+A @tbl-teste reúne o resultado do teste, e a @fig-medias apresenta as médias
+com seus intervalos de confiança.
 
 `r texto_resultado`
 

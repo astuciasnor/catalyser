@@ -69,7 +69,7 @@ mod_parametric_ui <- function(id) {
       # COLUNA 2: RESULTADOS (TABELA PRINCIPAL / GRÁFICOS)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel de Resultados",
+        title = "Painel de Resultados:",
         nav_panel(
           title = "Tabela de Resultados",
           icon = icon("table"),

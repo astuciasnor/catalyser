@@ -65,7 +65,7 @@ mod_mapa_ui <- function(id) {
       # COLUNA 2: MAPA
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Mapa Coroplético do Brasil",
+        title = "Mapa Coroplético do Brasil:",
         nav_panel(
           title = "Mapa", icon = icon("map"),
           card_body(style = "padding: 15px;", plotOutput(ns("map_plot"), height = "560px"))

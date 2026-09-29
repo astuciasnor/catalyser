@@ -1,8 +1,8 @@
 # {{TITULO}}
 
 Este Projeto R foi gerado pela CatalyseR para estudar e comunicar uma ANOVA de um fator.
-Abra **{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local e pacotes
-do CRAN.
+Abra **{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local,
+pacotes do CRAN e dois pacotes do ecossistema instalados do GitHub.
 
 ## Um convite a aprender programação
 
@@ -49,9 +49,16 @@ objetos que o script acabou de criar na memória. Se você executar o script no
 RStudio, verá os objetos no Environment; se clicar em Render, o Quarto usa uma
 sessão própria. Não é preciso povoar o Environment manualmente antes do Render.
 
+| No script R | No relatório | Cópia salva para compartilhar |
+|---|---|---|
+| `tabela_resumo` contém os números; `tabela_resumo_exibir` formata | `flextable_ocean(tabela_resumo_exibir)` | `saida/tabelas/resumo_grupos.csv` |
+| `tabela_anova` e `tabela_tukey` guardam os testes; as versões `_exibir` formatam | `flextable_ocean(tabela_anova_exibir)` e `flextable_ocean(tabela_tukey_exibir)` | `saida/tabelas/anova.csv` e `tukey.csv` |
+| `grafico_barras` guarda a figura | `grafico_barras` | `saida/figuras/barras.png` |
+| `texto_anova`, `texto_tukey` e `texto_efeito` reúnem números em frases | Expressão R inline no parágrafo | As frases entram no HTML e no Word |
+
 ## Preparar o computador, uma vez
 
-Instale R, RStudio e Quarto. No console do R, instale os pacotes:
+Instale R, RStudio e Quarto. No console do R, instale os pacotes do CRAN:
 
 ```r
 install.packages(
@@ -59,7 +66,17 @@ install.packages(
 )
 ```
 
-Nenhum pacote é instalado automaticamente durante a análise.
+Depois, os dois pacotes do ecossistema, que não estão no CRAN e são
+instalados do GitHub:
+
+```r
+remotes::install_github("astuciasnor/catalyser")
+remotes::install_github("astuciasnor/EAPADados")
+```
+
+Nenhum pacote é instalado automaticamente durante a análise. Se um dos dois
+pacotes do GitHub faltar, o script para na seção 1 e mostra o comando de
+instalação.
 
 ## Gerar os documentos
 
@@ -115,3 +132,12 @@ registra as versões do R, dos pacotes e do Quarto usadas na execução.
 
 O estilo bibliográfico fornecido é APA. Para outra revista, coloque o arquivo
 CSL correspondente em `relatorios/` e altere o caminho em `_quarto.yml`.
+
+## Origem dos dados
+
+Registre aqui a origem da planilha, a licença e o período de coleta — a
+CatalyseR não conhece a proveniência dos seus dados e não a declara no lugar
+do pesquisador. A base preparada foi adotada a partir da importação e dos
+tratamentos registrados na CatalyseR. A planilha original fica em
+`dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
+`saida/sessionInfo.txt` identifica o ambiente da execução.

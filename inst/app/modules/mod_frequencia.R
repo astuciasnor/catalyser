@@ -63,7 +63,7 @@ mod_frequencia_ui <- function(id) {
 
       # COLUNA 2: RESULTADOS
       navset_card_tab(
-        title = "Distribuição de Frequência",
+        title = "Distribuição de Frequência:",
         nav_panel(
           title = "Tabela", icon = icon("table"),
           card_body(style = "padding: 12px 15px;",

@@ -1,12 +1,14 @@
 # =============================================================================
 # Suíte de testes automatizados da CatalyseR
 # -----------------------------------------------------------------------------
-# Uso:
-#   Rscript inst/app/tests/run_tests.R                # diagnóstico + testes
-#   Rscript inst/app/tests/run_tests.R --diagnostico  # só o diagnóstico
-#   Rscript inst/app/tests/run_tests.R --estrito      # lacuna de ambiente falha
+# Comando oficial (a partir da raiz do pacote):
 #
-# Pode ser chamado de qualquer pasta: o script se localiza sozinho.
+#   Rscript inst/app/tests/run_tests.R
+#
+# Opções: --diagnostico (só o diagnóstico de ambiente) e --estrito (lacuna de
+# ambiente vira falha). O script se localiza sozinho e pode ser chamado de
+# qualquer pasta; cada arquivo de teste roda em um processo Rscript próprio
+# (Rscript tests/<arquivo>), como o desenvolvedor rodaria na mão.
 #
 # Regra desta suíte: nada de pulo silencioso. Alguns testes dependem de coisas
 # que podem faltar na máquina (o Quarto, o dataset de treino). Quando faltam, a
@@ -321,11 +323,27 @@ erros_parse <- vapply(
   }, error = function(e) conditionMessage(e)),
   character(1)
 )
-if (any(nzchar(erros_parse))) {
-  print(erros_parse[nzchar(erros_parse)])
+# Arquivo com marcador {{...}} é template: só vira R válido depois de
+# preenchido pelo gerador, e a sintaxe preenchida é conferida pelos testes de
+# exportação. A falha de parse aí não é erro — mas é dita em voz alta, como
+# manda a regra da suíte.
+com_marcador <- vapply(arquivos_r[nzchar(erros_parse)], function(arquivo) {
+  linhas <- readLines(arquivo, warn = FALSE, encoding = "UTF-8")
+  any(grepl("{{", linhas, fixed = TRUE))
+}, logical(1))
+modelos <- arquivos_r[nzchar(erros_parse)][com_marcador]
+if (length(modelos)) {
+  cat(sprintf("[OK] %d template(s) com marcadores {{...}} — parse adiado para o gerador:\n",
+    length(modelos)))
+  for (m in modelos) cat("       ", m, "\n", sep = "")
+}
+erros_reais <- erros_parse[nzchar(erros_parse) & !(arquivos_r %in% modelos)]
+if (length(erros_reais)) {
+  print(erros_reais)
   stop("Há arquivos R com erro de sintaxe.", call. = FALSE)
 }
-cat("[OK] Sintaxe de ", length(arquivos_r), " arquivos R.\n", sep = "")
+cat("[OK] Sintaxe de ", length(arquivos_r) - length(modelos),
+    " arquivos R executáveis.\n", sep = "")
 
 # =============================================================================
 # TESTES
@@ -353,15 +371,16 @@ testes <- c(
   "test_contrato_tipos.R",
   "test_funcoes_analise.R",
   "test_exportacao_comunicacao.R",
+  "test_exportacao_sanitizar_molde.R",
   "test_anova_integrada.R",
   "test_anova_mista.R",
   "test_anova_dois_fatores.R",
   "test_anova_exportacao.R",
-  "test_anova_script_relatorio.R",
+  "test_anova_molde_projeto.R",
+  "test_teste_t_molde_projeto.R",
   "test_anova_codigo_didatico.R",
   "test_regressao_roteiro.R",
   "test_regressao_interface.R",
-  "test_exportacao_enxuta.R",
   "test_anova_preparo_projeto.R",
   "test_grafico_linhas_troca_y.R"
 )
@@ -374,21 +393,31 @@ if (length(faltando)) {
 rscript <- file.path(R.home("bin"), "Rscript")
 if (.Platform$OS.type == "windows") rscript <- paste0(rscript, ".exe")
 
+# Cada arquivo roda em um processo Rscript próprio; uma falha não interrompe
+# os demais, e o resumo final lista os que falharam.
 titulo(sprintf("EXECUTANDO %d ARQUIVOS DE TESTE", length(testes)))
+falhas <- character()
 for (teste in testes) {
-  expressao <- sprintf("source(%s)", dQuote(file.path("tests", teste)))
-  status <- system2(rscript, c("-e", shQuote(expressao)))
+  status <- system2(rscript, shQuote(file.path("tests", teste)))
   if (!identical(status, 0L)) {
-    stop(sprintf("Falha em %s (status %s).", teste, status), call. = FALSE)
+    falhas <- c(falhas, teste)
+    cat("[FALHA] ", teste, "\n", sep = "")
+  } else {
+    cat("[OK] ", teste, "\n", sep = "")
   }
-  cat("[OK] ", teste, "\n", sep = "")
 }
 
 # =============================================================================
 # RESUMO FINAL
 # =============================================================================
 titulo("RESUMO")
-cat("Todos os ", length(testes), " arquivos de teste passaram.\n", sep = "")
+if (!length(falhas)) {
+  cat("Todos os ", length(testes), " arquivos de teste passaram.\n", sep = "")
+} else {
+  cat(sprintf("%d de %d arquivos passaram; %d falharam:\n",
+    length(testes) - length(falhas), length(testes), length(falhas)))
+  for (t in falhas) cat("  [FALHA] ", t, "\n", sep = "")
+}
 
 if (length(lacunas)) {
   linha("-")
@@ -406,3 +435,8 @@ if (length(lacunas)) {
   cat("Ambiente completo: nenhuma verificação foi pulada.\n")
 }
 linha("=")
+
+if (length(falhas)) {
+  stop(sprintf("%d teste(s) falharam. Veja a lista acima.", length(falhas)),
+       call. = FALSE)
+}

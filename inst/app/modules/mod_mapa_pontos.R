@@ -58,7 +58,7 @@ mod_mapa_pontos_ui <- function(id, modo = "bolhas") {
 
       # COLUNA 2: MAPA
       navset_card_tab(
-        title = "Mapa de Pontos e Estações",
+        title = "Mapa de Pontos e Estações:",
         nav_panel(
           title = "Mapa", icon = icon("location-dot"),
           card_body(style = "padding: 15px;", plotOutput(ns("map_plot"), height = "560px"))

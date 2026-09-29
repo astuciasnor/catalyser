@@ -435,6 +435,23 @@ ui <- page_navbar(
       .card-header {
         padding: 8px 12px !important;
       }
+      /* Painéis de resultado (navset_card_tab com título): o título abre a
+         primeira linha do cabeçalho e as abas ocupam a segunda linha inteiras,
+         em vez de dividirem a linha com o título e se espremerem em coluna.
+         row-gap de 4px = metade dos 8px de padding-top que ficavam acima
+         das abas (medido no navegador antes da mudança). */
+      .bslib-card .card-header.bslib-navs-card-title {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        row-gap: 4px;
+      }
+      /* Linha companheira da regra acima: o bslib empurra as abas para a
+         direita com margin-left:auto; sem zerá-lo, a barra de abas da 2ª
+         linha fica com a largura do conteúdo, em vez de inteira. */
+      .bslib-card .card-header.bslib-navs-card-title > .nav {
+        margin-left: 0;
+      }
       
       /* 2. Compactação de Form Groups, Inputs e Controles */
       .form-group, .shiny-input-container {

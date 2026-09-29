@@ -100,7 +100,7 @@ mod_nonlinear_ui <- function(id, model_type) {
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel de Resultados",
+        title = "Painel de Resultados:",
         nav_panel(
           title = "Tabela de Resultados",
           icon = icon("table"),

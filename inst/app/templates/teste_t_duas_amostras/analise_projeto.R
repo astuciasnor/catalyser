@@ -37,6 +37,25 @@ library(here)
 here::i_am("R/analise.R")
 {{BIBLIOTECAS_PREPARO}}
 library(stringr)    # str_glue monta as frases dos relatórios
+# Dois pacotes do ecossistema EAPA, hospedados no GitHub (não estão no CRAN).
+# EAPADados: dados de contexto da pesca e da aquicultura do curso.
+if (!requireNamespace("EAPADados", quietly = TRUE)) {
+  stop(
+    "Este projeto usa o pacote EAPADados, que não está instalado.",
+    " Instale uma vez, no console: remotes::install_github('astuciasnor/EAPADados')",
+    call. = FALSE
+  )
+}
+library(EAPADados)
+# catalyser: catalyser_conferir_base(), a conferência das bases na seção 3.
+if (!requireNamespace("catalyser", quietly = TRUE)) {
+  stop(
+    "Este projeto usa o pacote catalyser, que não está instalado.",
+    " Instale uma vez, no console: remotes::install_github('astuciasnor/catalyser')",
+    call. = FALSE
+  )
+}
+library(catalyser)
 # As funções abaixo cuidam da apresentação; os cálculos continuam neste script.
 source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 
@@ -65,8 +84,8 @@ for (pasta in c("dados/processados", "saida/tabelas", "saida/figuras", "saida/re
 {{TRECHO_IMPORTAR}}
 
 # 3. Preparar a base -------------------------------------------------------
-# Da planilha bruta à base adotada: operações estruturais, trilha de
-# tratamentos e conferência contra a fotografia que acompanha o projeto.
+# Quatro etapas, um objeto por etapa: reconstruir o preparo, conferir com a
+# fotografia que acompanha o projeto, adotar a base e montar a base da análise.
 # Sai dados_da_analise, a base desta análise.
 {{TRECHO_PREPARO}}
 # Recebe a base preparada e adotada pela análise (dados_da_analise).
@@ -151,7 +170,8 @@ normalidade_ok <- all(p_shapiro >= alfa)
 # variâncias diferentes levam ao t de Welch. Guardamos os dois para comparar.
 teste_t <- t.test(formula_teste, data = dados, var.equal = variancias_iguais)
 teste_welch <- t.test(formula_teste, data = dados, var.equal = FALSE)
-# resumo_console guarda a saída bruta do teste, exibida uma vez no relatório.
+# resumo_console guarda a saída bruta do teste; digite o nome no console
+# para conhecê-la uma vez — os relatórios não a exibem.
 resumo_console <- teste_t
 # Nome do método em português, para as tabelas e o texto.
 metodo_teste <- if (variancias_iguais) "t de Student (variâncias iguais)" else "t de Welch (variâncias diferentes)"

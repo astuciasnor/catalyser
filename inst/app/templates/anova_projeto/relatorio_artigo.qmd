@@ -39,6 +39,8 @@ usar este documento como artigo, monografia ou relatório científico. -->
 
 `r texto_amostra`
 
+A @tbl-resumo descreve cada grupo com as letras do teste de Tukey.
+
 ```{r}
 #| label: tbl-resumo
 #| tbl-cap: "Resumo por grupo: n, média, desvio padrão (DP), erro padrão (EP), intervalo de confiança da média e letras do teste de Tukey."
@@ -47,6 +49,8 @@ flextable_ocean(tabela_resumo_exibir)
 
 `r texto_anova` `r texto_efeito`
 
+A @tbl-anova resume a decomposição da variabilidade que sustenta o teste F.
+
 ```{r}
 #| label: tbl-anova
 #| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
@@ -54,6 +58,9 @@ flextable_ocean(tabela_anova_exibir)
 ```
 
 `r texto_tukey`
+
+A @fig-barras apresenta as médias dos grupos com seus intervalos de confiança
+e as letras do teste de Tukey.
 
 ```{r}
 #| label: fig-barras

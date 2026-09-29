@@ -48,7 +48,7 @@ mod_ancova_ui <- function(id) {
             downloadButton(ns("baixar_script"), "Baixar script .R", class = "btn-outline-secondary btn-sm w-100")))
       ),
       navset_card_tab(
-        title = "ANCOVA",
+        title = "ANCOVA:",
         nav_panel(title = "Resultado", icon = icon("table"),
           card_body(style = "padding:12px 15px;",
             uiOutput(ns("relato")),

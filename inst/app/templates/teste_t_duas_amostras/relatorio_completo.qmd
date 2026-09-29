@@ -40,11 +40,11 @@ começa em uma sessão nova.
 com o script, mas a interpretação depende da pergunta, das unidades e do
 delineamento da pesquisa.
 
-# Introdução
+# Introdução: qual comparação queremos investigar?
 
 {{INTRODUCAO}}
 
-# Material e métodos
+# Material e métodos: o que entrou na comparação?
 
 {{METODOS}}
 
@@ -71,7 +71,15 @@ grupo foi examinada por Shapiro-Wilk e a igualdade de variâncias pelo teste de
 Levene. Quando as variâncias são compatíveis, usa-se o t de Student; caso
 contrário, o t de Welch. O tamanho do efeito é medido pelo d de Cohen.
 
-# Exploração
+# Exploração: conhecer os grupos antes do teste
+
+Os números do teste t só merecem leitura depois dos pressupostos: normalidade
+dentro de cada grupo e variâncias parecidas são o que dá sentido ao teste. Por
+isso esta seção explora os grupos e termina com a conferência dos pressupostos,
+antes de apresentar os resultados.
+
+A @tbl-descritiva resume cada grupo e a @fig-caixa mostra a distribuição das
+observações, antes de qualquer teste.
 
 ```{r}
 #| label: fig-caixa
@@ -79,35 +87,11 @@ contrário, o t de Welch. O tamanho do efeito é medido pelo d de Cohen.
 grafico_caixa
 ```
 
-# Resultados
+## Pressupostos: até onde podemos confiar no teste?
 
-## A saída bruta, uma vez
-
-A saída abaixo ajuda você a reconhecer o resultado de `t.test()` fora deste
-projeto. As tabelas seguintes apresentam os mesmos números de forma organizada.
-
-```{r}
-#| label: console-teste
-resumo_console
-```
-
-`r texto_resultado`
-
-`r texto_efeito`
-
-```{r}
-#| label: tbl-teste
-#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p e tamanho do efeito."
-flextable_ocean(tabela_teste)
-```
-
-```{r}
-#| label: fig-medias
-#| fig-cap: "Média de cada grupo com intervalo de confiança de 95% da média."
-grafico_medias
-```
-
-# Pressupostos
+O teste t clássico pede normalidade dentro de cada grupo e variâncias parecidas
+entre eles. A @tbl-pressupostos reúne os testes formais, e as frases abaixo
+leem cada resultado com honestidade.
 
 `r texto_pressupostos`
 
@@ -147,7 +131,28 @@ escritas conforme o resultado real de cada teste.
 
 :::::
 
-# Discussão
+# Resultados: o que o teste t responde?
+
+A @tbl-teste reúne o resultado do teste e a @fig-medias apresenta as médias
+com seus intervalos de confiança.
+
+`r texto_resultado`
+
+`r texto_efeito`
+
+```{r}
+#| label: tbl-teste
+#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p e tamanho do efeito."
+flextable_ocean(tabela_teste)
+```
+
+```{r}
+#| label: fig-medias
+#| fig-cap: "Média de cada grupo com intervalo de confiança de 95% da média."
+grafico_medias
+```
+
+# Discussão: voltar à pergunta biológica
 
 {{DISCUSSAO}}
 

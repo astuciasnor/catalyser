@@ -1,5 +1,8 @@
 # Casos novos da revisão da v1: CSV e datas, incluindo saídas fora da IDE.
-invisible(Sys.setlocale("LC_ALL", "English_United States.utf8"))
+# Adaptado ao molde: o preparo viaja em R/analise.R e os dois QMDs executam
+# esse mesmo script; as fotografias RDS preservam as datas e o Excel é a
+# entrega para uso fora do R.
+invisible(Sys.setlocale("LC_ALL", "English_United_States.utf8"))
 source("app.R", encoding = "UTF-8")
 source("tests/carregar_catalyser.R", encoding = "UTF-8")
 library(dplyr)
@@ -64,14 +67,6 @@ testServer(mod_organizar_variaveis_server, args = list(data_rv = entrada), {
 })
 cat("PASSOU: diálogo rejeita data inválida e código reproduz a conversão válida.\n")
 
-extrair <- function(linhas, nome, script = TRUE) {
-  marcador <- if (script) paste0("## ---- ", nome, " ----") else paste0("#| label: ", nome)
-  inicio <- match(marcador, linhas)
-  stopifnot(!is.na(inicio))
-  fins <- if (script) which(grepl("^## ---- ", linhas)) else which(linhas == "```")
-  fim <- min(c(fins[fins > inicio], length(linhas) + 1L))
-  linhas[seq.int(inicio + 1L, fim - 1L)]
-}
 etapa <- function(tipo, params) list(tipo = tipo, params = params, ativa = TRUE)
 casos <- list(
   list(nome = "Coletas-ponto-e-virgula.csv", sep = ";", dec = ","),
@@ -115,13 +110,24 @@ for (caso in casos) {
   caches <- list(base_0001 = bases_recalcular_cache(compartilhada, bases[[1]], 1L))
   bases <- bases_finalizar(bases, "base_0001", caches, 1L)
   stopifnot(nrow(caches$base_0001$df) == 5)
+  # Teste t com a base compartilhada e ANOVA com o ramo derivado: os dois
+  # caminhos do molde (apelido e receita própria na etapa 3.4).
   for (anova in c(FALSE, TRUE)) {
-    tipo <- if (anova) "anova_um_fator" else "estatistica_descritiva"
-    e <- list(id = "execucao_0001", analise_id = tipo, tipo = tipo, titulo = "Peso dos peixes",
-      parametros = list(resposta = "peso_kg", fator = "local", nivel_confianca = .95,
-        variaveis = "peso_kg", grupo = "none", metricas = list(media = TRUE)),
-      saidas_disponiveis = "tabela", base_id = "base_0001", base_objeto = "base_pesos",
-      base_tipo = "derivada", codigo_r = NULL)
+    tipo <- if (anova) "anova_um_fator" else "teste_t_two_ind"
+    e <- list(id = "execucao_0001", tipo = tipo, titulo = "Peso dos peixes",
+      incluir_word = TRUE, estado_dependencia = "Atualizada",
+      parametros = if (anova) list(resposta = "peso_kg", fator = "local",
+        nivel_confianca = .95, ajuste_comparacoes = "tukey", tema = "minimal",
+        titulo_grafico = "", rotulo_x = "Local", rotulo_y = "Peso (kg)")
+      else list(resposta = "peso_kg", grupo = "local", alternativa = "two.sided",
+        nivel_confianca = .95, variancias_iguais = FALSE,
+        rotulo_x = "Local", rotulo_y = "Peso (kg)", titulo_grafico = ""),
+      saidas_word = if (anova) c("narrativa", "descritivos", "tabela", "comparacoes",
+        "grafico", "pressupostos", "diagnosticos") else c("narrativa", "tabela",
+        "grafico", "pressupostos"),
+      base_id = if (anova) "base_0001" else "dados_analise",
+      base_objeto = if (anova) "base_pesos" else "dados_analise",
+      base_tipo = if (anova) "derivada" else "compartilhada")
     manifesto <- comunicacao_manifesto(comunicacao_estado_vazio(), list(execucao_0001 = e),
       list(execucao_0001 = "Atualizada"))
     destino <- tempfile("csv_datas_"); dir.create(destino)
@@ -133,49 +139,48 @@ for (caso in casos) {
       manifesto = manifesto, revisao_origem = 1L, import_info = info, templates_dir = "templates")
     utils::unzip(zip_saida, exdir = destino)
     projeto <- file.path(destino, "coletas")
-    auxiliares <- readLines(file.path(projeto, "R/funcoes.R"), encoding = "UTF-8")
-    stopifnot(!any(grepl("^converter_datas? <- function", auxiliares)))
-    for (script in c(TRUE, FALSE)) {
-      arquivo <- if (script) "R/analise.R" else "relatorios/relatorio.qmd"
-      linhas <- readLines(file.path(projeto, arquivo), encoding = "UTF-8")
-      stopifnot(!any(grepl("^converter_datas? <- function", linhas)))
-      if (script) {
-        # O script reconstrói a base e deve usar a conversão canônica.
-        stopifnot(any(grepl("catalyser::converter_datas(", linhas, fixed = TRUE)))
-      }
-      env <- new.env(parent = globalenv())
-      env$here <- function(...) file.path(projeto, ...)
-      sys.source(file.path(projeto, "R/funcoes.R"), envir = env)
-      if (script) {
-        invisible(capture.output(eval(parse(text = extrair(linhas, "importar", TRUE)), env)))
-        invisible(capture.output(eval(parse(text = extrair(linhas, "tratar", TRUE)), env)))
-      } else {
-        # O relatório adota a fotografia preparada, sem refazer a importação.
-        # RDS preserva Date; a igualdade abaixo confere valores e classes.
-        carregar <- extrair(linhas, if (anova) "carregar-bases" else "carregar-compartilhada", FALSE)
-        stopifnot(any(grepl("readRDS(", carregar, fixed = TRUE)))
-        invisible(capture.output(eval(parse(text = carregar), env)))
-      }
-      obtida <- if (anova && !script) env$dados else if (anova) env$base_compartilhada else env$dados_analise
-      referencia <- if (anova && !script) caches$base_0001$df else compartilhada
-      stopifnot(isTRUE(all.equal(obtida, referencia, check.attributes = FALSE)),
-        all(vapply(obtida[datas], inherits, logical(1), "Date")),
-        all(vapply(datas, function(coluna) iguais(obtida[[coluna]], referencia[[coluna]]), logical(1))))
-      if (anova) {
-        invisible(capture.output(eval(parse(text = extrair(linhas,
-          if (script) "preparar-analise" else "preparo", script)), env)))
-      } else {
-        raiz <- unname(exportacao_raizes_chunk(manifesto$execucoes)[[1]])
-        bloco <- extrair(linhas, if (script) paste0(raiz, "-base") else raiz, script)
-        if (!script) bloco <- head(bloco, grep("^dados_da_analise <-", bloco)[1])
-        invisible(capture.output(eval(parse(text = bloco), env)))
-      }
-      ramo <- if (anova) env$dados else env$dados_da_analise
-      stopifnot(nrow(ramo) == 5, all(vapply(ramo[datas], inherits, logical(1), "Date")))
+    # A árvore do molde: o relatório sincronizado legado saiu; entraram os
+    # dois QMDs que executam o script. As funções de preparo (moda e
+    # converter_datas) moram uma única vez no funcoes.R, e o script usa a
+    # conversão canônica sem redefini-la.
+    stopifnot(!file.exists(file.path(projeto, "relatorios", "relatorio.qmd")))
+    auxiliares <- readLines(file.path(projeto, "R", "funcoes.R"), encoding = "UTF-8")
+    stopifnot(sum(grepl("^converter_datas <- function", auxiliares)) == 1L,
+      sum(grepl("^moda <- function", auxiliares)) == 1L)
+    script <- file.path(projeto, "R", "analise.R")
+    linhas <- readLines(script, encoding = "UTF-8")
+    stopifnot(!any(grepl("^converter_datas? <- function", linhas)),
+      any(grepl("converter_datas(", linhas, fixed = TRUE)),
+      !any(grepl("{{", linhas, fixed = TRUE)),
+      !any(grepl("^## ---- ", linhas)))
+    for (documento in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
+      qmd <- readLines(file.path(projeto, "relatorios", documento), encoding = "UTF-8")
+      stopifnot(any(grepl('source(here::here("R", "analise.R"), encoding = "UTF-8")', qmd, fixed = TRUE)),
+        !any(grepl("read.csv|readRDS", qmd)))
+    }
+    # O script inteiro roda de uma vez, como no Render. O here::i_am() procura
+    # a raiz a partir da pasta de trabalho; executar com o projeto aberto
+    # reproduz o aluno. As fotografias RDS preservam as datas; o Excel é a
+    # entrega para uso fora do R.
+    env <- new.env(parent = globalenv())
+    withr::with_dir(projeto, invisible(capture.output(sys.source(script, envir = env))))
+    referencia <- if (anova) caches$base_0001$df else compartilhada
+    obtida <- if (anova) env$dados_da_analise else env$dados_analise
+    stopifnot(isTRUE(all.equal(env$dados_analise, compartilhada, check.attributes = FALSE)),
+      isTRUE(all.equal(obtida, referencia, check.attributes = FALSE)),
+      all(vapply(obtida[datas], inherits, logical(1), "Date")),
+      all(vapply(datas, function(coluna) iguais(obtida[[coluna]], referencia[[coluna]]), logical(1))))
+    fotografia <- readRDS(file.path(projeto, "dados/processados/base_compartilhada.rds"))
+    stopifnot(isTRUE(all.equal(fotografia, compartilhada, check.attributes = FALSE)),
+      all(vapply(fotografia[datas], inherits, logical(1), "Date")))
+    if (anova) {
+      foto_ramo <- readRDS(file.path(projeto, "dados/processados/base_0001.rds"))
+      stopifnot(isTRUE(all.equal(foto_ramo, caches$base_0001$df, check.attributes = FALSE)),
+        all(vapply(foto_ramo[datas], inherits, logical(1), "Date")))
     }
     baixada <- as.data.frame(readxl::read_excel(file.path(projeto, "dados/processados/base_compartilhada.xlsx")))
     for (coluna in datas) stopifnot(iguais(preparo_converter_data(baixada[[coluna]]), esperadas))
   }
-  cat("PASSOU:", caso$nome, "— leitura, compartilhada, derivada, Excel e preparo dos projetos geral e ANOVA.\n")
+  cat("PASSOU:", caso$nome, "— leitura, compartilhada, derivada, fotografias RDS, Excel e script completo dos projetos teste t e ANOVA.\n")
 }
-cat("CONCLUIDO: revisão CSV e datas.\n")
+cat("CONCLUIDO: revisão CSV e datas no molde.\n")

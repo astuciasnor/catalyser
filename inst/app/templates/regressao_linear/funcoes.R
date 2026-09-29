@@ -8,7 +8,7 @@
 #      source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 #
 #  Seções deste arquivo (Ctrl+Shift+O no RStudio mostra o sumário):
-#    1. Conferência e preparo ..... conferir_base(), moda(), converter_datas()
+#    1. Preparo .................... moda(), converter_datas()
 #    2. Apresentação .............. fmt(), formatar_p(), tema_projeto(),
 #                                  flextable_ocean()
 #
@@ -19,94 +19,7 @@
 
 
 
-# 1. Conferência e preparo ----------------------------------------------------
-
-# conferir_base() ---------------------------------------------------------
-#
-# O que faz: compara a base reconstruída pelo script com a fotografia que
-#            acompanha o projeto (dados/processados/base_compartilhada.rds).
-#            Se algo divergir, avisa no console com a mensagem de ATENÇÃO,
-#            mas NÃO interrompe a análise: quem decide o que fazer é você.
-#
-# Argumentos:
-#   reconstruida        - a base que o script acabou de montar (data.frame)
-#   caminho_fotografia  - caminho do arquivo .rds exportado
-#   rotulo              - nome que aparece nas mensagens
-#
-# Retorna: TRUE quando as bases são equivalentes, FALSE caso contrário
-#          (invisível nos dois casos). Nunca interrompe o script.
-#
-# A comparação é tolerante ao que a ida e volta pelo Excel muda sem alterar o
-# significado (um inteiro que volta como decimal, por exemplo) e intolerante
-# ao que importa: número de linhas, nomes de colunas e valores.
-#
-conferir_base <- function(reconstruida, caminho_fotografia,
-                          rotulo = "base compartilhada") {
-
-  # Sem fotografia não há o que comparar: avisa e segue adiante.
-  if (!file.exists(caminho_fotografia)) {
-    cat(sprintf("[%s] Fotografia ausente em '%s'; conferência não realizada.\n",
-                rotulo, caminho_fotografia))
-    return(invisible(FALSE))
-  }
-
-  # A fotografia viaja como .rds; as duas entram como data.frame para a
-  # comparação valer para qualquer tabela vinda do R.
-  fotografia <- as.data.frame(readRDS(caminho_fotografia))
-  reconstruida <- as.data.frame(reconstruida)
-
-  # Cada diferença encontrada entra nesta lista; no fim, a lista decide a mensagem.
-  divergencias <- character()
-
-  # Dimensões: o número de linhas precisa bater exatamente.
-  if (!identical(nrow(reconstruida), nrow(fotografia))) {
-    divergencias <- c(divergencias, sprintf(
-      "número de linhas (reconstruída: %d; fotografia: %d)",
-      nrow(reconstruida), nrow(fotografia)
-    ))
-  }
-
-  # Colunas: nenhuma pode faltar nem sobrar.
-  faltando <- setdiff(names(fotografia), names(reconstruida))
-  sobrando <- setdiff(names(reconstruida), names(fotografia))
-  if (length(faltando))
-    divergencias <- c(divergencias, paste("colunas ausentes:", paste(faltando, collapse = ", ")))
-  if (length(sobrando))
-    divergencias <- c(divergencias, paste("colunas a mais:", paste(sobrando, collapse = ", ")))
-
-  # Valores: compara coluna a coluna, respeitando o tipo de cada uma.
-  # Números são comparados com uma pequena tolerância (1e-8), porque um
-  # inteiro pode voltar como decimal sem mudar de significado.
-  comuns <- intersect(names(fotografia), names(reconstruida))
-  if (identical(nrow(reconstruida), nrow(fotografia))) {
-    for (coluna in comuns) {
-      a <- reconstruida[[coluna]]
-      b <- fotografia[[coluna]]
-      igual <- if (is.numeric(a) && is.numeric(b)) {
-        isTRUE(all.equal(as.numeric(a), as.numeric(b), tolerance = 1e-8))
-      } else {
-        isTRUE(all.equal(as.character(a), as.character(b)))
-      }
-      if (!igual) divergencias <- c(divergencias, sprintf("valores da coluna '%s'", coluna))
-    }
-  }
-
-  # Nenhuma divergência: o preparo reproduziu a fotografia.
-  if (!length(divergencias)) {
-    cat(sprintf(
-      "[%s] Reconstruída a partir da planilha e idêntica à fotografia: %d linhas e %d colunas.\n",
-      rotulo, nrow(reconstruida), ncol(reconstruida)
-    ))
-    return(invisible(TRUE))
-  }
-
-  # Com divergência, o aviso explica o que mudou e aponta a referência.
-  cat(sprintf("[%s] ATENÇÃO — a reconstrução divergiu da fotografia em: %s.\n",
-              rotulo, paste(divergencias, collapse = "; ")))
-  cat(sprintf("[%s] Use a fotografia ('%s') como referência e reveja o preparo.\n",
-              rotulo, caminho_fotografia))
-  invisible(FALSE)
-}
+# 1. Preparo ---------------------------------------------------------------
 
 # moda() ------------------------------------------------------------------
 #

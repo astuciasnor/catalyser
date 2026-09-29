@@ -32,7 +32,7 @@ mod_anova_dois_fatores_ui <- function(id) {
       ),
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel da ANOVA fatorial",
+        title = "Painel da ANOVA fatorial:",
         nav_panel(
           title = "Resultado principal", icon = icon("square-poll-vertical"),
           card_body(uiOutput(ns("principal_ui")))

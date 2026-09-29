@@ -51,7 +51,7 @@ mod_contingency_ui <- function(id) {
       # COLUNA 2: ABAS DE RESULTADOS
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Tabela Cruzada & Associação",
+        title = "Tabela Cruzada & Associação:",
         nav_panel(
           title = "Tabela de Contingência",
           icon = icon("table"),

@@ -1831,6 +1831,10 @@ exportacao_molde_importar <- function(import_info = list()) {
   linhas[!grepl("^# Lê a planilha como ela veio", linhas)]
 }
 
+# Seção 3 do molde, etapas 3.1 e 3.2: reconstrói o preparo a partir da
+# planilha bruta e confere o resultado contra a fotografia que acompanha o
+# projeto. Um objeto por etapa: base_reconstruida (a receita) e, na etapa
+# 3.3, a base adotada, lida uma única vez de cada RDS.
 exportacao_molde_tratar <- function(pipeline, base_externa = NULL,
                                     import_info = list()) {
   linhas <- exportacao_preparo_sem_numeracao(exportacao_sem_marcador(
@@ -1842,42 +1846,138 @@ exportacao_molde_tratar <- function(pipeline, base_externa = NULL,
       grepl("^# ordem lógica registrada", linhas[inicio[1] + 2L])) {
     linhas <- linhas[-(inicio[1]:(inicio[1] + 2L))]
   }
-  linhas
-}
-
-# Bibliotecas da leitura e do preparo, para a seção 1 do roteiro. O template
-# carrega here() e declara o caminho; funcoes.R é carregado logo adiante,
-# uma única vez. Todos os pacotes abaixo vêm do CRAN; o README traz a linha
-# de instalação completa do projeto.
-exportacao_molde_bloco_bibliotecas <- function() {
+  corte <- grep("^# Conferência", linhas)
+  if (length(corte) != 1L) stop("Não localizei a conferência no trecho tratar.", call. = FALSE)
+  cadeia <- linhas[seq_len(corte[1] - 1L)]
+  cadeia <- cadeia[nzchar(trimws(cadeia))]
+  # A régua que abria o bloco legado de conferência fica fora da etapa 3.1.
+  cadeia <- cadeia[!grepl("^# -+$", cadeia)]
+  # As bibliotecas que o bloco estrutural coleta são carregadas na seção 1.
+  cadeia <- cadeia[!grepl("^library\\((dplyr|tidyr)\\)$", trimws(cadeia))]
+  # O encadeamento termina em "dados_analise <- dados_brutos" (sem preparo
+  # adicional) ou em "... |>" (com os passos da receita).
+  sem_preparo <- !any(grepl("\\|>$", cadeia))
+  usa_base_resolvida <- any(grepl("base_resolvida", cadeia))
+  cadeia <- sub("^dados_analise <- ", "base_reconstruida <- ", cadeia)
+  cadeia <- sub("^# Parte de .*$", "", cadeia)
+  cadeia <- cadeia[nzchar(cadeia)]
   c(
-    "# Bibliotecas da leitura e do preparo. Todas vêm do CRAN.",
-    "library(readxl)",
-    "library(dplyr)",
-    "library(tidyr)",
-    "library(lubridate)",
-    "library(ggplot2)",
-    "library(car)",
-    "library(multcompView)",
-    "library(effectsize)"
+    "",
+    "# 3.1 Reconstruir. A receita registrada, aplicada à planilha bruta: cada",
+    if (usa_base_resolvida) "# operação é uma linha do encadeamento, lida de cima para baixo. (A base" else
+      "# operação é uma linha do encadeamento, lida de cima para baixo.",
+    if (usa_base_resolvida) "# já vem da fotografia estrutural salva pela CatalyseR.)" else if (sem_preparo)
+      "# (Sem preparo adicional, a receita é a própria planilha.)" else NULL,
+    cadeia,
+    "",
+    "# 3.2 Conferir. O projeto traz uma fotografia da base preparada em",
+    "# dados/processados/. catalyser_conferir_base() compara a receita com ela",
+    "# e avisa se algo divergir; a análise segue com a fotografia em qualquer",
+    "# caso.",
+    "# O QUE CONFERIR: a mensagem deve dizer que as duas bases são idênticas.",
+    "catalyser_conferir_base(",
+    "  base_reconstruida,",
+    '  here("dados", "processados", "base_compartilhada.rds"),',
+    '  rotulo = "Base Compartilhada"',
+    ")"
   )
 }
 
-# O projeto exportado só usa pacotes do CRAN. As chamadas que a rota legada
-# escreve com o pacote local são reescritas aqui para as funções equivalentes
-# de R/funcoes.R (conferir_base, moda, converter_datas), antes de o script
-# ser gravado no projeto. A rota legada continua intacta.
+# Etapa 3.3: adota a fotografia como base da análise. A única leitura do RDS
+# da Base Compartilhada no roteiro; o ramo da etapa 3.4 repete o padrão.
+exportacao_molde_adotar <- function() {
+  c(
+    "# 3.3 Adotar. A análise parte da fotografia, que preserva os tipos das",
+    "# colunas e impede que uma mudança silenciosa no preparo entre no Render.",
+    "# Para adotar a sua receita, confira-a acima e grave-a na fotografia:",
+    '# saveRDS(base_reconstruida, here("dados", "processados", "base_compartilhada.rds"))',
+    'dados_analise <- readRDS(here("dados", "processados", "base_compartilhada.rds"))'
+  )
+}
+
+# Etapa 3.4: a base desta análise. Base compartilhada pura vira um apelido;
+# um ramo derivado ganha receita, conferência e adoção próprias — a mesma
+# garantia da etapa 3.2, agora para a fotografia do ramo.
+exportacao_molde_base_analise <- function(item, raiz, registro_bases) {
+  base <- bases_obter(registro_bases, item$base_id)
+  if (identical(item$base_tipo, "derivada") && !is.null(base)) {
+    receita <- strsplit(
+      bases_codigo(base, incluir_print = FALSE), "\n", fixed = TRUE
+    )[[1]]
+    receita <- exportacao_encadear_preparo(receita, entrada = "dados_analise", saida = base$nome_r)
+    receita <- gsub("trat_moda(", "catalyser::catalyser_moda(", receita, fixed = TRUE)
+    receita <- receita[!grepl("^library\\((dplyr|tidyr)\\)$", trimws(receita))]
+    arquivo <- exportacao_rds_base(item)
+    rotulo <- trimws(base$nome_amigavel %||% "")
+    if (!nzchar(rotulo)) rotulo <- base$nome_r
+    return(c(
+      "# 3.4 Base desta análise. A análise parte de um ramo da Base",
+      "# Compartilhada: a receita abaixo reconstrói o ramo e a conferência",
+      "# repete a garantia da etapa 3.2 para a fotografia do próprio ramo.",
+      receita,
+      "# Confere o ramo reconstruído contra a fotografia antes de adotá-lo.",
+      "catalyser_conferir_base(",
+      sprintf("  %s,", base$nome_r),
+      sprintf('  here("dados", "processados", "%s"),', arquivo),
+      sprintf('  rotulo = "%s"', rotulo),
+      ")",
+      "# Para adotar uma mudança na receita do ramo, confira-a e grave a fotografia:",
+      sprintf('# saveRDS(%s, here("dados", "processados", "%s"))', base$nome_r, arquivo),
+      sprintf('dados_da_analise <- readRDS(here("dados", "processados", "%s"))', arquivo)
+    ))
+  }
+  c(
+    "# 3.4 Base desta análise. Aqui ela é a própria Base Compartilhada; quando",
+    "# a análise parte de um ramo, esta etapa recebe a receita do ramo.",
+    "dados_da_analise <- dados_analise"
+  )
+}
+
+# Bibliotecas da seção 1, derivadas do uso real: o núcleo que os roteiros
+# usam sem qualificar (leitura, manipulação e figuras) mais tudo o que o
+# escâner encontra no script e em R/funcoes.R. O que o template já declara
+# (here, os pacotes fixos de cada análise e os dois pacotes do GitHub, com
+# aviso de instalação) não se repete; cada pacote sai uma única vez.
+exportacao_molde_bloco_bibliotecas <- function(pacotes, declaradas = character()) {
+  nucleo <- c("readxl", "dplyr", "ggplot2")
+  lista <- sort(setdiff(unique(c(nucleo, pacotes)),
+                        c(declaradas, "catalyser", "EAPADados", "remotes")))
+  c(
+    "# Bibliotecas da leitura, do preparo e dos gráficos: só o que este",
+    "# projeto usa. O README traz a linha de instalação completa.",
+    paste0("library(", lista, ")")
+  )
+}
+
+# Pacotes que o template declara fora do bloco derivado: as chamadas
+# library() da seção 1 do próprio template, para não saírem duas vezes.
+exportacao_molde_pacotes_declarados <- function(modelo) {
+  codigo <- sub("#.*$", "", modelo)
+  texto <- paste(codigo, collapse = "\n")
+  achados <- unlist(regmatches(texto,
+    gregexpr("library\\(\\s*[\"']?([A-Za-z][A-Za-z0-9.]*)", texto, perl = TRUE)),
+    use.names = FALSE)
+  sub("^library\\(\\s*[\"']?", "", achados)
+}
+
+# A conferência fica no pacote catalyser (catalyser_conferir_base), como na
+# IDE; as demais chamadas que a rota legada escreve com o pacote local são
+# reescritas aqui para as funções equivalentes de R/funcoes.R (moda,
+# converter_datas), antes de o script ser gravado no projeto. A rota legada
+# continua intacta.
 exportacao_sanitizar_molde <- function(linhas) {
-  linhas <- gsub("catalyser_conferir_base\\s*\\(", "conferir_base(", linhas)
-  linhas <- gsub("catalyser::catalyser_moda\\s*\\(", "moda(", linhas)
-  linhas <- gsub("catalyser::converter_datas\\s*\\(", "converter_datas(", linhas)
-  linhas <- gsub("trat_moda\\s*\\(", "moda(", linhas)
-  linhas <- gsub("\\bconverter_data\\s*\\(", "converter_datas(", linhas)
+  # O comentário de datas vem antes das trocas de código: ele também contém
+  # "catalyser::converter_datas(", que a troca seguinte reescreveria primeiro,
+  # impedindo a substituição do comentário inteiro.
   linhas <- gsub(
     "# Datas: use catalyser::converter_datas\\(\\); ajuda em \\?catalyser::converter_datas\\.",
     "# Datas: use converter_datas(), definida em R/funcoes.R.",
     linhas
   )
+  linhas <- gsub("catalyser::catalyser_moda\\s*\\(", "moda(", linhas)
+  linhas <- gsub("catalyser::converter_datas\\s*\\(", "converter_datas(", linhas)
+  linhas <- gsub("trat_moda\\s*\\(", "moda(", linhas)
+  linhas <- gsub("\\bconverter_data\\s*\\(", "converter_datas(", linhas)
   # Comentários dos trechos compartilhados que citam a IDE: o molde os
   # reaproveita com texto neutro; o exportador legado mantém o original.
   trocas <- c(
@@ -1896,10 +1996,10 @@ exportacao_sanitizar_molde <- function(linhas) {
   linhas
 }
 
-# Os dois prefixos do molde devolvem três blocos, que o gerador único encaixa
-# nos marcadores do template: bibliotecas (seção 1), leitura da planilha
-# (seção 2) e preparo com a adoção da base desta análise (seção 3). Assim o
-# roteiro exportado tem UMA numeração contínua, como o EAPACaderno.
+# Os dois prefixos do molde devolvem dois blocos, que o gerador único encaixa
+# nos marcadores do template: a leitura da planilha (seção 2) e o preparo com
+# a conferência e a adoção da base desta análise (seção 3, etapas 3.1 a 3.4).
+# A seção 1 é montada depois, a partir dos pacotes que esses blocos usam.
 
 # A regressão reaproveita os trechos homologados do exportador geral, sem o
 # cabeçalho nem a instalação, que pertencem ao template e ao README.
@@ -1911,24 +2011,19 @@ exportacao_regressao_projeto_prefixo <- function(manifesto, nome_projeto,
   raizes <- exportacao_raizes_chunk(manifesto$execucoes)
   raiz <- unname(raizes[[item$id]])
   list(
-    bibliotecas = exportacao_molde_bloco_bibliotecas(),
     importar = exportacao_molde_importar(import_info),
     preparo = c(
       exportacao_molde_tratar(pipeline, base_externa, import_info),
-      exportacao_sem_marcador(exportacao_trecho_carregar_base()),
       "",
-      "# ========================================================================",
-      paste0("# REGRESSÃO LINEAR SIMPLES — ", item$titulo),
-      "# ========================================================================",
+      exportacao_molde_adotar(),
       "",
-      exportacao_sem_marcador(exportacao_trecho_base(item, raiz, registro_bases)),
-      exportacao_sem_marcador(exportacao_trecho_carregar_base(item, raiz))
+      exportacao_molde_base_analise(item, raiz, registro_bases)
     )
   )
 }
 
-# ANOVA e teste t montam os mesmos três blocos peça por peça, com o banner da
-# análise separando o preparo (comum a todas) da adoção da base desta análise.
+# ANOVA e teste t montam os mesmos dois blocos; as etapas 3.1 a 3.3 são as
+# mesmas para toda análise, e só a 3.4 depende da base desta análise.
 exportacao_molde_projeto_prefixo_preparo <- function(manifesto, nome_projeto, banner,
                                                      registro_bases = list(),
                                                      pipeline = list(), base_externa = NULL,
@@ -1937,18 +2032,13 @@ exportacao_molde_projeto_prefixo_preparo <- function(manifesto, nome_projeto, ba
   raizes <- exportacao_raizes_chunk(manifesto$execucoes)
   raiz <- unname(raizes[[item$id]])
   list(
-    bibliotecas = exportacao_molde_bloco_bibliotecas(),
     importar = exportacao_molde_importar(import_info),
     preparo = c(
       exportacao_molde_tratar(pipeline, base_externa, import_info),
-      exportacao_sem_marcador(exportacao_trecho_carregar_base()),
       "",
-      "# ========================================================================",
-      paste0(banner, item$titulo),
-      "# ========================================================================",
+      exportacao_molde_adotar(),
       "",
-      exportacao_sem_marcador(exportacao_trecho_base(item, raiz, registro_bases)),
-      exportacao_sem_marcador(exportacao_trecho_carregar_base(item, raiz))
+      exportacao_molde_base_analise(item, raiz, registro_bases)
     )
   )
 }
@@ -1972,12 +2062,27 @@ exportacao_molde_projeto_script <- function(entrada, manifesto, nome_projeto,
   )
   blocos <- entrada$prefixo(manifesto, nome_projeto, registro_bases, pipeline,
                             base_externa, import_info, templates_dir)
-  exportacao_sanitizar_molde(exportacao_preencher_template(modelo, c(
+  declaradas <- exportacao_molde_pacotes_declarados(modelo)
+  # Duas passadas: o corpo nasce com um sentinela no lugar das bibliotecas;
+  # o escâner lê o corpo pronto (e R/funcoes.R) e a seção 1 recebe library()
+  # só para o que o projeto usa.
+  sentinela <- "BIBLIOTECAS_PREPARO_PENDENTES"
+  corpo <- exportacao_sanitizar_molde(exportacao_preencher_template(modelo, c(
     entrada$marcadores_script(item),
-    list(BIBLIOTECAS_PREPARO = blocos$bibliotecas,
+    list(BIBLIOTECAS_PREPARO = sentinela,
          TRECHO_IMPORTAR = blocos$importar,
          TRECHO_PREPARO = blocos$preparo)
   )))
+  funcoes <- readLines(
+    file.path(templates_dir, entrada$apoio %||% "regressao_linear", "funcoes.R"),
+    encoding = "UTF-8", warn = FALSE
+  )
+  pacotes <- exportacao_molde_pacotes(c(corpo, funcoes))
+  bloco <- exportacao_molde_bloco_bibliotecas(pacotes, declaradas)
+  posicao <- which(corpo == sentinela)
+  if (length(posicao) != 1L) stop("Sentinela das bibliotecas não localizada.", call. = FALSE)
+  posicao <- posicao[1]
+  c(corpo[seq_len(posicao - 1L)], bloco, corpo[seq.int(posicao + 1L, length(corpo))])
 }
 
 exportacao_molde_projeto_qmd <- function(entrada, arquivo, manifesto, titulo_projeto,
@@ -3217,11 +3322,17 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
     # A lista exata de pacotes do projeto (script + funções) alimenta o
     # install.packages() do README, para bater com o que o Render vai usar.
+    # catalyser e EAPADados ficam de fora: são instalados do GitHub, nas
+    # linhas seguintes do README, com remotes.
     funcoes_molde <- file.path(templates_dir, molde$apoio %||% "regressao_linear", "funcoes.R")
-    pacotes_projeto <- exportacao_molde_pacotes(c(
-      linhas_script,
-      readLines(funcoes_molde, encoding = "UTF-8", warn = FALSE)
-    ))
+    pacotes_projeto <- setdiff(
+      exportacao_molde_pacotes(c(
+        linhas_script,
+        readLines(funcoes_molde, encoding = "UTF-8", warn = FALSE)
+      )),
+      c("catalyser", "EAPADados", "remotes")
+    )
+    pacotes_projeto <- sort(c(pacotes_projeto, "remotes"))
   } else {
     caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
     writeLines(

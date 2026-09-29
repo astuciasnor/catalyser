@@ -63,7 +63,7 @@ mod_hca_ui <- function(id) {
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel de Resultados da AAH",
+        title = "Painel de Resultados da AAH:",
         nav_panel(
           title = "Dendrograma",
           icon = icon("diagram-project"),

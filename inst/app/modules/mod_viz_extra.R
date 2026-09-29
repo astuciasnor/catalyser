@@ -122,7 +122,7 @@ mod_scatter_ui <- function(id) {
       ),
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico de Dispersão",
+        title = "Gráfico de Dispersão:",
         nav_panel(
           title = "Visualização", icon = icon("ellipsis"),
           card_body(style = "padding: 15px;", plotOutput(ns("plot"), height = "450px"))
@@ -253,7 +253,7 @@ mod_lines_ui <- function(id) {
       ),
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico de Linhas",
+        title = "Gráfico de Linhas:",
         nav_panel(
           title = "Visualização", icon = icon("chart-line"),
           card_body(
@@ -476,7 +476,7 @@ mod_bar_ui <- function(id) {
       ),
       navset_card_tab(
         id = ns("active_tab"),
-        title = "Gráfico de Barras",
+        title = "Gráfico de Barras:",
         nav_panel(
           title = "Visualização", icon = icon("chart-column"),
           card_body(style = "padding: 15px;", plotOutput(ns("plot"), height = "450px"))

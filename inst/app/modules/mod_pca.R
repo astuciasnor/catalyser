@@ -26,15 +26,10 @@ opcoes_elipse_pca <- c(
 mod_pca_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    # Cabeçalho do painel em duas linhas: o título fica sozinho na primeira e
-    # as oito abas, compactas e com quebra de linha, na segunda.
+    # O cabeçalho em duas linhas (título na 1ª, abas inteiras na 2ª, vão de
+    # 4px) vem da regra global do app.R para .bslib-navs-card-title; aqui fica
+    # só a compactação das oito abas da PCA.
     tags$style(HTML("
-      .pca-painel .bslib-navs-card-title {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 2px !important;
-        padding: 8px 12px 4px !important;
-      }
       .pca-painel .bslib-navs-card-title > span {
         font-family: 'Outfit', sans-serif;
         font-weight: 700;
@@ -104,7 +99,7 @@ mod_pca_ui <- function(id) {
         class = "pca-painel",
         navset_card_tab(
           id = ns("active_tab"),
-          title = "Painel de Resultados da PCA",
+          title = "Painel de Resultados da PCA:",
         nav_panel(
           title = "Correlações",
           icon = icon("table-cells"),

@@ -76,7 +76,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
-        title = "Painel de Resultados",
+        title = "Painel de Resultados:",
         nav_panel(
           title = "Tabela de Resultados",
           icon = icon("table"),
