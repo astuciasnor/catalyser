@@ -98,8 +98,11 @@ confiança complementar não prova o pressuposto, apenas não dá evidência par
 rejeitá-lo.
 
 O tamanho do efeito é o **d de Cohen**, calculado com o desvio padrão combinado,
-com rótulos de referência (pequeno, médio, grande). A significância diz que a
-diferença existe; o d diz o quanto ela importa.
+acompanhado do seu intervalo de confiança (pacote `effectsize`) e de rótulos de
+referência (pequeno, médio, grande). A significância diz que a diferença
+existe; o d diz o quanto ela importa. Quando o teste não encontra evidência de
+diferença e o poder estatístico é baixo (pacote `pwr`), os relatórios
+acrescentam uma ressalva: ausência de evidência não é evidência de ausência.
 
 ## Como escrever e adaptar
 

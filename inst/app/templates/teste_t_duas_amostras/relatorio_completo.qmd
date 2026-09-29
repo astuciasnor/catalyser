@@ -3,6 +3,8 @@ title: "{{TITULO}}"
 subtitle: "Caderno completo · da base preparada à interpretação do teste t"
 author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
 date: today
+bibliography: referencias.bib
+csl: apa.csl
 format:
   html:
     theme: [cosmo, ocean.scss]
@@ -69,7 +71,8 @@ Compararam-se as médias dos dois grupos por teste t para amostras independentes
 com intervalo de confiança de `r ic_percentual`%. A normalidade dentro de cada
 grupo foi examinada por Shapiro-Wilk e a igualdade de variâncias pelo teste de
 Levene. Quando as variâncias são compatíveis, usa-se o t de Student; caso
-contrário, o t de Welch. O tamanho do efeito é medido pelo d de Cohen.
+contrário, o t de Welch. O tamanho do efeito é medido pelo d de Cohen,
+acompanhado do seu intervalo de confiança.
 
 # Exploração: conhecer os grupos antes do teste
 
@@ -91,7 +94,9 @@ grafico_caixa
 
 O teste t clássico pede normalidade dentro de cada grupo e variâncias parecidas
 entre eles. A @tbl-pressupostos reúne os testes formais, e as frases abaixo
-leem cada resultado com honestidade.
+leem cada resultado com honestidade. Os testes formais complementam, sem
+substituir, a inspeção visual da distribuição dos grupos [@kozak2018], como a
+feita na @fig-caixa.
 
 `r texto_pressupostos`
 
@@ -133,8 +138,10 @@ escritas conforme o resultado real de cada teste.
 
 # Resultados: o que o teste t responde?
 
-A @tbl-teste reúne o resultado do teste e a @fig-medias apresenta as médias
-com seus intervalos de confiança.
+A @tbl-teste reúne o resultado do teste. A @fig-medias, no mesmo espírito de
+transparência, mostra cada observação como ponto, em vez de resumir os grupos
+em barras [@weissgerber2015]: o losango é a média do grupo e a haste é o seu
+intervalo de confiança.
 
 `r texto_resultado`
 
@@ -142,13 +149,13 @@ com seus intervalos de confiança.
 
 ```{r}
 #| label: tbl-teste
-#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p e tamanho do efeito."
+#| tbl-cap: "Resultado do teste t: método, diferença de médias, intervalo de confiança, t, graus de liberdade, p-valor, tamanho do efeito (d de Cohen) e seu intervalo de confiança."
 flextable_ocean(tabela_teste)
 ```
 
 ```{r}
 #| label: fig-medias
-#| fig-cap: "Média de cada grupo com intervalo de confiança de 95% da média."
+#| fig-cap: "Cada ponto é uma observação; o losango é a média do grupo e a haste é o intervalo de confiança de 95% da média."
 grafico_medias
 ```
 
@@ -157,6 +164,8 @@ grafico_medias
 {{DISCUSSAO}}
 
 `r alerta_modelo`
+
+`r alerta_poder`
 
 # Conclusão
 

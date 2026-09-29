@@ -19,10 +19,13 @@
 # dados                      base com a resposta e o grupo (fator de dois níveis)
 # teste_t                    resultado do t.test escolhido conforme as variâncias
 # d_cohen                    tamanho do efeito (referência estatística)
+# d_ic                       intervalo de confiança do d de Cohen
 # tabela_descritiva_exibir   resumo por grupo, formatado
 # tabela_teste               método, diferença, IC, t, gl, p e d, formatados
 # grafico_caixa              boxplot com os pontos de cada observação
+# grafico_medias             pontos, média (losango) e IC de cada grupo
 # texto_resultado            frase com o resultado do teste
+# alerta_poder               ressalva quando não há evidência e o poder é baixo
 #
 # Cada QMD executa este script numa sessão nova e usa os objetos em memória.
 # Os CSVs e PNGs salvos são cópias para consulta; não alimentam os QMDs.
@@ -38,10 +41,14 @@ here::i_am("R/analise.R")
 {{BIBLIOTECAS_PREPARO}}
 library(stringr)    # str_glue monta as frases dos relatórios
 # Dois pacotes do ecossistema EAPA, hospedados no GitHub (não estão no CRAN).
-# EAPADados: dados de contexto da pesca e da aquicultura do curso.
+# EAPADados: pacote complementar do ecossistema CatalyseR, com dados de
+# contexto da pesca e da aquicultura. Este projeto não o chama diretamente
+# (os dados vêm da planilha em dados/brutos/), mas ele é carregado por
+# compatibilidade com o ecossistema e exigido na instalação.
 if (!requireNamespace("EAPADados", quietly = TRUE)) {
   stop(
-    "Este projeto usa o pacote EAPADados, que não está instalado.",
+    "Este projeto faz parte do ecossistema CatalyseR e pede o pacote ",
+    "complementar EAPADados para compatibilidade, mas ele não está instalado.",
     " Instale uma vez, no console: remotes::install_github('astuciasnor/EAPADados')",
     call. = FALSE
   )
@@ -199,6 +206,11 @@ classe_efeito <- dplyr::case_when(
   abs(d_cohen) < 0.8 ~ "médio",
   TRUE               ~ "grande"
 )
+# O intervalo de confiança do d vem do effectsize::cohens_d(), que usa o mesmo
+# desvio padrão combinado do cálculo manual acima. Ter o IC ao lado da
+# estimativa pontual mostra o quanto ela é precisa nesta amostra.
+efeito_d <- effectsize::cohens_d(formula_teste, data = dados, ci = nivel_confianca)
+d_ic <- c(efeito_d$CI_low[1], efeito_d$CI_high[1])
 
 # 7. Preparar as tabelas de apresentação -----------------------------------
 ic_percentual <- fmt(100 * nivel_confianca, 0)
@@ -211,7 +223,8 @@ tabela_teste <- data.frame(
     "t",
     "Graus de liberdade",
     "p-valor",
-    "d de Cohen (tamanho do efeito)"
+    "d de Cohen (tamanho do efeito)",
+    paste0("IC ", ic_percentual, "% do d de Cohen")
   ),
   Valor = c(
     metodo_teste,
@@ -220,7 +233,8 @@ tabela_teste <- data.frame(
     fmt(unname(teste_t$statistic)),
     fmt(unname(teste_t$parameter)),
     formatar_p(teste_t$p.value),
-    paste0(fmt(d_cohen), " (", classe_efeito, ")")
+    paste0(fmt(d_cohen), " (", classe_efeito, ")"),
+    paste0("[", fmt(d_ic[1]), "; ", fmt(d_ic[2]), "]")
   ),
   check.names = FALSE
 )
@@ -251,7 +265,11 @@ grafico_caixa <- ggplot2::ggplot(dados,
   tema_projeto() +
   ggplot2::theme(legend.position = "none")
 
-# 8.2 Médias por grupo em barras, com barras de erro (intervalo de confiança).
+# 8.2 Médias por grupo com as observações: cada ponto é uma observação
+# (jitter), o losango é a média do grupo e a haste fina é o intervalo de
+# confiança. Mostrar os pontos em vez de barras evita esconder a distribuição
+# por trás da média (Weissgerber et al., 2015). O eixo y não parte do zero:
+# o interesse está na distância entre as médias, não na razão com o zero.
 # qt() dá o t crítico de cada grupo a partir dos seus graus de liberdade (n - 1).
 resumo_ic <- tabela_descritiva |>
   dplyr::mutate(
@@ -259,21 +277,31 @@ resumo_ic <- tabela_descritiva |>
     ic_baixo = media - t_critico * ep,
     ic_alto = media + t_critico * ep
   )
-# geom_col desenha a barra da média (base em zero); geom_errorbar acrescenta o IC.
-# scale_y_continuous com expansão (0, 0.12) faz o eixo y começar exatamente em zero.
 grafico_medias <- ggplot2::ggplot(resumo_ic,
-  ggplot2::aes(x = .data[[nome_col_grupo]], y = media, fill = .data[[nome_col_grupo]])) +
-  ggplot2::geom_col(width = 0.6) +
-  ggplot2::geom_errorbar(ggplot2::aes(ymin = ic_baixo, ymax = ic_alto), width = 0.15, linewidth = 0.6) +
-  ggplot2::scale_fill_manual(values = cores_grupo) +
-  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
+  ggplot2::aes(x = .data[[nome_col_grupo]])) +
+  ggplot2::geom_jitter(
+    data = dados,
+    ggplot2::aes(y = .data[[variavel_resposta]], colour = .data[[variavel_grupo]]),
+    width = 0.10,
+    size = 2.2,
+    alpha = 0.7
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(ymin = ic_baixo, ymax = ic_alto),
+    width = 0.15,
+    linewidth = 0.8,
+    colour = "#0F3B5F"
+  ) +
+  ggplot2::geom_point(ggplot2::aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
+  ggplot2::scale_colour_manual(values = cores_grupo, guide = "none") +
+  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
   ggplot2::labs(
     x = rotulo_grupo,
-    y = paste0("Média de ", rotulo_resposta),
-    subtitle = paste0("Barras: média; hastes: intervalo de confiança de ", ic_percentual, "% da média")
+    y = rotulo_resposta,
+    title = if (nzchar(titulo_grafico)) titulo_grafico else NULL,
+    subtitle = paste0("Pontos: observações; losango: média; hastes: IC de ", ic_percentual, "% da média")
   ) +
-  tema_projeto() +
-  ggplot2::theme(legend.position = "none")
+  tema_projeto()
 
 # 9. Preparar os textos dos relatórios -------------------------------------
 # Qual grupo teve a maior média? Comparação direta entre os dois valores.
@@ -317,8 +345,27 @@ texto_resultado <- stringr::str_glue(
 )
 print(texto_resultado)
 
+# Quando as variâncias são diferentes, o teste escolhido é o de Welch. Mesmo
+# nesse caso o d de Cohen continua usando o desvio padrão combinado (sp) dos
+# dois grupos; a frase abaixo deixa isso explícito para o leitor. No ramo do t
+# de Student (variâncias iguais) a ressalva é dispensável, pois a igualdade de
+# variâncias já é o pressuposto do método.
+frase_dp_combinado <- dplyr::case_when(
+  # Ramo Welch: variâncias diferentes, então vale explicar o sp combinado.
+  !variancias_iguais ~ paste0(
+    "Como as variâncias dos grupos são diferentes (teste de Welch), o d de ",
+    "Cohen usa o desvio padrão combinado dos dois grupos, que pondera a ",
+    "variância de cada um pelos seus graus de liberdade. "
+  ),
+  # Ramo Student: nenhuma ressalva adicional.
+  TRUE ~ ""
+)
+
 texto_efeito <- stringr::str_glue(
-  "O tamanho do efeito foi {classe_efeito} (d de Cohen = {fmt(d_cohen)}). ",
+  "O tamanho do efeito foi {classe_efeito} ",
+  "(d de Cohen = {fmt(d_cohen)}; IC {ic_percentual}% ",
+  "[{fmt(d_ic[1])}; {fmt(d_ic[2])}]). ",
+  "{frase_dp_combinado}",
   "A significância diz que a diferença existe; o d diz o quanto ela importa. ",
   "O rótulo é uma referência estatística, não uma leitura biológica direta."
 )
@@ -347,6 +394,31 @@ alerta_modelo <- if (!normalidade_ok || !variancias_iguais) {
   "Os testes indicaram sinais de atenção nos pressupostos; considere o t de Welch e examine os gráficos antes de concluir."
 } else "Os testes não detectaram desvios nos pressupostos, mas os gráficos e o delineamento continuam necessários."
 print(alerta_modelo)
+
+# Poder do teste: a probabilidade de detectar um efeito do tamanho observado.
+# pwr.t.test() supõe grupos de mesmo tamanho — usamos o n médio por grupo —
+# e recebe o d em valor absoluto: a direção da diferença não importa aqui.
+poder_teste_t <- if (!is.na(d_cohen) && abs(d_cohen) > 0) {
+  pwr::pwr.t.test(n = mean(c(n_1, n_2)), d = abs(d_cohen), sig.level = alfa,
+                  type = "two.sample", alternative = "two.sided")$power
+} else {
+  NA_real_
+}
+# Ressalva apenas quando ela muda a leitura: teste sem evidência E poder
+# baixo. Com p < alfa o efeito já foi detectado; o poder observado, aí,
+# não acrescenta informação.
+alerta_poder <- if (teste_t$p.value >= alfa && !is.na(poder_teste_t) &&
+                    poder_teste_t < 0.80) {
+  stringr::str_glue(
+    "A ausência de evidência não deve ser lida como ausência de efeito: ",
+    "para o tamanho de efeito observado, o poder do teste foi de apenas ",
+    "{fmt(100 * poder_teste_t, 0)}%. Uma amostra maior seria necessária para ",
+    "concluir com mais segurança."
+  )
+} else {
+  ""
+}
+print(alerta_poder)
 
 # 10. Salvar cópias para consulta e compartilhamento ------------------------
 # CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
