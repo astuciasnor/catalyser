@@ -4,6 +4,8 @@ subtitle: "Modelo de relatório científico · ANOVA de um fator"
 author: "Nome do autor — instituição (preencher)"
 date: today
 date-format: long
+bibliography: referencias.bib
+csl: apa.csl
 format:
   docx:
     reference-doc: custom-reference.docx
@@ -70,11 +72,23 @@ grafico_barras
 
 `r texto_pressupostos_artigo`
 
+A @tbl-welch compara a ANOVA clássica, usada na análise, com a ANOVA de
+Welch, que não supõe variâncias iguais. É uma comparação apenas informativa:
+mostra o quanto a conclusão dependeria dessa escolha [@delacre2019].
+
+```{r}
+#| label: tbl-welch
+#| tbl-cap: "ANOVA clássica e ANOVA de Welch lado a lado. A análise usa a clássica; a comparação é apenas informativa."
+flextable_ocean(tabela_comparativa)
+```
+
 # Discussão
 
 {{DISCUSSAO}}
 
 `r alerta_modelo`
+
+`r alerta_poder`
 
 # Conclusão
 

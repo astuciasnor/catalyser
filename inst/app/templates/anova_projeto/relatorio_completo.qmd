@@ -3,6 +3,8 @@ title: "{{TITULO}}"
 subtitle: "Caderno completo · da base preparada à comparação dos grupos"
 author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
 date: today
+bibliography: referencias.bib
+csl: apa.csl
 format:
   html:
     theme: [cosmo, ocean.scss]
@@ -99,7 +101,8 @@ normais. A @fig-residuos compara os resíduos com os valores ajustados:
 faixas de alturas muito diferentes sugerem variâncias desiguais. A @fig-qq
 compara os resíduos padronizados com os quantis da normal; pontos que se
 afastam da reta indicam assimetria ou valores extremos. A @tbl-testes reúne
-os testes formais que complementam essa inspeção.
+os testes formais e a regra prática da razão de desvios-padrão que
+complementam essa inspeção.
 
 ```{r}
 #| label: fig-residuos
@@ -119,11 +122,21 @@ grafico_qq
 
 ```{r}
 #| label: tbl-testes
-#| tbl-cap: "Testes formais complementares à inspeção gráfica e ao delineamento."
+#| tbl-cap: "Testes de pressupostos e regra prática da razão de desvios-padrão, complementares à inspeção gráfica e ao delineamento."
 flextable_ocean(tabela_testes)
 ```
 
 `r texto_pressupostos`
+
+A @tbl-welch compara a ANOVA clássica, usada na análise, com a ANOVA de
+Welch, que não supõe variâncias iguais. É uma comparação apenas informativa:
+mostra o quanto a conclusão dependeria dessa escolha [@delacre2019].
+
+```{r}
+#| label: tbl-welch
+#| tbl-cap: "ANOVA clássica e ANOVA de Welch lado a lado. A análise usa a clássica; a comparação é apenas informativa."
+flextable_ocean(tabela_comparativa)
+```
 
 # Resultados: o que a ANOVA responde?
 
@@ -177,6 +190,8 @@ grafico_barras
 {{DISCUSSAO}}
 
 `r alerta_modelo`
+
+`r alerta_poder`
 
 # Conclusão
 

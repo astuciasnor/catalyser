@@ -658,9 +658,10 @@ relatar_anova <- function(r) {
 #' da média e, acima delas, as letras de diferença. Grupos que compartilham uma
 #' letra não apresentaram evidência de diferença no teste de Tukey.
 #'
-#' Duas decisões de leitura: o eixo Y começa em zero, porque em gráfico de barras
-#' o comprimento é o que se compara; e as médias de níveis nominais não são
-#' conectadas por linha, que sugeriria uma ordem inexistente entre espécies.
+#' Duas decisões de leitura: em pontos, o eixo Y não parte de zero — a comparação
+#' é a posição, não o comprimento (Weissgerber et al., 2015); e as médias de
+#' níveis nominais não são conectadas por linha, que sugeriria uma ordem
+#' inexistente entre espécies.
 grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
                           tema = "minimal") {
   if (!requireNamespace("ggplot2", quietly = TRUE))
@@ -672,41 +673,48 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
   titulo_final <- titulo %||% sprintf("%s por %s", r$dep_var, r$ind_var)
   if (!nzchar(titulo_final)) titulo_final <- sprintf("%s por %s", r$dep_var, r$ind_var)
 
-  # Espaço acima da maior barra de erro para as letras não encostarem no topo.
-  topo <- max(c(resumo$IC_Superior, resumo$Media), na.rm = TRUE)
-  # Médias negativas tornam o zero um piso enganoso; nesse caso, escala livre.
-  piso <- if (min(c(resumo$IC_Inferior, resumo$Media), na.rm = TRUE) < 0) NA_real_ else 0
+  # A letra fica acima do maior entre o limite do IC e o ponto mais alto do
+  # grupo. Cálculo local: não altera resumo, que alimenta outras saídas.
+  resumo$y_max <- vapply(
+    resumo$Grupo,
+    function(g) max(r$dados$resposta[r$dados$fator == g]),
+    numeric(1)
+  )
+  resumo$y_letra <- pmax(resumo$IC_Superior, resumo$y_max)
 
   cores <- rep(anova_cores_ocean, length.out = nlevels(resumo$fator))
 
-  ggplot2::ggplot(resumo, ggplot2::aes(x = fator, y = Media)) +
-    ggplot2::geom_col(
-      ggplot2::aes(fill = fator), width = 0.66, show.legend = FALSE, alpha = 0.92
+  ggplot2::ggplot(resumo, ggplot2::aes(x = fator)) +
+    ggplot2::geom_jitter(
+      data = r$dados,
+      ggplot2::aes(y = resposta, colour = fator),
+      width = 0.10, size = 2.2, alpha = 0.7, show.legend = FALSE
     ) +
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = IC_Inferior, ymax = IC_Superior),
-      width = 0.16, linewidth = 0.8, color = "#0F3B5F"
+      width = 0.15, linewidth = 0.8, color = "#0F3B5F"
+    ) +
+    ggplot2::geom_point(
+      ggplot2::aes(y = Media),
+      shape = 18, size = 4.4, color = "#0F3B5F"
     ) +
     ggplot2::geom_text(
-      ggplot2::aes(y = IC_Superior, label = Letras),
-      vjust = -0.7, fontface = "bold", size = 4.6, color = "#0F3B5F"
+      ggplot2::aes(y = y_letra, label = Letras),
+      vjust = -0.9, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
-    ggplot2::scale_fill_manual(values = cores) +
-    # Média ± DP junto ao topo da barra, à direita da haste do intervalo.
+    ggplot2::scale_colour_manual(values = cores) +
+    # Média ± DP ao lado do losango, à direita da haste do intervalo.
     ggplot2::geom_text(
       ggplot2::aes(y = Media, label = paste0(anova_num_col(Media, 1), " ± ", anova_num_col(Desvio_Padrao, 1))),
       nudge_x = 0.08, hjust = 0, vjust = -0.4, size = 3.5, color = "#0F3B5F"
     ) +
     ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
-    ggplot2::scale_y_continuous(
-      limits = c(piso, topo * 1.18),
-      expand = ggplot2::expansion(mult = c(0, 0.02))
-    ) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
     anova_tema(tema) +
     ggplot2::labs(
       title = titulo_final,
       subtitle = sprintf(
-        "Barras = média; rótulos = média ± DP; hastes = IC %.0f%% da média\nMesma letra = sem diferença detectada pelo Tukey",
+        "Pontos = observações; losango = média; rótulos = média ± DP; hastes = IC %.0f%%\nMesma letra = sem diferença detectada pelo Tukey",
         100 * nivel
       ),
       x = rotulo_x %||% r$ind_var,

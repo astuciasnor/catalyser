@@ -1293,7 +1293,7 @@ catalyser_variancias_duas <- function(dados, p) {
 #'   dados_analise,
 #'   list(resposta = "profundidade_m", fator = "especie")
 #' )
-#' resultado$grafico       # barras com IC e letras
+#' resultado$grafico       # pontos com média (losango), IC e letras
 #' resultado$descritivos   # media +- DP e letras
 #' cat(resultado$narrativa)
 #' }
@@ -1465,35 +1465,44 @@ catalyser_anova <- function(dados, p) {
       light = ggplot2::theme_light(base_size = 12),
       ggplot2::theme_minimal(base_size = 12)
     )
-    # Barras com IC e letras. O eixo Y começa em zero porque, em barras, o que se
-    # compara é o comprimento; médias negativas desativam esse piso.
-    topo <- max(c(grafico_dados$ic_superior, grafico_dados$media), na.rm = TRUE)
-    piso <- if (min(c(grafico_dados$ic_inferior, grafico_dados$media), na.rm = TRUE) < 0) {
-      NA_real_
-    } else 0
-    grafico <- ggplot2::ggplot(grafico_dados, ggplot2::aes(x = fator, y = media)) +
-      ggplot2::geom_col(ggplot2::aes(fill = fator), width = 0.66,
-                        show.legend = FALSE, alpha = 0.92) +
+    # Pontos individuais com média (losango), IC e letras de Tukey. Em pontos,
+    # a comparação é a posição, não o comprimento a partir do zero: o eixo Y
+    # fica livre para se ajustar aos dados (Weissgerber et al., 2015). A letra
+    # fica acima do maior entre o limite do IC e o ponto mais alto do grupo —
+    # cálculo local, sem alterar resumo_grupos, que alimenta outras saídas.
+    grafico_dados$y_max <- vapply(
+      grafico_dados$grupo,
+      function(g) max(d$resposta[d$fator == g]),
+      numeric(1)
+    )
+    grafico_dados$y_letra <- pmax(grafico_dados$ic_superior, grafico_dados$y_max)
+    grafico <- ggplot2::ggplot(grafico_dados, ggplot2::aes(x = fator)) +
+      ggplot2::geom_jitter(
+        data = d,
+        ggplot2::aes(y = resposta, color = fator),
+        width = 0.10, size = 2.2, alpha = 0.7, show.legend = FALSE
+      ) +
       ggplot2::geom_errorbar(
         ggplot2::aes(ymin = ic_inferior, ymax = ic_superior),
-        width = 0.16, linewidth = 0.8, color = "#0F3B5F"
+        width = 0.15, linewidth = 0.8, color = "#0F3B5F"
+      ) +
+      ggplot2::geom_point(
+        ggplot2::aes(y = media),
+        shape = 18, size = 4.4, color = "#0F3B5F"
       ) +
       ggplot2::geom_text(
-        ggplot2::aes(y = ic_superior, label = letras),
-        vjust = -0.7, fontface = "bold", size = 4.6, color = "#0F3B5F"
+        ggplot2::aes(y = y_letra, label = letras),
+        vjust = -0.9, fontface = "bold", size = 4.6, color = "#0F3B5F"
       ) +
-      ggplot2::scale_fill_manual(values = cores) +
-      ggplot2::scale_y_continuous(
-        limits = c(piso, topo * 1.18),
-        expand = ggplot2::expansion(mult = c(0, 0.02))
-      ) +
+      ggplot2::scale_color_manual(values = cores) +
+      ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
       tema +
       ggplot2::labs(
         title = texto_ou(p$titulo_grafico, sprintf("%s por %s", resposta, fator)),
         x = texto_ou(p$rotulo_x, fator),
         y = texto_ou(p$rotulo_y, resposta),
         subtitle = sprintf(
-          "Barras = média; hastes = IC %.0f%% da média; mesma letra = sem evidência de diferença (Tukey)",
+          "Pontos = observações; losango = média; hastes = IC %.0f%% da média\nMesma letra = sem evidência de diferença (Tukey)",
           100 * conf
         )
       )

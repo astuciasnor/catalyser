@@ -40,6 +40,7 @@ here::i_am("R/analise.R")
 library(broom)
 library(flextable)
 library(stringr)
+library(pwr)
 # Dois pacotes do ecossistema EAPA, hospedados no GitHub (não estão no CRAN).
 # EAPADados: dados de contexto da pesca e da aquicultura do curso.
 if (!requireNamespace("EAPADados", quietly = TRUE)) {
@@ -210,6 +211,10 @@ p_shapiro <- if (is.null(teste_shapiro)) NA_real_ else teste_shapiro$p.value
 teste_levene <- car::leveneTest(resposta ~ grupo, data = base_anova)
 f_levene <- teste_levene$`F value`[1]
 p_levene <- teste_levene$`Pr(>F)`[1]
+# Regra prática complementar: razão entre o maior e o menor DP dos grupos.
+# Ela dá escala à desigualdade — razão próxima de 1, grupos parecidos; razão
+# acima de 2, alerta. Não substitui o teste formal, apenas o acompanha.
+razao_dp <- max(tabela_resumo$dp) / min(tabela_resumo$dp)
 
 # 7. Comparar os grupos e medir o tamanho do efeito --------------------------
 # Tukey compara todos os pares, com p-valores ajustados para comparações múltiplas.
@@ -223,9 +228,16 @@ letras <- multcompView::multcompLetters4(modelo_anova, tukey)$grupo$Letters
 tabela_resumo <- tabela_resumo |>
   mutate(letra = unname(letras[as.character(grupo)]))
 # Eta² é a fração da variação da resposta associada ao fator;
-# ômega² corrige o viés do eta² em amostras pequenas.
-eta2 <- effectsize::eta_squared(modelo_anova, partial = FALSE)$Eta2[1]
-omega2 <- effectsize::omega_squared(modelo_anova, partial = FALSE)$Omega2[1]
+# ômega² corrige o viés do eta² em amostras pequenas. O intervalo de
+# confiança de cada medida acompanha a estimativa pontual.
+efeito_eta <- effectsize::eta_squared(modelo_anova, partial = FALSE,
+                                      ci = nivel_confianca)
+efeito_omega <- effectsize::omega_squared(modelo_anova, partial = FALSE,
+                                          ci = nivel_confianca)
+eta2 <- efeito_eta$Eta2[1]
+omega2 <- efeito_omega$Omega2[1]
+eta_ic <- c(efeito_eta$CI_low[1], efeito_eta$CI_high[1])
+omega_ic <- c(efeito_omega$CI_low[1], efeito_omega$CI_high[1])
 # case_when() escolhe, de cima para baixo, a primeira condição verdadeira.
 # A convenção de Cohen é uma referência estatística, não biológica.
 classe_efeito <- case_when(
@@ -273,20 +285,60 @@ tabela_tukey_exibir <- tabela_tukey |>
 names(tabela_tukey_exibir)[names(tabela_tukey_exibir) == "IC"] <- paste0("IC ", ic_percentual, "%")
 
 tabela_testes <- data.frame(
-  Pressuposto = c("Normalidade dos resíduos", "Homogeneidade das variâncias"),
-  Teste = c("Shapiro-Wilk", "Levene"),
+  Pressuposto = c(
+    "Normalidade dos resíduos",
+    "Homogeneidade das variâncias",
+    "Homogeneidade das variâncias (regra prática)"
+  ),
+  Teste = c("Shapiro-Wilk", "Levene", "Razão maior/menor DP"),
   Estatística = c(
     paste0("W = ", fmt(w_shapiro, 3)),
-    paste0("F(", teste_levene$Df[1], ", ", teste_levene$Df[2], ") = ", fmt(f_levene))
+    paste0("F(", teste_levene$Df[1], ", ", teste_levene$Df[2], ") = ", fmt(f_levene)),
+    paste0("Razão = ", fmt(razao_dp, 2))
   ),
-  p = formatar_p(c(p_shapiro, p_levene)),
+  p = c(formatar_p(c(p_shapiro, p_levene)), "—"),
   check.names = FALSE
 )
 
 tabela_efeito <- data.frame(
   Medida = c("η²", "ω²"),
   Valor = fmt(c(eta2, omega2), 3),
+  IC = stringr::str_glue("[{fmt(c(eta_ic[1], omega_ic[1]), 3)} a {fmt(c(eta_ic[2], omega_ic[2]), 3)}]"),
   Leitura = c(classe_efeito, "correção do η² para amostras pequenas")
+)
+names(tabela_efeito)[names(tabela_efeito) == "IC"] <- paste0("IC ", ic_percentual, "%")
+
+# A ANOVA de Welch não supõe variâncias iguais. A tabela ao lado da clássica
+# é apenas informativa: a análise seguiu a clássica, como planejado, com o
+# Tukey. Comparar as duas mostra o quanto a conclusão dependeria da escolha
+# (Delacre et al., 2019). Sem Kruskal-Wallis nem pós-teste nesta comparação.
+teste_welch <- stats::oneway.test(resposta ~ grupo, data = base_anova,
+                                  var.equal = FALSE)
+f_welch <- unname(teste_welch$statistic)
+p_welch <- teste_welch$p.value
+gl1_welch <- teste_welch$parameter[["num df"]]
+gl2_welch <- teste_welch$parameter[["denom df"]]
+
+tabela_comparativa <- data.frame(
+  Aspecto = c(
+    "Suposição sobre as variâncias",
+    "Estatística F",
+    "Graus de liberdade",
+    "p-valor"
+  ),
+  `ANOVA clássica` = c(
+    "Variâncias iguais entre os grupos",
+    fmt(f_anova),
+    paste0(gl_fator, "; ", gl_residuo),
+    formatar_p(p_anova)
+  ),
+  `ANOVA de Welch` = c(
+    "Não exige variâncias iguais",
+    fmt(f_welch),
+    paste0(fmt(gl1_welch, 1), "; ", fmt(gl2_welch, 1)),
+    formatar_p(p_welch)
+  ),
+  check.names = FALSE
 )
 
 # 9. Construir os gráficos --------------------------------------------------
@@ -303,16 +355,39 @@ grafico_boxplot <- ggplot(
   labs(x = rotulo_fator, y = rotulo_resposta) +
   tema_projeto()
 
-# 9.2. Figura principal: média, IC, média ± DP e letras de Tukey.
-grafico_barras <- ggplot(
-  tabela_resumo,
-  aes(x = grupo, y = media, fill = grupo)
-) +
-  geom_col(width = 0.7) +
-  geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup), width = 0.2, linewidth = 0.6) +
+# 9.2. Figura principal: pontos individuais com média, IC, rótulo média ± DP
+# e letras de Tukey. Cada ponto é uma observação; o losango é a média.
+# Tabela local só da figura: a letra fica acima do maior entre o limite do
+# IC e o ponto mais alto do grupo. tabela_resumo não muda — ela é gravada
+# em saida/tabelas/resumo_grupos.csv.
+tabela_figura <- tabela_resumo |>
+  left_join(
+    base_anova |>
+      group_by(grupo) |>
+      summarise(y_max = max(resposta), .groups = "drop"),
+    by = "grupo"
+  ) |>
+  mutate(y_letra = pmax(ic_sup, y_max))
+
+grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
+  geom_jitter(
+    data = base_anova,
+    aes(y = resposta, colour = grupo),
+    width = 0.10,
+    size = 2.2,
+    alpha = 0.7
+  ) +
+  geom_errorbar(
+    aes(ymin = ic_inf, ymax = ic_sup),
+    width = 0.15,
+    linewidth = 0.8,
+    colour = "#0F3B5F"
+  ) +
+  geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
   geom_text(
-    aes(y = ic_sup, label = letra),
-    vjust = -0.6,
+    aes(y = y_letra, label = letra),
+    vjust = -0.9,
+    fontface = "bold",
     size = 4
   ) +
   geom_text(
@@ -323,8 +398,8 @@ grafico_barras <- ggplot(
     size = 3.5
   ) +
   scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
-  scale_fill_manual(values = cores_grupos, guide = "none") +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  scale_colour_manual(values = cores_grupos, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
   labs(
     x = rotulo_fator,
     y = rotulo_resposta,
@@ -427,11 +502,40 @@ texto_pressupostos <- paste(
 print(texto_pressupostos)
 
 alerta_modelo <- if (!is.na(p_levene) && p_levene < alfa) {
-  "As variâncias diferiram entre os grupos. Considere a ANOVA de Welch com comparações de Games-Howell antes de concluir."
+  "As variâncias diferiram entre os grupos. A @tbl-welch compara o resultado com a ANOVA de Welch antes de concluir."
 } else if (!is.na(p_shapiro) && p_shapiro < alfa) {
   "Os resíduos se afastaram da normalidade. Avalie a intensidade do desvio nos gráficos e, se necessário, uma alternativa como Kruskal-Wallis."
 } else "Os testes formais não detectaram os desvios examinados, mas os gráficos e o delineamento continuam necessários."
 print(alerta_modelo)
+
+# Poder do teste: a probabilidade de detectar um efeito do tamanho observado.
+# pwr.anova.test() quer o efeito na escala f de Cohen: f = sqrt(η² / (1 − η²)),
+# e supõe grupos de mesmo tamanho — usamos o n médio por grupo.
+poder_anova <- if (eta2 > 0 && is.finite(eta2)) {
+  pwr::pwr.anova.test(
+    k = n_grupos,
+    n = mean(tabela_resumo$n),
+    f = sqrt(eta2 / (1 - eta2)),
+    sig.level = alfa
+  )$power
+} else {
+  NA_real_
+}
+# Ressalva apenas quando ela muda a leitura: ANOVA sem evidência E baixo
+# poder. Com p < alfa o efeito já foi detectado; o poder observado, aí,
+# não acrescenta informação.
+alerta_poder <- if (!is.na(p_anova) && p_anova >= alfa &&
+                    !is.na(poder_anova) && poder_anova < 0.80) {
+  stringr::str_glue(
+    "A ausência de evidência não deve ser lida como ausência de efeito: ",
+    "para o tamanho de efeito observado, o poder do teste foi de apenas ",
+    "{fmt(100 * poder_anova, 0)}%. Uma amostra maior seria necessária para ",
+    "concluir com mais segurança."
+  )
+} else {
+  ""
+}
+print(alerta_poder)
 
 # Síntese estatística: os argumentos científicos serão escritos no QMD.
 texto_sintese_estatistica <- stringr::str_glue(

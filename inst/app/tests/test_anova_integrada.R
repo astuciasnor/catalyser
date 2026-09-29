@@ -163,20 +163,22 @@ g_residuos <- grafico_diagnosticos_anova(r, "residuos")
 g_qq <- grafico_diagnosticos_anova(r, "qq")
 geoms_principal <- vapply(g_principal$layers, function(camada) class(camada$geom)[1],
                           character(1))
-dados_barras <- ggplot2::ggplot_build(g_principal)$data[[1]]
+camada_pontos <- ggplot2::ggplot_build(g_principal)$data[[1]]
 stopifnot(
   inherits(g_principal, "ggplot"),
   inherits(g_residuos, "ggplot"),
   inherits(g_qq, "ggplot"),
-  # Barras, hastes de IC e letras — não mais boxplot.
-  "GeomCol" %in% geoms_principal,
+  # Observações (pontos), losango da média, hastes de IC e letras —
+  # não mais barras nem boxplot.
+  "GeomPoint" %in% geoms_principal,
   "GeomErrorbar" %in% geoms_principal,
   "GeomText" %in% geoms_principal,
+  !("GeomCol" %in% geoms_principal),
   !("GeomBoxplot" %in% geoms_principal),
   # Nenhuma camada conecta as médias por linha entre níveis nominais.
   !("GeomLine" %in% geoms_principal),
-  # Em gráfico de barras o eixo Y começa em zero.
-  isTRUE(min(dados_barras$ymin, na.rm = TRUE) == 0)
+  # A primeira camada são os pontos das observações, um por caso analisado.
+  nrow(camada_pontos) == nrow(r$dados)
 )
 
 # --- Núcleo das letras: casos conhecidos --------------------------------------
