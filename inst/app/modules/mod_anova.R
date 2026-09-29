@@ -296,6 +296,7 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
       tagList(
         anova_titulo_secao(sprintf("Comparações múltiplas de Tukey (IC %.0f%%)",
                                    100 * r$nivel_confianca)),
+        plotOutput(ns("tukey_pares_plot"), height = "380px"),
         tableOutput(ns("tukey_table")),
         helpText(
           "As comparações são sempre calculadas para manter a reprodutibilidade.",
@@ -310,6 +311,11 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
       r <- result_rv(); req(r)
       arrumar_tukey_anova(r)
     }, striped = TRUE, hover = TRUE, bordered = TRUE)
+
+    output$tukey_pares_plot <- renderPlot({
+      r <- result_rv(); req(r)
+      grafico_pares_anova(r, tema = input$graph_theme %||% "minimal")
+    })
 
     # ---- 3. Pressupostos e diagnósticos --------------------------------------
     output$pressupostos_ui <- renderUI({

@@ -61,8 +61,15 @@ flextable_ocean(tabela_anova_exibir)
 
 `r texto_tukey`
 
-A @fig-barras apresenta as médias dos grupos com seus intervalos de confiança
+A @fig-pares mostra cada diferença entre pares com seu intervalo de
+confiança; a @fig-barras apresenta as médias dos grupos com seus intervalos
 e as letras do teste de Tukey.
+
+```{r}
+#| label: fig-pares
+#| fig-cap: "Diferenças entre pares com IC 95% ajustado por Tukey. IC que cruza o zero: sem diferença."
+grafico_pares
+```
 
 ```{r}
 #| label: fig-barras

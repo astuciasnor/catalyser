@@ -785,6 +785,36 @@ grafico_pontos_anova <- function(r, tema = "minimal") {
     ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", color = "#0F3B5F"))
 }
 
+# Diferenças entre pares com IC (floresta): cada linha é uma comparação do
+# Tukey, com a diferença estimada (ponto) e o IC (haste horizontal). A reta
+# tracejada marca a diferença zero — IC que a cruza não indica diferença.
+grafico_pares_anova <- function(r, tema = "minimal") {
+  if (!requireNamespace("ggplot2", quietly = TRUE))
+    stop("O pacote ggplot2 é necessário para o gráfico de pares da ANOVA.", call. = FALSE)
+  pares <- r$tukey_df
+  if (is.null(pares) || !nrow(pares)) return(NULL)
+  nivel <- r$nivel_confianca %||% 0.95
+  pares$par <- factor(pares$Comparacao, levels = rev(pares$Comparacao))
+  ggplot2::ggplot(pares, ggplot2::aes(x = Diferenca, y = par)) +
+    ggplot2::geom_vline(xintercept = 0, colour = "grey60", linetype = "dashed") +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(xmin = Lwr, xmax = Upr),
+      width = 0.2, linewidth = 0.8, colour = "#2E7D8F", orientation = "y"
+    ) +
+    ggplot2::geom_point(size = 3, colour = "#0F3B5F") +
+    anova_tema(tema) +
+    ggplot2::labs(
+      title = sprintf("Diferenças entre pares — %s", r$dep_var),
+      subtitle = sprintf(
+        "Ponto = diferença estimada; haste = IC %.0f%% (Tukey); IC que cruza o zero: sem diferença",
+        100 * nivel
+      ),
+      x = sprintf("Diferença de médias (%s)", r$dep_var),
+      y = NULL
+    ) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", color = "#0F3B5F"))
+}
+
 #' Gráficos de diagnóstico dos resíduos
 grafico_diagnosticos_anova <- function(r, tipo = c("residuos", "qq"), tema = "minimal") {
   tipo <- match.arg(tipo)

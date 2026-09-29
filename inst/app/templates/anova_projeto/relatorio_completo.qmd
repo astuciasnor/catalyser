@@ -167,7 +167,8 @@ flextable_ocean(tabela_efeito)
 ## Comparações entre os grupos
 
 As comparações dois a dois estão na @tbl-tukey e o resumo com as letras na
-@tbl-resumo; a @fig-barras apresenta as médias com seus intervalos.
+@tbl-resumo; a @fig-pares mostra cada diferença com seu intervalo de
+confiança e a @fig-barras apresenta as médias com seus intervalos.
 
 `r texto_tukey`
 
@@ -175,6 +176,12 @@ As comparações dois a dois estão na @tbl-tukey e o resumo com as letras na
 #| label: tbl-tukey
 #| tbl-cap: "Comparações entre pares pelo teste de Tukey, com intervalos de confiança e p-valores ajustados."
 flextable_ocean(tabela_tukey_exibir)
+```
+
+```{r}
+#| label: fig-pares
+#| fig-cap: "Diferenças entre pares com IC 95% ajustado por Tukey. IC que cruza o zero: sem diferença."
+grafico_pares
 ```
 
 ```{r}

@@ -430,6 +430,32 @@ grafico_qq <- ggplot(
   labs(x = "Quantis teóricos", y = "Resíduos padronizados") +
   tema_projeto()
 
+# 9.5. Diferenças entre pares (floresta). Cada linha é uma comparação do
+# Tukey: o ponto é a diferença estimada e a haste é o intervalo de confiança
+# ajustado. A reta tracejada marca a diferença zero: IC que a cruza não
+# indica diferença entre os grupos.
+tabela_pares_figura <- tabela_tukey |>
+  mutate(par = factor(Comparação, levels = rev(Comparação)))
+
+grafico_pares <- ggplot(
+  tabela_pares_figura,
+  aes(x = diff, y = par)
+) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey60") +
+  geom_errorbar(
+    aes(xmin = lwr, xmax = upr),
+    width = 0.2,
+    linewidth = 0.8,
+    colour = "#2E7D8F",
+    orientation = "y"
+  ) +
+  geom_point(size = 3, colour = "#0F3B5F") +
+  labs(
+    x = paste0("Diferença de médias de ", rotulo_resposta, ", IC ", ic_percentual, "% (Tukey)"),
+    y = NULL
+  ) +
+  tema_projeto()
+
 # 10. Preparar os textos que serão usados nos relatórios --------------------
 # Os textos retomam os resultados depois de tabelas e gráficos.
 # A atribuição com <- guarda a frase no objeto; print() mostra seu conteúdo.
@@ -583,6 +609,7 @@ for (nome in names(tabelas)) {
 figuras <- list(
   barras = grafico_barras,
   boxplot = grafico_boxplot,
+  pares = grafico_pares,
   residuos = grafico_residuos,
   qq = grafico_qq
 )
