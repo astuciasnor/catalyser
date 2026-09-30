@@ -139,3 +139,11 @@ do pesquisador. A base preparada foi adotada a partir da importação e dos
 tratamentos registrados na CatalyseR. A planilha original fica em
 `dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
 `saida/sessionInfo.txt` identifica o ambiente da execução.
+
+## Como ler as figuras de comparação
+
+Pontos mostram as observações e o losango marca a média. O rótulo ao lado
+traz média ± DP amostral, com duas casas decimais. Neste teste t, as hastes
+mostram a mesma média ± DP do rótulo. Na ANOVA, elas mostram o IC da média:
+consulte sempre a legenda, pois dispersão dos indivíduos e incerteza da
+média são medidas diferentes.

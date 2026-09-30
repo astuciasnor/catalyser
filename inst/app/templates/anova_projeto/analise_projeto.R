@@ -367,7 +367,8 @@ tabela_figura <- tabela_resumo |>
       summarise(y_max = max(resposta), .groups = "drop"),
     by = "grupo"
   ) |>
-  mutate(y_letra = pmax(ic_sup, y_max))
+  mutate(y_letra = pmax(ic_sup, y_max) + 0.06 *
+    diff(range(c(base_anova$resposta, ic_inf, ic_sup), na.rm = TRUE)))
 
 grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   geom_jitter(
@@ -386,16 +387,16 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
   geom_text(
     aes(y = y_letra, label = letra),
-    vjust = -0.9,
+    vjust = 0.5,
     fontface = "bold",
-    size = 4
+    size = 4.6, colour = "#0F3B5F"
   ) +
-  geom_text(
-    aes(y = media, label = paste0(fmt(media, 1), " ± ", fmt(dp, 1))),
-    nudge_x = 0.08,
-    hjust = 0,
-    vjust = -0.4,
-    size = 3.5
+  # O rótulo descreve dispersão (DP); a haste descreve incerteza (IC).
+  geom_label(
+    aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
+    nudge_x = 0.18, hjust = 0, size = 3.2, colour = "#0F3B5F",
+    linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+    fill = ggplot2::alpha("white", 0.75)
   ) +
   scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
   scale_colour_manual(values = cores_grupos, guide = "none") +

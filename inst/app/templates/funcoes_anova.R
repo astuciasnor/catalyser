@@ -680,7 +680,9 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     function(g) max(r$dados$resposta[r$dados$fator == g]),
     numeric(1)
   )
-  resumo$y_letra <- pmax(resumo$IC_Superior, resumo$y_max)
+  # A folga aditiva funciona também com respostas negativas.
+  amplitude <- diff(range(c(r$dados$resposta, resumo$IC_Inferior, resumo$IC_Superior), na.rm = TRUE))
+  resumo$y_letra <- pmax(resumo$IC_Superior, resumo$y_max) + 0.06 * amplitude
 
   cores <- rep(anova_cores_ocean, length.out = nlevels(resumo$fator))
 
@@ -700,13 +702,15 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ) +
     ggplot2::geom_text(
       ggplot2::aes(y = y_letra, label = Letras),
-      vjust = -0.9, fontface = "bold", size = 4.6, color = "#0F3B5F"
+      vjust = 0.5, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
     ggplot2::scale_colour_manual(values = cores) +
     # Média ± DP ao lado do losango, à direita da haste do intervalo.
-    ggplot2::geom_text(
-      ggplot2::aes(y = Media, label = paste0(anova_num_col(Media, 1), " ± ", anova_num_col(Desvio_Padrao, 1))),
-      nudge_x = 0.08, hjust = 0, vjust = -0.4, size = 3.5, color = "#0F3B5F"
+    ggplot2::geom_label(
+      ggplot2::aes(y = Media, label = paste0(anova_num_col(Media), " ± ", anova_num_col(Desvio_Padrao))),
+      nudge_x = 0.18, hjust = 0, size = 3.2, colour = "#0F3B5F",
+      linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+      fill = ggplot2::alpha("white", 0.75)
     ) +
     ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
