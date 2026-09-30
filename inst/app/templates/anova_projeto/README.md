@@ -150,3 +150,23 @@ mostram o IC da média no nível escolhido, enquanto o DP do rótulo descreve
 a dispersão dos indivíduos. No teste t independente, as hastes mostram
 a própria média ± DP. IC e DP respondem a perguntas diferentes; não se
 deve interpretar um como se fosse o outro.
+
+## Ambiente computacional
+
+Ambiente registrado automaticamente na exportação:
+
+{{AMBIENTE_COMPUTACIONAL}}
+
+Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
+`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Um commit ausente nos metadados aparece como “não registrado”.
+
+Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
+
+```text
+Rscript verificar_reprodutibilidade.R
+```
+
+A conferência recalcula cada QMD em um processo novo, registra os logs em
+`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
+não for novo ou se houver referência `??`. Ela não instala pacotes.

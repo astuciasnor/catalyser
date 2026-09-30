@@ -142,3 +142,23 @@ do pesquisador. A base preparada foi adotada a partir da importação e dos
 tratamentos registrados na CatalyseR. A planilha original fica em
 `dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
 `saida/sessionInfo.txt` identifica o ambiente da execução.
+
+## Ambiente computacional
+
+Ambiente registrado automaticamente na exportação:
+
+{{AMBIENTE_COMPUTACIONAL}}
+
+Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
+`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Um commit ausente nos metadados aparece como “não registrado”.
+
+Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
+
+```text
+Rscript verificar_reprodutibilidade.R
+```
+
+A conferência recalcula cada QMD em um processo novo, registra os logs em
+`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
+não for novo ou se houver referência `??`. Ela não instala pacotes.

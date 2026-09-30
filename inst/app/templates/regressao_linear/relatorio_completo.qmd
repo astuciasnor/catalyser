@@ -219,7 +219,7 @@ na base preparada.
 ```{r}
 #| label: ambiente
 #| echo: false
-cat(registro_ambiente, sep = "\n")
+flextable_ocean(tabela_ambiente)
 ```
 
 # Referências

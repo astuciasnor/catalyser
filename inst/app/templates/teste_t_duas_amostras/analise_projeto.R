@@ -532,8 +532,30 @@ for (nome in names(figuras)) {
 }
 
 # 11. Registrar o ambiente computacional -----------------------------------
-versao_quarto <- if (nzchar(Sys.which("quarto"))) {
-  system2("quarto", "--version", stdout = TRUE)
-} else "Quarto não encontrado no PATH desta sessão."
-registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()))
+# O executável pode estar no PATH ou ser indicado por QUARTO_PATH.
+quarto_bin <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+versao_quarto <- if (nzchar(quarto_bin) && file.exists(quarto_bin)) {
+  paste(system2(quarto_bin, "--version", stdout = TRUE), collapse = " ")
+} else "não encontrado nesta sessão"
+# Incluímos dependências carregadas indiretamente, além dos pacotes da análise.
+pacotes_ambiente <- sort(unique(c(loadedNamespaces(), "catalyser", "EAPADados")))
+# RemoteSha só existe quando a instalação preservou o commit do GitHub.
+# Sua ausência fica explícita: a versão não identifica sozinha uma revisão local.
+tabela_ambiente <- do.call(rbind, lapply(pacotes_ambiente, function(pacote) {
+  descricao <- utils::packageDescription(pacote)
+  revisao <- descricao$RemoteSha
+  if (is.null(revisao) || !nzchar(revisao)) revisao <- "não registrado"
+  data.frame(Componente = pacote, Versão = descricao$Version, Revisão = revisao,
+             check.names = FALSE)
+}))
+tabela_ambiente <- rbind(
+  data.frame(Componente = c("R", "Quarto"),
+    Versão = c(as.character(getRversion()), versao_quarto), Revisão = c("", "")),
+  tabela_ambiente
+)
+# A tabela é legível no relatório; sessionInfo conserva o registro técnico completo.
+registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
+  "", apply(tabela_ambiente, 1, paste, collapse = " | "))
 writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
+write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
+  row.names = FALSE, fileEncoding = "UTF-8")

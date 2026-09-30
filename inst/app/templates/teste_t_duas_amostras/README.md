@@ -147,3 +147,23 @@ traz média ± DP amostral, com duas casas decimais. Neste teste t, as hastes
 mostram a mesma média ± DP do rótulo. Na ANOVA, elas mostram o IC da média:
 consulte sempre a legenda, pois dispersão dos indivíduos e incerteza da
 média são medidas diferentes.
+
+## Ambiente computacional
+
+Ambiente registrado automaticamente na exportação:
+
+{{AMBIENTE_COMPUTACIONAL}}
+
+Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
+`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Um commit ausente nos metadados aparece como “não registrado”.
+
+Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
+
+```text
+Rscript verificar_reprodutibilidade.R
+```
+
+A conferência recalcula cada QMD em um processo novo, registra os logs em
+`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
+não for novo ou se houver referência `??`. Ela não instala pacotes.

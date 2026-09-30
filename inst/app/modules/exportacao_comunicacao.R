@@ -2143,6 +2143,23 @@ exportacao_molde_pacotes_texto <- function(pacotes) {
   saida
 }
 
+# Metadados da máquina exportadora; o script registra novamente no Render.
+exportacao_ambiente_computacional <- function(pacotes) {
+  nomes <- sort(unique(c("catalyser", "EAPADados", pacotes)))
+  linhas <- vapply(nomes, function(nome) {
+    descricao <- suppressWarnings(utils::packageDescription(nome))
+    if (!is.list(descricao)) return(paste("|", nome, "| não instalado | não registrado |"))
+    revisao <- descricao$RemoteSha %||% "não registrado"
+    paste("|", nome, "|", descricao$Version, "|", revisao, "|")
+  }, character(1))
+  quarto <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+  versao <- if (nzchar(quarto) && file.exists(quarto)) {
+    paste(system2(quarto, "--version", stdout = TRUE), collapse = " ")
+  } else "não encontrado na exportação"
+  c("| Componente | Versão | Revisão GitHub |", "|---|---|---|",
+    paste("| R |", getRversion(), "| |"), paste("| Quarto |", versao, "| |"), linhas)
+}
+
 exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
                                             import_info = list(),
                                             templates_dir = "templates",
@@ -2154,7 +2171,8 @@ exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
   )
   exportacao_preencher_template(linhas, c(
     entrada$marcadores_readme(item, nome_projeto, import_info),
-    list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes))
+    list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes),
+         AMBIENTE_COMPUTACIONAL = exportacao_ambiente_computacional(pacotes))
   ))
 }
 
@@ -3252,6 +3270,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
   templates <- if (!is.null(molde)) c(
+    "verificar_reprodutibilidade.R" = "verificar_reprodutibilidade.R",
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "referencias.bib" = file.path("relatorios", "referencias.bib")
