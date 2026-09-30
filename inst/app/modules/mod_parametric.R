@@ -84,7 +84,14 @@ mod_parametric_ui <- function(id) {
           title = "Gráfico do Teste",
           icon = icon("chart-line"),
           card_body(
-            plotOutput(ns("test_plot"), height = "450px")
+            plotOutput(ns("test_plot"), height = "450px"),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'two_ind'", ns("test_type")),
+              div(style = "margin-top: 20px;"),
+              h6("Médias com desvio padrão e letras de significância",
+                 style = "font-weight: 700; color: #0d6efd; margin-bottom: 10px;"),
+              plotOutput(ns("test_plot_medias"), height = "400px")
+            )
           )
         ),
         nav_panel(
@@ -101,6 +108,12 @@ mod_parametric_ui <- function(id) {
             h6("Teste de Normalidade (Shapiro-Wilk)", style = "font-weight: 700; color: #0d6efd; margin-bottom: 5px;"),
             verbatimTextOutput(ns("normality_test_out")),
             hr(style = "margin: 10px 0; border-color: #dee2e6;"),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == 'two_ind'", ns("test_type")),
+              h6("Teste de Igualdade de Variâncias (Levene)", style = "font-weight: 700; color: #0d6efd; margin-bottom: 5px;"),
+              verbatimTextOutput(ns("levene_test_out")),
+              hr(style = "margin: 10px 0; border-color: #dee2e6;")
+            ),
             h6("Gráfico de Normalidade (Q-Q Plot)", style = "font-weight: 700; color: #0d6efd; margin-bottom: 10px;"),
             plotOutput(ns("qq_plot"), height = "300px")
           )
@@ -397,7 +410,13 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         fit_lm <- lm(formula_obj, data = df_clean)
         norm_data <- rstandard(fit_lm)
         
-        list(t_out = t_out, norm_data = norm_data, type = "two_ind", var_names = c(input$two_var_y, input$two_var_x))
+        # Levene compara as variâncias dos dois grupos; é o mesmo cálculo do
+        # script exportado (car::leveneTest sobre a fórmula do teste).
+        teste_levene <- car::leveneTest(formula_obj, data = df_clean)
+        
+        list(t_out = t_out, norm_data = norm_data, type = "two_ind",
+             var_names = c(input$two_var_y, input$two_var_x),
+             levene = teste_levene)
         
       } else if (input$test_type == "paired") {
         validate(
@@ -623,6 +642,74 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       }
     })
     
+    # Figura de médias ± desvio padrão com letras de significância
+    # (apenas duas amostras independentes)
+    output$test_plot_medias <- renderPlot({
+      res <- test_results()
+      req(res, res$type == "two_ind")
+      df <- data_rv()
+      req(df, input$two_var_y, input$two_var_x)
+      
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else "Médias com desvio padrão"
+      x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else ""
+      y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Valores"
+      
+      g_theme <- switch(input$graph_theme,
+                        "minimal" = theme_minimal(base_size = 14),
+                        "classic" = theme_classic(base_size = 14),
+                        "bw"      = theme_bw(base_size = 14),
+                        "gray"    = theme_gray(base_size = 14),
+                        "light"   = theme_light(base_size = 14),
+                        theme_minimal(base_size = 14))
+      
+      g_theme <- g_theme + theme(plot.title = element_text(face = "bold", size = 16, color = "#212529"))
+      
+      df_clean <- df[, c(input$two_var_y, input$two_var_x)]
+      df_clean <- na.omit(df_clean)
+      df_clean[[input$two_var_x]] <- as.factor(df_clean[[input$two_var_x]])
+      
+      alfa_painel <- 1 - input$conf_level / 100
+      cores_grupo <- c("#0F3B5F", "#E89B3C")
+      
+      resumo <- df_clean |>
+        dplyr::group_by(.data[[input$two_var_x]]) |>
+        dplyr::summarise(
+          media = mean(.data[[input$two_var_y]]),
+          dp = sd(.data[[input$two_var_y]]),
+          .groups = "drop"
+        )
+      # As letras seguem o p do teste escolhido (Student ou Welch, conforme o
+      # campo de variâncias): sem diferença, "a" para os dois grupos; com
+      # diferença, "a" para o grupo de maior média e "b" para o outro.
+      resumo$letra <- dplyr::case_when(
+        res$t_out$p.value >= alfa_painel ~ "a",
+        resumo$media == max(resumo$media) ~ "a",
+        TRUE ~ "b"
+      )
+      # As letras ficam acima da haste mais alta e do ponto mais alto.
+      y_letra <- max(c(resumo$media + resumo$dp, df_clean[[input$two_var_y]])) * 1.06
+      
+      ggplot(resumo, aes(x = .data[[input$two_var_x]])) +
+        geom_jitter(
+          data = df_clean,
+          aes(y = .data[[input$two_var_y]], colour = .data[[input$two_var_x]]),
+          width = 0.10, size = 2.2, alpha = 0.7
+        ) +
+        geom_errorbar(aes(ymin = media - dp, ymax = media + dp),
+                      width = 0.15, linewidth = 0.8, colour = "#0F3B5F") +
+        geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
+        geom_text(aes(y = y_letra, label = letra), size = 5, fontface = "bold", colour = "#0F3B5F") +
+        scale_colour_manual(values = cores_grupo, guide = "none") +
+        scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+        labs(
+          title = title_val,
+          x = x_label, y = y_label,
+          subtitle = paste0("Pontos: observações; losango: média; hastes: média ± DP; ",
+                            "letras iguais: sem diferença significativa")
+        ) +
+        g_theme
+    })
+    
     # Gráfico de Distribuição t Teórica
     output$dist_plot <- renderPlot({
       res <- test_results()
@@ -667,6 +754,31 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       } else {
         cat("  p-valor >= 0.05 -> Não se rejeita a normalidade.\n")
         cat("  Os resíduos/diferenças seguem estatisticamente uma distribuição Normal.\n")
+      }
+    })
+    
+    # Teste de Igualdade de Variâncias (Levene), apenas duas amostras
+    output$levene_test_out <- renderPrint({
+      res <- test_results()
+      req(res, res$type == "two_ind")
+      
+      lev <- res$levene
+      cat("Teste de Levene (homogeneidade das variâncias)\n")
+      print(lev)
+      
+      # Leitura em linguagem simples, com a estatística, os gl e o p
+      p_levene <- lev[["Pr(>F)"]][1]
+      gl_num <- lev[["Df"]][1]
+      gl_den <- lev[["Df"]][2]
+      f_val <- lev[["F value"]][1]
+      cat("\nInterpretação:\n")
+      cat(sprintf("  F(%s, %s) = %.3f; p = %.4f\n", gl_num, gl_den, f_val, p_levene))
+      if (!is.na(p_levene) && p_levene < 0.05) {
+        cat("  p-valor < 0.05 -> Há evidência de variâncias diferentes.\n")
+        cat("  Prefira o t de Welch (desmarque 'Variâncias iguais?').\n")
+      } else {
+        cat("  p-valor >= 0.05 -> Sem evidência de variâncias diferentes.\n")
+        cat("  O t de Student (variâncias iguais) é adequado.\n")
       }
     })
     

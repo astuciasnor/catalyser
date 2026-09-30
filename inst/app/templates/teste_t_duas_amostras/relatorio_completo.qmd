@@ -134,14 +134,54 @@ escritas conforme o resultado real de cada teste.
 
 `r texto_welch`
 
+Os três gráficos abaixo leem os resíduos, a distância de cada observação à
+média do seu grupo. A @fig-residuos compara os resíduos com os valores
+ajustados, a @fig-qq os confronta com a distribuição normal e a
+@fig-homocedasticidade compara a dispersão entre os grupos.
+
+```{r}
+#| label: fig-residuos
+#| fig-cap: "Resíduos versus valores ajustados (as médias dos grupos); a linha tracejada marca o resíduo zero."
+#| out-width: "75%"
+#| fig-align: center
+grafico_residuos
+```
+
+Procure uma nuvem de pontos sem formato, espalhada por igual acima e abaixo
+da linha tracejada, com alturas parecidas nas duas faixas verticais.
+
+```{r}
+#| label: fig-qq
+#| fig-cap: "Q-Q dos resíduos; quanto mais os pontos acompanham a reta, mais os resíduos se aproximam da distribuição normal."
+#| out-width: "75%"
+#| fig-align: center
+grafico_qq
+```
+
+Pontos que se descolam da reta, em especial nas pontas, indicam assimetria
+ou valores extremos que os testes formais podem não capturar.
+
+```{r}
+#| label: fig-homocedasticidade
+#| fig-cap: "Dispersão dos resíduos em cada grupo; caixas de alturas parecidas indicam variâncias compatíveis."
+#| out-width: "75%"
+#| fig-align: center
+grafico_homocedasticidade
+```
+
+Uma caixa muito mais alta que a outra é sinal de variâncias diferentes entre
+os grupos; o Levene formaliza essa comparação na @tbl-pressupostos.
+
 :::::
 
 # Resultados: o que o teste t responde?
 
 A @tbl-teste reúne o resultado do teste. A @fig-medias, no mesmo espírito de
 transparência, mostra cada observação como ponto, em vez de resumir os grupos
-em barras [@weissgerber2015]: o losango é a média do grupo e a haste é o seu
-intervalo de confiança.
+em barras [@weissgerber2015]: o losango é a média do grupo, as hastes marcam a
+média ± desvio padrão (a dispersão das observações, não a incerteza da média)
+e as letras resumem o p do teste. Letras iguais indicam grupos sem diferença
+significativa; letras diferentes, médias diferentes.
 
 `r texto_resultado`
 
@@ -155,7 +195,7 @@ flextable_ocean(tabela_teste)
 
 ```{r}
 #| label: fig-medias
-#| fig-cap: "Cada ponto é uma observação; o losango é a média do grupo e a haste é o intervalo de confiança de 95% da média."
+#| fig-cap: "Cada ponto é uma observação; o losango é a média do grupo e as hastes marcam a média ± desvio padrão. Letras iguais: grupos sem diferença significativa; letras diferentes: médias diferentes."
 grafico_medias
 ```
 

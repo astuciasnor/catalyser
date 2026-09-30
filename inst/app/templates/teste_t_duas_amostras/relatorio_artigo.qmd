@@ -50,9 +50,11 @@ flextable_ocean(tabela_descritiva_exibir)
 `r texto_amostra`
 
 A @tbl-teste reúne o resultado do teste, e a @fig-medias apresenta as médias
-com seus intervalos de confiança. Nela, cada observação aparece como ponto, em
-vez de os grupos serem resumidos apenas pela média, o que revela a distribuição
-subjacente [@weissgerber2015].
+com seu desvio padrão: o losango é a média do grupo, as hastes marcam a média
+± desvio padrão e as letras resumem o p do teste (letras iguais, sem diferença
+significativa; letras diferentes, médias diferentes). Nela, cada observação
+aparece como ponto, em vez de os grupos serem resumidos apenas pela média, o
+que revela a distribuição subjacente [@weissgerber2015].
 
 `r texto_resultado`
 
@@ -66,7 +68,7 @@ flextable_ocean(tabela_teste)
 
 ```{r}
 #| label: fig-medias
-#| fig-cap: "Cada observação como ponto, a média do grupo em losango e o intervalo de confiança de 95% da média."
+#| fig-cap: "Cada observação como ponto, a média do grupo em losango e as hastes na média ± desvio padrão; letras iguais indicam grupos sem diferença significativa."
 grafico_medias
 ```
 

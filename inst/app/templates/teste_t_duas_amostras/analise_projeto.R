@@ -23,7 +23,10 @@
 # tabela_descritiva_exibir   resumo por grupo, formatado
 # tabela_teste               método, diferença, IC, t, gl, p e d, formatados
 # grafico_caixa              boxplot com os pontos de cada observação
-# grafico_medias             pontos, média (losango) e IC de cada grupo
+# grafico_medias             pontos, média (losango), DP e letras de significância
+# grafico_residuos           resíduos contra os valores ajustados (caderno HTML)
+# grafico_qq                 Q-Q dos resíduos (caderno HTML)
+# grafico_homocedasticidade  dispersão dos resíduos por grupo (caderno HTML)
 # texto_resultado            frase com o resultado do teste
 # alerta_poder               ressalva quando não há evidência e o poder é baixo
 #
@@ -266,18 +269,29 @@ grafico_caixa <- ggplot2::ggplot(dados,
   ggplot2::theme(legend.position = "none")
 
 # 8.2 Médias por grupo com as observações: cada ponto é uma observação
-# (jitter), o losango é a média do grupo e a haste fina é o intervalo de
-# confiança. Mostrar os pontos em vez de barras evita esconder a distribuição
+# (jitter), o losango é a média do grupo e as hastes são a média ± desvio
+# padrão. O DP descreve a dispersão das observações, não a incerteza da
+# média. Mostrar os pontos em vez de barras evita esconder a distribuição
 # por trás da média (Weissgerber et al., 2015). O eixo y não parte do zero:
 # o interesse está na distância entre as médias, não na razão com o zero.
-# qt() dá o t crítico de cada grupo a partir dos seus graus de liberdade (n - 1).
-resumo_ic <- tabela_descritiva |>
+resumo_medias <- tabela_descritiva |>
   dplyr::mutate(
-    t_critico = qt(1 - alfa / 2, df = n - 1),
-    ic_baixo = media - t_critico * ep,
-    ic_alto = media + t_critico * ep
+    dp_baixo = media - dp,
+    dp_alto = media + dp
   )
-grafico_medias <- ggplot2::ggplot(resumo_ic,
+# As letras resumem o p do teste realmente escolhido (Student ou Welch):
+# sem diferença (p >= alfa), os dois grupos recebem "a"; com diferença, o
+# grupo de maior média recebe "a" e o outro, "b". Leitura: letras iguais,
+# grupos sem diferença significativa; letras diferentes, médias diferentes.
+resumo_medias$letra <- dplyr::case_when(
+  teste_t$p.value >= alfa ~ "a",
+  resumo_medias$media == max(resumo_medias$media) ~ "a",
+  TRUE ~ "b"
+)
+# As letras ficam acima da haste mais alta e do ponto mais alto, com uma
+# folga de 6% para o texto não encostar nos dados.
+y_letra <- max(c(resumo_medias$dp_alto, dados[[variavel_resposta]]), na.rm = TRUE) * 1.06
+grafico_medias <- ggplot2::ggplot(resumo_medias,
   ggplot2::aes(x = .data[[nome_col_grupo]])) +
   ggplot2::geom_jitter(
     data = dados,
@@ -287,21 +301,66 @@ grafico_medias <- ggplot2::ggplot(resumo_ic,
     alpha = 0.7
   ) +
   ggplot2::geom_errorbar(
-    ggplot2::aes(ymin = ic_baixo, ymax = ic_alto),
+    ggplot2::aes(ymin = dp_baixo, ymax = dp_alto),
     width = 0.15,
     linewidth = 0.8,
     colour = "#0F3B5F"
   ) +
   ggplot2::geom_point(ggplot2::aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
+  ggplot2::geom_text(
+    ggplot2::aes(y = y_letra, label = letra),
+    size = 5, fontface = "bold", colour = "#0F3B5F"
+  ) +
   ggplot2::scale_colour_manual(values = cores_grupo, guide = "none") +
-  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
+  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.15))) +
   ggplot2::labs(
     x = rotulo_grupo,
     y = rotulo_resposta,
     title = if (nzchar(titulo_grafico)) titulo_grafico else NULL,
-    subtitle = paste0("Pontos: observações; losango: média; hastes: IC de ", ic_percentual, "% da média")
+    subtitle = paste0("Pontos: observações; losango: média; hastes: média ± DP; ",
+                      "letras iguais: sem diferença significativa")
   ) +
   tema_projeto()
+
+# 8.3 Diagnósticos dos pressupostos (o caderno HTML os apresenta; o Word não).
+# O resíduo é a distância de cada observação à média do seu grupo, e o valor
+# ajustado é essa média: o valor que o modelo "esperava" para cada grupo.
+dados$valor_ajustado <- ave(dados[[variavel_resposta]], dados[[variavel_grupo]])
+dados$residuo <- dados[[variavel_resposta]] - dados$valor_ajustado
+
+# Resíduos contra os valores ajustados. Procura-se uma nuvem de pontos sem
+# forma, espalhada por igual acima e abaixo da linha do resíduo zero, com
+# alturas parecidas nas duas faixas verticais.
+grafico_residuos <- ggplot2::ggplot(dados,
+  ggplot2::aes(x = valor_ajustado, y = residuo, colour = .data[[variavel_grupo]])) +
+  ggplot2::geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  ggplot2::geom_jitter(width = 0.02 * diff(range(dados$valor_ajustado)), height = 0,
+                       size = 2.2, alpha = 0.7) +
+  ggplot2::scale_colour_manual(values = cores_grupo) +
+  ggplot2::labs(x = "Valores ajustados (médias dos grupos)", y = "Resíduos",
+                colour = rotulo_grupo) +
+  tema_projeto()
+
+# 8.4 Q-Q dos resíduos: os pontos devem acompanhar a reta; caudas que se
+# descolam dela indicam assimetria ou valores extremos.
+grafico_qq <- ggplot2::ggplot(dados, ggplot2::aes(sample = residuo)) +
+  ggplot2::stat_qq(colour = "#2E7D8F", alpha = 0.7) +
+  ggplot2::stat_qq_line(colour = "#E76F51") +
+  ggplot2::labs(x = "Quantis teóricos", y = "Resíduos") +
+  tema_projeto()
+
+# 8.5 Dispersão dos resíduos em cada grupo: caixas de alturas muito
+# diferentes indicam variâncias desiguais; o Levene formaliza essa
+# comparação na tabela de pressupostos.
+grafico_homocedasticidade <- ggplot2::ggplot(dados,
+  ggplot2::aes(x = .data[[variavel_grupo]], y = residuo, fill = .data[[variavel_grupo]])) +
+  ggplot2::geom_boxplot(width = 0.5, alpha = 0.65, outlier.shape = NA) +
+  ggplot2::geom_jitter(width = 0.12, size = 2, colour = "grey15", alpha = 0.8) +
+  ggplot2::scale_fill_manual(values = cores_grupo) +
+  ggplot2::labs(x = rotulo_grupo, y = "Resíduos",
+                title = "Dispersão dos resíduos por grupo") +
+  tema_projeto() +
+  ggplot2::theme(legend.position = "none")
 
 # 9. Preparar os textos dos relatórios -------------------------------------
 # Qual grupo teve a maior média? Comparação direta entre os dois valores.
