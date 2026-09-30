@@ -35,6 +35,16 @@ exportacao_nome_curto <- function(x, padrao = "analise") {
   nome
 }
 
+# O título informado para o projeto conserva todas as palavras.
+# O helper curto continua servindo aos nomes legados de bases e às sugestões.
+exportacao_nome_projeto <- function(x) {
+  nome <- exportacao_nome_seguro(x)
+  if (toupper(nome) %in% c("CON", "PRN", "AUX", "NUL", paste0("COM", 1:9), paste0("LPT", 1:9)))
+    nome <- paste0(nome, "_analise")
+  if (nchar(nome) > 80L) stop("Use um nome de projeto com até 80 caracteres após retirar os acentos.", call. = FALSE)
+  nome
+}
+
 exportacao_origem_texto <- function(info = list()) {
   !identical(info$source, "package") &&
     tolower(tools::file_ext(info$file_name %||% "")) %in% c("csv", "txt", "tsv")
@@ -3196,7 +3206,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
   }
 
-  nome_projeto <- exportacao_nome_curto(nome_projeto)
+  nome_projeto <- exportacao_nome_projeto(nome_projeto)
   projeto <- file.path(destino, nome_projeto)
   if (dir.exists(projeto)) {
     stop("O diretório temporário do projeto já existe; gere a exportação novamente.", call. = FALSE)
