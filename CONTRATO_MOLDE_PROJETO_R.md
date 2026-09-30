@@ -18,6 +18,7 @@ exportador geral (árvore legada, relatório sincronizado).
 ```
 projeto/
 ├── _quarto.yml                    renderiza os dois QMDs; saídas em saida/
+├── verificar_reprodutibilidade.R  executa e confere os dois renders
 ├── projeto.Rproj
 ├── dados/
 │   ├── brutos/<ARQUIVO_BRUTO>     a planilha de entrada, preservada (somente leitura)
@@ -38,6 +39,8 @@ projeto/
     ├── tabelas/                   CSVs (cópias para consulta; não alimentam os QMDs)
     ├── figuras/                   PNGs (idem)
     ├── relatorios/                onde _quarto.yml entrega HTML e Word
+    ├── ambiente.csv               versões e RemoteSha, quando registrado
+    ├── verificacao/               logs dos dois renders executados pelo verificador
     └── sessionInfo.txt            R, pacotes e versão do Quarto
 ```
 
@@ -155,8 +158,10 @@ dela, nos marcadores `{{BIBLIOTECAS_PREPARO}}`, `{{TRECHO_IMPORTAR}}` e
 11. **Salvar cópias** — `write.csv2()` (ponto e vírgula, vírgula decimal) para
     a base e as tabelas em `saida/tabelas/`; `ggsave()` para as figuras em
     `saida/figuras/` (7 × 4,6, 300 dpi, fundo branco).
-12. **Registrar o ambiente** — `registro_ambiente` com a versão do Quarto e o
-    `sessionInfo()`, gravado em `saida/sessionInfo.txt` (`useBytes = TRUE`).
+12. **Registrar o ambiente** — `tabela_ambiente` com R, Quarto, pacotes carregados,
+    catalyser e EAPADados; versões e RemoteSha quando disponível, sem inventar
+    commits ausentes. Salvar `saida/ambiente.csv` e `registro_ambiente` com
+    `sessionInfo()` em `saida/sessionInfo.txt`. O HTML apresenta a tabela formatada.
 
 ### 2.3 Voz dos comentários
 
@@ -203,6 +208,7 @@ caminhos de arquivo, nunca `saida/`. Todo script entrega pelo menos:
 | `texto_sintese_estatistica` | síntese de uma frase (Conclusão) |
 | `alerta_modelo` | alerta honesto sobre pressupostos/sinais de inadequação |
 | `registro_ambiente` | vetor de linhas do ambiente computacional |
+| `tabela_ambiente` | tabela de versões e commits para o HTML e ambiente.csv |
 | `ic_percentual` | nível de confiança em texto (usado nos métodos) |
 
 Por análise, o mapa de objetos do cabeçalho lista os demais:
@@ -276,7 +282,8 @@ dinâmica — `texto_anova` — seguida da tabela da ANOVA), **Discussão**,
   e no artigo; o Render do HTML e do DOCX não pode exibir `??` no lugar de
   número ou legenda. No teste t, os pressupostos também são `##` da Exploração
   (normalidade e variâncias numa única subseção, com a tabela de testes e as
-  frases de leitura; essa análise não tem gráficos de diagnóstico).
+  frases de leitura). O teste t independente tem resíduos e Q-Q empilhados;
+  o antigo gráfico adicional de homocedasticidade foi retirado.
 
 O barbo e a regressão exportada ainda não seguem essas regras (no barbo,
 Diagnósticos é seção de 1º nível com gráficos separados e o console aparece no
@@ -316,7 +323,7 @@ uma linha, o valor entra no lugar. O catálogo por arquivo:
 |---|---|
 | `analise_projeto.R` | `{{TITULO_COMENTARIO}}`, `{{PERGUNTA_COMENTARIO}}`, `{{BIBLIOTECAS_PREPARO}}` (bloco derivado de `library()` da leitura/preparo, na seção 1), `{{TRECHO_IMPORTAR}}` (da planilha a `dados_brutos`, na seção 2), `{{TRECHO_PREPARO}}` (etapas 3.1–3.4: reconstruir, conferir com `catalyser_conferir_base()`, adotar com leitura única do RDS e montar `dados_da_analise`, na seção 3), variáveis e rótulos (`{{RESPOSTA_R}}`, `{{PREDITOR_R}}`, `{{GRUPO_R}}`, `{{FATOR_R}}`, `{{ROTULO_*_R}}`), `{{CONFIANCA}}`, `{{TITULO_R}}`, `{{EQUACAO}}`, `{{AUTOCORRELACAO}}` (regressão) |
 | `relatorio_completo.qmd` / `relatorio_artigo.qmd` | `{{TITULO}}`, `{{INTRODUCAO}}`, `{{METODOS}}`, `{{DISCUSSAO}}`, `{{CONCLUSAO}}`, `{{ARQUIVO_BRUTO}}`, `{{ARQUIVO_BASE}}` |
-| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}`, `{{PACOTES_INSTALAR}}` |
+| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}`, `{{PACOTES_INSTALAR}}`, `{{AMBIENTE_COMPUTACIONAL}}` |
 
 Regras dos marcadores:
 
@@ -410,6 +417,72 @@ Cobertura do molde:
 - `test_exportacao_comunicacao.R` / `test_exportacao_preparo.R` — o gerador
   geral e as funções de exportação que o molde reaproveita.
 
-A suíte tem 34 arquivos e deve terminar com `25/34` ou melhor no resumo;
-falhas conhecidas e fora do escopo do molde são listadas no relatório da
-rodada, não silenciadas.
+A suíte principal lista 34 arquivos. O resultado deve ser comparado ao baseline
+medido no mesmo checkout e ambiente; um número mínimo histórico não constitui
+aprovação. Na rodada de 30/09/2026, o baseline observado foi 2/34, com falha
+nativa ao encerrar processos R que carregam rlang. Não equivale ao 28/34
+esperado nem a uma certificação dos renders.
+
+Testes adicionais da Fase 2, executados separadamente a partir de inst/app:
+`Rscript tests/test_figuras_molde.R` e
+`Rscript tests/test_nome_projeto_fase2.R`. O primeiro compara as camadas da
+figura ANOVA do painel com o script exportado; o segundo confere nomes de
+projeto sem truncar palavras e preservação dos nomes legados de bases.
+
+## 10. Alterações e limites da Fase 2 (30/09/2026)
+
+### Figuras e Levene
+
+O padrão de comparação preserva pontos brutos, losango na média e letras.
+O rótulo numérico é média ± DP **amostral**, com duas casas e vírgula decimal,
+na altura da média e à direita do losango, com fundo branco semitransparente.
+As hastes representam IC na ANOVA e DP no teste t; as legendas devem deixar
+essa diferença explícita. As letras usam margem aditiva de 6% da amplitude
+incluindo pontos e hastes; não multiplicar o máximo por 1,06 em dados negativos.
+
+Painel e script mantêm implementação visível espelhada, sem acrescentar uma
+função genérica compartilhada ao projeto do aluno. O teste de comparação
+numérica das camadas reduz o risco de divergência. `funcoes.R` comum não mudou.
+
+O teste t independente informa H0 (variâncias iguais), H1 (variâncias
+diferentes), F, gl, p e decisão no alfa do projeto. Escrever “não rejeitamos H0”,
+sem afirmar igualdade comprovada. A interpretação do painel é recomendatória.
+Resíduos e Q-Q permanecem; o gráfico separado de homocedasticidade foi removido.
+
+### Ambiente e conferência
+
+O README registra o ambiente **da exportação**, por código. O script registra
+novamente o ambiente **da execução**, que pode ser diferente. A coluna de commit
+usa RemoteSha quando presente e informa ausência quando não há metadado.
+O verificador roda cada QMD em outro processo, exige exit 0 e arquivo novo e
+procura `??` no HTML e no XML do Word. Não instala pacotes nem aceita um arquivo
+antigo como prova. A conferência visual e de citações continua necessária.
+
+`saida/` permanece regenerável e fora do ZIP; depois de criada pode ser
+versionada pelo pesquisador. Não houve adoção automática de renv ou pins de
+GitHub. A proposta de .gitattributes está em APOIO/temp, sem aplicação.
+
+O nome explicitamente informado para o projeto conserva todas as palavras
+sanitizadas, protege nomes reservados do Windows e rejeita nomes acima de
+80 caracteres. O helper de duas palavras continua apenas em bases e sugestões
+legadas; sua semântica não mudou.
+
+### O que ainda não foi implementado ou homologado
+
+- Welch com Games-Howell não foi implementado. A tabela Welch da ANOVA continua
+  informativa, com pós-teste Tukey. Não descrever o plano do Bloco D como recurso.
+- Teste t de uma amostra e pareado continuam na rota legada. Não foram criadas
+  entradas no registro para os templates propostos do Bloco E.
+- O teste t independente ainda tem divergências preexistentes a resolver:
+  conf.level/alternative não chegam ao t.test do template e a escolha explícita
+  de Student/Welch no painel não é preservada por seu critério automático.
+  As provas de rótulos não certificam equivalência de todas as escolhas.
+- Regressão e barbo ainda divergem nas regras de console, títulos e posição dos
+  diagnósticos, conforme a seção 4.1. EAPACadernos permaneceu somente de leitura.
+- Renders da Fase 2 não foram homologados: o ambiente local encerra com erro
+  nativo mesmo no ensaio mínimo com rlang. A aprovação depende de reexecução em
+  ambiente funcional, revisão estatística e revisão didática do professor.
+
+Provas, decisões, planos e handoff estão em `APOIO/temp/` do repositório-mãe.
+Este contrato registra a implementação da branch local; não declara a Fase 2
+concluída nem substitui aprovação de push/merge pelo professor.
