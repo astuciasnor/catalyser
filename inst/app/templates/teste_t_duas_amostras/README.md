@@ -104,10 +104,12 @@ existe; o d diz o quanto ela importa. Quando o teste não encontra evidência de
 diferença e o poder estatístico é baixo (pacote `pwr`), os relatórios
 acrescentam uma ressalva: ausência de evidência não é evidência de ausência.
 
-Na figura de médias, o losango é a média do grupo e as hastes marcam a
-**média ± desvio padrão**, a dispersão das observações. As letras acima dos
-grupos resumem o p do teste escolhido: letras iguais indicam grupos sem
-diferença significativa; letras diferentes, médias diferentes.
+Na figura de médias, o losango é a média do grupo, o **rótulo ao lado dele
+escreve a média ± desvio padrão** (vírgula decimal, mesmas casas das tabelas)
+e as hastes marcam essa mesma **média ± desvio padrão**, a dispersão das
+observações. As letras acima dos grupos resumem o p do teste escolhido:
+letras iguais indicam grupos sem diferença significativa; letras diferentes,
+médias diferentes.
 
 ## Como escrever e adaptar
 

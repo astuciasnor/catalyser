@@ -681,14 +681,28 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       # As letras seguem o p do teste escolhido (Student ou Welch, conforme o
       # campo de variâncias): sem diferença, "a" para os dois grupos; com
       # diferença, "a" para o grupo de maior média e "b" para o outro.
+      # which.max localiza a maior média pelo índice, sem comparar números de
+      # ponto flutuante por igualdade.
       resumo$letra <- dplyr::case_when(
         res$t_out$p.value >= alfa_painel ~ "a",
-        resumo$media == max(resumo$media) ~ "a",
+        seq_along(resumo$media) == which.max(resumo$media) ~ "a",
         TRUE ~ "b"
       )
-      # As letras ficam acima da haste mais alta e do ponto mais alto.
-      y_letra <- max(c(resumo$media + resumo$dp, df_clean[[input$two_var_y]])) * 1.06
-      
+      # Rótulo ao lado do losango, com vírgula decimal e as mesmas casas do
+      # projeto exportado (lá, fmt(); aqui, o mesmo formatC que os módulos
+      # usam). O DP é o amostral, o mesmo das hastes.
+      rotular_media <- function(x) formatC(x, format = "f", digits = 2, decimal.mark = ",")
+      resumo$rotulo_media <- paste0(rotular_media(resumo$media), " ± ", rotular_media(resumo$dp))
+      # Alturas do texto: a letra fica acima do ponto mais alto e da haste
+      # mais alta; o rótulo, ao lado do losango, na altura da média. A folga
+      # é aditiva (6% da amplitude da figura): com valores todos negativos,
+      # max * 1.06 colocaria o texto dentro dos dados.
+      valores_figura <- c(resumo$media + resumo$dp, resumo$media - resumo$dp,
+                          df_clean[[input$two_var_y]])
+      folga_y <- 0.06 * diff(range(valores_figura, na.rm = TRUE))
+      y_letra <- max(valores_figura, na.rm = TRUE) + folga_y
+      resumo$y_rotulo <- resumo$media
+
       ggplot(resumo, aes(x = .data[[input$two_var_x]])) +
         geom_jitter(
           data = df_clean,
@@ -698,14 +712,23 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         geom_errorbar(aes(ymin = media - dp, ymax = media + dp),
                       width = 0.15, linewidth = 0.8, colour = "#0F3B5F") +
         geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
+        # Rótulo à direita do losango: fundo branco translúcido e sem borda,
+        # para continuar legível sobre pontos próximos.
+        geom_label(aes(y = y_rotulo, label = rotulo_media),
+                   nudge_x = 0.18, hjust = 0,
+                   linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+                   fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
+                   size = 3.2) +
         geom_text(aes(y = y_letra, label = letra), size = 5, fontface = "bold", colour = "#0F3B5F") +
         scale_colour_manual(values = cores_grupo, guide = "none") +
+        # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
+        scale_x_discrete(expand = expansion(mult = c(0.20, 0.80))) +
         scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
         labs(
           title = title_val,
           x = x_label, y = y_label,
-          subtitle = paste0("Pontos: observações; losango: média; hastes: média ± DP; ",
-                            "letras iguais: sem diferença significativa")
+          subtitle = paste0("Pontos: observações; losango: média; hastes e rótulo: média ± DP.\n",
+                            "Letras iguais: sem diferença significativa")
         ) +
         g_theme
     })
@@ -761,25 +784,33 @@ mod_parametric_server <- function(id, data_rv, import_info) {
     output$levene_test_out <- renderPrint({
       res <- test_results()
       req(res, res$type == "two_ind")
-      
+
       lev <- res$levene
       cat("Teste de Levene (homogeneidade das variâncias)\n")
+      cat("Hipóteses:\n")
+      cat("  H0: as variâncias dos dois grupos são iguais.\n")
+      cat("  H1: as variâncias dos dois grupos são diferentes.\n\n")
       print(lev)
-      
-      # Leitura em linguagem simples, com a estatística, os gl e o p
+
+      # Leitura em linguagem simples, com a estatística, os gl e o p, no
+      # mesmo alfa do projeto (1 menos o nível de confiança). A leitura é
+      # recomendatória: o teste aplicado segue a caixa "Assumir Variâncias
+      # Iguais (Homocedasticidade)", não a decisão automática do Levene.
       p_levene <- lev[["Pr(>F)"]][1]
       gl_num <- lev[["Df"]][1]
       gl_den <- lev[["Df"]][2]
       f_val <- lev[["F value"]][1]
+      alfa_levene <- 1 - input$conf_level / 100
       cat("\nInterpretação:\n")
       cat(sprintf("  F(%s, %s) = %.3f; p = %.4f\n", gl_num, gl_den, f_val, p_levene))
-      if (!is.na(p_levene) && p_levene < 0.05) {
-        cat("  p-valor < 0.05 -> Há evidência de variâncias diferentes.\n")
-        cat("  Prefira o t de Welch (desmarque 'Variâncias iguais?').\n")
-      } else {
-        cat("  p-valor >= 0.05 -> Sem evidência de variâncias diferentes.\n")
-        cat("  O t de Student (variâncias iguais) é adequado.\n")
-      }
+      # A ausência de rejeição não prova igualdade; NA não é resultado favorável.
+      leitura_levene <- dplyr::case_when(
+        is.na(p_levene) ~ "Levene não pôde ser calculado; examine os dados e considere Welch.",
+        p_levene < alfa_levene ~ "Rejeitamos H0: há evidência de variâncias diferentes. Considere o t de Welch.",
+        TRUE ~ "Não há evidência suficiente de variâncias diferentes: não rejeitamos H0. Student pressupõe variâncias iguais; Welch continua disponível."
+      )
+      cat(sprintf("  Alfa do projeto = %.2f. %s\n", alfa_levene, leitura_levene))
+      cat("  Esta leitura é recomendatória; o teste aplicado segue a escolha de variâncias do painel.\n")
     })
     
     # Q-Q Plot de pressupostos

@@ -23,12 +23,12 @@
 # tabela_descritiva_exibir   resumo por grupo, formatado
 # tabela_teste               método, diferença, IC, t, gl, p e d, formatados
 # grafico_caixa              boxplot com os pontos de cada observação
-# grafico_medias             pontos, média (losango), DP e letras de significância
+# grafico_medias             pontos, média (losango), rótulo média ± DP e letras
 # grafico_residuos           resíduos contra os valores ajustados (caderno HTML)
 # grafico_qq                 Q-Q dos resíduos (caderno HTML)
-# grafico_homocedasticidade  dispersão dos resíduos por grupo (caderno HTML)
 # texto_resultado            frase com o resultado do teste
 # alerta_poder               ressalva quando não há evidência e o poder é baixo
+# texto_levene_decisao       decisão do Levene ligada ao teste escolhido
 #
 # Cada QMD executa este script numa sessão nova e usa os objetos em memória.
 # Os CSVs e PNGs salvos são cópias para consulta; não alimentam os QMDs.
@@ -169,6 +169,9 @@ p_shapiro_1 <- p_shapiro[[nivel_1]]; p_shapiro_2 <- p_shapiro[[nivel_2]]
 formula_teste <- reformulate(variavel_grupo, response = variavel_resposta)
 teste_levene <- car::leveneTest(formula_teste, data = dados)
 p_levene <- teste_levene[["Pr(>F)"]][1]
+# Estatística e graus de liberdade do Levene, para o texto de decisão.
+f_levene <- teste_levene[["F value"]][1]
+gl_levene <- teste_levene[["Df"]][1:2]
 # Decisão honesta: só tratamos as variâncias como iguais quando Levene NÃO dá
 # evidência de diferença (p maior ou igual a alfa).
 variancias_iguais <- !is.na(p_levene) && p_levene >= alfa
@@ -269,11 +272,12 @@ grafico_caixa <- ggplot2::ggplot(dados,
   ggplot2::theme(legend.position = "none")
 
 # 8.2 Médias por grupo com as observações: cada ponto é uma observação
-# (jitter), o losango é a média do grupo e as hastes são a média ± desvio
-# padrão. O DP descreve a dispersão das observações, não a incerteza da
-# média. Mostrar os pontos em vez de barras evita esconder a distribuição
-# por trás da média (Weissgerber et al., 2015). O eixo y não parte do zero:
-# o interesse está na distância entre as médias, não na razão com o zero.
+# (jitter), o losango é a média do grupo, o rótulo ao lado dele escreve a
+# média ± DP e as hastes são a mesma média ± desvio padrão. O DP descreve a
+# dispersão das observações, não a incerteza da média. Mostrar os pontos em
+# vez de barras evita esconder a distribuição por trás da média (Weissgerber
+# et al., 2015). O eixo y não parte do zero: o interesse está na distância
+# entre as médias, não na razão com o zero.
 resumo_medias <- tabela_descritiva |>
   dplyr::mutate(
     dp_baixo = media - dp,
@@ -283,14 +287,24 @@ resumo_medias <- tabela_descritiva |>
 # sem diferença (p >= alfa), os dois grupos recebem "a"; com diferença, o
 # grupo de maior média recebe "a" e o outro, "b". Leitura: letras iguais,
 # grupos sem diferença significativa; letras diferentes, médias diferentes.
+# which.max localiza a maior média pelo índice, sem comparar números de
+# ponto flutuante por igualdade.
 resumo_medias$letra <- dplyr::case_when(
   teste_t$p.value >= alfa ~ "a",
-  resumo_medias$media == max(resumo_medias$media) ~ "a",
+  seq_along(resumo_medias$media) == which.max(resumo_medias$media) ~ "a",
   TRUE ~ "b"
 )
-# As letras ficam acima da haste mais alta e do ponto mais alto, com uma
-# folga de 6% para o texto não encostar nos dados.
-y_letra <- max(c(resumo_medias$dp_alto, dados[[variavel_resposta]]), na.rm = TRUE) * 1.06
+# O rótulo ao lado do losango traz a média ± DP no formato das tabelas
+# (vírgula decimal, mesmas casas), e o DP é o amostral das hastes.
+resumo_medias$rotulo_media <- paste0(fmt(resumo_medias$media), " ± ", fmt(resumo_medias$dp))
+# Alturas do texto: a letra fica acima do ponto mais alto e da haste mais
+# alta; o rótulo, ao lado do losango, na altura da média. A folga é aditiva
+# (6% da amplitude da figura), e não multiplicativa: com valores todos
+# negativos, max * 1.06 colocaria o texto dentro dos dados.
+valores_figura <- c(resumo_medias$dp_alto, resumo_medias$dp_baixo, dados[[variavel_resposta]])
+folga_y <- 0.06 * diff(range(valores_figura, na.rm = TRUE))
+y_letra <- max(valores_figura, na.rm = TRUE) + folga_y
+resumo_medias$y_rotulo <- resumo_medias$media
 grafico_medias <- ggplot2::ggplot(resumo_medias,
   ggplot2::aes(x = .data[[nome_col_grupo]])) +
   ggplot2::geom_jitter(
@@ -307,18 +321,29 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
     colour = "#0F3B5F"
   ) +
   ggplot2::geom_point(ggplot2::aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
+  # Rótulo à direita do losango: fundo branco translúcido e sem borda, para
+  # continuar legível sobre pontos próximos.
+  ggplot2::geom_label(
+    ggplot2::aes(y = y_rotulo, label = rotulo_media),
+    nudge_x = 0.18, hjust = 0,
+    linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+    fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
+    size = 3.2
+  ) +
   ggplot2::geom_text(
     ggplot2::aes(y = y_letra, label = letra),
     size = 5, fontface = "bold", colour = "#0F3B5F"
   ) +
   ggplot2::scale_colour_manual(values = cores_grupo, guide = "none") +
+  # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
+  ggplot2::scale_x_discrete(expand = ggplot2::expansion(mult = c(0.20, 0.80))) +
   ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.15))) +
   ggplot2::labs(
     x = rotulo_grupo,
     y = rotulo_resposta,
     title = if (nzchar(titulo_grafico)) titulo_grafico else NULL,
-    subtitle = paste0("Pontos: observações; losango: média; hastes: média ± DP; ",
-                      "letras iguais: sem diferença significativa")
+    subtitle = paste0("Pontos: observações; losango: média; hastes e rótulo: média ± DP.\n",
+                      "Letras iguais: sem diferença significativa")
   ) +
   tema_projeto()
 
@@ -334,8 +359,10 @@ dados$residuo <- dados[[variavel_resposta]] - dados$valor_ajustado
 grafico_residuos <- ggplot2::ggplot(dados,
   ggplot2::aes(x = valor_ajustado, y = residuo, colour = .data[[variavel_grupo]])) +
   ggplot2::geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
-  ggplot2::geom_jitter(width = 0.02 * diff(range(dados$valor_ajustado)), height = 0,
-                       size = 2.2, alpha = 0.7) +
+  # A largura do jitter segue a distância entre as médias dos grupos, com um
+  # piso de 0.05: se as médias forem iguais, o espalhamento não zera.
+  ggplot2::geom_jitter(width = pmax(0.02 * diff(range(dados$valor_ajustado)), 0.05),
+                       height = 0, size = 2.2, alpha = 0.7) +
   ggplot2::scale_colour_manual(values = cores_grupo) +
   ggplot2::labs(x = "Valores ajustados (médias dos grupos)", y = "Resíduos",
                 colour = rotulo_grupo) +
@@ -348,19 +375,6 @@ grafico_qq <- ggplot2::ggplot(dados, ggplot2::aes(sample = residuo)) +
   ggplot2::stat_qq_line(colour = "#E76F51") +
   ggplot2::labs(x = "Quantis teóricos", y = "Resíduos") +
   tema_projeto()
-
-# 8.5 Dispersão dos resíduos em cada grupo: caixas de alturas muito
-# diferentes indicam variâncias desiguais; o Levene formaliza essa
-# comparação na tabela de pressupostos.
-grafico_homocedasticidade <- ggplot2::ggplot(dados,
-  ggplot2::aes(x = .data[[variavel_grupo]], y = residuo, fill = .data[[variavel_grupo]])) +
-  ggplot2::geom_boxplot(width = 0.5, alpha = 0.65, outlier.shape = NA) +
-  ggplot2::geom_jitter(width = 0.12, size = 2, colour = "grey15", alpha = 0.8) +
-  ggplot2::scale_fill_manual(values = cores_grupo) +
-  ggplot2::labs(x = rotulo_grupo, y = "Resíduos",
-                title = "Dispersão dos resíduos por grupo") +
-  tema_projeto() +
-  ggplot2::theme(legend.position = "none")
 
 # 9. Preparar os textos dos relatórios -------------------------------------
 # Qual grupo teve a maior média? Comparação direta entre os dois valores.
@@ -393,6 +407,29 @@ texto_pressupostos <- stringr::str_glue(
   "evidência para rejeitá-lo."
 )
 print(texto_pressupostos)
+
+# Decisão do Levene escrita com o resultado e ligada ao método aplicado.
+# case_when liga a leitura ao teste escolhido: sem rejeição de H0, Student;
+# com rejeição, Welch. A frase nunca afirma igualdade de variâncias: diz
+# apenas que H0 foi rejeitada ou não, que é o que o teste sustenta.
+texto_levene_decisao <- dplyr::case_when(
+  is.na(p_levene) ~ "O teste de Levene não pôde ser calculado; o teste escolhido foi o t de Welch, que não assume variâncias iguais.",
+  variancias_iguais ~ stringr::str_glue(
+    "O teste de Levene não rejeitou H0 ",
+    "(F({gl_levene[1]}, {gl_levene[2]}) = {fmt(f_levene)}; ",
+    "{formatar_p(p_levene, no_texto = TRUE)}). Como o p é maior ou igual a ",
+    "alfa ({fmt(alfa, 2)}), não rejeitamos H0 e o teste escolhido foi o ",
+    "t de Student, que assume variâncias iguais."
+  ),
+  TRUE ~ stringr::str_glue(
+    "O teste de Levene rejeitou H0 ",
+    "(F({gl_levene[1]}, {gl_levene[2]}) = {fmt(f_levene)}; ",
+    "{formatar_p(p_levene, no_texto = TRUE)}). Como o p é menor que alfa ",
+    "({fmt(alfa, 2)}), rejeitamos H0 e o teste escolhido foi o t de Welch, ",
+    "que não assume variâncias iguais."
+  )
+)
+print(texto_levene_decisao)
 
 texto_resultado <- stringr::str_glue(
   "Pelo {metodo_teste}, {evidencia} ",
