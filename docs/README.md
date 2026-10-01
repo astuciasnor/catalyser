@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+Registro recente: [avaliação manual da Fase 2 no Windows, 01/10/2026](testes/AVALIACAO_WINDOWS_FASE2_20261001.md).
+
 Comece pelo [mapa da arquitetura e dos contratos](../ARQUITETURA.md).
 
 1. [Decisões pedagógicas e de refinamento](DECISOES_PEDAGOGICAS_E_REFINAMENTO.md)
