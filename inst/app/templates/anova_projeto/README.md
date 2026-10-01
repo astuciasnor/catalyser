@@ -7,7 +7,7 @@ pacotes do CRAN e dois pacotes do ecossistema instalados do GitHub.
 ## Um convite a aprender programação
 
 O arquivo `R/analise.R` mostra como a base preparada se transforma em ANOVA,
-comparações de Tukey, pressupostos, tabelas, gráficos e textos estatísticos.
+comparações de Tukey ou Games-Howell, pressupostos, tabelas, gráficos e textos estatísticos.
 Os comentários explicam as decisões e as operações menos familiares. Execute as seções em ordem e
 examine os objetos indicados no começo do script. É o caminho do mouse ao código:
 quem começa pela CatalyseR encontra aqui a chance de entender o que a ferramenta
@@ -170,3 +170,19 @@ Rscript verificar_reprodutibilidade.R
 A conferência recalcula cada QMD em um processo novo, registra os logs em
 `saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
 não for novo ou se houver referência `??`. Ela não instala pacotes.
+
+## Escolher o método da ANOVA
+
+O script registra `metodo`: `classica`, `welch` ou `auto`. No automático,
+Levene é lido no alfa do projeto: se houver evidência de variâncias diferentes,
+usa-se Welch com Games-Howell; caso contrário, clássica com Tukey.
+Levene não calculável recomenda Welch por cautela. Não rejeitar H0 não comprova
+igualdade. Uma escolha explícita é preservada e o relatório aponta quando
+difere da recomendação. Execuções antigas, sem esse campo, conservam a clássica.
+
+Games-Howell já ajusta as comparações e usa segundo grupo menos primeiro grupo.
+Menos de seis observações em um grupo gera aviso, sem bloquear. Welch exige
+variância positiva em cada grupo. Seu ômega quadrado e o IC bilateral são
+aproximações a partir do F, com a fórmula e a limitação descritas no relatório.
+Não representam a decomposição clássica de variância explicada. O poder clássico
+não é aplicado ao caminho Welch. Kruskal-Wallis continua em seu menu próprio.

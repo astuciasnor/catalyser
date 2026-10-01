@@ -2280,6 +2280,7 @@ exportacao_anova_marcadores_script <- function(item) {
     FATOR_R = encodeString(fator, quote = '"'),
     ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
     ROTULO_FATOR_R = encodeString(rotulo_fator, quote = '"'),
+    METODO_R = encodeString(as.character(p$metodo %||% "classica"), quote = '"'),
     CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
     TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
   )
@@ -2496,8 +2497,8 @@ exportacao_textos_anova <- function(item) {
       sprintf("Neste estudo, comparou-se %s entre os grupos de %s. O objetivo foi verificar se as médias diferem, identificar quais grupos se separam e estimar a magnitude dessa diferença.", resposta, fator)),
     metodos = c(
       "*Sugestão de redação: complete a origem dos dados, o período, o local, a unidade experimental, as unidades de medida e os critérios de seleção. Não declare independência sem conferir o delineamento.*", "",
-      sprintf("A comparação de %s entre os grupos de %s usou análise de variância de um fator, seguida do teste de Tukey, com as funções de base do R [@rcore2025]. Foram utilizados os casos com resposta e grupo preenchidos. Os intervalos de confiança das médias e das comparações foram de %s%%, e adotou-se nível de significância de %s [@zar2010].", resposta, fator, ic, alfa), "",
-      "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk, ambos acompanhados dos gráficos de resíduos. As letras de contraste do teste de Tukey foram obtidas com o pacote `multcompView` [@graves2026], e as figuras foram construídas com o `ggplot2` [@wickham2016]. O tamanho do efeito foi descrito por η² e ω²."),
+      sprintf("A comparação de %s entre os grupos de %s usou análise de variância de um fator, com as funções de base do R [@rcore2025]. Foram utilizados os casos com resposta e grupo preenchidos. Os intervalos de confiança das médias e das comparações foram de %s%%, e adotou-se nível de significância de %s [@zar2010].", resposta, fator, ic, alfa), "",
+      "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk, ambos acompanhados dos gráficos de resíduos. A ANOVA clássica usa Tukey; Welch usa Games-Howell. A escolha registrada em `R/analise.R` e sua justificativa aparecem no relatório. As letras resumem os p-valores ajustados no alfa adotado, preservando os nomes dos grupos. As figuras foram construídas com o `ggplot2` [@wickham2016]. Na clássica, o efeito é descrito por η² e ω²; no Welch, usa-se uma conversão aproximada do F em ω², com IC bilateral também aproximado [@effectsizeConversao]."),
     discussao = c(
       "*Sugestão para desenvolver a discussão: comente quais grupos se separam, o tamanho das diferenças e a leitura à luz do fenômeno investigado. Compare com estudos do mesmo organismo e inclua as referências consultadas.*", "",
       "O p-valor expressa a compatibilidade dos dados com a hipótese nula; o tamanho de efeito descreve a magnitude da associação. A importância prática depende do contexto do estudo. O teste descreve diferenças entre os grupos; a atribuição de causa depende do delineamento e de como os dados foram obtidos."),
