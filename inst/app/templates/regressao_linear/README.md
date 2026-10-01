@@ -162,3 +162,10 @@ Rscript verificar_reprodutibilidade.R
 A conferência recalcula cada QMD em um processo novo, registra os logs em
 `saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
 não for novo ou se houver referência `??`. Ela não instala pacotes.
+
+## Ler o diagnóstico antes dos resultados
+
+O caderno apresenta os diagnósticos dentro da Exploração, antes dos Resultados,
+com gráficos empilhados e menores. A saída crua fica para estudo no console:
+execute `summary(modelo_lm)` em R/analise.R. Os relatórios usam as tabelas
+formatadas e não exibem esse despejo de console.

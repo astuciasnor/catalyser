@@ -711,7 +711,7 @@ relatar_anova <- function(r) {
     }
     sprintf(
       "Rejeitou-se H0 de igualdade das médias: F(%s; %s) = %s, %s. %s%s",
-      anova_fmt(r$df_entre, 2), anova_fmt(r$df_dentro, 2), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova),
+      anova_fmt(r$df_entre, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$df_dentro, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova),
       efeito, complemento
     )
   } else {
@@ -721,7 +721,7 @@ relatar_anova <- function(r) {
         "F(%s; %s) = %s, %s. %s",
         "Isso não significa que as médias sejam iguais; significa que estes dados não permitiram detectar diferença. "
       ),
-      anova_fmt(r$df_entre, 2), anova_fmt(r$df_dentro, 2), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova), efeito
+      anova_fmt(r$df_entre, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$df_dentro, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova), efeito
     )
   }
 

@@ -1,7 +1,7 @@
 ---
 title: "{{TITULO}}"
 subtitle: "Modelo de relatório científico · regressão linear simples"
-author: "Nome do autor — instituição (preencher)"
+author: "Nome do autor, instituição (preencher)"
 date: today
 date-format: long
 format:
@@ -27,15 +27,15 @@ Os resultados numéricos vêm dos objetos do script. Revise os textos antes de
 usar este documento como artigo, monografia ou relatório científico. -->
 ```
 
-# Introdução
+# Introdução: qual é a pergunta?
 
 {{INTRODUCAO}}
 
-# Material e métodos
+# Material e métodos: como foi feita a análise?
 
 {{METODOS}}
 
-# Resultados
+# Resultados: o que a reta descreve?
 
 ```{r}
 #| label: tbl-descritiva
@@ -65,13 +65,13 @@ grafico_regressao
 
 `r texto_influencia_artigo`
 
-# Discussão
+# Discussão: o que isso significa no estudo?
 
 {{DISCUSSAO}}
 
 `r alerta_modelo`
 
-# Conclusão
+# Conclusão: qual é a resposta?
 
 `r texto_sintese_estatistica`
 

@@ -111,10 +111,13 @@ stopifnot(
 )
 
 # --- A narrativa não repete o que as tabelas já mostram ----------------------
-# Médias por grupo ficam no resumo por grupo; Shapiro e Levene, nos pressupostos.
+# Médias por grupo e números dos pressupostos ficam nas tabelas. Levene é
+# mencionado para justificar o método, sem repetir sua estatística no texto.
 stopifnot(
   !grepl("Shapiro", narrativa, fixed = TRUE),
-  !grepl("Levene", narrativa, fixed = TRUE),
+  grepl("Levene", narrativa, fixed = TRUE),
+  grepl("Escolha explícita: ANOVA clássica com Tukey", narrativa, fixed = TRUE),
+  !grepl("Levene: F(", narrativa, fixed = TRUE),
   !grepl("média = ", narrativa, fixed = TRUE),
   # Mas a narrativa continua dizendo onde encontrar cada coisa.
   grepl("resumo por grupo", narrativa, fixed = TRUE),

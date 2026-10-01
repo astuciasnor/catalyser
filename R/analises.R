@@ -1595,7 +1595,7 @@ catalyser_anova <- function(dados, p) {
       "Rejeitou-se H0 de igualdade das médias: "
     else
       "Não houve evidência suficiente para rejeitar H0 de igualdade das médias: ",
-    sprintf("F(%s; %s) = %s, %s. ", catalyser_num(df_entre), catalyser_num(df_dentro), catalyser_num(f_anova), catalyser_p(p_anova)),
+    sprintf("F(%s; %s) = %s, %s. ", catalyser_num(df_entre, if (metodo_usado == "welch") 2L else 0L), catalyser_num(df_dentro, if (metodo_usado == "welch") 2L else 0L), catalyser_num(f_anova), catalyser_p(p_anova)),
     if (metodo_usado == "welch") paste0("Ômega quadrado aproximado = ", catalyser_num(omega2, 3L), ". ", efeito_aviso, " ") else sprintf(
       "O fator explicou %s%% da variação da resposta (η² = %s; ω² = %s), efeito %s pela convenção de Cohen. ",
       catalyser_num(100 * eta2, 1L), catalyser_num(eta2), catalyser_num(omega2), leitura_efeito
