@@ -933,6 +933,24 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
       )
     }
   }
+  # Na rota legada de várias análises, o roteiro clássico não pode ensinar
+  # um cálculo diferente do método novo que o painel registrou.
+  if (identical(execucao$tipo, "anova_um_fator") &&
+      !identical(as.character(p$metodo %||% "classica"), "classica")) {
+    parametros <- strsplit(exportacao_lista_r(p, 0L), "\n", fixed = TRUE)[[1]]
+    codigo <- c(
+      "# Esta comunicação reúne análises na rota legada de um QMD.",
+      "# Welch e a escolha automática são reproduzidos pelo motor do pacote.",
+      "# Para estudar os cálculos linha a linha, exporte esta ANOVA sozinha:",
+      "# o molde novo mostra todo o percurso em R/analise.R.",
+      "parametros_anova <-", parametros,
+      "resultado_anova <- catalyser::catalyser_anova(dados, parametros_anova)",
+      "tabela_anova <- resultado_anova$tabela",
+      "comparacoes_anova <- resultado_anova$comparacoes",
+      "metodo_anova <- resultado_anova$metodo_usado",
+      "resultado_anova$narrativa"
+    )
+  }
   c(
     if (isTRUE(incluir_cabecalho)) c(
       "# Código R essencial desta execução.",
@@ -2384,7 +2402,82 @@ exportacao_teste_t_simples <- function(item) {
 # nova), pasta de templates, pasta dos arquivos de apoio, prefixo do script e
 # as três tabelas de marcadores. Adicionar uma análise = criar a pasta de
 # templates e registrar uma entrada aqui.
+# Os desenhos curtos compartilham a apresentação, mas cada script explica seu teste.
+exportacao_t_degrau_marcadores_script <- function(item) {
+  p <- item$parametros
+  pareado <- identical(item$tipo, "teste_t_paired")
+  v1 <- as.character(if (pareado) p$variavel_1 else p$variavel)
+  v2 <- as.character(p$variavel_2 %||% "")
+  list(TITULO_COMENTARIO = toupper(as.character(item$titulo)),
+    VARIAVEL_1_R = encodeString(v1, quote = '"'),
+    VARIAVEL_2_R = encodeString(v2, quote = '"'),
+    ROTULO_1_R = encodeString(as.character(p$rotulo_1 %||% v1), quote = '"'),
+    ROTULO_2_R = encodeString(as.character(p$rotulo_2 %||% v2), quote = '"'),
+    MU0 = format(as.numeric(p$media_hipotetica %||% 0), digits = 15, decimal.mark = "."),
+    CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    ALTERNATIVA_R = encodeString(p$alternativa %||% "two.sided", quote = '"'))
+}
+
+exportacao_t_degrau_marcadores_qmd <- function(item, manifesto, import_info) {
+  globais <- manifesto$secoes_globais %||% list()
+  pareado <- identical(item$tipo, "teste_t_paired")
+  secao <- function(nome, padrao) {
+    texto <- paste(as.character(globais[[nome]] %||% ""), collapse = "\n")
+    if (nzchar(trimws(texto))) texto else padrao
+  }
+  list(
+    INTRODUCAO = secao("introducao", c(
+      "*Complete a pergunta biológica e acrescente referências do organismo estudado.*",
+      if (pareado) "Duas medidas da mesma unidade permitem estudar a diferença entre elas. O teste t pareado analisa a média dessas diferenças."
+      else "O teste t de uma amostra compara a média de uma resposta numérica com um valor de referência definido antes da análise.")),
+    METODOS = secao("metodos", c(
+      "*Descreva origem, local, período, unidades e delineamento. Verifique independência e, no pareado, a correspondência real das medidas.*",
+      "O teste t foi executado em R [@rcore2025], com a alternativa e a confiança registradas na CatalyseR. Os casos incompletos foram excluídos apenas nas medidas necessárias. O efeito padronizado usa o DP da resposta, na amostra única, ou o DP das diferenças, no pareado. O IC do efeito é bilateral por t não central. A interpretação exige examinar normalidade e delineamento [@zar2010].")),
+    DISCUSSAO = secao("discussao", "*Compare a magnitude e o IC com a questão biológica. Um p-valor não mede importância prática e não demonstra causalidade. Acrescente estudos do seu tema.*"),
+    CONCLUSAO = secao("conclusao", "*Responda à pergunta com a estimativa, sua incerteza e os limites do delineamento. A síntese automática precisa da revisão do pesquisador.*")
+  )
+}
+
+exportacao_t_degrau_marcadores_readme <- function(item, nome_projeto, import_info) {
+  list(TITULO = as.character(item$titulo %||% nome_projeto),
+    PROJETO_RPROJ = paste0(nome_projeto, ".Rproj"),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info))
+}
+
 molde_projeto_registro <- list(
+  teste_t_one_val = list(
+    tipo = "teste_t_one_val", pasta = "teste_t_uma_amostra", apoio = "regressao_linear",
+    seleciona = function(manifesto) {
+      itens <- manifesto$execucoes %||% list()
+      length(itens) == 1L && isTRUE(itens[[1]]$incluir_word) &&
+        identical(itens[[1]]$tipo, "teste_t_one_val")
+    },
+    prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
+                       base_externa, import_info, templates_dir) {
+      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
+        "# TESTE T ", registro_bases, pipeline, base_externa, import_info)
+    },
+    marcadores_script = exportacao_t_degrau_marcadores_script,
+    marcadores_qmd = exportacao_t_degrau_marcadores_qmd,
+    marcadores_readme = exportacao_t_degrau_marcadores_readme
+  ),
+  teste_t_paired = list(
+    tipo = "teste_t_paired", pasta = "teste_t_pareado", apoio = "regressao_linear",
+    seleciona = function(manifesto) {
+      itens <- manifesto$execucoes %||% list()
+      length(itens) == 1L && isTRUE(itens[[1]]$incluir_word) &&
+        identical(itens[[1]]$tipo, "teste_t_paired")
+    },
+    prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
+                       base_externa, import_info, templates_dir) {
+      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
+        "# TESTE T ", registro_bases, pipeline, base_externa, import_info)
+    },
+    marcadores_script = exportacao_t_degrau_marcadores_script,
+    marcadores_qmd = exportacao_t_degrau_marcadores_qmd,
+    marcadores_readme = exportacao_t_degrau_marcadores_readme
+  ),
+
   regressao_linear = list(
     tipo = "regressao_linear",
     pasta = "regressao_linear",

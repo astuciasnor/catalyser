@@ -378,6 +378,7 @@ testes <- c(
   "test_anova_exportacao.R",
   "test_anova_molde_projeto.R",
   "test_welch_molde.R",
+  "test_t_degraus_molde.R",
   "test_teste_t_molde_projeto.R",
   "test_parametros_t_molde.R",
   "test_anova_codigo_didatico.R",
