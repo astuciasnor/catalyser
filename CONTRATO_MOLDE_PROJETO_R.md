@@ -473,15 +473,17 @@ legadas; sua semântica não mudou.
   informativa, com pós-teste Tukey. Não descrever o plano do Bloco D como recurso.
 - Teste t de uma amostra e pareado continuam na rota legada. Não foram criadas
   entradas no registro para os templates propostos do Bloco E.
-- O teste t independente ainda tem divergências preexistentes a resolver:
-  conf.level/alternative não chegam ao t.test do template e a escolha explícita
-  de Student/Welch no painel não é preservada por seu critério automático.
-  As provas de rótulos não certificam equivalência de todas as escolhas.
+- O teste t independente preserva conf.level, alternative e a escolha
+  explícita Student/Welch do painel. Levene é recomendatório; não substitui
+  o método registrado. As hipóteses direcionais identificam a ordem dos grupos,
+  usam IC unilateral da diferença e preservam o sinal no cálculo aproximado
+  do poder. O IC do d de Cohen permanece bilateral e assim é identificado.
 - Regressão e barbo ainda divergem nas regras de console, títulos e posição dos
   diagnósticos, conforme a seção 4.1. EAPACadernos permaneceu somente de leitura.
-- Renders da Fase 2 não foram homologados: o ambiente local encerra com erro
-  nativo mesmo no ensaio mínimo com rlang. A aprovação depende de reexecução em
-  ambiente funcional, revisão estatística e revisão didática do professor.
+- Os projetos ANOVA, teste t independente e regressão geraram HTML e Word
+  com exit 0 em 01/10/2026, usando subprocessos de ambiente novo. A revisão
+  estatística e didática pelo professor e a instalação independente seguindo
+  somente o README permanecem necessárias.
 
 Provas, decisões, planos e handoff estão em `APOIO/temp/` do repositório-mãe.
 Este contrato registra a implementação da branch local; não declara a Fase 2

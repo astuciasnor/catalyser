@@ -37,6 +37,8 @@ usar este documento como artigo, monografia ou relatório científico. -->
 
 {{METODOS}}
 
+`r texto_escolhas`
+
 # Resultados
 
 A @tbl-descritiva resume a resposta em cada grupo.
@@ -74,8 +76,8 @@ grafico_medias
 ```
 
 `r texto_pressupostos` O teste de Levene comparou as variâncias dos dois
-grupos (H0: variâncias iguais; H1: variâncias diferentes) e orientou a
-escolha do método aplicado. Os testes formais de pressupostos complementam,
+grupos (H0: variâncias iguais; H1: variâncias diferentes). Sua leitura é
+recomendatória; o método aplicado preserva a escolha do painel. Os testes formais de pressupostos complementam,
 sem substituir, a inspeção visual da distribuição dos grupos [@kozak2018].
 
 # Discussão

@@ -86,21 +86,23 @@ modos que pulam essa execução (como `quarto render --no-execute`): os
 relatórios leem objetos calculados pelo script e, sem a execução, param com
 `object '<nome>' not found` na primeira expressão.
 
-## Como a análise decide o método
+## Como a análise preserva as escolhas
 
 O teste t clássico pede **normalidade dentro de cada grupo** e **variâncias
 parecidas entre os grupos**. O script confere a normalidade com Shapiro-Wilk em
-cada grupo e a igualdade de variâncias com o **teste de Levene**. Quando Levene
-não dá evidência de variâncias diferentes, usa-se o **t de Student**; caso
-contrário, o **t de Welch**, guardado também para comparação. As frases dos
-relatórios seguem o resultado real de cada teste: um p acima de {{IC}}% de
-confiança complementar não prova o pressuposto, apenas não dá evidência para
-rejeitá-lo.
+cada grupo e a igualdade de variâncias com o **teste de Levene**. O método
+**Student ou Welch**, a confiança e a hipótese alternativa preservam as
+escolhas registradas no painel. Levene orienta a revisão dos pressupostos;
+ele não troca o método automaticamente. Welch fica também guardado para
+comparação, com a mesma hipótese e confiança. Um p acima de alfa (1 menos
+o nível de confiança) não prova o pressuposto, apenas não dá evidência para
+rejeitá-lo. Nas hipóteses direcionais, a comparação segue o primeiro nível
+do grupo menos o segundo; confira essa ordem no script e nas tabelas.
 
 O tamanho do efeito é o **d de Cohen**, calculado com o desvio padrão combinado,
 acompanhado do seu intervalo de confiança (pacote `effectsize`) e de rótulos de
-referência (pequeno, médio, grande). A significância diz que a diferença
-existe; o d diz o quanto ela importa. Quando o teste não encontra evidência de
+referência (pequeno, médio, grande). O p informa a evidência estatística e
+o d quantifica a diferença padronizada. Quando o teste não encontra evidência de
 diferença e o poder estatístico é baixo (pacote `pwr`), os relatórios
 acrescentam uma ressalva: ausência de evidência não é evidência de ausência.
 

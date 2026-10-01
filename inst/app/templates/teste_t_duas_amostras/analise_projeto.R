@@ -17,7 +17,7 @@
 #
 # OBJETOS QUE OS RELATÓRIOS VÃO USAR
 # dados                      base com a resposta e o grupo (fator de dois níveis)
-# teste_t                    resultado do t.test escolhido conforme as variâncias
+# teste_t                    resultado do t.test com as escolhas feitas no painel
 # d_cohen                    tamanho do efeito (referência estatística)
 # d_ic                       intervalo de confiança do d de Cohen
 # tabela_descritiva_exibir   resumo por grupo, formatado
@@ -78,6 +78,9 @@ rotulo_resposta <- {{ROTULO_RESPOSTA_R}}
 rotulo_grupo <- {{ROTULO_GRUPO_R}}
 nivel_confianca <- {{CONFIANCA}}
 alfa <- 1 - nivel_confianca
+# Mantemos a hipótese e a escolha Student/Welch registradas na CatalyseR.
+alternativa <- {{ALTERNATIVA_R}}
+variancias_iguais <- {{VARIANCIAS_IGUAIS}}
 titulo_grafico <- {{TITULO_R}}
 # Duas cores da paleta Ocean, uma por grupo, com bom contraste.
 cores_grupo <- c("#0F3B5F", "#E89B3C")
@@ -172,28 +175,49 @@ p_levene <- teste_levene[["Pr(>F)"]][1]
 # Estatística e graus de liberdade do Levene, para o texto de decisão.
 f_levene <- teste_levene[["F value"]][1]
 gl_levene <- teste_levene[["Df"]][1:2]
-# Decisão honesta: só tratamos as variâncias como iguais quando Levene NÃO dá
-# evidência de diferença (p maior ou igual a alfa).
-variancias_iguais <- !is.na(p_levene) && p_levene >= alfa
+# Levene orienta a avaliação, sem substituir a escolha registrada no painel.
+levene_sem_evidencia <- !is.na(p_levene) && p_levene >= alfa
 # A normalidade fica "ok" quando nenhum dos dois grupos dá evidência de desvio.
 normalidade_ok <- all(p_shapiro >= alfa)
 
 # 6. Aplicar o teste t -----------------------------------------------------
-# A escolha do método segue Levene: variâncias iguais levam ao t de Student;
-# variâncias diferentes levam ao t de Welch. Guardamos os dois para comparar.
-teste_t <- t.test(formula_teste, data = dados, var.equal = variancias_iguais)
-teste_welch <- t.test(formula_teste, data = dados, var.equal = FALSE)
+# Student/Welch, confiança e hipótese seguem as escolhas do pesquisador.
+# A fórmula compara o primeiro nível do fator com o segundo.
+teste_t <- t.test(formula_teste, data = dados, var.equal = variancias_iguais,
+                  conf.level = nivel_confianca, alternative = alternativa)
+# A comparação com Welch mantém a mesma hipótese e o mesmo nível de confiança.
+teste_welch <- t.test(formula_teste, data = dados, var.equal = FALSE,
+                      conf.level = nivel_confianca, alternative = alternativa)
 # resumo_console guarda a saída bruta do teste; digite o nome no console
 # para conhecê-la uma vez — os relatórios não a exibem.
 resumo_console <- teste_t
 # Nome do método em português, para as tabelas e o texto.
-metodo_teste <- if (variancias_iguais) "t de Student (variâncias iguais)" else "t de Welch (variâncias diferentes)"
+metodo_teste <- if (variancias_iguais) "t de Student (assumindo variâncias iguais)" else "t de Welch (sem assumir variâncias iguais)"
+# A direção da hipótese diz respeito ao nível 1 menos o nível 2, nesta ordem.
+hipotese_alternativa <- dplyr::case_when(
+  alternativa == "greater" ~ paste("a média de", nivel_1, "é maior que a de", nivel_2),
+  alternativa == "less" ~ paste("a média de", nivel_1, "é menor que a de", nivel_2),
+  TRUE ~ paste("as médias de", nivel_1, "e", nivel_2, "são diferentes")
+)
+texto_escolhas <- paste0(
+  "Aplicou-se o ", metodo_teste, ", conforme a escolha registrada no painel, ",
+  "com confiança de ", fmt(100 * nivel_confianca, 0), "% e H1: ",
+  hipotese_alternativa, ". O teste de Levene é uma verificação recomendatória; ",
+  "seu resultado não troca automaticamente o método escolhido."
+)
 
 # Médias de cada grupo e a diferença entre elas (nível 1 menos nível 2).
 media_1 <- tabela_descritiva$media[tabela_descritiva[[nome_col_grupo]] == nivel_1]
 media_2 <- tabela_descritiva$media[tabela_descritiva[[nome_col_grupo]] == nivel_2]
 diferenca_medias <- media_1 - media_2
 ic_diferenca <- teste_t$conf.int
+# Testes direcionais têm apenas um limite finito; o símbolo indica o lado aberto.
+limites_ic_texto <- dplyr::case_when(
+  is.infinite(ic_diferenca) & ic_diferenca < 0 ~ "-∞",
+  is.infinite(ic_diferenca) & ic_diferenca > 0 ~ "∞",
+  TRUE ~ fmt(ic_diferenca)
+)
+descricao_ic <- if (alternativa == "two.sided") "IC" else "IC unilateral"
 
 # Tamanho do efeito (d de Cohen) calculado à mão, para ficar transparente.
 # sp é o desvio padrão combinado: pondera a variância de cada grupo pelos
@@ -224,18 +248,20 @@ ic_percentual <- fmt(100 * nivel_confianca, 0)
 tabela_teste <- data.frame(
   Indicador = c(
     "Método",
+    "Hipótese alternativa (H1)",
     paste0("Diferença de médias (", nivel_1, " menos ", nivel_2, ")"),
-    paste0("IC ", ic_percentual, "% da diferença"),
+    paste0(descricao_ic, " ", ic_percentual, "% da diferença"),
     "t",
     "Graus de liberdade",
     "p-valor",
     "d de Cohen (tamanho do efeito)",
-    paste0("IC ", ic_percentual, "% do d de Cohen")
+    paste0("IC bilateral ", ic_percentual, "% do d de Cohen")
   ),
   Valor = c(
     metodo_teste,
+    hipotese_alternativa,
     fmt(diferenca_medias),
-    paste0("[", fmt(ic_diferenca[1]), "; ", fmt(ic_diferenca[2]), "]"),
+    paste0("[", limites_ic_texto[1], "; ", limites_ic_texto[2], "]"),
     fmt(unname(teste_t$statistic)),
     fmt(unname(teste_t$parameter)),
     formatar_p(teste_t$p.value),
@@ -247,7 +273,7 @@ tabela_teste <- data.frame(
 # Tabela dos pressupostos, com leitura honesta linha a linha.
 leitura_shapiro_1 <- if (p_shapiro_1 >= alfa) "Sem evidência de desvio da normalidade." else "Evidência de desvio da normalidade."
 leitura_shapiro_2 <- if (p_shapiro_2 >= alfa) "Sem evidência de desvio da normalidade." else "Evidência de desvio da normalidade."
-leitura_levene <- if (variancias_iguais) "Sem evidência de variâncias diferentes." else "Há evidência de variâncias diferentes."
+leitura_levene <- if (levene_sem_evidencia) "Sem evidência de variâncias diferentes." else "Há evidência de variâncias diferentes."
 tabela_pressupostos <- data.frame(
   Teste = c(paste0("Shapiro-Wilk (", nivel_1, ")"), paste0("Shapiro-Wilk (", nivel_2, ")"), "Levene (variâncias)"),
   `p-valor` = formatar_p(c(p_shapiro_1, p_shapiro_2, p_levene)),
@@ -387,7 +413,7 @@ evidencia <- if (teste_t$p.value < alfa) {
 frase_normalidade <- if (normalidade_ok) {
   "não houve evidência contra a normalidade dentro dos grupos"
 } else "houve evidência de afastamento da normalidade em pelo menos um grupo"
-frase_variancia <- if (variancias_iguais) {
+frase_variancia <- if (levene_sem_evidencia) {
   "não houve evidência de variâncias diferentes"
 } else "houve evidência de variâncias diferentes"
 
@@ -409,47 +435,47 @@ texto_pressupostos <- stringr::str_glue(
 print(texto_pressupostos)
 
 # Decisão do Levene escrita com o resultado e ligada ao método aplicado.
-# case_when liga a leitura ao teste escolhido: sem rejeição de H0, Student;
-# com rejeição, Welch. A frase nunca afirma igualdade de variâncias: diz
-# apenas que H0 foi rejeitada ou não, que é o que o teste sustenta.
+# A leitura compara p com alfa e informa separadamente o método registrado.
 texto_levene_decisao <- dplyr::case_when(
-  is.na(p_levene) ~ "O teste de Levene não pôde ser calculado; o teste escolhido foi o t de Welch, que não assume variâncias iguais.",
-  variancias_iguais ~ stringr::str_glue(
+  is.na(p_levene) ~ "O teste de Levene não pôde ser calculado.",
+  levene_sem_evidencia ~ stringr::str_glue(
     "O teste de Levene não rejeitou H0 ",
     "(F({gl_levene[1]}, {gl_levene[2]}) = {fmt(f_levene)}; ",
     "{formatar_p(p_levene, no_texto = TRUE)}). Como o p é maior ou igual a ",
-    "alfa ({fmt(alfa, 2)}), não rejeitamos H0 e o teste escolhido foi o ",
-    "t de Student, que assume variâncias iguais."
+    "alfa ({fmt(alfa, 2)}), não rejeitamos H0."
   ),
   TRUE ~ stringr::str_glue(
     "O teste de Levene rejeitou H0 ",
     "(F({gl_levene[1]}, {gl_levene[2]}) = {fmt(f_levene)}; ",
     "{formatar_p(p_levene, no_texto = TRUE)}). Como o p é menor que alfa ",
-    "({fmt(alfa, 2)}), rejeitamos H0 e o teste escolhido foi o t de Welch, ",
-    "que não assume variâncias iguais."
+    "({fmt(alfa, 2)}), rejeitamos H0. Welch é uma opção recomendada ",
+    "quando há evidência de variâncias diferentes."
   )
 )
+texto_levene_decisao <- paste(texto_levene_decisao,
+  "Esta leitura é recomendatória; foi aplicado", metodo_teste,
+  "conforme a escolha registrada no painel.")
 print(texto_levene_decisao)
 
 texto_resultado <- stringr::str_glue(
   "Pelo {metodo_teste}, {evidencia} ",
+  "para H1: {hipotese_alternativa} ",
   "(t = {fmt(unname(teste_t$statistic))}; gl = {fmt(unname(teste_t$parameter))}; ",
   "{formatar_p(teste_t$p.value, no_texto = TRUE)}). ",
   "O grupo {nivel_1} teve média {fmt(media_1)} e o grupo {nivel_2}, {fmt(media_2)}; ",
   "a diferença foi de {fmt(diferenca_medias)} ",
-  "(IC {ic_percentual}% [{fmt(ic_diferenca[1])}; {fmt(ic_diferenca[2])}])."
+  "({descricao_ic} {ic_percentual}% [{limites_ic_texto[1]}; {limites_ic_texto[2]}])."
 )
 print(texto_resultado)
 
-# Quando as variâncias são diferentes, o teste escolhido é o de Welch. Mesmo
-# nesse caso o d de Cohen continua usando o desvio padrão combinado (sp) dos
+# Quando Welch é escolhido, o d de Cohen continua usando o desvio padrão combinado (sp) dos
 # dois grupos; a frase abaixo deixa isso explícito para o leitor. No ramo do t
 # de Student (variâncias iguais) a ressalva é dispensável, pois a igualdade de
 # variâncias já é o pressuposto do método.
 frase_dp_combinado <- dplyr::case_when(
-  # Ramo Welch: variâncias diferentes, então vale explicar o sp combinado.
+  # Ramo Welch: o teste dispensa a igualdade; o d ainda usa o sp combinado.
   !variancias_iguais ~ paste0(
-    "Como as variâncias dos grupos são diferentes (teste de Welch), o d de ",
+    "Embora o teste escolhido seja Welch, que não assume variâncias iguais, o d de ",
     "Cohen usa o desvio padrão combinado dos dois grupos, que pondera a ",
     "variância de cada um pelos seus graus de liberdade. "
   ),
@@ -459,10 +485,10 @@ frase_dp_combinado <- dplyr::case_when(
 
 texto_efeito <- stringr::str_glue(
   "O tamanho do efeito foi {classe_efeito} ",
-  "(d de Cohen = {fmt(d_cohen)}; IC {ic_percentual}% ",
+  "(d de Cohen = {fmt(d_cohen)}; IC bilateral {ic_percentual}% ",
   "[{fmt(d_ic[1])}; {fmt(d_ic[2])}]). ",
   "{frase_dp_combinado}",
-  "A significância diz que a diferença existe; o d diz o quanto ela importa. ",
+  "O p informa a evidência estatística e o d quantifica a diferença padronizada. ",
   "O rótulo é uma referência estatística, não uma leitura biológica direta."
 )
 print(texto_efeito)
@@ -479,24 +505,25 @@ print(texto_welch)
 texto_sintese_estatistica <- stringr::str_glue(
   "Na amostra de {n_utilizado} observações, {evidencia}. A maior média foi do ",
   "grupo {grupo_maior}, com diferença de {fmt(diferenca_medias)} ",
-  "(IC {ic_percentual}% [{fmt(ic_diferenca[1])}; {fmt(ic_diferenca[2])}]; ",
+  "({descricao_ic} {ic_percentual}% [{limites_ic_texto[1]}; {limites_ic_texto[2]}]; ",
   "{formatar_p(teste_t$p.value, no_texto = TRUE)}) e tamanho de efeito {classe_efeito} ",
   "(d = {fmt(d_cohen)}). A interpretação depende dos pressupostos e do delineamento."
 )
 print(texto_sintese_estatistica)
 
 # alerta_modelo acompanha a conclusão, honesto quanto aos pressupostos.
-alerta_modelo <- if (!normalidade_ok || !variancias_iguais) {
+alerta_modelo <- if (!normalidade_ok || !levene_sem_evidencia) {
   "Os testes indicaram sinais de atenção nos pressupostos; considere o t de Welch e examine os gráficos antes de concluir."
 } else "Os testes não detectaram desvios nos pressupostos, mas os gráficos e o delineamento continuam necessários."
 print(alerta_modelo)
 
 # Poder do teste: a probabilidade de detectar um efeito do tamanho observado.
 # pwr.t.test() supõe grupos de mesmo tamanho — usamos o n médio por grupo —
-# e recebe o d em valor absoluto: a direção da diferença não importa aqui.
+# Nas hipóteses direcionais, o sinal do d preserva nível 1 menos nível 2.
+# Esse cálculo é aproximado: não reproduz a correção de Welch.
 poder_teste_t <- if (!is.na(d_cohen) && abs(d_cohen) > 0) {
-  pwr::pwr.t.test(n = mean(c(n_1, n_2)), d = abs(d_cohen), sig.level = alfa,
-                  type = "two.sample", alternative = "two.sided")$power
+  pwr::pwr.t.test(n = mean(c(n_1, n_2)), d = d_cohen, sig.level = alfa,
+                  type = "two.sample", alternative = alternativa)$power
 } else {
   NA_real_
 }
@@ -508,8 +535,9 @@ alerta_poder <- if (teste_t$p.value >= alfa && !is.na(poder_teste_t) &&
   stringr::str_glue(
     "A ausência de evidência não deve ser lida como ausência de efeito: ",
     "para o tamanho de efeito observado, o poder do teste foi de apenas ",
-    "{fmt(100 * poder_teste_t, 0)}%. Uma amostra maior seria necessária para ",
-    "concluir com mais segurança."
+    "{fmt(100 * poder_teste_t, 0)}%. Este cálculo depende do efeito observado ",
+    "e das premissas adotadas; confira a direção da hipótese e o delineamento. ",
+    "Ele não substitui o planejamento amostral."
   )
 } else {
   ""

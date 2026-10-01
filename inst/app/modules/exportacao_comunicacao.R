@@ -2334,6 +2334,8 @@ exportacao_teste_t_marcadores_script <- function(item) {
     ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
     ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
     CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    ALTERNATIVA_R = encodeString(p$alternativa %||% "two.sided", quote = '"'),
+    VARIANCIAS_IGUAIS = if (isTRUE(p$variancias_iguais)) "TRUE" else "FALSE",
     TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
   )
 }

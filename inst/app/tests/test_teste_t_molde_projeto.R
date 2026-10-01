@@ -151,11 +151,12 @@ stopifnot(all(vapply(rotulos_artigo, function(rotulo)
   any(grepl(paste0("@", rotulo), artigo, fixed = TRUE)), logical(1))))
 
 # Script e cada QMD rodam em processos R independentes, reproduzindo o teste
-# t da CatalyseR (a escolha Student/Welch segue o Levene, como no script).
+# t da CatalyseR, preservando a escolha registrada no painel.
 formula_teste <- comprimento_cefalotorax_mm ~ sexo
-p_levene <- car::leveneTest(formula_teste, data = lagostas)[["Pr(>F)"]][1]
-variancias_iguais <- !is.na(p_levene) && p_levene >= (1 - .95)
-esperado <- t.test(formula_teste, data = lagostas, var.equal = variancias_iguais)
+esperado <- t.test(formula_teste, data = lagostas,
+  var.equal = item$parametros$variancias_iguais,
+  conf.level = item$parametros$nivel_confianca,
+  alternative = item$parametros$alternativa)
 entradas <- c(script, vapply(documentos, function(documento) {
   extraido <- file.path(destino, paste0(documento, ".R"))
   knitr::purl(file.path(projeto, "relatorios", documento), output = extraido, quiet = TRUE)
