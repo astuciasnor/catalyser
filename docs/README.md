@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+[Caderno completo da análise combinada, versão 0.1.18](testes/CADERNO_COMPLETO_20261002.md).
+
 [Barras no teste t e conferência da instalação, versão 0.1.17](testes/BARRAS_TESTE_T_20261002.md).
 
 [Relatório integrado com dois QMDs e gráfico de médias do teste t, versão 0.1.16](testes/RELATORIO_INTEGRADO_20261002.md).

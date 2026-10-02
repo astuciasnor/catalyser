@@ -191,7 +191,7 @@ exportacao_trecho_instalar <- function() {
     "  remotes::install_github(\"astuciasnor/EAPADados\", upgrade = \"never\")",
     "}",
     "if (!\"catalyser\" %in% rownames(installed.packages()) ||",
-    "    packageVersion(\"catalyser\") < package_version(\"0.1.16\")) {",
+    "    packageVersion(\"catalyser\") < package_version(\"0.1.18\")) {",
     "  remotes::install_github(\"astuciasnor/catalyser\", upgrade = \"never\")",
     "}",
     "# Depois de instalar ou atualizar, reinicie o R antes de executar a análise.",
@@ -224,8 +224,8 @@ exportacao_trecho_pacotes <- function() {
     "# As funções de análise: as mesmas que a CatalyseR usou na tela, para o",
     "# resultado ser idêntico. ?catalyser_anova mostra a ajuda de qualquer uma.",
     "if (!requireNamespace(\"catalyser\", quietly = TRUE) ||",
-    "    getNamespaceVersion(\"catalyser\") < package_version(\"0.1.16\")) {",
-    "  stop(\"Este projeto requer catalyser >= 0.1.16. Atualize e reinicie o R: \",",
+    "    getNamespaceVersion(\"catalyser\") < package_version(\"0.1.18\")) {",
+    "  stop(\"Este projeto requer catalyser >= 0.1.18. Atualize e reinicie o R: \",",
     "       \"remotes::install_github('astuciasnor/catalyser')\", call. = FALSE)",
     "}",
     "library(catalyser)",
@@ -1064,9 +1064,18 @@ exportacao_nome_componente <- function(execucao_id, componente,
 # Trecho de um componente: a chamada que mostra a narrativa, uma tabela ou um
 # gráfico do resultado. [[ ]] em vez de $: o $ do R completa nomes pela
 # metade, e `grafico` poderia virar `grafico_combinacoes` sem ninguém perceber.
+# Figuras de estudo exclusivas do HTML para o teste t independente acompanhado.
+exportacao_figuras_estudo_t <- list(
+  grafico_caixa = "Exploração: distribuição por grupo",
+  grafico_residuos = "Diagnóstico: resíduos versus valores ajustados",
+  grafico_qq = "Diagnóstico: normalidade dentro de cada grupo",
+  grafico_dispersao = "Diagnóstico: dispersão por grupo",
+  grafico_influencia = "Diagnóstico: influência das observações"
+)
+
 exportacao_trecho_componente <- function(variavel, execucao_id, componente,
                                          raiz_chunk = NULL, tipo = NULL) {
-  rotulo <- comunicacao_rotulos_saidas[[componente]] %||% componente
+  rotulo <- as.list(comunicacao_rotulos_saidas)[[componente]] %||% exportacao_figuras_estudo_t[[componente]] %||% componente
   nome <- exportacao_nome_componente(execucao_id, componente, raiz_chunk, tipo)
   expressao <- if (identical(componente, "console")) {
     sprintf(
@@ -1089,12 +1098,15 @@ exportacao_trecho_componente <- function(variavel, execucao_id, componente,
 # `results: asis` porque catalyser_mostrar() escreve markdown direto.
 exportacao_chunk_componente <- function(execucao_id, componente,
                                         raiz_chunk = NULL, tipo = NULL) {
-  rotulo <- comunicacao_rotulos_saidas[[componente]] %||% componente
+  rotulo <- as.list(comunicacao_rotulos_saidas)[[componente]] %||% exportacao_figuras_estudo_t[[componente]] %||% componente
   nome <- exportacao_nome_componente(execucao_id, componente, raiz_chunk, tipo)
   c(
     sprintf("### %s", rotulo),
     "",
-    exportacao_casca_chunk(nome, opcoes = "#| results: asis"),
+    exportacao_casca_chunk(nome, opcoes = c("#| results: asis",
+      if (isTRUE(tipo %in% c("teste_t_two_ind", "regressao_linear")) &&
+          componente %in% c("grafico", names(exportacao_figuras_estudo_t)))
+        c("#| fig-width: 6", "#| fig-height: 4"))),
     ""
   )
 }
@@ -2671,7 +2683,7 @@ exportacao_qmd_regressao <- function(item, raiz) {
     ':::: {.content-visible when-format="html"}', "### Leitura dos pressupostos", "",
     "Um p-valor acima do nível de significância não comprova o pressuposto. Leia os testes junto aos gráficos e ao delineamento.", "",
     exportacao_casca_chunk(paste0(raiz, "-mostrar-pressupostos")), "::::", "")
-  if ("diagnosticos" %in% item$saidas_word) linhas <- c(linhas,
+  linhas <- c(linhas,
     ':::: {.content-visible when-format="html"}', "### Diagnóstico do modelo", "",
     "**Linearidade e variância.** Procure curvatura e formato de funil nos resíduos versus ajustados.", "",
     chunk("diagnostico-variancia", c(
@@ -2794,7 +2806,12 @@ exportacao_gerar_script <- function(manifesto, nome_projeto = "projeto",
       exportacao_trecho_resultado(item, raiz, variavel),
       ""
     )
-    for (componente in item$saidas_word) {
+    componentes <- item$saidas_word
+    if (identical(item$tipo, "teste_t_two_ind")) componentes <- unique(c(componentes,
+      setdiff(names(exportacao_figuras_estudo_t), "grafico_influencia")))
+    if (identical(item$tipo, "regressao_linear")) componentes <- unique(c(componentes,
+      setdiff(names(exportacao_figuras_estudo_t), "grafico_caixa")))
+    for (componente in componentes) {
       linhas <- c(
         linhas,
         exportacao_trecho_componente(variavel, item$id, componente,
@@ -3059,6 +3076,18 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
         exportacao_chunk_componente(item$id, componente,
                                     raiz_chunk = raiz, tipo = item$tipo)
       )
+    }
+    if (item$tipo %in% c("teste_t_two_ind", "regressao_linear")) {
+      linhas <- c(linhas, ':::: {.content-visible when-format="html"}', "",
+        paste("## Exploração e diagnósticos:", item$titulo), "",
+        if (identical(item$tipo, "teste_t_two_ind")) "O boxplot permite conferir a distribuição e os pontos de cada grupo. Nos resíduos versus valores ajustados, compare a dispersão nas duas faixas e procure valores extremos. No Q-Q por grupo, desvios da reta podem indicar assimetria ou caudas diferentes da normal. A dispersão dos resíduos absolutos complementa a avaliação de variâncias pelo Levene; ela não escolhe automaticamente Student ou Welch. A independência depende do delineamento." else
+        "Os diagnósticos correspondem aos modelos realmente ajustados, separados por categoria quando há retas por grupo. Procure curvatura e funil nos resíduos versus ajustados, desvios da reta no Q-Q e mudanças de dispersão no gráfico de homocedasticidade. Distâncias de Cook elevadas sinalizam observações para investigação, não remoção automática. A independência depende do delineamento.", "")
+      figuras <- setdiff(names(exportacao_figuras_estudo_t),
+        if (identical(item$tipo, "teste_t_two_ind")) "grafico_influencia" else "grafico_caixa")
+      for (componente in figuras) {
+        linhas <- c(linhas, exportacao_chunk_componente(item$id, componente, raiz_chunk = raiz, tipo = item$tipo))
+      }
+      linhas <- c(linhas, "::::", "")
     }
   }
   c(

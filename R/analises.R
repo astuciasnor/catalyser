@@ -533,14 +533,39 @@ catalyser_regressao <- function(dados, p, logistica = FALSE) {
     }
     grafico <- ggplot2::ggplot(d, estetica) +
       pontos + curva +
-      ggplot2::theme_minimal(base_size = 12) +
+      ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(axis.title = ggplot2::element_text(size = 10), axis.text = ggplot2::element_text(size = 9)) +
       ggplot2::labs(x = preditor, y = resposta,
         subtitle = if (por_grupo && !logistica) paste(vapply(names(ajustes), function(g) {
           sprintf("%s: R² = %s", g, catalyser_num(summary(ajustes[[g]])$r.squared))
         }, character(1)), collapse = "\n") else NULL)
   }
 
-  list(
+  graficos_estudo <- list()
+  if (!logistica && requireNamespace("ggplot2", quietly = TRUE)) {
+    modelos_estudo <- if (por_grupo) ajustes else list(Global = ajuste)
+    dd <- do.call(rbind, Map(function(modelo, nome) {
+      data.frame(grupo = nome, observacao = seq_len(stats::nobs(modelo)),
+        ajustado = stats::fitted(modelo), residuo = stats::residuals(modelo),
+        padronizado = stats::rstandard(modelo), cook = stats::cooks.distance(modelo))
+    }, modelos_estudo, names(modelos_estudo)))
+    tema_estudo <- ggplot2::theme_classic(base_size = 11) +
+      ggplot2::theme(axis.title = ggplot2::element_text(size = 10))
+    graficos_estudo$grafico_residuos <- ggplot2::ggplot(dd, ggplot2::aes(ajustado, residuo)) +
+      ggplot2::geom_point() + ggplot2::geom_hline(yintercept = 0, linetype = 2) +
+      ggplot2::facet_wrap(~grupo, scales = "free") + tema_estudo +
+      ggplot2::labs(x = "Valor ajustado", y = "Resíduo", title = "Linearidade e variância por modelo")
+    graficos_estudo$grafico_qq <- ggplot2::ggplot(dd, ggplot2::aes(sample = padronizado)) +
+      ggplot2::stat_qq() + ggplot2::stat_qq_line() + ggplot2::facet_wrap(~grupo, scales = "free") + tema_estudo +
+      ggplot2::labs(x = "Quantil teórico", y = "Resíduo padronizado", title = "Normalidade dos resíduos por modelo")
+    graficos_estudo$grafico_dispersao <- ggplot2::ggplot(dd, ggplot2::aes(ajustado, sqrt(abs(padronizado)))) +
+      ggplot2::geom_point() + ggplot2::facet_wrap(~grupo, scales = "free") + tema_estudo +
+      ggplot2::labs(x = "Valor ajustado", y = "Raiz do resíduo padronizado absoluto", title = "Dispersão e homocedasticidade por modelo")
+    graficos_estudo$grafico_influencia <- ggplot2::ggplot(dd, ggplot2::aes(observacao, cook)) +
+      ggplot2::geom_col(width = .5, fill = "#0F3B5F") + ggplot2::facet_wrap(~grupo, scales = "free") + tema_estudo +
+      ggplot2::labs(x = "Observação dentro do grupo", y = "Distância de Cook", title = "Influência das observações por modelo")
+  }
+  c(list(
     narrativa = narrativa,
     tabela = coeficientes,
     grafico = grafico,
@@ -548,7 +573,7 @@ catalyser_regressao <- function(dados, p, logistica = FALSE) {
     diagnosticos = diagnosticos,
     console = console,
     objeto = objeto
-  )
+  ), graficos_estudo)
 }
 
 #' Regressão de Poisson ou Binomial Negativa para uma contagem
@@ -735,6 +760,7 @@ catalyser_teste_t <- function(dados, p) {
   conf <- as.numeric(catalyser_ou(p$nivel_confianca, 0.95))
   grafico <- NULL
   pressupostos <- NULL
+  graficos_estudo <- list()
 
   if (identical(tipo, "one_val")) {
     catalyser_colunas(dados, p$variavel)
@@ -794,6 +820,11 @@ catalyser_teste_t <- function(dados, p) {
       })
       resumo <- do.call(rbind, resumos)
       resumo$grupo <- factor(rownames(resumo), levels = levels(dg$grupo))
+      # Letras vêm do teste escolhido; não são inferidas da sobreposição dos ICs.
+      resumo$letra <- if (teste$p.value >= 1 - conf) rep("a", nrow(resumo)) else
+        ifelse(seq_len(nrow(resumo)) == which.max(resumo$media), "a", "b")
+      faixa <- range(c(0, dg$valor, resumo$inferior, resumo$superior), na.rm = TRUE)
+      resumo$y_letra <- max(faixa) + .06 * diff(faixa)
       resumo$rotulo <- paste(formatC(resumo$media, digits = 2, format = "f", decimal.mark = ","), "±",
         formatC(resumo$dp, digits = 2, format = "f", decimal.mark = ","))
       grafico <- ggplot2::ggplot(dg, ggplot2::aes(x = grupo, y = valor, fill = grupo)) +
@@ -801,14 +832,38 @@ catalyser_teste_t <- function(dados, p) {
         ggplot2::geom_point(ggplot2::aes(color = grupo), position = ggplot2::position_jitter(width = .08, height = 0, seed = 123), alpha = .7, show.legend = FALSE) +
         ggplot2::geom_errorbar(data = resumo, ggplot2::aes(y = media, ymin = inferior, ymax = superior), width = .08, color = "#0F3B5F") +
         ggplot2::geom_point(data = resumo, ggplot2::aes(y = media), shape = 18, size = 3, color = "#0F3B5F") +
-        ggplot2::geom_text(data = resumo, ggplot2::aes(y = media, label = rotulo), nudge_x = .05, hjust = 0, vjust = .5, fontface = "bold", color = "#0F3B5F") +
-        ggplot2::scale_fill_manual(values = c("#2E7D8F", "#E89B3C")) +
-        ggplot2::scale_color_manual(values = c("#2E7D8F", "#E89B3C")) +
+        ggplot2::geom_text(data = resumo, ggplot2::aes(y = media, label = rotulo), nudge_x = .05, hjust = 0, vjust = .5, fontface = "bold", size = 3.2, color = "#0F3B5F") +
+        ggplot2::geom_text(data = resumo, ggplot2::aes(y = y_letra, label = letra), size = 4, fontface = "bold", color = "#0F3B5F") +
+        ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(.6, .9))) +
+        ggplot2::scale_fill_manual(values = c("#0F3B5F", "#E89B3C")) +
+        ggplot2::scale_color_manual(values = c("#0F3B5F", "#E89B3C")) +
         ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, .12))) +
-        ggplot2::theme_classic(base_size = 12) +
-        ggplot2::theme(legend.position = "none", plot.subtitle = ggplot2::element_text(size = 9)) +
+        ggplot2::theme_classic(base_size = 11) +
+        ggplot2::theme(legend.position = "none", axis.title = ggplot2::element_text(size = 10),
+          axis.text = ggplot2::element_text(size = 9), plot.subtitle = ggplot2::element_text(size = 9)) +
         ggplot2::labs(x = p$grupo, y = p$resposta, title = "Médias com IC",
-          subtitle = paste(strwrap(sprintf("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral de %.0f%% da média.", 100 * conf), width = 60), collapse = "\n"))
+          subtitle = paste(strwrap(sprintf("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral de %.0f%% da média. Letras iguais: sem diferença significativa.", 100 * conf), width = 60), collapse = "\n"))
+      # Exploração e diagnósticos separados da figura de resultados.
+      dg$ajustado <- resumo$media[match(dg$grupo, resumo$grupo)]
+      dg$residuo <- dg$valor - dg$ajustado
+      tema_estudo <- ggplot2::theme_classic(base_size = 11) +
+        ggplot2::theme(legend.position = "none", axis.title = ggplot2::element_text(size = 10))
+      graficos_estudo$grafico_caixa <- ggplot2::ggplot(dg, ggplot2::aes(grupo, valor, fill = grupo)) +
+        ggplot2::geom_boxplot(width = .45, alpha = .22, outlier.shape = NA) +
+        ggplot2::geom_point(position = ggplot2::position_jitter(width = .08, height = 0, seed = 123)) +
+        ggplot2::scale_fill_manual(values = c("#0F3B5F", "#E89B3C")) + tema_estudo +
+        ggplot2::labs(x = p$grupo, y = p$resposta, title = "Distribuição das observações")
+      graficos_estudo$grafico_residuos <- ggplot2::ggplot(dg, ggplot2::aes(ajustado, residuo, color = grupo)) +
+        ggplot2::geom_point() + ggplot2::geom_hline(yintercept = 0, linetype = 2) + tema_estudo +
+        ggplot2::labs(x = "Média ajustada do grupo", y = "Resíduo", title = "Resíduos versus valores ajustados")
+      graficos_estudo$grafico_qq <- ggplot2::ggplot(dg, ggplot2::aes(sample = residuo)) +
+        ggplot2::stat_qq() + ggplot2::stat_qq_line() + ggplot2::facet_wrap(~grupo, scales = "free") + tema_estudo +
+        ggplot2::labs(x = "Quantil teórico", y = "Quantil observado", title = "Normalidade dentro de cada grupo")
+      graficos_estudo$grafico_dispersao <- ggplot2::ggplot(dg, ggplot2::aes(grupo, abs(residuo), fill = grupo)) +
+        ggplot2::geom_boxplot(width = .45, alpha = .22, outlier.shape = NA) +
+        ggplot2::geom_point(position = ggplot2::position_jitter(width = .08, height = 0, seed = 123)) +
+        ggplot2::scale_fill_manual(values = c("#0F3B5F", "#E89B3C")) + tema_estudo +
+        ggplot2::labs(x = p$grupo, y = "Resíduo absoluto", title = "Dispersão dos resíduos por grupo")
     }
   } else if (identical(tipo, "paired")) {
     catalyser_colunas(dados, c(p$variavel_1, p$variavel_2))
@@ -849,12 +904,12 @@ catalyser_teste_t <- function(dados, p) {
     catalyser_num(teste$statistic), catalyser_num(teste$parameter, 1L), catalyser_p(teste$p.value),
     100 * conf, catalyser_num(teste$conf.int[1]), catalyser_num(teste$conf.int[2])
   )
-  list(
+  c(list(
     narrativa = narrativa, tabela = tabela, grafico = grafico,
     pressupostos = pressupostos,
     diagnosticos = data.frame(Indicador = "Estimativa", Valor = unname(teste$estimate)[1]),
     console = utils::capture.output(print(teste)), objeto = teste
-  )
+  ), graficos_estudo)
 }
 
 #' ANOVA de medidas repetidas

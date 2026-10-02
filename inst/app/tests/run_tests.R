@@ -371,6 +371,7 @@ testes <- c(
   "test_contrato_tipos.R",
   "test_funcoes_analise.R",
   "test_exportacao_comunicacao.R",
+  "test_caderno_completo_duas_analises.R",
   "test_exportacao_sanitizar_molde.R",
   "test_anova_integrada.R",
   "test_anova_mista.R",
