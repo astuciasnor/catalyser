@@ -60,7 +60,7 @@ mod_exploracao_visual_ui <- function(id, tipo) {
     tags$h2(switch(
       tipo,
       histograma = "Histograma com densidade",
-      caixa_violino = "Boxplot e violino",
+      caixa_violino = "Comparar grupos",
       dispersao = "Dispersão e tendência",
       duplo_eixo = "Duas séries, dois eixos Y",
       barras = "Barras",

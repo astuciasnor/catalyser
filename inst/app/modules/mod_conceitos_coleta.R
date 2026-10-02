@@ -3,6 +3,8 @@
 
 conceitos_coleta <- function() {
   list(
+    # Ordem pedagógica: a pergunta, o tipo de estudo, a unidade, o desenho (tratamentos, padronização, blocos),
+    # depois n e amostragem, e por fim a responsabilidade da coleta. Segue a ordem dos grupos do menu.
     pergunta = list(
       titulo = "Comece pela pergunta", chamada = "O que você precisa descobrir?",
       texto = "A pergunta define o que será medido e qual resposta precisa ser precisa. Comparar médias de rações pede um planejamento diferente de estimar a proporção de peixes maturos.",
@@ -11,13 +13,45 @@ conceitos_coleta <- function() {
       esquema = c("Pergunta biológica", "Resposta a medir", "Cálculo de n"),
       proximo = "Para comparar médias, abra “Quanto amostrar”, grupo “Para comparar”, aba “Comparação de médias”. Para estimar uma média ou uma proporção, o mesmo item de menu, grupo “Para estimar”."
     ),
+    tipo_estudo = list(
+      titulo = "Escolha o tipo de estudo", chamada = "Você vai observar ou manipular?",
+      texto = "Antes de tudo, decida se vai apenas observar a natureza como ela é, ou impor tratamentos e ver o que muda. Essa escolha define o delineamento e a análise que virão depois.",
+      exemplo = "Comparar a composição química das bexigas de cinco espécies é um estudo observacional, porque você seleciona as espécies, não as cria. Testar três rações em tanques é experimental, porque você atribui a ração a cada tanque.",
+      cuidado = "Decida observar ou manipular antes de coletar, porque isso muda o delineamento e o teste.",
+      esquema = c("Pergunta", "Observar ou manipular", "Delineamento"),
+      proximo = "Os dois caminhos estão em Delineamentos observacionais e Delineamentos experimentais."
+    ),
     unidade = list(
-      titulo = "Unidade experimental e pseudorrepetição", chamada = "É o peixe, o tanque ou o pool?",
-      texto = "A unidade experimental é a menor unidade que recebe um tratamento de forma independente. A unidade observacional é aquilo que você mede. Elas podem ser diferentes.",
+      titulo = "Identifique a unidade experimental ou amostral", chamada = "É o peixe, o tanque ou o pool?",
+      texto = "A unidade experimental é a menor unidade que recebe um tratamento de forma independente; em estudos observacionais, o equivalente é a unidade amostral, a menor unidade selecionada de forma independente. A unidade observacional é aquilo que você mede. Elas podem ser diferentes. Tratar subamostras como repetições independentes é a pseudorrepetição, um erro comum que infla o n.",
       exemplo = "Se a ração vai para o tanque inteiro, cinco peixes pesados dentro dele são subamostras de um tanque. Para comparar rações, o n de repetições independentes é o número de tanques, não o de peixes. Registre o identificador de cada tanque e peixe.",
       cuidado = "Se tecidos de vários animais forem reunidos antes da medição, cada pool gera uma observação composta: os peixes que o formam não viram repetições independentes. Registre quem entrou em cada pool e distinga animais coletados de observações analisadas.",
       esquema = c("Tratamento no tanque", "Peixes medidos", "n = tanques independentes"),
       proximo = "Depois de identificar a unidade independente, escolha o planejamento observacional ou experimental. O cálculo de n fica ao final deste menu."
+    ),
+    delineamento = list(
+      titulo = "Organize os tratamentos antes de medir", chamada = "O desenho do experimento muda a análise.",
+      texto = "O delineamento define como os tratamentos são distribuídos e quais diferenças devem ser controladas. O croqui torna essa decisão visível antes da coleta.",
+      exemplo = "Num DIC, as unidades recebem tratamentos por sorteio. Num DBC, blocos ajudam a lidar com uma diferença conhecida entre locais ou lotes. Parcelas subdivididas exigem atenção a duas escalas de unidade experimental.",
+      cuidado = "A CatalyseR já desenha DIC, DBC, quadrado latino e parcelas subdivididas, mas a análise correspondente aos três últimos ainda não está completa no estúdio.",
+      esquema = c("Unidade + fatores", "Sorteio e croqui", "Análise compatível"),
+      proximo = "Abra o delineamento do seu caso (DIC, DBC, DQL, Fatorial ou Parcelas Subdivididas), no grupo “Delineamentos experimentais”, para criar o croqui e, na aba “Variáveis do experimento”, estruturar a coleta."
+    ),
+    padronizar = list(
+      titulo = "Padronize antes de comparar", chamada = "O que mais poderia explicar a diferença?",
+      texto = "Para uma comparação justa entre grupos, controle o que não interessa. Padronizar tamanho, idade ou classe comercial faz a diferença refletir o fator que você estuda, e não uma variação de porte.",
+      exemplo = "Ao comparar bexigas entre espécies, use adultos numa faixa estreita de comprimento e peso, por exemplo mais ou menos dez por cento no comprimento. Assim o que difere é a espécie, não o tamanho do peixe.",
+      cuidado = "Defina os critérios de padronização antes de ir a campo.",
+      esquema = c("Fator de interesse", "Critérios fixos", "Comparação justa"),
+      proximo = "Registre esses critérios no delineamento; eles viajam para a ficha e para a metodologia."
+    ),
+    blocos = list(
+      titulo = "Agrupe unidades parecidas em blocos", chamada = "O ambiente não é uniforme?",
+      texto = "Quando as unidades diferem por algo que você não quer medir, o sorteio livre pode concentrar essa diferença num só tratamento. Formar blocos homogêneos e sortear os tratamentos dentro de cada bloco tira essa variação do caminho da comparação.",
+      exemplo = "Oito tanques em duas fileiras com sombra diferente? Cada fileira vira um bloco e as rações são sorteadas dentro dela. Alevinos de dois lotes com peso inicial distinto? Cada lote vira um bloco, e os tratamentos são comparados em condições parecidas.",
+      cuidado = "Bloco é tanque, viveiro ou lote, nunca o peixe individual. Antes da coleta, liste o que pode variar entre unidades (posição, luz, manejo, peso inicial) e escolha um fator para blocar.",
+      esquema = c("O que varia", "Blocos homogêneos", "Sorteio dentro do bloco"),
+      proximo = "Para montar o croqui em blocos, abra “DBC (Blocos Casualizados)”, no grupo “Delineamentos experimentais” deste mesmo menu. Na aba “Croqui”, informe os níveis do fator e o número de blocos: cada linha do croqui é um bloco, e tratamento e bloco seguem identificáveis na planilha."
     ),
     tamanho = list(
       titulo = "Escolha n com uma premissa visível", chamada = "Quantas unidades independentes bastam?",
@@ -35,14 +69,6 @@ conceitos_coleta <- function() {
       esquema = c("População definida", "AAS ou estratos", "Unidades selecionadas"),
       proximo = "As opções AAS, estratificada proporcional e sistemática fazem o sorteio depois que você escolhe n."
     ),
-    delineamento = list(
-      titulo = "Organize os tratamentos antes de medir", chamada = "O desenho do experimento muda a análise.",
-      texto = "O delineamento define como os tratamentos são distribuídos e quais diferenças devem ser controladas. O croqui torna essa decisão visível antes da coleta.",
-      exemplo = "Num DIC, as unidades recebem tratamentos por sorteio. Num DBC, blocos ajudam a lidar com uma diferença conhecida entre locais ou lotes. Parcelas subdivididas exigem atenção a duas escalas de unidade experimental.",
-      cuidado = "A CatalyseR já desenha DIC, DBC, quadrado latino e parcelas subdivididas, mas a análise correspondente aos três últimos ainda não está completa no estúdio.",
-      esquema = c("Unidade + fatores", "Sorteio e croqui", "Análise compatível"),
-      proximo = "Abra “Delineamento experimental” para criar o croqui e, na aba “Variáveis do experimento”, estruture a coleta."
-    ),
     responsabilidade = list(
       titulo = "Planeje uma coleta responsável", chamada = "O menor n que responde à pergunta.",
       texto = "Nos estudos com animais, os 3Rs lembram de substituir quando possível, reduzir sem perder validade e refinar procedimentos para diminuir sofrimento.",
@@ -50,30 +76,6 @@ conceitos_coleta <- function() {
       cuidado = "Revise perdas previstas, viabilidade, origem das premissas e a unidade que realmente entrará na análise.",
       esquema = c("Pergunta útil", "n válido", "Coleta responsável"),
       proximo = "Antes de coletar, confira se a planilha guarda tratamento, unidade experimental e identificação de cada observação."
-    ),
-    tipo_estudo = list(
-      titulo = "Escolha o tipo de estudo", chamada = "Você vai observar ou manipular?",
-      texto = "Antes de tudo, decida se vai apenas observar a natureza como ela é, ou impor tratamentos e ver o que muda. Essa escolha define o delineamento e a análise que virão depois.",
-      exemplo = "Comparar a composição química das bexigas de cinco espécies é um estudo observacional, porque você seleciona as espécies, não as cria. Testar três rações em tanques é experimental, porque você atribui a ração a cada tanque.",
-      cuidado = "Decida observar ou manipular antes de coletar, porque isso muda o delineamento e o teste.",
-      esquema = c("Pergunta", "Observar ou manipular", "Delineamento"),
-      proximo = "Os dois caminhos estão em Delineamentos observacionais e Delineamentos experimentais."
-    ),
-    padronizar = list(
-      titulo = "Padronize antes de comparar", chamada = "O que mais poderia explicar a diferença?",
-      texto = "Para uma comparação justa entre grupos, controle o que não interessa. Padronizar tamanho, idade ou classe comercial faz a diferença refletir o fator que você estuda, e não uma variação de porte.",
-      exemplo = "Ao comparar bexigas entre espécies, use adultos numa faixa estreita de comprimento e peso, por exemplo mais ou menos dez por cento no comprimento. Assim o que difere é a espécie, não o tamanho do peixe.",
-      cuidado = "Defina os critérios de padronização antes de ir a campo.",
-      esquema = c("Fator de interesse", "Critérios fixos", "Comparação justa"),
-      proximo = "Registre esses critérios no delineamento; eles viajam para a ficha e para a metodologia."
-    ),
-    blocos = list(
-      titulo = "Agrupe unidades parecidas em blocos", chamada = "O ambiente não é uniforme?",
-      texto = "Quando as unidades diferem por algo que você não quer medir, o sorteio livre pode concentrar essa diferença num só tratamento. Formar blocos homogêneos e sortear os tratamentos dentro de cada bloco tira essa variação do caminho da comparação.",
-      exemplo = "Oito tanques em duas fileiras com sombra diferente? Cada fileira vira um bloco e as rações são sorteadas dentro dela. Alevinos de dois lotes com peso inicial distinto? Cada lote vira um bloco, e os tratamentos são comparados em condições parecidas.",
-      cuidado = "Bloco é tanque, viveiro ou lote, nunca o peixe individual. Antes da coleta, liste o que pode variar entre unidades (posição, luz, manejo, peso inicial) e escolha um fator para blocar.",
-      esquema = c("O que varia", "Blocos homogêneos", "Sorteio dentro do bloco"),
-      proximo = "Para montar o croqui em blocos, abra “DBC - Blocos Casualizados”, no grupo “Delineamentos experimentais” deste mesmo menu. Na aba “Croqui”, informe os níveis do fator e o número de blocos: cada linha do croqui é um bloco, e tratamento e bloco seguem identificáveis na planilha."
     )
   )
 }
@@ -112,7 +114,7 @@ etapas_caminho_pesquisa <- function() {
          texto = "Delineamento, unidade independente, n e sorteio, antes de medir."),
     list(titulo = "Preparar os dados", icone = "table", menu = "Preparar Dados",
          texto = "Importar, arrumar e registrar cada ajuste numa trilha reprodutível."),
-    list(titulo = "Explorar e visualizar", icone = "chart-column", menu = "Explorando os Dados · Visualização",
+    list(titulo = "Explorar e visualizar", icone = "chart-column", menu = "Explorar e Visualizar",
          texto = "Resumos e gráficos que antecipam o teste e revelam problemas."),
     list(titulo = "Analisar", icone = "calculator", menu = "Menus de testes e modelos",
          texto = "O teste ou modelo que responde à pergunta, com os pressupostos conferidos."),

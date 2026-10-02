@@ -50,7 +50,7 @@ html_organizar <- htmltools::renderTags(
 
 html_compartilhada <- htmltools::renderTags(mod_preparar_compartilhada_ui("teste_preparo"))$html
 stopifnot(
-  all(vapply(c("Importar Dados", "Reestruturar Planilha", "Preparar Base Compartilhada", "Preparar Bases Derivadas"),
+  all(vapply(c("Importar Dados", "Empilhar colunas", "Alargar planilha", "Separar colunas", "Preparar Base Compartilhada", "Preparar Bases Derivadas"),
     function(x) grepl(paste0('title = "', x, '"'), codigo_app, fixed = TRUE), logical(1))),
   all(vapply(c("Variáveis e categorias", "Cálculos e transformações", "Limpeza", "Etapas do Preparo", "Dados Preparados", "Códigos R"),
     function(x) grepl(x, html_compartilhada, fixed = TRUE), logical(1))),

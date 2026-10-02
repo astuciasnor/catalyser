@@ -28,8 +28,11 @@ stopifnot(grepl("Planejando", rotulos_menu[1], fixed = TRUE),
           length(pos_comunicacao) == 1L, length(pos_ajuda) == 1L,
           pos_comunicacao < pos_ajuda)
 links_secoes <- xml2::xml_find_all(pagina,
-  "//ul[@id='main_navbar']/li[contains(., 'Explorando')]/ul/li/a")
-stopifnot(identical(trimws(xml2::xml_text(links_secoes)), unname(titulos)))
+  "//ul[@id='main_navbar']/li[contains(., 'Explorar e')]/ul/li/a")
+# O menu tem dois grupos: as cinco perguntas de exploração e as sete telas de gráfico.
+titulos_visuais <- c("Histograma e densidade", "Barras", "Comparar grupos", "Dispersão e tendência",
+                     "Linhas para eixo ordenado", "Matriz de dispersão", "Mapa de calor de correlação")
+stopifnot(identical(trimws(xml2::xml_text(links_secoes)), c(unname(titulos), titulos_visuais)))
 for (area in names(descricao_catalogo())) {
   ui_area <- mod_descrevendo_dados_ui(paste0("teste_", area), area)
   html <- as.character(ui_area)
