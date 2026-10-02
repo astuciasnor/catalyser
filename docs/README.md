@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+[Relatório integrado com dois QMDs e gráfico de médias do teste t, versão 0.1.16](testes/RELATORIO_INTEGRADO_20261002.md).
+
 [Métodos por análise no relatório integrado, versão 0.1.15](testes/METODOS_POR_ANALISE_20261002.md).
 
 [Entrega da versão unificada 0.1.14](testes/MESCLAGEM_PRINCIPAL_20261002.md) — mesclagem da Fase 2 com a principal, provas atuais e limites.

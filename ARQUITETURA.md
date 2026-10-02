@@ -38,3 +38,7 @@ Estado em 24/09/2026. Leia este mapa antes de alterar um fluxo. Confirme os deta
 - **Análises com rotas próprias ou código de estudo ainda não validado:** a lista de tipos reconstruíveis garante o resultado via pacote, não certifica que o código passo a passo do QMD executa para todos os tipos. `exportacao_tipos_com_codigo_vivo` delimita os tipos cujo trecho de estudo roda; os demais ficam para leitura. Visualização, mapas, séries e módulos sem registro editorial permanecem fora da rota integrada até auditoria própria.
 
 Regra de manutenção: ao mudar uma passagem, confira **origem → campos recebidos → destino → reprodução no Projeto R**. Se a passagem ainda não puder ser feita com segurança, mantenha as rotas separadas e registre aqui a fronteira.
+
+## Atualização da exportação integrada — 02/10/2026, versão 0.1.16
+
+A seleção de várias análises entrega dois documentos: relatorio_completo.qmd para HTML e relatorio_artigo.qmd para Word. O _quarto.yml encaminha os produtos do Render para saida/relatorios. Cada QMD da rota integrada ainda conserva os chunks sincronizados com R/analise.R, com conferência explícita de seu próprio arquivo; a migração dos cálculos para o molde nativo permanece pendente. O motor reconstruível do teste t independente usa o padrão de barras transparentes, pontos, IC bilateral da média por grupo e rótulo média ± DP. O IC inferencial da diferença continua na tabela.

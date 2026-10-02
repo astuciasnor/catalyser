@@ -44,7 +44,7 @@ projeto <- exportacao_criar_projeto(destino, "abalone_descrevendo", dados, dados
   registro_execucoes = registro, manifesto = manifesto, revisao_origem = 1L,
   import_info = list(source = "package", package_dataset = "abalone_adultos"), templates_dir = "templates")
 script <- readLines(file.path(projeto, "R", "analise.R"), encoding = "UTF-8")
-qmd <- readLines(file.path(projeto, "relatorios", "relatorio.qmd"), encoding = "UTF-8")
+qmd <- readLines(file.path(projeto, "relatorios", "relatorio_completo.qmd"), encoding = "UTF-8")
 stopifnot(any(grepl("stats::shapiro.test", script, fixed = TRUE)),
           any(grepl("MASS::boxcox", script, fixed = TRUE)),
           any(grepl("slice_sample", script, fixed = TRUE)),

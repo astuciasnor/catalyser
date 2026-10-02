@@ -248,7 +248,7 @@ argumentos <- list(
 )
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
-caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+caminho_qmd <- file.path(projeto, "relatorios", "relatorio_completo.qmd")
 qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
 script <- readLines(file.path(projeto, "R", "analise.R"), warn = FALSE, encoding = "UTF-8")
 

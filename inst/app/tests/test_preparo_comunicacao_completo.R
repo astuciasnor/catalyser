@@ -100,7 +100,7 @@ for (manter in c(FALSE, TRUE)) {
         iguais(env$dados_da_analise, caches$base_0001$df), nrow(env$dados_da_analise) == 5)
     } else {
     for (script in c(TRUE, FALSE)) {
-      arquivo <- if (script) "R/analise.R" else "relatorios/relatorio.qmd"
+      arquivo <- if (script) "R/analise.R" else "relatorios/relatorio_completo.qmd"
       linhas <- readLines(file.path(projeto, arquivo), encoding = "UTF-8")
       env <- new.env(parent = globalenv())
       env$here <- function(...) file.path(projeto, ...)

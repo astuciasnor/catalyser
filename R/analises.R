@@ -783,10 +783,32 @@ catalyser_teste_t <- function(dados, p) {
       check.names = FALSE
     )
     if (requireNamespace("ggplot2", quietly = TRUE)) {
-      grafico <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[p$grupo]], y = .data[[p$resposta]], fill = .data[[p$grupo]])) +
-        ggplot2::geom_boxplot(alpha = 0.75, show.legend = FALSE) +
-        ggplot2::scale_fill_manual(values = c("#2E7D8F", "#E89B3C", "#62B6B7", "#E76F51")) +
-        ggplot2::theme_minimal(base_size = 12)
+      # Cada haste é o IC bilateral da média do grupo, separado do IC da diferença.
+      dg <- data.frame(grupo = factor(dados[[p$grupo]]), valor = dados[[p$resposta]])
+      dg <- droplevels(dg[stats::complete.cases(dg), , drop = FALSE])
+      resumos <- lapply(split(dg$valor, dg$grupo), function(x) {
+        media <- mean(x)
+        dp <- stats::sd(x)
+        margem <- stats::qt((1 + conf) / 2, df = length(x) - 1) * dp / sqrt(length(x))
+        data.frame(media = media, dp = dp, inferior = media - margem, superior = media + margem)
+      })
+      resumo <- do.call(rbind, resumos)
+      resumo$grupo <- factor(rownames(resumo), levels = levels(dg$grupo))
+      resumo$rotulo <- paste(formatC(resumo$media, digits = 2, format = "f", decimal.mark = ","), "±",
+        formatC(resumo$dp, digits = 2, format = "f", decimal.mark = ","))
+      grafico <- ggplot2::ggplot(dg, ggplot2::aes(x = grupo, y = valor, fill = grupo)) +
+        ggplot2::geom_col(data = resumo, ggplot2::aes(y = media), width = .30, alpha = .22, show.legend = FALSE) +
+        ggplot2::geom_point(ggplot2::aes(color = grupo), position = ggplot2::position_jitter(width = .08, height = 0, seed = 123), alpha = .7, show.legend = FALSE) +
+        ggplot2::geom_errorbar(data = resumo, ggplot2::aes(y = media, ymin = inferior, ymax = superior), width = .08, color = "#0F3B5F") +
+        ggplot2::geom_point(data = resumo, ggplot2::aes(y = media), shape = 18, size = 3, color = "#0F3B5F") +
+        ggplot2::geom_text(data = resumo, ggplot2::aes(y = media, label = rotulo), nudge_x = .05, hjust = 0, vjust = .5, fontface = "bold", color = "#0F3B5F") +
+        ggplot2::scale_fill_manual(values = c("#2E7D8F", "#E89B3C")) +
+        ggplot2::scale_color_manual(values = c("#2E7D8F", "#E89B3C")) +
+        ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, .12))) +
+        ggplot2::theme_classic(base_size = 12) +
+        ggplot2::theme(legend.position = "none") +
+        ggplot2::labs(x = p$grupo, y = p$resposta, title = "Médias com IC",
+          subtitle = sprintf("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral de %.0f%% da média.", 100 * conf))
     }
   } else if (identical(tipo, "paired")) {
     catalyser_colunas(dados, c(p$variavel_1, p$variavel_2))

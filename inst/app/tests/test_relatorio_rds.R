@@ -7,7 +7,7 @@ for (nome in c("pesca_anova", "pesca_varias")) {
   projeto <- normalizePath(file.path(raiz, nome), winslash = "/")
   ambiente <- new.env(parent = globalenv())
   sys.source(file.path(projeto, "R/funcoes.R"), ambiente)
-  qmd <- readLines(file.path(projeto, "relatorios/relatorio.qmd"), encoding = "UTF-8")
+  qmd <- readLines(file.path(projeto, "relatorios/relatorio_completo.qmd"), encoding = "UTF-8")
   chunks <- ambiente$chunks_do_relatorio(qmd)
   stopifnot(!any(grepl("read_excel|catalyser_conferir_base|# fonte: tratar", qmd)))
   for (ch in chunks) {

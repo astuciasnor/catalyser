@@ -3506,28 +3506,30 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     )
     pacotes_projeto <- sort(c(pacotes_projeto, "remotes"))
   } else {
-    caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
     writeLines(
       exportacao_gerar_script(
         manifesto, nome_projeto, registro_bases = registro_bases,
         pipeline = pipeline, base_externa = base_externa, import_info = import_info,
         templates_dir = templates_dir
-      ),
-      caminho_script, useBytes = TRUE
+      ), caminho_script, useBytes = TRUE
     )
-    writeLines(
-      exportacao_gerar_qmd(
-        manifesto, titulo, registro_bases = registro_bases,
-        pipeline = pipeline, base_externa = base_externa, import_info = import_info,
-        templates_dir = templates_dir
-      ),
-      caminho_qmd, useBytes = TRUE
+    qmd_integrado <- exportacao_gerar_qmd(
+      manifesto, titulo, registro_bases = registro_bases,
+      pipeline = pipeline, base_externa = base_externa, import_info = import_info,
+      templates_dir = templates_dir
     )
-    # No caminho legado, os chunks continuam sincronizados com o script.
     ligacao <- new.env(parent = baseenv())
     sys.source(file.path(projeto, "R", "funcoes.R"), envir = ligacao)
-    suppressMessages(ligacao$atualizar_codigo(qmd = caminho_qmd, script = caminho_script))
-    ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)
+    for (arquivo in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
+      caminho_qmd <- file.path(projeto, "relatorios", arquivo)
+      writeLines(exportacao_qmd_integrado_formato(qmd_integrado, arquivo), caminho_qmd, useBytes = TRUE)
+      suppressMessages(ligacao$atualizar_codigo(qmd = caminho_qmd, script = caminho_script))
+      ligacao$conferir_codigo(qmd = caminho_qmd, script = caminho_script)
+    }
+    writeLines(c(
+      "project:", "  type: default", "  output-dir: saida", "  execute-dir: project",
+      "  render:", "    - relatorios/relatorio_completo.qmd", "    - relatorios/relatorio_artigo.qmd"
+    ), file.path(projeto, "_quarto.yml"), useBytes = TRUE)
   }
   writeLines(
     c(
@@ -3544,6 +3546,22 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   } else {
     exportacao_leiame_projeto(nome_projeto, import_info)
   }
+  if (is.null(molde)) {
+    leiame <- gsub("relatorio.qmd", "relatorio_completo.qmd", leiame, fixed = TRUE)
+    leiame <- sub("Na seta do **Render**, escolha **Word**", "Para Word, abra relatorios/relatorio_artigo.qmd e clique em **Render**", leiame, fixed = TRUE)
+    leiame <- sub("o texto e o código na mesma ordem em que a análise é pensada, e um único", "O texto e o código seguem a ordem da análise; cada formato tem seu próprio", leiame, fixed = TRUE)
+    leiame <- sub("arquivo que gera o Word (para o leitor) e o caderno HTML (para quem quer", "arquivo: relatorio_artigo.qmd gera Word; relatorio_completo.qmd gera HTML para", leiame, fixed = TRUE)
+    leiame <- c(
+      "# Projeto R integrado",
+      "",
+      "Abra o .Rproj. O código comentado fica em R/analise.R.",
+      "Renderize relatorios/relatorio_completo.qmd para HTML e relatorios/relatorio_artigo.qmd para Word.",
+      "Os documentos gerados ficam em saida/relatorios/. Cada Render reconstrói os resultados da seleção.",
+      "Nesta rota, após editar o script, atualize os chunks dos dois QMDs com atualizar_codigo(qmd = ...).",
+      "A rota integrada ainda usa funções do pacote catalyser para reconstruir as análises.",
+      "", leiame
+    )
+  }
   leiame <- gsub("projeto_analise.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
   leiame <- gsub("projeto.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
   leiame <- sub("^projeto/$", paste0(nome_projeto, "/"), leiame)
@@ -3552,6 +3570,22 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   writeLines(leiame, file.path(projeto, "README.md"), useBytes = TRUE)
 
   projeto
+}
+
+# A rota integrada conserva seus cálculos e publica dois documentos independentes.
+# O nome explícito em cada ligação evita conferir acidentalmente o outro QMD.
+exportacao_qmd_integrado_formato <- function(linhas, arquivo) {
+  inicio_docx <- match("  docx:", linhas)
+  inicio_html <- match("  html:", linhas)
+  fim_formatos <- match("execute:", linhas)
+  if (anyNA(c(inicio_docx, inicio_html, fim_formatos))) stop("Confira os formatos do relatório integrado.")
+  remover <- if (identical(arquivo, "relatorio_completo.qmd")) inicio_docx else inicio_html
+  limites <- sort(c(inicio_docx, inicio_html, fim_formatos))
+  proximo <- limites[limites > remover][1]
+  linhas <- linhas[-seq.int(remover, proximo - 1L)]
+  linhas <- sub('conferir_codigo()', sprintf('conferir_codigo(qmd = here::here("relatorios", "%s"))', arquivo), linhas, fixed = TRUE)
+  linhas <- sub('atualizar_codigo()', sprintf('atualizar_codigo(qmd = here::here("relatorios", "%s"))', arquivo), linhas, fixed = TRUE)
+  linhas
 }
 
 exportacao_empacotar_projeto <- function(file, ...) {

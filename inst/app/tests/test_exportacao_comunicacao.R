@@ -225,7 +225,7 @@ argumentos <- list(
 )
 
 projeto <- do.call(exportacao_criar_projeto, c(list(destino = raiz), argumentos))
-caminho_qmd <- file.path(projeto, "relatorios", "relatorio.qmd")
+caminho_qmd <- file.path(projeto, "relatorios", "relatorio_completo.qmd")
 caminho_script <- file.path(projeto, "R", "analise.R")
 qmd <- readLines(caminho_qmd, warn = FALSE, encoding = "UTF-8")
 script <- readLines(caminho_script, warn = FALSE, encoding = "UTF-8")
@@ -235,6 +235,8 @@ stopifnot(
   dir.exists(projeto),
   # Fase D: a árvore é a do EAPACaderno, com o par R/analise.R + relatorio.qmd.
   # Sem resultados/ (tabelas e figuras nascem no Render), com imagens/ vazia.
+  file.exists(file.path(projeto, "relatorios", "relatorio_artigo.qmd")),
+  file.exists(file.path(projeto, "_quarto.yml")),
   file.exists(caminho_script),
   file.exists(file.path(projeto, "R", "funcoes.R")),
   identical(sort(list.files(file.path(projeto, "R"))), c("analise.R", "funcoes.R")),
@@ -242,7 +244,7 @@ stopifnot(
   dir.exists(file.path(projeto, "imagens")),
   !dir.exists(file.path(projeto, "metadados")),
   any(grepl("`carregar-compartilhada` lê o RDS", leiame, fixed = TRUE)),
-  any(grepl("Na seta do **Render**, escolha **Word**", leiame, fixed = TRUE)),
+  any(grepl("Para Word, abra relatorios/relatorio_artigo.qmd", leiame, fixed = TRUE)),
   any(grepl("Onde o código mora", leiame, fixed = TRUE)),
   !any(grepl("02_execucao", leiame, fixed = TRUE)),
   !any(grepl("04_analisar", leiame, fixed = TRUE)),
