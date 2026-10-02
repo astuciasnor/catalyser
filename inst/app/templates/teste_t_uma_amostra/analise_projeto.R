@@ -169,7 +169,7 @@ grafico_principal <- ggplot2::ggplot(dados_figura, ggplot2::aes(x = coluna, y = 
   ggplot2::geom_label(data = resumo_figura,
     ggplot2::aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
     nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold", linewidth = 0,
-    fill = ggplot2::alpha("white", .75), colour = "#0F3B5F") +
+    fill = NA, colour = "#0F3B5F") +
   ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, .15))) +
   ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(.4, .7))) +
   ggplot2::labs(x = NULL, y = rotulo_analisado,

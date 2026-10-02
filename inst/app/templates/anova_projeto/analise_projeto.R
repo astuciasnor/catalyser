@@ -495,7 +495,7 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
     aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
     nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold", size = 3.2, colour = "#0F3B5F",
     linewidth = 0, label.padding = grid::unit(0.12, "lines"),
-    fill = ggplot2::alpha("white", 0.75)
+    fill = NA
   ) +
   scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
   scale_colour_manual(values = cores_grupos, guide = "none") +

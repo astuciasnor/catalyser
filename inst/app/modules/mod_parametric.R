@@ -720,12 +720,12 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup),
                       width = 0.08, linewidth = 0.8, colour = "#0F3B5F") +
         geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
-        # Rótulo à direita do losango: fundo branco translúcido e sem borda,
+        # Rótulo à direita do losango, com fundo transparente e sem borda,
         # para continuar legível sobre pontos próximos.
         geom_label(aes(y = y_rotulo, label = rotulo_media),
                    nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold",
                    linewidth = 0, label.padding = grid::unit(0.12, "lines"),
-                   fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
+                   fill = NA, colour = "#0F3B5F",
                    size = 3.2) +
         geom_text(aes(y = y_letra, label = letra), size = 5, fontface = "bold", colour = "#0F3B5F") +
         scale_colour_manual(values = cores_grupo, guide = "none") +

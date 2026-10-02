@@ -349,13 +349,13 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
     colour = "#0F3B5F"
   ) +
   ggplot2::geom_point(ggplot2::aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
-  # Rótulo à direita do losango: fundo branco translúcido e sem borda, para
+  # Rótulo à direita do losango, com fundo transparente e sem borda, para
   # continuar legível sobre pontos próximos.
   ggplot2::geom_label(
     ggplot2::aes(y = y_rotulo, label = rotulo_media),
     nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold",
     linewidth = 0, label.padding = grid::unit(0.12, "lines"),
-    fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
+    fill = NA, colour = "#0F3B5F",
     size = 3.2
   ) +
   ggplot2::geom_text(
