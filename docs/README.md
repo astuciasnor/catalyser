@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+[Entrega da versão unificada 0.1.14](testes/MESCLAGEM_PRINCIPAL_20261002.md) — mesclagem da Fase 2 com a principal, provas atuais e limites.
+
 [Padrão de gráficos de médias: transparência estatística e beleza dos dados](PADRAO_GRAFICOS_MEDIAS.md) — aprovado pelo autor em 02/10/2026.
 
 [Integração dos menus, R² por categoria e barras transparentes](testes/INTEGRACAO_MENUS_GRAFICOS_20261001.md).
