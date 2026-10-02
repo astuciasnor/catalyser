@@ -73,9 +73,10 @@ stopifnot(inherits(erro_continuo, "try-error"))
 # A ordem do menu é uma decisão pedagógica e deve permanecer explícita.
 codigo_app <- paste(readLines("app.R", encoding = "UTF-8"), collapse = "\n")
 posicoes <- vapply(c(
-  "Descobrindo o Modelo", "Regressão Linear Simples", "Regressão Linear Múltipla",
-  "Regressão Logística Binária", "Regressão de Poisson",
-  "Regressão Binomial Negativa", "Séries Temporais"
+  'title = "Correlação"', 'title = "Linear Simples"', 'title = "Linear Múltipla"',
+  'title = "Logística Binária"', 'title = "Poisson"',
+  'title = "Binomial Negativa"', 'title = "Descobrindo o Modelo"', 'title = "Curva Exponencial"',
+  'title = HTML("Séries<br>Temporais")'
 ), function(titulo) regexpr(titulo, codigo_app, fixed = TRUE)[[1]], integer(1))
 stopifnot(all(posicoes > 0), identical(posicoes, sort(posicoes)))
 

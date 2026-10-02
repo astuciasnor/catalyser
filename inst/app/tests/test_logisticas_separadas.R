@@ -27,7 +27,7 @@ stopifnot(
 
 codigo_app <- paste(readLines("app.R", encoding = "UTF-8"), collapse = "\n")
 stopifnot(
-  grepl('title = "Regressão Logística Binária"', codigo_app, fixed = TRUE),
+  grepl('title = "Logística Binária"', codigo_app, fixed = TRUE),
   grepl('mod_regression_ui("logistic_regression", is_logistic = TRUE)', codigo_app, fixed = TRUE),
   grepl('title = "Curva Logística"', codigo_app, fixed = TRUE),
   grepl('mod_nonlinear_ui("logistico", "logistico")', codigo_app, fixed = TRUE),

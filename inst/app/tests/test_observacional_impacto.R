@@ -23,7 +23,7 @@ testServer(mod_planejamento_observacional_server,
   f <- ficha()
   stopifnot(
     identical(f$tipo, "impacto"),
-    identical(f$origem, "Planejamento observacional — De impacto (CI, BA, BACI)"),
+    identical(f$origem, "Planejamento observacional — Estudos de impacto (BA, CI, BACI)"),
     identical(f$eixos$impacto$coluna, "situacao"),
     identical(f$eixos$impacto$nomes, c("Impacto", "Referência")),
     identical(f$eixos$tempo$nomes, c("antes", "depois")),

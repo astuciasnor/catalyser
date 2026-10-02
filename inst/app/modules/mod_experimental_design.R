@@ -18,9 +18,9 @@ parse_levels <- function(text) {
 
 mod_experimental_design_ui <- function(id, variaveis_ui = NULL, tipo_fixo = NULL) {
   ns <- NS(id)
-  escolhas_tipo <- c("DIC - Inteiramente Casualizado" = "DIC",
-                     "DBC - Blocos Casualizados" = "DBC",
-                     "DQL - Quadrado Latino" = "DQL",
+  escolhas_tipo <- c("DIC (Inteiramente Casualizado)" = "DIC",
+                     "DBC (Blocos Casualizados)" = "DBC",
+                     "DQL (Quadrado Latino)" = "DQL",
                      "Fatorial (em DIC)" = "fatorial",
                      "Parcelas Subdivididas (Split-Plot)" = "split_plot")
   tagList(

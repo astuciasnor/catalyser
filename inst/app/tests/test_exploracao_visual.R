@@ -16,10 +16,10 @@ tipos <- c("histograma", "caixa_violino", "dispersao", "duplo_eixo", "barras", "
 html <- vapply(tipos, function(tipo) htmltools::renderTags(mod_exploracao_visual_ui(paste0("teste_", tipo), tipo))$html, character(1))
 stopifnot(all(grepl("Ver o código R", html, fixed = TRUE)))
 
-# O menu visual vem logo após a exploração dos dados e antes das frequências.
+# Exploração e visualização formam um só menu, com dois grupos, antes das frequências.
 codigo_app <- paste(readLines("app.R", encoding = "UTF-8"), collapse = "\n")
-pos_explorar <- regexpr('title = HTML("Explorando<br>os Dados")', codigo_app, fixed = TRUE)[[1]]
-pos_visual <- regexpr('title = HTML("Visualização<br>dos Dados")', codigo_app, fixed = TRUE)[[1]]
+pos_explorar <- regexpr('title = HTML("Explorar e<br>Visualizar")', codigo_app, fixed = TRUE)[[1]]
+pos_visual <- regexpr('"Visualizando os dados"', codigo_app, fixed = TRUE)[[1]]
 pos_frequencias <- regexpr('title = HTML("Frequências<br>e Proporções")', codigo_app, fixed = TRUE)[[1]]
 stopifnot(pos_explorar > 0, pos_visual > pos_explorar, pos_frequencias > pos_visual)
 

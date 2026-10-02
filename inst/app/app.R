@@ -44,7 +44,6 @@ source("modules/mod_anova_mista.R", encoding = "UTF-8")
 source("modules/mod_anova_dois_fatores.R", encoding = "UTF-8")
 source("modules/mod_pca.R", encoding = "UTF-8")
 source("modules/mod_hca.R", encoding = "UTF-8")
-source("modules/mod_contingency.R", encoding = "UTF-8")
 source("modules/mod_experimental_design.R", encoding = "UTF-8")
 source("modules/mod_planejamento_variaveis.R", encoding = "UTF-8")
 # Este R local falha ao converter alguns arquivos UTF-8 quando o argumento
@@ -54,7 +53,6 @@ source("modules/mod_n_poder.R", encoding = "UTF-8")
 source("modules/mod_monitoramento.R", encoding = "UTF-8")
 source("modules/mod_conceitos_coleta.R", encoding = "UTF-8")
 source("modules/mod_nonparametric.R", encoding = "UTF-8")
-source("modules/mod_pizza.R", encoding = "UTF-8")
 source("modules/mod_viz_extra.R", encoding = "UTF-8")
 source("modules/mod_exploracao_visual.R", encoding = "UTF-8")
 source("modules/mod_mapa.R", encoding = "UTF-8")
@@ -82,7 +80,6 @@ source("modules/mod_lab_tlc.R", encoding = "UTF-8")
 source("modules/mod_lab_anova.R", encoding = "UTF-8")
 source("modules/mod_lab_teste_t.R", encoding = "UTF-8")
 source("modules/mod_ancova.R", encoding = "UTF-8")
-source("modules/mod_frequencia.R", encoding = "UTF-8")
 source("modules/mod_descrevendo_dados.R", encoding = "UTF-8")
 source("modules/mod_proporcoes.R", encoding = "UTF-8")
 source("modules/mod_parametricos_complementares.R", encoding = "UTF-8")
@@ -90,7 +87,6 @@ source("modules/mod_pareados_categoricos.R", encoding = "UTF-8")
 # Parqueados para a v2 (fora do escopo v1 do menu Mapas — ver mapas.md / BACKLOG):
 # source("modules/mod_mapa_densidade.R") # densidade/heatmap de ocorrências
 # source("modules/mod_mapa_raster.R")    # raster ambiental isolado
-# source("modules/mod_leaflet.R")        # mapa interativo (leaflet, só HTML)
 
 # Funções auxiliares para tipagem de colunas
 detect_col_type <- function(col) {
@@ -130,6 +126,30 @@ eapa_datasets <- local({
   ok
 })
 eapa_dataset_default <- if ("artemia" %in% eapa_datasets) "artemia" else eapa_datasets[1]
+
+# Cartão simples para itens do menu Mapear e Analisar que ainda estão em preparação.
+# Ele guarda o lugar do item no menu e explica ao aluno a pergunta que o item responde.
+mapas_em_preparacao <- function(titulo, pergunta, texto) {
+  # Um único cartão centralizado, com largura confortável de leitura.
+  div(
+    style = "max-width: 760px; margin: 30px auto;",
+    card(
+      # Cabeçalho com o nome do item.
+      card_header(titulo),
+      card_body(
+        # A pergunta de pesquisa que o item vai responder, em destaque.
+        tags$p(tags$b("Pergunta: "), pergunta),
+        # O que o item fará quando estiver pronto.
+        tags$p(texto),
+        # Aviso de que o item ainda não está disponível.
+        div(class = "alert alert-info py-2 mb-0", icon("screwdriver-wrench"), " Em preparação.")
+      )
+    )
+  )
+}
+
+# O mesmo cartão serve a qualquer item de menu ainda em preparação.
+em_preparacao <- mapas_em_preparacao
 
 # Interface do Usuário (UI)
 ui <- page_navbar(
@@ -337,21 +357,20 @@ ui <- page_navbar(
         margin-right: 0px !important;
       }
       
-      /* Cores individuais e modernas para cada ícone de menu */
+      /* Cores individuais e modernas para cada ícone de menu PENDENCIA-V2: trocar nth-child por classes com nome, para não desalinhar quando a ordem mudar. */
       .navbar-nav > li:nth-child(1) .nav-link i, .navbar-nav > li:nth-child(1) .dropdown-toggle i { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
       .navbar-nav > li:nth-child(2) .nav-link i, .navbar-nav > li:nth-child(2) .dropdown-toggle i { color: #0d6efd !important; } /* Preparando Dados -> azul */
-      .navbar-nav > li:nth-child(3) .nav-link i, .navbar-nav > li:nth-child(3) .dropdown-toggle i { color: #00b894 !important; } /* Explorando os Dados -> verde-água */
-      .navbar-nav > li:nth-child(4) .nav-link i, .navbar-nav > li:nth-child(4) .dropdown-toggle i { color: #00c2cb !important; } /* Visualização dos Dados -> turquesa */
-      .navbar-nav > li:nth-child(5) .nav-link i, .navbar-nav > li:nth-child(5) .dropdown-toggle i { color: #E89B3C !important; } /* Frequências e Proporções -> âmbar */
-      .navbar-nav > li:nth-child(6) .nav-link i, .navbar-nav > li:nth-child(6) .dropdown-toggle i { color: #f97316 !important; } /* Testes Paramétricos -> laranja */
-      .navbar-nav > li:nth-child(7) .nav-link i, .navbar-nav > li:nth-child(7) .dropdown-toggle i { color: #84cc16 !important; } /* Testes Não Paramétricos -> verde-limão */
-      .navbar-nav > li:nth-child(8) .nav-link i, .navbar-nav > li:nth-child(8) .dropdown-toggle i { color: #7c3aed !important; } /* Modelos de Regressão -> roxo */
-      .navbar-nav > li:nth-child(9) .nav-link i, .navbar-nav > li:nth-child(9) .dropdown-toggle i { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
-      .navbar-nav > li:nth-child(10) .nav-link i, .navbar-nav > li:nth-child(10) .dropdown-toggle i { color: #2E7D8F !important; } /* Séries Temporais -> teal */
-      .navbar-nav > li:nth-child(11) .nav-link i, .navbar-nav > li:nth-child(11) .dropdown-toggle i { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
-      .navbar-nav > li:nth-child(12) .nav-link i, .navbar-nav > li:nth-child(12) .dropdown-toggle i { color: #6366f1 !important; } /* Mapas -> roxo-violeta */
-      .navbar-nav > li:nth-child(13) .nav-link i, .navbar-nav > li:nth-child(13) .dropdown-toggle i { color: #198754 !important; } /* Laboratório de Conceitos -> verde */
-      .navbar-nav > li:nth-child(14) .nav-link i, .navbar-nav > li:nth-child(14) .dropdown-toggle i { color: #0ea5e9 !important; } /* Comunicação de Resultados -> azul-ciano */
+      .navbar-nav > li:nth-child(3) .nav-link i, .navbar-nav > li:nth-child(3) .dropdown-toggle i { color: #00b894 !important; } /* Explorar e Visualizar -> verde-água */
+      .navbar-nav > li:nth-child(4) .nav-link i, .navbar-nav > li:nth-child(4) .dropdown-toggle i { color: #E89B3C !important; } /* Frequências e Proporções -> âmbar */
+      .navbar-nav > li:nth-child(5) .nav-link i, .navbar-nav > li:nth-child(5) .dropdown-toggle i { color: #f97316 !important; } /* Testes Paramétricos -> laranja */
+      .navbar-nav > li:nth-child(6) .nav-link i, .navbar-nav > li:nth-child(6) .dropdown-toggle i { color: #84cc16 !important; } /* Testes Não Paramétricos -> verde-limão */
+      .navbar-nav > li:nth-child(7) .nav-link i, .navbar-nav > li:nth-child(7) .dropdown-toggle i { color: #7c3aed !important; } /* Regressões Lineares e MLG -> roxo */
+      .navbar-nav > li:nth-child(8) .nav-link i, .navbar-nav > li:nth-child(8) .dropdown-toggle i { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
+      .navbar-nav > li:nth-child(9) .nav-link i, .navbar-nav > li:nth-child(9) .dropdown-toggle i { color: #2E7D8F !important; } /* Séries Temporais -> teal */
+      .navbar-nav > li:nth-child(10) .nav-link i, .navbar-nav > li:nth-child(10) .dropdown-toggle i { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
+      .navbar-nav > li:nth-child(11) .nav-link i, .navbar-nav > li:nth-child(11) .dropdown-toggle i { color: #6366f1 !important; } /* Mapear e Analisar -> roxo-violeta */
+      .navbar-nav > li:nth-child(12) .nav-link i, .navbar-nav > li:nth-child(12) .dropdown-toggle i { color: #198754 !important; } /* Laboratório de Conceitos -> verde */
+      .navbar-nav > li:nth-child(13) .nav-link i, .navbar-nav > li:nth-child(13) .dropdown-toggle i { color: #0ea5e9 !important; } /* Comunicação de Resultados -> azul-ciano */
       
       /* Atalhos da terceira faixa, dimensionados como as logos. */
       #sobre-custom-btn,
@@ -633,7 +652,7 @@ ui <- page_navbar(
     planejamento_observacional_painel("impacto"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Delineamentos experimentais")),
     nav_panel(
-      title = "DIC - Inteiramente Casualizado",
+      title = "DIC (Inteiramente Casualizado)",
       icon = icon("flask"),
       tagList(
         planejamento_contexto_ui("Como distribuir tratamentos?", "Organize as unidades e os tratamentos no croqui. Depois, abra a aba Variáveis do experimento para preparar a coleta. A análise precisa respeitar o delineamento escolhido."),
@@ -645,11 +664,11 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "DBC - Blocos Casualizados", icon = icon("flask"),
+      title = "DBC (Blocos Casualizados)", icon = icon("flask"),
       mod_experimental_design_ui("experimental_dbc", mod_planejamento_variaveis_ui("variables_exp_dbc", experimental = TRUE), tipo_fixo = "DBC")
     ),
     nav_panel(
-      title = "DQL - Quadrado Latino", icon = icon("flask"),
+      title = "DQL (Quadrado Latino)", icon = icon("flask"),
       mod_experimental_design_ui("experimental_dql", mod_planejamento_variaveis_ui("variables_exp_dql", experimental = TRUE), tipo_fixo = "DQL")
     ),
     nav_panel(
@@ -670,6 +689,14 @@ ui <- page_navbar(
       title = "Como amostrar",
       icon = icon("shuffle"),
       mod_sortear_amostra_ui("sortear_amostra")
+    ),
+    # Onde amostrar: localização das unidades no território (antigo "Pontos / Estações"
+    # do menu de mapas). Por ora abre o mapa de estações; as abas "Sortear locais" e
+    # "Conferir a distribuição" virão depois (ver Especificacao_CatalyseR_Mapas.md).
+    nav_panel(
+      title = "Onde amostrar",
+      icon = icon("location-crosshairs"),
+      mod_mapa_pontos_ui("mapa_pontos", "pontos")
     )
   ),
 
@@ -677,8 +704,10 @@ ui <- page_navbar(
   nav_menu(
     title = HTML("Preparar<br>Dados"),
     icon = icon("database"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Importação de dados")),
     nav_panel(
       title = "Importar Dados",
+      # PENDENCIA-V2: atalho opcional "Carregar Pacote de Dados" que abre este item com a origem Pacote marcada.
       icon = icon("file-import"),
       layout_columns(
         col_widths = c(1, 1, 1),
@@ -786,28 +815,32 @@ ui <- page_navbar(
         )
       )
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Reestruturação de planilhas")),
     nav_panel(
-      title = "Reestruturar Planilha",
+      title = "Empilhar colunas",
       icon = icon("layer-group"),
       div(class = "mb-0",
-        h4("Reestruturar Planilha", class = "mb-1"),
-        p(class = "small text-muted mb-0", "Empilhe, alargue ou separe colunas. Confira a prévia antes de adicionar a mudança à Base Compartilhada.")),
-      tabsetPanel(
-        id = "pivotar_separar_subabas",
-        tabPanel(
-          "Empilhar",
-          mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
-        ),
-        tabPanel(
-          "Alargar",
-          mod_arrumar_ui("arrumar_wider", modo_fixo = "alargar")
-        ),
-        tabPanel(
-          "Separar Colunas",
-          mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
-        )
-      )
+        h4("Empilhar colunas", class = "mb-1"),
+        p(class = "small text-muted mb-2", "Empilhe várias colunas em duas: uma com o nome da coluna e outra com o valor. Confira a prévia antes de adicionar a mudança à Base Compartilhada.")),
+      mod_arrumar_ui("arrumar_emp", modo_fixo = "empilhar")
     ),
+    nav_panel(
+      title = "Alargar planilha",
+      icon = icon("table-columns"),
+      div(class = "mb-0",
+        h4("Alargar planilha", class = "mb-1"),
+        p(class = "small text-muted mb-2", "Espalhe os valores de uma coluna em várias colunas novas. Confira a prévia antes de adicionar a mudança à Base Compartilhada.")),
+      mod_arrumar_ui("arrumar_wider", modo_fixo = "alargar")
+    ),
+    nav_panel(
+      title = "Separar colunas",
+      icon = icon("scissors"),
+      div(class = "mb-0",
+        h4("Separar colunas", class = "mb-1"),
+        p(class = "small text-muted mb-2", "Separe o conteúdo de uma coluna em duas ou mais. Confira a prévia antes de adicionar a mudança à Base Compartilhada.")),
+      mod_arrumar_ui("arrumar_sep", modo_fixo = "separar")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Preparação de bases de dados")),
     nav_panel(
       title = "Preparar Base Compartilhada",
       icon = icon("list-check"),
@@ -820,10 +853,14 @@ ui <- page_navbar(
     )
   ),
 
-  # O menu passa a convidar o aluno a investigar antes de escolher um teste.
+  # Explorar e Visualizar Dados: um só menu, com dois grupos.
+  # O primeiro convida o aluno a investigar os dados antes de escolher um teste;
+  # o segundo é o ateliê de gráficos, onde ele escolhe variáveis e estética.
+  # Rosca e Duplo eixo Y saíram do menu; os módulos seguem no código (PENDENCIA-V2: limpar).
   nav_menu(
-    title = HTML("Explorando<br>os Dados"),
+    title = HTML("Explorar e<br>Visualizar"),
     icon = icon("chart-bar"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Explorando os dados")),
     nav_panel(
       title = "Explorar Dataset",
       icon = icon("table-list"),
@@ -848,25 +885,18 @@ ui <- page_navbar(
       title = "Transformar Variáveis",
       icon = icon("arrows-rotate"),
       mod_descrevendo_dados_ui("descricao_transformar", "transformar")
-    )
-  ),
-
-  # A coleção visual vem logo após a exploração que ajuda a escolher o gráfico.
-  nav_menu(
-    title = HTML("Visualização<br>dos Dados"),
-    icon = icon("eye"),
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Visualizando os dados")),
     nav_panel(title = "Histograma e densidade", icon = icon("chart-area"), mod_exploracao_visual_ui("visual_histograma", "histograma")),
-    nav_panel(title = "Boxplot e violino", icon = icon("chart-column"), mod_exploracao_visual_ui("visual_caixa", "caixa_violino")),
+    nav_panel(title = "Barras", icon = icon("chart-bar"), mod_exploracao_visual_ui("visual_barras", "barras")),
+    nav_panel(title = "Comparar grupos", icon = icon("chart-column"), mod_exploracao_visual_ui("visual_caixa", "caixa_violino")),
     nav_panel(title = "Dispersão e tendência", icon = icon("chart-line"), mod_exploracao_visual_ui("visual_dispersao", "dispersao")),
-    nav_panel(title = "Duplo eixo Y", icon = icon("arrows-left-right-to-line"), mod_exploracao_visual_ui("visual_duplo_eixo", "duplo_eixo")),
     nav_panel(
       title = "Linhas para eixo ordenado", icon = icon("timeline"),
       mod_analise_registravel_ui(
         "fluxo_lines", tagList(mod_seletor_base_analise_ui("base_lines"), mod_lines_ui("lines")), mod_registrar_execucao_ui("registrar_lines")
       )
     ),
-    nav_panel(title = "Barras", icon = icon("chart-bar"), mod_exploracao_visual_ui("visual_barras", "barras")),
-    nav_panel(title = "Rosca", icon = icon("circle-notch"), mod_exploracao_visual_ui("visual_rosca", "rosca")),
     nav_panel(title = "Matriz de dispersão", icon = icon("table-cells"), mod_exploracao_visual_ui("visual_matriz", "matriz")),
     nav_panel(title = "Mapa de calor de correlação", icon = icon("table-cells-large"), mod_exploracao_visual_ui("visual_calor", "calor"))
   ),
@@ -875,6 +905,7 @@ ui <- page_navbar(
   nav_menu(
     title = HTML("Frequências<br>e Proporções"),
     icon = icon("chart-pie"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Proporções")),
     nav_panel(
       title = "Uma proporção",
       icon = icon("percent"),
@@ -885,15 +916,11 @@ ui <- page_navbar(
       icon = icon("scale-balanced"),
       mod_proporcoes_ui("proporcao_duas", "duas")
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Tabelas de frequência")),
     nav_panel(
       title = "Qui-quadrado (aderência)",
       icon = icon("bullseye"),
       mod_proporcoes_ui("qui_aderencia", "aderencia")
-    ),
-    nav_panel(
-      title = "McNemar (pares binários)",
-      icon = icon("right-left"),
-      mod_pareados_categoricos_ui("mcnemar", "mcnemar")
     ),
     nav_panel(
       title = "Qui-quadrado de independência",
@@ -913,6 +940,12 @@ ui <- page_navbar(
         ),
         mod_registrar_execucao_ui("registrar_np_qui")
       )
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Dados pareados")),
+    nav_panel(
+      title = "McNemar (pares binários)",
+      icon = icon("right-left"),
+      mod_pareados_categoricos_ui("mcnemar", "mcnemar")
     )
   ),
 
@@ -997,6 +1030,7 @@ ui <- page_navbar(
   nav_menu(
     title = HTML("Testes Não<br>Paramétricos"),
     icon = icon("percent"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Duas amostras")),
     nav_panel(
       title = "Mann-Whitney (2 grupos)",
       icon = icon("arrows-left-right"),
@@ -1007,6 +1041,7 @@ ui <- page_navbar(
       icon = icon("shuffle"),
       mod_nonparametric_ui("np_wil", "wilcoxon")
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Três ou mais amostras")),
     nav_panel(
       title = "Kruskal-Wallis (k grupos)",
       icon = icon("arrows-up-down"),
@@ -1021,15 +1056,18 @@ ui <- page_navbar(
 
   # 7. Modelos de Regressão
   nav_menu(
-    title = HTML("Modelos de<br>Regressão"),
+    title = HTML("Regressões<br>Lineares e MLG"),
     icon = icon("chart-line"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Associação")),
     nav_panel(
-      title = "Descobrindo o Modelo",
-      icon = icon("magnifying-glass-chart"),
-      mod_model_discovery_ui("discovery")
+      title = "Correlação",
+      icon = icon("braille"),
+      # PENDENCIA-V2: ligar Inserir análise (registro de execução) e seletor de base ao módulo Correlação.
+      mod_correlacao_ui("correlacao")
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Resposta numérica")),
     nav_panel(
-      title = "Regressão Linear Simples",
+      title = "Linear Simples",
       icon = icon("chart-line"),
       mod_analise_registravel_ui(
         "fluxo_regression",
@@ -1041,7 +1079,8 @@ ui <- page_navbar(
       )
     ),
     nav_panel(
-      title = "Regressão Linear Múltipla",
+      title = "Linear Múltipla",
+      # PENDENCIA-V2: implementar a Regressão Linear Múltipla (hoje é só tela provisória).
       icon = icon("table-cells"),
       card(
         card_header("Regressão Linear Múltipla"),
@@ -1058,8 +1097,9 @@ ui <- page_navbar(
         )
       )
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Resposta binária")),
     nav_panel(
-      title = "Regressão Logística Binária",
+      title = "Logística Binária",
       icon = icon("chart-line"),
       mod_analise_registravel_ui(
         "fluxo_logistic_regression",
@@ -1067,22 +1107,30 @@ ui <- page_navbar(
         mod_registrar_execucao_ui("registrar_logistic")
       )
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Resposta de contagem")),
     nav_panel(
-      title = "Regressão de Poisson",
+      title = "Poisson",
       icon = icon("hashtag"),
       mod_regressao_contagem_ui("regressao_poisson", "poisson")
     ),
     nav_panel(
-      title = "Regressão Binomial Negativa",
+      title = "Binomial Negativa",
       icon = icon("chart-column"),
       mod_regressao_contagem_ui("regressao_binomial_negativa", "binomial_negativa")
-    ),
+    )
   ),
 
   # 7.1. Regressão Não Linear
   nav_menu(
     title = HTML("Regressão<br>Não Linear"),
     icon = icon("bezier-curve"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Escolher a curva")),
+    nav_panel(
+      title = "Descobrindo o Modelo",
+      icon = icon("magnifying-glass-chart"),
+      mod_model_discovery_ui("discovery")
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Ajustar a curva")),
     nav_panel(
       title = "Curva Exponencial",
       icon = icon("arrow-trend-up"),
@@ -1099,7 +1147,7 @@ ui <- page_navbar(
       mod_nonlinear_ui("von_bertalanffy", "von_bertalanffy")
     ),
     nav_panel(
-      title = "Modelo Polinomial",
+      title = "Curva Polinomial",
       icon = icon("chart-area"),
       mod_nonlinear_ui("polinomial", "polinomial")
     ),
@@ -1133,6 +1181,16 @@ ui <- page_navbar(
       title = "Autocorrelação",
       icon = icon("wave-square"),
       mod_series_temporais_ui("series_autocorrelacao", "autocorrelacao")
+    ),
+    nav_panel(
+      title = "Previsão (introdução)",
+      icon = icon("forward"),
+      # PENDENCIA-V2: implementar Previsão (treino e teste, modelos, exatidão) e o cabeçalho de dados comum.
+      em_preparacao(
+        "Previsão (introdução)",
+        "O que esperar da série nos próximos períodos, e isso supera um modelo ingênuo?",
+        "Separa treino e teste, compara média, sazonal ingênuo e ETS com intervalos, e mostra RMSE e MAE. Fica desmarcada por padrão e sempre exibe o modelo ingênuo ao lado."
+      )
     )
   ),
 
@@ -1140,6 +1198,7 @@ ui <- page_navbar(
   nav_menu(
     title = HTML("Estatística<br>Multivariada"),
     icon = icon("diagram-project"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Reduzir dimensão")),
     nav_panel(
       title = "PCA (Componentes Principais)",
       icon = icon("diagram-project"),
@@ -1152,6 +1211,7 @@ ui <- page_navbar(
         mod_registrar_execucao_ui("registrar_pca")
       )
     ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Agrupar")),
     nav_panel(
       title = "Análise de Agrupamentos (Clustering)",
       icon = icon("bezier-curve"),
@@ -1165,6 +1225,7 @@ ui <- page_navbar(
       )
     ),
     # Reserve k-means como percurso próprio, sem apresentar cálculo antes da implementação.
+    # PENDENCIA-V2: implementar k-means (hoje é só tela provisória).
     nav_panel(
       title = "Agrupamentos por k-means",
       icon = icon("bullseye"),
@@ -1175,32 +1236,69 @@ ui <- page_navbar(
           icon("compass"), " Esta opção está reservada para uma próxima etapa. Ela permitirá propor um número de grupos e examinar a separação entre observações numéricas, com padronização quando as unidades forem diferentes."
         )
       )
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparar grupos")),
+    nav_panel(
+      title = "PERMANOVA",
+      icon = icon("diagram-project"),
+      # PENDENCIA-V2: implementar PERMANOVA (abas: Distância e ordenação, Dispersões, Teste global, Comparações par a par, Espécies que explicam).
+      em_preparacao(
+        "PERMANOVA",
+        "As comunidades ou os perfis diferem entre os grupos?",
+        "Compara grupos usando uma matriz de distâncias (Bray-Curtis, por exemplo), com teste por permutação. Verifica antes se os grupos têm dispersões parecidas e aceita mais de um fator. Exige dados em matriz de espécies por amostra."
+      )
     )
   ),
 
-  # 11. Mapas
+  # 11. Mapear e Analisar (antigo "Mapas"): mesma posição na barra, dois grupos.
+  # O mapa de estações foi para Planejando a Pesquisa > Onde amostrar.
+  # Itens marcados "em preparação" guardam o lugar dos módulos que ainda virão.
   nav_menu(
-    title = "Mapas",
+    title = HTML("Mapear e<br>Analisar"),
     icon = icon("map"),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Mapeando valores")),
     nav_panel(
-      title = "Mapa Coroplético (Brasil por Estado)",
+      title = "Coroplético (Brasil por Estado)",
       icon = icon("map-location-dot"),
       mod_mapa_ui("mapa")
     ),
     nav_panel(
-      title = "Pontos / Estações",
-      icon = icon("location-crosshairs"),
-      mod_mapa_pontos_ui("mapa_pontos", "pontos")
-    ),
-    nav_panel(
-      title = "Bolhas Proporcionais",
+      title = "Bolhas proporcionais",
       icon = icon("circle-dot"),
       mod_mapa_pontos_ui("mapa_bolhas", "bolhas")
+    ),
+    nav_panel(
+      title = "Densidade de ocorrências",
+      icon = icon("fire"),
+      mapas_em_preparacao(
+        "Densidade de ocorrências",
+        "Onde se concentram os registros de ocorrência ou de captura?",
+        "Mostra as áreas com mais registros quando há muitos pontos. A concentração também reflete onde houve mais esforço de coleta, então a leitura deve considerar o esforço. O módulo já existe (mod_mapa_densidade.R) e será ligado aqui."
+      )
+    ),
+    nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Analisando o espaço")),
+    nav_panel(
+      title = "Dependência espacial",
+      icon = icon("circle-nodes"),
+      mapas_em_preparacao(
+        "Dependência espacial",
+        "Pontos vizinhos se parecem? Posso tratar as observações como independentes?",
+        "Calcula o índice de Moran, com teste por permutação, e mostra o variograma empírico. Se os vizinhos se parecem, tratar os pontos como independentes subestima a variação, o que é uma forma de pseudorreplicação."
+      )
+    ),
+    nav_panel(
+      title = "Ambiente nos pontos",
+      icon = icon("temperature-half"),
+      mapas_em_preparacao(
+        "Ambiente nos pontos",
+        "O ambiente (temperatura, clorofila, profundidade) ajuda a explicar a variação?",
+        "Coloca a camada ambiental como contexto dos pontos de coleta e extrai o valor em cada estação, criando uma coluna nova para uma análise seguinte (regressão ou ANOVA). Aproveitará o módulo mod_mapa_raster.R."
+      )
     )
   ),
 
   # O Laboratório transversal aparece antes da etapa final de Comunicação.
-  # Cada opção abre uma tela própria, sem uma segunda faixa de abas.
+  # Os itens ficam em grupos por pergunta; alguns reúnem variações em abas (segunda faixa).
   do.call(nav_menu, c(
     list(title = HTML("Laboratório<br>de Conceitos"), icon = icon("flask")),
     laboratorio_paineis()
@@ -2905,6 +3003,7 @@ RCatalyst::run_ide()</pre>
   mod_series_temporais_server("series_visualizar", dados_analise, import_info)
   mod_series_temporais_server("series_decompor", dados_analise, import_info)
   mod_series_temporais_server("series_autocorrelacao", dados_analise, import_info)
+  mod_correlacao_server("correlacao", dados_analise, import_info)
   comunicacao_resultados <- mod_comunicacao_server(
     "comunicacao", dados_analise, import_info,
     registro_execucoes_rv, registro_bases_rv, cache_bases_rv,
@@ -3124,7 +3223,7 @@ RCatalyst::run_ide()</pre>
       used_analyses$histogram <- TRUE
     } else if (tab == "Boxplot") {
       used_analyses$boxplot <- TRUE
-    } else if (tab == "Regressão Linear Simples") {
+    } else if (tab == "Linear Simples") {
       used_analyses$regression <- TRUE
     } else if (tab == "Curva Exponencial") {
       used_analyses$exponencial <- TRUE
@@ -3132,7 +3231,7 @@ RCatalyst::run_ide()</pre>
       used_analyses$potencia <- TRUE
     } else if (tab == "Curva de Crescimento de Peixes") {
       used_analyses$von_bertalanffy <- TRUE
-    } else if (tab == "Modelo Polinomial") {
+    } else if (tab == "Curva Polinomial") {
       used_analyses$polinomial <- TRUE
     } else if (tab == "Curva Logarítmica") {
       used_analyses$logaritmica <- TRUE
@@ -3150,7 +3249,7 @@ RCatalyst::run_ide()</pre>
                identical(subaba_bases, "Receita da base") &&
                identical(tipo_receita, "contingencia")) {
       used_analyses$contingency <- TRUE
-    } else if (tab == "ANOVA (Análise de Variância)") {
+    } else if (tab == "ANOVA de um fator") {
       used_analyses$anova <- TRUE
     } else if (tab == "ANOVA a dois fatores") {
       used_analyses$anova2 <- TRUE
@@ -3195,7 +3294,7 @@ RCatalyst::run_ide()</pre>
         used_analyses$histogram <- TRUE
       } else if (tab == "Boxplot") {
         used_analyses$boxplot <- TRUE
-      } else if (tab == "Regressão Linear Simples") {
+      } else if (tab == "Linear Simples") {
         used_analyses$regression <- TRUE
       } else if (tab == "Curva Exponencial") {
         used_analyses$exponencial <- TRUE
@@ -3203,7 +3302,7 @@ RCatalyst::run_ide()</pre>
         used_analyses$potencia <- TRUE
       } else if (tab == "Curva de Crescimento de Peixes") {
         used_analyses$von_bertalanffy <- TRUE
-      } else if (tab == "Modelo Polinomial") {
+      } else if (tab == "Curva Polinomial") {
         used_analyses$polinomial <- TRUE
       } else if (tab == "Curva Logarítmica") {
         used_analyses$logaritmica <- TRUE
@@ -3221,7 +3320,7 @@ RCatalyst::run_ide()</pre>
                  identical(subaba_bases, "Receita da base") &&
                  identical(tipo_receita, "contingencia")) {
         used_analyses$contingency <- TRUE
-      } else if (tab == "ANOVA (Análise de Variância)") {
+      } else if (tab == "ANOVA de um fator") {
         used_analyses$anova <- TRUE
       } else if (tab == "ANOVA a dois fatores") {
         used_analyses$anova2 <- TRUE

@@ -30,7 +30,7 @@ catalogo_delineamentos_observacionais <- function() {
       alerta = "Medições repetidas da mesma unidade não são réplicas independentes. A planilha deve ficar em formato longo: uma linha por unidade e momento."
     ),
     impacto = list(
-      titulo = "De impacto (CI, BA, BACI)",
+      titulo = "Estudos de impacto (BA, CI, BACI)",
       definicao = "Reúne três perguntas sobre o efeito de uma intervenção nas condições do ambiente: Controle-Impacto compara sítios impactados e de referência; Antes-Depois compara o mesmo sítio antes e depois; BACI combina os dois. No BACI, o sinal de interesse é a interação entre local e tempo.",
       quando = "Quando a pergunta é o efeito de uma intervenção sobre condições do ambiente — um efluente de aquicultura, uma dragagem, uma barragem a montante — medida em sítios impactados e de referência, antes e depois da mudança.",
       eixo = "Local, tempo ou o cruzamento local × tempo",

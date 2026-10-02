@@ -68,7 +68,7 @@ tres_grupos <- data.frame(grupo = factor(rep(c("A", "B", "C"), each = 4)), respo
 sugestao_t <- catalyser_descricao(dois_grupos, list(analise = "relacao", variavel = "grupo", outra = "resposta"))$sugestao
 sugestao_anova <- catalyser_descricao(tres_grupos, list(analise = "relacao", variavel = "grupo", outra = "resposta"))$sugestao
 stopifnot(identical(sugestao_t$destino, "Teste t de Student"),
-          identical(sugestao_anova$destino, "ANOVA (Análise de Variância)"))
+          identical(sugestao_anova$destino, "ANOVA de um fator"))
 na <- catalyser_descricao(tipada, list(analise = "faltantes"))$tabela
 stopifnot(identical(na$Ausentes, c(1L, 0L, 1L)), identical(na$Percentual, c(25, 0, 25)))
 stopifnot(falha(catalyser_descricao(tipada, list(analise = "resumo", variavel = "data"))))

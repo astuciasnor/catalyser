@@ -110,7 +110,7 @@ mod_preparar_compartilhada_server <- function(id, dados_analise, replay_res, pip
       div(class = "border rounded p-3 mb-3",
         strong("Reestruturação incorporada — antes dos tratamentos"),
         if (length(rotulos)) tags$ol(class = "preparo-etapas preparo-etapas-finas", lapply(sub("^# Etapa [0-9]+: ?", "", rotulos), tags$li))
-        else p(b$fonte %||% "Alterações de Reestruturar Planilha"),
+        else p(b$fonte %||% "Alterações da reestruturação de planilhas"),
         tags$details(tags$summary("Ver código da reestruturação"), tags$pre(b$codigo %||% "")))
     })
     codigo <- reactive({

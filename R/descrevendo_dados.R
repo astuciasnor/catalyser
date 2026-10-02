@@ -60,7 +60,7 @@ exploracao_sugestao <- function(tipo_x, tipo_y = NULL) {
   if (numerica(tipo_x) && numerica(tipo_y)) return(list(
     retrato = "Correlação e diagrama de dispersão",
     analise = "Regressão linear",
-    destino = "Regressão Linear Simples"
+    destino = "Linear Simples"
   ))
   list(retrato = "Confira o significado das variáveis antes de avançar.", analise = "Uma análise depende da sua pergunta", destino = "")
 }
@@ -319,7 +319,7 @@ catalyser_codigo_descricao <- function(parametros) {
       if (is.null(tipo_y) && numerica(tipo_x)) return(list("Centro, dispersão, histograma e boxplot", "Teste t de uma amostra", "Teste t de Student"))
       if (categorica(tipo_x) && categorica(tipo_y)) return(list("Tabela de contingência e barras agrupadas", "Qui-quadrado de associação", "Qui-quadrado de independência"))
       if (xor(categorica(tipo_x), categorica(tipo_y)) && (numerica(tipo_x) || numerica(tipo_y))) return(list("Resumo por grupo e boxplot por grupo", "Teste t ou ANOVA", "Teste t de Student"))
-      if (numerica(tipo_x) && numerica(tipo_y)) return(list("Correlação e diagrama de dispersão", "Regressão linear", "Regressão Linear Simples"))
+      if (numerica(tipo_x) && numerica(tipo_y)) return(list("Correlação e diagrama de dispersão", "Regressão linear", "Linear Simples"))
       list("Confira o significado das variáveis antes de avançar.", "Uma análise depende da sua pergunta", "")
     }
   })))
@@ -458,7 +458,7 @@ catalyser_codigo_descricao <- function(parametros) {
         sugestao <- if (length(partes) == 2L) {
           list(retrato = "Resumo por grupo e boxplot por grupo", analise = "Teste t para grupos independentes", destino = "Teste t de Student")
         } else if (length(partes) > 2L) {
-          list(retrato = "Resumo por grupo e boxplot por grupo", analise = "ANOVA de um fator", destino = "ANOVA (Análise de Variância)")
+          list(retrato = "Resumo por grupo e boxplot por grupo", analise = "ANOVA de um fator", destino = "ANOVA de um fator")
         } else {
           list(retrato = "Resumo por grupo e boxplot por grupo", analise = "Comparar grupos exige ao menos duas categorias observadas", destino = "")
         }

@@ -1,4 +1,4 @@
-# Módulo de Mapas — Pontos, estações e bolhas proporcionais (menu "Mapas").
+# Módulo de Mapas: pontos, estações e bolhas proporcionais. O modo "pontos" abre em Planejando a Pesquisa > Onde amostrar; o modo "bolhas", em Mapear e Analisar.
 # Plota coordenadas (lat/lon) sobre a base do geobr (recortada na região dos
 # pontos), com tamanho por uma variável (CPUE), cor por grupo e facetas.
 # Saída ESTÁTICA (ggplot). Segue o guia mapas.md.
