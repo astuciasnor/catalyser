@@ -525,3 +525,7 @@ concomitante do arquivo; a repetição com arquivo estável confirmou a antiga
 exigência de layout col_widths = c(7, 5). Não houve nova suíte completa posterior.
 Provas dos painéis, das camadas e sete projetos cobrindo cinco tipos de análise aprovadas,
 com HTML e Word novos e sem referências ??. Detalhes no registro de integração.
+
+## Padrão visual aprovado, 02/10/2026
+
+Transparência estatística e beleza dos dados passam a orientar os gráficos de médias: barras estreitas transparentes a partir do zero, observações individuais, losango na média, hastes de IC bilateral e rótulo média ± DP em negrito, na altura da média, com fundo totalmente transparente. Preservar os valores negativos e todos os limites do IC. Seguir este padrão nas futuras revisões aplicáveis, com os mesmos significados no painel e no Projeto R. O autor aprovou a apresentação visual e didática; o registro não declara migração de todos os módulos ou do livro. Detalhes: [padrão de gráficos de médias](docs/PADRAO_GRAFICOS_MEDIAS.md).
