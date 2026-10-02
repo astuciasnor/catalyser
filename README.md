@@ -59,6 +59,8 @@ Nesse caso, copie para o navegador o endereço local exibido no console.
 
 ## 📚 Documentação do projeto
 
+No caderno HTML do teste t e da regressão linear, a exploração e a avaliação dos pressupostos aparecem antes dos resultados finais. O artigo Word conserva os componentes de resultados escolhidos, sem os gráficos de diagnóstico exclusivos do caderno.
+
 Comece pelo [mapa da arquitetura](ARQUITETURA.md): ele localiza os módulos,
 define os contratos entre telas e identifica as rotas de exportação legadas.
 

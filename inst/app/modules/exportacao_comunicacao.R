@@ -2670,15 +2670,6 @@ exportacao_qmd_regressao <- function(item, raiz) {
     exportacao_casca_chunk(paste0(raiz, "-carregar-base"), opcoes = "#| output: false"),
     chunk("configurar"), chunk("preparar"), chunk("modelo"),
     chunk("pressupostos"), chunk("texto"), "")
-  if ("narrativa" %in% item$saidas_word) linhas <- c(linhas,
-    exportacao_nota("Sugestão para os Resultados: apresente a associação e sua incerteza, depois os diagnósticos. Os números abaixo são recalculados no Render; revise a interpretação, sem copiá-los como valores fixos."),
-    "`r texto_resultados`", "", "`r texto_pressupostos`", "", "`r alerta_pressupostos`", "")
-  if ("tabela" %in% item$saidas_word) linhas <- c(linhas,
-    chunk("tabela", '#| tbl-cap: "Coeficientes da regressão linear simples, erros padrão e intervalos de confiança."', "tbl-"),
-    chunk("metricas", '#| tbl-cap: "Métricas de ajuste da regressão linear simples."', "tbl-"), "")
-  if ("grafico" %in% item$saidas_word) linhas <- c(linhas,
-    chunk("grafico", c('#| fig-cap: "Reta ajustada e intervalo de confiança da resposta média. O nível de confiança é definido no roteiro."',
-      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "")
   if ("pressupostos" %in% item$saidas_word) linhas <- c(linhas,
     ':::: {.content-visible when-format="html"}', "### Leitura dos pressupostos", "",
     "Um p-valor acima do nível de significância não comprova o pressuposto. Leia os testes junto aos gráficos e ao delineamento.", "",
@@ -2707,6 +2698,17 @@ exportacao_qmd_regressao <- function(item, raiz) {
       "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "",
     "**Como decidir o próximo passo.** Curvatura pede revisar a forma da relação; um funil pede revisar a variância. Valores sinalizados pedem conferir digitação, medição e contexto, e justificar uma análise de sensibilidade quando necessária. Medidas repetidas ou peixes agrupados podem exigir um modelo que represente essa dependência. Não tente resolver esses problemas apenas acumulando testes [@zuur2010].", "",
     "Na reta simples com intercepto e um preditor, o teste F global e o teste t bilateral da inclinação avaliam a mesma hipótese (F = t²). Não é necessário acrescentar Pearson para confirmar o resultado, nem VIF, que se refere à colinearidade entre múltiplos preditores. Testes adicionais de falta de ajuste dependem do delineamento; não são uma exigência automática deste roteiro.", "::::", "")
+  linhas <- c(linhas, "### Resultados finais", "")
+  if ("narrativa" %in% item$saidas_word) linhas <- c(linhas,
+    exportacao_nota("Sugestão para os Resultados: apresente a associação e sua incerteza após conferir os diagnósticos. Os números abaixo são recalculados no Render; revise a interpretação, sem copiá-los como valores fixos."),
+    "`r texto_resultados`", "", "`r texto_pressupostos`", "", "`r alerta_pressupostos`", "")
+  if ("tabela" %in% item$saidas_word) linhas <- c(linhas,
+    chunk("tabela", '#| tbl-cap: "Coeficientes da regressão linear simples, erros padrão e intervalos de confiança."', "tbl-"),
+    chunk("metricas", '#| tbl-cap: "Métricas de ajuste da regressão linear simples."', "tbl-"), "")
+  if ("grafico" %in% item$saidas_word) linhas <- c(linhas,
+    chunk("grafico", c('#| fig-cap: "Reta ajustada e intervalo de confiança da resposta média. O nível de confiança é definido no roteiro."',
+      "#| fig-width: 6", "#| fig-height: 4"), "fig-"), "")
+
   linhas
 }
 
@@ -3070,16 +3072,15 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
       ""
     )
     primeira <- FALSE
-    for (componente in item$saidas_word) {
-      linhas <- c(
-        linhas,
-        exportacao_chunk_componente(item$id, componente,
-                                    raiz_chunk = raiz, tipo = item$tipo)
-      )
+    # O caderno examina os pressupostos antes de apresentar os resultados.
+    componentes_estudo <- intersect(item$saidas_word, c("pressupostos", "diagnosticos"))
+    for (componente in componentes_estudo) {
+      linhas <- c(linhas, exportacao_chunk_componente(item$id, componente,
+        raiz_chunk = raiz, tipo = item$tipo))
     }
     if (item$tipo %in% c("teste_t_two_ind", "regressao_linear")) {
       linhas <- c(linhas, ':::: {.content-visible when-format="html"}', "",
-        paste("## Exploração e diagnósticos:", item$titulo), "",
+        paste("### Exploração e pressupostos:", item$titulo), "",
         if (identical(item$tipo, "teste_t_two_ind")) "O boxplot permite conferir a distribuição e os pontos de cada grupo. Nos resíduos versus valores ajustados, compare a dispersão nas duas faixas e procure valores extremos. No Q-Q por grupo, desvios da reta podem indicar assimetria ou caudas diferentes da normal. A dispersão dos resíduos absolutos complementa a avaliação de variâncias pelo Levene; ela não escolhe automaticamente Student ou Welch. A independência depende do delineamento." else
         "Os diagnósticos correspondem aos modelos realmente ajustados, separados por categoria quando há retas por grupo. Procure curvatura e funil nos resíduos versus ajustados, desvios da reta no Q-Q e mudanças de dispersão no gráfico de homocedasticidade. Distâncias de Cook elevadas sinalizam observações para investigação, não remoção automática. A independência depende do delineamento.", "")
       figuras <- setdiff(names(exportacao_figuras_estudo_t),
@@ -3089,6 +3090,15 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
       }
       linhas <- c(linhas, "::::", "")
     }
+    linhas <- c(linhas, "### Resultados finais", "")
+    for (componente in setdiff(item$saidas_word, componentes_estudo)) {
+      linhas <- c(
+        linhas,
+        exportacao_chunk_componente(item$id, componente,
+                                    raiz_chunk = raiz, tipo = item$tipo)
+      )
+    }
+
   }
   c(
     linhas,

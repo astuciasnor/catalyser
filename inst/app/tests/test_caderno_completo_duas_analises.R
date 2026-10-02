@@ -33,6 +33,14 @@ script <- exportacao_gerar_script(manifesto, "prova", templates_dir = "templates
 for (nome in names(exportacao_figuras_estudo_t)) {
  stopifnot(any(grepl(gsub("_", "-", nome, fixed = TRUE), qmd, fixed = TRUE)), any(grepl(nome, script, fixed = TRUE)))
 }
-stopifnot(sum(grepl('## Exploração e diagnósticos:', qmd, fixed = TRUE)) == 2)
+stopifnot(sum(grepl('### Exploração e pressupostos:', qmd, fixed = TRUE)) == 2)
+for (item in itens) {
+ raiz <- unname(exportacao_raizes_chunk(itens)[[item$id]])
+ estudo <- match(paste0("#| label: ", exportacao_nome_componente(item$id,
+   "grafico_residuos", raiz, item$tipo)), qmd)
+ resultado <- match(paste0("#| label: ", exportacao_nome_componente(item$id,
+   "grafico", raiz, item$tipo)), qmd)
+ stopifnot(length(estudo) > 0, length(resultado) > 0, min(estudo) < min(resultado))
+}
 stopifnot(sum(grepl(':::: {.content-visible when-format="html"}', qmd, fixed = TRUE)) >= 2)
 cat("OK: duas análises preservam exploração e diagnósticos do HTML, letras e cálculos.\n")
