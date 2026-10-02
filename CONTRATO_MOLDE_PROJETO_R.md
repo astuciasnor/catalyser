@@ -432,8 +432,7 @@ projeto sem truncar palavras e preservação dos nomes legados de bases.
 O padrão de comparação preserva pontos brutos, losango na média e letras.
 O rótulo numérico é média ± DP **amostral**, com duas casas e vírgula decimal,
 na altura da média e à direita do losango, com fundo branco semitransparente.
-As hastes representam IC na ANOVA e DP no teste t; as legendas devem deixar
-essa diferença explícita. As letras usam margem aditiva de 6% da amplitude
+Na integração autorizada em 01/10/2026, as hastes passaram a representar IC bilateral das médias na ANOVA e nos gráficos de médias dos testes t. O rótulo média ± DP permanece como descrição da dispersão; as legendas distinguem DP e IC. O IC unilateral do teste continua na tabela, sem ser substituído pelo IC bilateral da figura. As letras usam margem aditiva de 6% da amplitude
 incluindo pontos e hastes; não multiplicar o máximo por 1,06 em dados negativos.
 
 Painel e script mantêm implementação visível espelhada, sem acrescentar uma
@@ -500,3 +499,29 @@ legadas; sua semântica não mudou.
 
 Provas, decisões, planos e handoff estão em `APOIO/temp/` do repositório-mãe.
 Este contrato registra a entrega técnica da branch local. F/G foram entregues como planos, conforme permitido no pedido; a revisão do autor e a instalação em máquina nova ainda não foram homologadas. Não substitui aprovação de push/merge pelo professor.
+
+## Integração autorizada para entrega, 01/10/2026
+
+Versão 0.1.13: menus e módulos associados integram o trabalho atual da pasta
+principal com as análises da Fase 2. A pasta principal não foi alterada;
+arquivos de módulos retirados do menu foram preservados sem ativação.
+
+Barras de médias usam alpha 0,22, com indivíduos visíveis, losango na média
+e hastes de IC. As letras seguem o teste ou pós-teste efetivamente aplicado;
+a sobreposição dos ICs descritivos não substitui esse resultado.
+
+A regressão isolada por categoria também usa o molde de dois QMDs. A escolha
+entre reta global e retas separadas é preservada. Equação e R² de cada categoria
+aparecem no gráfico, quando a exibição de equações foi solicitada, e uma tabela
+reúne os ajustes separados. Tabelas e diagnósticos do modelo global recebem
+identificação explícita; o gráfico não testa igualdade de inclinações.
+A rota de múltiplas análises mantém seu contrato anterior.
+
+A suíte completa da integração teve 32/37. Depois da atualização do teste antigo
+que proibia barras, a ANOVA integrada passou separadamente: 33 arquivos têm
+aprovação registrada. As quatro falhas anteriores permanecem documentadas.
+Na interface descritiva, a primeira leitura foi afetada por normalização
+concomitante do arquivo; a repetição com arquivo estável confirmou a antiga
+exigência de layout col_widths = c(7, 5). Não houve nova suíte completa posterior.
+Provas dos painéis, das camadas e sete projetos cobrindo cinco tipos de análise aprovadas,
+com HTML e Word novos e sem referências ??. Detalhes no registro de integração.
