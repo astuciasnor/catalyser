@@ -468,7 +468,7 @@ tabela_figura <- tabela_resumo |>
 
 grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   # A barra parte de zero; transparência preserva a leitura dos indivíduos.
-  geom_col(aes(y = media, fill = grupo), width = 0.55, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+  geom_col(aes(y = media, fill = grupo), width = 0.30, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
   scale_fill_manual(values = cores_grupos) +
   geom_jitter(
     data = base_anova,
@@ -479,7 +479,7 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   ) +
   geom_errorbar(
     aes(ymin = ic_inf, ymax = ic_sup),
-    width = 0.15,
+    width = 0.08,
     linewidth = 0.8,
     colour = "#0F3B5F"
   ) +
@@ -499,7 +499,7 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   ) +
   scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
   scale_colour_manual(values = cores_grupos, guide = "none") +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
   labs(
     x = rotulo_fator,
     y = rotulo_resposta,

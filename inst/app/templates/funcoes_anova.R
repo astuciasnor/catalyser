@@ -778,7 +778,7 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
 
   ggplot2::ggplot(resumo, ggplot2::aes(x = fator)) +
     ggplot2::geom_col(ggplot2::aes(y = Media, fill = fator),
-      width = 0.55, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+      width = 0.30, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
     ggplot2::scale_fill_manual(values = cores) +
     ggplot2::geom_jitter(
       data = r$dados,
@@ -787,7 +787,7 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ) +
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = IC_Inferior, ymax = IC_Superior),
-      width = 0.15, linewidth = 0.8, color = "#0F3B5F"
+      width = 0.08, linewidth = 0.8, color = "#0F3B5F"
     ) +
     ggplot2::geom_point(
       ggplot2::aes(y = Media),
@@ -806,7 +806,7 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
       fill = ggplot2::alpha("white", 0.75)
     ) +
     ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     anova_tema(tema) +
     ggplot2::labs(
       title = titulo_final,

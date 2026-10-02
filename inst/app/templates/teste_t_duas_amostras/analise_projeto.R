@@ -333,7 +333,7 @@ resumo_medias$y_rotulo <- resumo_medias$media
 grafico_medias <- ggplot2::ggplot(resumo_medias,
   ggplot2::aes(x = .data[[nome_col_grupo]])) +
   ggplot2::geom_col(ggplot2::aes(y = media, fill = .data[[nome_col_grupo]]),
-    width = 0.55, alpha = 0.22, show.legend = FALSE) +
+    width = 0.30, alpha = 0.22, show.legend = FALSE) +
   ggplot2::scale_fill_manual(values = cores_grupo) +
   ggplot2::geom_jitter(
     data = dados,
@@ -344,7 +344,7 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
   ) +
   ggplot2::geom_errorbar(
     ggplot2::aes(ymin = ic_inf_media, ymax = ic_sup_media),
-    width = 0.15,
+    width = 0.08,
     linewidth = 0.8,
     colour = "#0F3B5F"
   ) +
@@ -365,7 +365,7 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
   ggplot2::scale_colour_manual(values = cores_grupo, guide = "none") +
   # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
   ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
-  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.15))) +
+  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.15))) +
   ggplot2::labs(
     x = rotulo_grupo,
     y = rotulo_resposta,

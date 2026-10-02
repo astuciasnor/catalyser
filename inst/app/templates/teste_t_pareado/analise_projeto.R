@@ -157,7 +157,7 @@ tabela_efeito <- data.frame(Medida = nome_efeito, Valor = fmt(d_cohen, 3),
   `IC bilateral` = paste0("[", fmt(d_ic[1], 3), "; ", fmt(d_ic[2], 3), "]"), check.names = FALSE)
 
 # 8. Construir as figuras --------------------------------------------------
-# Pontos mostram os indivíduos ou as diferenças; haste e rótulo mostram média ± DP.
+# Pontos mostram os indivíduos ou as diferenças; haste mostra IC e rótulo mostra média ± DP.
 dados_figura <- data.frame(valor = valores, coluna = "Observações")
 resumo_figura <- data.frame(coluna = "Observações", media = media, dp = dp)
 # IC bilateral da média na figura, inclusive quando o teste é unilateral.
@@ -166,18 +166,19 @@ resumo_figura$ic_inf <- media - margem_figura
 resumo_figura$ic_sup <- media + margem_figura
 grafico_principal <- ggplot2::ggplot(dados_figura, ggplot2::aes(x = coluna, y = valor)) +
   ggplot2::geom_col(data = resumo_figura, ggplot2::aes(y = media),
-    width = .55, fill = "#2E7D8F", alpha = .22) +
+    width = .30, fill = "#2E7D8F", alpha = .22) +
   ggplot2::geom_jitter(width = .08, height = 0, colour = "#2E7D8F", alpha = .65) +
   ggplot2::geom_hline(yintercept = valor_nulo, linetype = "dashed", colour = "#E76F51") +
   ggplot2::geom_errorbar(data = resumo_figura,
     ggplot2::aes(y = media, ymin = ic_inf, ymax = ic_sup),
-    width = .12, colour = "#0F3B5F") +
+    width = .08, colour = "#0F3B5F") +
   ggplot2::geom_point(data = resumo_figura, ggplot2::aes(y = media),
     shape = 18, size = 4, colour = "#0F3B5F") +
   ggplot2::geom_label(data = resumo_figura,
     ggplot2::aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
     nudge_x = .16, hjust = 0, linewidth = 0,
     fill = ggplot2::alpha("white", .75), colour = "#0F3B5F") +
+  ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, .15))) +
   ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(.4, .7))) +
   ggplot2::labs(x = NULL, y = rotulo_analisado,
     subtitle = paste0("Losango = média; rótulo = média ± DP; haste = IC bilateral da média; referência = ", fmt(valor_nulo))) +

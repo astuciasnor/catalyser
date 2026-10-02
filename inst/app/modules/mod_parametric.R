@@ -710,7 +710,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
 
       ggplot(resumo, aes(x = .data[[input$two_var_x]])) +
         geom_col(aes(y = media, fill = .data[[input$two_var_x]]),
-          width = 0.55, alpha = 0.22, show.legend = FALSE) +
+          width = 0.30, alpha = 0.22, show.legend = FALSE) +
         scale_fill_manual(values = cores_grupo) +
         geom_jitter(
           data = df_clean,
@@ -718,7 +718,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
           width = 0.10, size = 2.2, alpha = 0.7
         ) +
         geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup),
-                      width = 0.15, linewidth = 0.8, colour = "#0F3B5F") +
+                      width = 0.08, linewidth = 0.8, colour = "#0F3B5F") +
         geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
         # Rótulo à direita do losango: fundo branco translúcido e sem borda,
         # para continuar legível sobre pontos próximos.
@@ -731,7 +731,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         scale_colour_manual(values = cores_grupo, guide = "none") +
         # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
         scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
-        scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
         labs(
           title = title_val,
           x = x_label, y = y_label,
