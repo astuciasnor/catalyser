@@ -723,7 +723,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         # Rótulo à direita do losango: fundo branco translúcido e sem borda,
         # para continuar legível sobre pontos próximos.
         geom_label(aes(y = y_rotulo, label = rotulo_media),
-                   nudge_x = 0.10, hjust = 0, vjust = -0.2, fontface = "bold",
+                   nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold",
                    linewidth = 0, label.padding = grid::unit(0.12, "lines"),
                    fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
                    size = 3.2) +

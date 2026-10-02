@@ -798,10 +798,10 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
       vjust = 0.5, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
     ggplot2::scale_colour_manual(values = cores) +
-    # Média ± DP próxima da barra, um pouco acima do topo.
+    # Média ± DP próxima do losango, na altura do topo da barra.
     ggplot2::geom_label(
       ggplot2::aes(y = Media, label = paste0(anova_num_col(Media), " ± ", anova_num_col(Desvio_Padrao))),
-      nudge_x = 0.10, hjust = 0, vjust = -0.2, fontface = "bold", size = 3.2, colour = "#0F3B5F",
+      nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold", size = 3.2, colour = "#0F3B5F",
       linewidth = 0, label.padding = grid::unit(0.12, "lines"),
       fill = ggplot2::alpha("white", 0.75)
     ) +
