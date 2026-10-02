@@ -17,7 +17,7 @@
 #' @export
 #' @importFrom shiny runApp
 run_app <- function(
-    launch.browser = getOption("shiny.launch.browser", interactive()),
+    launch.browser = TRUE,
     ...) {
   app_dir <- system.file("app", package = "catalyser")
   if (app_dir == "") {

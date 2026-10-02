@@ -32,7 +32,7 @@ A forma **recomendada** instala tudo de uma vez — dados (EAPADados) e dependê
 source("https://raw.githubusercontent.com/astuciasnor/catalyser/main/instalar_catalyser.R")
 ```
 
-Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar novamente quando quiser: o instalador atualiza a CatalyseR pela branch `main`, preserva os pacotes CRAN compatíveis e reabre a IDE.
+Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar novamente quando quiser: o instalador atualiza a CatalyseR pela branch `main`, preserva os pacotes CRAN compatíveis e abre a IDE no navegador padrão. A instalação fica no computador; nas próximas sessões, basta executar `catalyser::run_app()`. É necessário ter R >= 4.3 instalado e internet para a instalação. Não é necessário instalar Git.
 
 > **Menu Mapas (opcional):** exige os pacotes `sf` e `geobr`, que dependem de bibliotecas de fonte. No Windows pode ser preciso instalar o [Rtools](https://cran.r-project.org/bin/windows/Rtools/) antes. As demais análises da CatalyseR **não** precisam desses pacotes.
 

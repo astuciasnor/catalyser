@@ -4,7 +4,7 @@
 \alias{run_app}
 \title{Abrir a aplicação Shiny da CatalyseR}
 \usage{
-run_app(launch.browser = getOption("shiny.launch.browser", interactive()), ...)
+run_app(launch.browser = TRUE, ...)
 }
 \arguments{
 \item{launch.browser}{\code{TRUE} para abrir a CatalyseR automaticamente no

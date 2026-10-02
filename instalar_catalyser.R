@@ -116,7 +116,10 @@ instalar_catalyser <- function(iniciar = FALSE) {
     cat("      catalyser::run_app(launch.browser = TRUE)\n\n")
     cat("  Para iniciar sem abrir o navegador automaticamente:\n\n")
     cat("      catalyser::run_app(launch.browser = FALSE)\n\n")
-    if (isTRUE(iniciar)) { cat("  Abrindo a IDE...\n\n"); try(catalyser::run_app()) }
+    if (isTRUE(iniciar)) {
+      cat("  Abrindo a IDE no navegador padrao...\n\n")
+      try(catalyser::run_app(launch.browser = TRUE))
+    }
     return(invisible(TRUE))
   }
   cat(sprintf("\n  %s Nao foi possivel instalar: %s\n\n", FALHA, paste(falhou, collapse = ", ")))
