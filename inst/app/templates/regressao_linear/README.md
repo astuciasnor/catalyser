@@ -169,3 +169,12 @@ O caderno apresenta os diagnósticos dentro da Exploração, antes dos Resultado
 com gráficos empilhados e menores. A saída crua fica para estudo no console:
 execute `summary(modelo_lm)` em R/analise.R. Os relatórios usam as tabelas
 formatadas e não exibem esse despejo de console.
+
+## Quando foram escolhidas retas por categoria
+
+`retas_por_grupo` conserva a escolha do painel. Cada reta mostra sua equação
+e R², com um modelo calculado apenas nas observações daquela categoria.
+A tabela adicional reúne N, intercepto, inclinação e R² de cada ajuste.
+A tabela principal e os diagnósticos globais são identificados separadamente.
+Retas separadas não testam se as inclinações diferem; confira também os
+pressupostos de cada categoria antes de interpretar seus coeficientes.

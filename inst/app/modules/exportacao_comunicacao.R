@@ -2227,6 +2227,7 @@ exportacao_regressao_marcadores_script <- function(item) {
     RESPOSTA_R = encodeString(p$resposta, quote = '"'),
     PREDITOR_R = encodeString(p$preditor, quote = '"'),
     GRUPO_R = grupo_r,
+    RETAS_POR_GRUPO = if (isTRUE(p$regressao_por_grupo)) "TRUE" else "FALSE",
     ROTULO_RESPOSTA_R = encodeString(resposta, quote = '"'),
     ROTULO_PREDITOR_R = encodeString(preditor, quote = '"'),
     ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
@@ -2486,7 +2487,7 @@ molde_projeto_registro <- list(
       itens <- manifesto$execucoes %||% list()
       length(itens) == 1L &&
         isTRUE(itens[[1]]$incluir_word) &&
-        exportacao_regressao_simples(itens[[1]])
+        identical(itens[[1]]$tipo, "regressao_linear")
     },
     prefixo = exportacao_regressao_projeto_prefixo,
     marcadores_script = exportacao_regressao_marcadores_script,

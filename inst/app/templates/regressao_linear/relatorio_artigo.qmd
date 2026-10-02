@@ -35,6 +35,8 @@ usar este documento como artigo, monografia ou relatório científico. -->
 
 {{METODOS}}
 
+`r texto_ajuste_por_grupo`
+
 # Resultados: o que a reta descreve?
 
 ```{r}
@@ -45,19 +47,32 @@ flextable_ocean(tabela_descritiva_exibir)
 
 `r texto_amostra`
 
+`r if (retas_por_grupo) "**Modelo global, reunindo as categorias:**" else ""`
+
 `r texto_ajuste`
 
 `r texto_coeficiente`
 
 ```{r}
 #| label: tbl-coeficientes
-#| tbl-cap: "Coeficientes da regressão linear simples e intervalos de confiança. β: coeficiente não padronizado; EP: erro padrão."
+#| tbl-cap: "Coeficientes da reta global e intervalos de confiança. β: coeficiente não padronizado; EP: erro padrão."
 flextable_ocean(tabela_coeficientes_exibir)
+```
+
+`r if (retas_por_grupo && length(modelos_grupo)) "A @tbl-modelos-grupo identifica os ajustes de cada categoria; a @fig-regressao mostra as retas correspondentes." else if (retas_por_grupo) "A @fig-regressao mostra os pontos e os avisos dos ajustes não estimáveis." else "A @fig-regressao apresenta a reta global."`
+
+```{r}
+#| label: tbl-modelos-grupo
+#| tbl-cap: "Ajustes separados por categoria, quando solicitados; R² de cada reta."
+if (!is.null(tabela_modelos_grupo) && nrow(tabela_modelos_grupo)) {
+  flextable_ocean(tabela_modelos_grupo) |>
+    flextable::set_header_labels(R2 = "R²", Inclinacao = "Inclinação")
+}
 ```
 
 ```{r}
 #| label: fig-regressao
-#| fig-cap: "Reta ajustada e intervalo de confiança para a resposta média."
+#| fig-cap: "Reta global ou retas por categoria, conforme a escolha; faixas de confiança para a resposta média."
 grafico_regressao
 ```
 

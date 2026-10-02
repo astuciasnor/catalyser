@@ -534,7 +534,10 @@ catalyser_regressao <- function(dados, p, logistica = FALSE) {
     grafico <- ggplot2::ggplot(d, estetica) +
       pontos + curva +
       ggplot2::theme_minimal(base_size = 12) +
-      ggplot2::labs(x = preditor, y = resposta)
+      ggplot2::labs(x = preditor, y = resposta,
+        subtitle = if (por_grupo && !logistica) paste(vapply(names(ajustes), function(g) {
+          sprintf("%s: R² = %s", g, catalyser_num(summary(ajustes[[g]])$r.squared))
+        }, character(1)), collapse = "\n") else NULL)
   }
 
   list(
