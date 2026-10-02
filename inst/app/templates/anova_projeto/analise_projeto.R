@@ -45,7 +45,7 @@ library(pwr)
 # EAPADados: dados de contexto da pesca e da aquicultura do curso.
 if (!requireNamespace("EAPADados", quietly = TRUE)) {
   stop(
-    "Este projeto usa o pacote EAPADados, que não está instalado.",
+    "Este projeto faz parte do ecossistema CatalyseR e pede o pacote complementar EAPADados para compatibilidade, mas ele não está instalado.",
     " Instale uma vez, no console: remotes::install_github('astuciasnor/EAPADados')",
     call. = FALSE
   )
@@ -71,6 +71,9 @@ variavel_fator <- {{FATOR_R}}
 rotulo_resposta <- {{ROTULO_RESPOSTA_R}}
 rotulo_fator <- {{ROTULO_FATOR_R}}
 nivel_confianca <- {{CONFIANCA}}
+# Execuções antigas conservam a clássica; o painel registra a escolha nova.
+metodo <- {{METODO_R}}
+metodo <- match.arg(metodo, c("classica", "welch", "auto"))
 alfa <- 1 - nivel_confianca
 ic_percentual <- fmt(100 * nivel_confianca, 0)
 titulo_grafico <- {{TITULO_R}}
@@ -143,10 +146,9 @@ n_utilizado <- nrow(base_anova)
 n_excluido <- sum(!linhas_completas)
 n_grupos <- nlevels(base_anova$grupo)
 if (n_grupos < 2) stop("A ANOVA precisa de pelo menos dois grupos com dados.")
-# As letras de Tukey usam o hífen para separar os pares; ele não pode
-# aparecer no nome de um grupo. Renomeie esses grupos no preparo.
-if (any(grepl("-", levels(base_anova$grupo), fixed = TRUE))) {
-  stop("Há hífen no nome de um grupo. Renomeie os grupos no preparo.")
+# Os pares serão reconstruídos pelos níveis, preservando acentos, espaços e hífens.
+if (any(table(base_anova$grupo) < 2L)) {
+  stop("Cada grupo precisa de pelo menos duas observações.")
 }
 # Se houver mais grupos que cores, criamos cores intermediárias.
 cores_grupos <- if (n_grupos <= length(cores_tratamento)) {
@@ -188,6 +190,14 @@ gl_fator <- tabela_anova$df[1]
 gl_residuo <- tabela_anova$df[2]
 f_anova <- tabela_anova$statistic[1]
 p_anova <- tabela_anova$p.value[1]
+if (!is.finite(f_anova) || !is.finite(p_anova)) {
+  stop("A ANOVA não forneceu resultado finito. Confira a variação da resposta nos grupos.")
+}
+# Conservamos os números clássicos para a comparação entre métodos.
+f_classica <- f_anova
+p_classica <- p_anova
+gl1_classica <- gl_fator
+gl2_classica <- gl_residuo
 
 # 6. Examinar os pressupostos -----------------------------------------------
 # Os pressupostos dizem respeito aos erros; os resíduos ajudam a examiná-los.
@@ -216,14 +226,95 @@ p_levene <- teste_levene$`Pr(>F)`[1]
 # acima de 2, alerta. Não substitui o teste formal, apenas o acompanha.
 razao_dp <- max(tabela_resumo$dp) / min(tabela_resumo$dp)
 
+# A recomendação é um diagnóstico; a escolha explícita continua valendo.
+metodo_recomendado <- case_when(
+  is.na(p_levene) ~ "welch",
+  p_levene < alfa ~ "welch",
+  TRUE ~ "classica"
+)
+metodo_usado <- if (metodo == "auto") metodo_recomendado else metodo
+post_teste <- if (metodo_usado == "welch") "Games-Howell" else "Tukey"
+motivo_metodo <- case_when(
+  is.na(p_levene) ~ "Levene não forneceu resultado válido; recomenda-se Welch por cautela.",
+  p_levene < alfa ~ "Levene apresentou evidência de variâncias diferentes.",
+  TRUE ~ "Levene não apresentou evidência para rejeitar a igualdade das variâncias."
+)
+texto_metodo <- paste0(
+  if (metodo == "auto") "Escolha automática: " else "Escolha explícita: ",
+  if (metodo_usado == "welch") "ANOVA de Welch" else "ANOVA clássica",
+  " com ", post_teste, ". ", motivo_metodo, " Alfa = ", fmt(alfa, 3), ". ",
+  if (metodo != "auto" && metodo != metodo_recomendado)
+    "A escolha explícita difere da recomendação do diagnóstico. " else "",
+  "Não rejeitar H0 no Levene não comprova igualdade das variâncias."
+)
+# Welch usa a variância de cada grupo para ponderar suas médias.
+if (metodo_usado == "welch" && any(!is.finite(tabela_resumo$dp) | tabela_resumo$dp <= 0)) {
+  stop("Welch e Games-Howell precisam de variância positiva em cada grupo.")
+}
+# No caminho clássico esta comparação pode ser indisponível, sem impedir a ANOVA.
+teste_welch <- tryCatch(stats::oneway.test(resposta ~ grupo, data = base_anova,
+  var.equal = FALSE), error = function(e) NULL)
+f_welch <- if (is.null(teste_welch)) NA_real_ else unname(teste_welch$statistic)
+p_welch <- if (is.null(teste_welch)) NA_real_ else teste_welch$p.value
+gl1_welch <- if (is.null(teste_welch)) NA_real_ else unname(teste_welch$parameter[["num df"]])
+gl2_welch <- if (is.null(teste_welch)) NA_real_ else unname(teste_welch$parameter[["denom df"]])
+if (metodo_usado == "welch") {
+  f_anova <- f_welch
+  p_anova <- p_welch
+  gl_fator <- gl1_welch
+  gl_residuo <- gl2_welch
+  # Welch não fornece SQ/QM clássicos; essas células ficam vazias.
+  tabela_anova <- data.frame(term = c("Welch (numerador)", "Welch (denominador)"),
+    df = c(gl_fator, gl_residuo), sumsq = NA_real_, meansq = NA_real_,
+    statistic = c(f_anova, NA_real_), p.value = c(p_anova, NA_real_))
+}
+
 # 7. Comparar os grupos e medir o tamanho do efeito --------------------------
-# Tukey compara todos os pares, com p-valores ajustados para comparações múltiplas.
-tukey <- TukeyHSD(modelo_anova, conf.level = nivel_confianca)
-tabela_tukey <- as.data.frame(tukey$grupo)
-tabela_tukey$Comparação <- rownames(tabela_tukey)
-# multcompLetters4() resume o Tukey em letras: grupos que compartilham uma
-# letra não diferiram ao nível escolhido. $grupo$Letters extrai as letras.
-letras <- multcompView::multcompLetters4(modelo_anova, tukey)$grupo$Letters
+# Conservamos os nomes tabela_tukey e tukey.csv para compatibilidade.
+# O conteúdo segue o método selecionado: Tukey na clássica, Games-Howell no Welch.
+niveis_grupos <- levels(base_anova$grupo)
+pares_grupos <- utils::combn(niveis_grupos, 2L)
+if (metodo_usado == "classica") {
+  tukey <- stats::TukeyHSD(modelo_anova, conf.level = nivel_confianca)
+  tabela_tukey <- as.data.frame(tukey$grupo)
+  tabela_tukey$Comparação <- rownames(tabela_tukey)
+} else {
+  # Games-Howell: cada par tem seu próprio erro e seus graus de liberdade.
+  indices_pares <- utils::combn(seq_along(niveis_grupos), 2L)
+  i <- indices_pares[1, ]
+  j <- indices_pares[2, ]
+  variancia_media <- tabela_resumo$dp^2 / tabela_resumo$n
+  erro_diferenca <- sqrt(variancia_media[i] + variancia_media[j])
+  gl_pares <- (variancia_media[i] + variancia_media[j])^2 /
+    (variancia_media[i]^2 / (tabela_resumo$n[i] - 1) +
+     variancia_media[j]^2 / (tabela_resumo$n[j] - 1))
+  # O sinal é segundo grupo menos primeiro grupo, igual ao TukeyHSD().
+  diferenca_pares <- tabela_resumo$media[j] - tabela_resumo$media[i]
+  margem_pares <- stats::qtukey(nivel_confianca, n_grupos, gl_pares) * erro_diferenca / sqrt(2)
+  # A amplitude studentizada já ajusta os p-valores; não há segundo ajuste.
+  p_pares <- stats::ptukey(abs(diferenca_pares) / erro_diferenca * sqrt(2),
+    n_grupos, gl_pares, lower.tail = FALSE)
+  tabela_tukey <- data.frame(diff = diferenca_pares,
+    lwr = diferenca_pares - margem_pares, upr = diferenca_pares + margem_pares,
+    `p adj` = p_pares, Comparação = paste0(niveis_grupos[j], "-", niveis_grupos[i]),
+    check.names = FALSE)
+}
+# Letras são apresentação: esta função recebe os pares, os p ajustados e o alfa.
+# Ela não divide nomes no hífen nem modifica os cálculos estatísticos acima.
+posicao_pares <- match(paste0(pares_grupos[2, ], "-", pares_grupos[1, ]), tabela_tukey$Comparação)
+letras <- catalyser::catalyser_letras_tukey(
+  pares = pares_grupos[c(2L, 1L), , drop = FALSE],
+  p_ajustado = tabela_tukey$`p adj`[posicao_pares],
+  medias = stats::setNames(tabela_resumo$media, as.character(tabela_resumo$grupo)),
+  alfa = alfa
+)
+aviso_comparacoes <- ""
+grupos_menores_seis <- as.character(tabela_resumo$grupo[tabela_resumo$n < 6L])
+if (metodo_usado == "welch" && length(grupos_menores_seis)) {
+  aviso_comparacoes <- paste0("Games-Howell: menos de seis observações em ",
+    paste(grupos_menores_seis, collapse = ", "),
+    ". O cálculo foi mantido, mas os resultados precisam de cautela.")
+}
 # Juntamos a letra pelo NOME do grupo, nunca pela posição da linha.
 tabela_resumo <- tabela_resumo |>
   mutate(letra = unname(letras[as.character(grupo)]))
@@ -238,6 +329,16 @@ eta2 <- efeito_eta$Eta2[1]
 omega2 <- efeito_omega$Omega2[1]
 eta_ic <- c(efeito_eta$CI_low[1], efeito_eta$CI_high[1])
 omega_ic <- c(efeito_omega$CI_low[1], efeito_omega$CI_high[1])
+# No Welch, a conversão do F em ômega é apenas uma aproximação.
+# Não usamos o eta clássico como se fosse efeito do teste de Welch.
+if (metodo_usado == "welch") {
+  efeito_omega <- effectsize::F_to_omega2(f_anova, gl_fator, gl_residuo,
+    ci = nivel_confianca, alternative = "two.sided")
+  eta2 <- NA_real_
+  eta_ic <- c(NA_real_, NA_real_)
+  omega2 <- efeito_omega$Omega2_partial[1]
+  omega_ic <- c(efeito_omega$CI_low[1], efeito_omega$CI_high[1])
+}
 # case_when() escolhe, de cima para baixo, a primeira condição verdadeira.
 # A convenção de Cohen é uma referência estatística, não biológica.
 classe_efeito <- case_when(
@@ -258,7 +359,7 @@ tabela_resumo_exibir <- tabela_resumo |>
     DP = fmt(dp),
     EP = fmt(ep),
     IC = stringr::str_glue("{fmt(ic_inf)} a {fmt(ic_sup)}"),
-    Tukey = letra
+    Letras = letra
   )
 names(tabela_resumo_exibir)[names(tabela_resumo_exibir) == "Grupo"] <- rotulo_fator
 names(tabela_resumo_exibir)[names(tabela_resumo_exibir) == "IC"] <- paste0("IC ", ic_percentual, "%")
@@ -267,10 +368,10 @@ names(tabela_resumo_exibir)[names(tabela_resumo_exibir) == "IC"] <- paste0("IC "
 # A linha do resíduo não tem F nem p: as células ficam vazias.
 tabela_anova_exibir <- tabela_anova |>
   transmute(
-    Fonte = c(rotulo_fator, "Resíduo"),
+    Fonte = if (metodo_usado == "welch") term else c(rotulo_fator, "Resíduo"),
     GL = df,
-    SQ = fmt(sumsq),
-    QM = fmt(meansq),
+    SQ = ifelse(is.na(sumsq), "", fmt(sumsq)),
+    QM = ifelse(is.na(meansq), "", fmt(meansq)),
     F = ifelse(is.na(statistic), "", fmt(statistic)),
     p = ifelse(is.na(p.value), "", formatar_p(p.value))
   )
@@ -306,19 +407,14 @@ tabela_efeito <- data.frame(
   IC = stringr::str_glue("[{fmt(c(eta_ic[1], omega_ic[1]), 3)} a {fmt(c(eta_ic[2], omega_ic[2]), 3)}]"),
   Leitura = c(classe_efeito, "correção do η² para amostras pequenas")
 )
+if (metodo_usado == "welch") {
+  tabela_efeito <- tabela_efeito[2, , drop = FALSE]
+  tabela_efeito$Medida <- "ω² aproximado (Welch)"
+  tabela_efeito$Leitura <- "conversão aproximada do F; IC bilateral aproximado"
+}
 names(tabela_efeito)[names(tabela_efeito) == "IC"] <- paste0("IC ", ic_percentual, "%")
 
-# A ANOVA de Welch não supõe variâncias iguais. A tabela ao lado da clássica
-# é apenas informativa: a análise seguiu a clássica, como planejado, com o
-# Tukey. Comparar as duas mostra o quanto a conclusão dependeria da escolha
-# (Delacre et al., 2019). Sem Kruskal-Wallis nem pós-teste nesta comparação.
-teste_welch <- stats::oneway.test(resposta ~ grupo, data = base_anova,
-                                  var.equal = FALSE)
-f_welch <- unname(teste_welch$statistic)
-p_welch <- teste_welch$p.value
-gl1_welch <- teste_welch$parameter[["num df"]]
-gl2_welch <- teste_welch$parameter[["denom df"]]
-
+# A comparação conserva os dois cálculos; texto_metodo informa qual foi usado.
 tabela_comparativa <- data.frame(
   Aspecto = c(
     "Suposição sobre as variâncias",
@@ -328,9 +424,9 @@ tabela_comparativa <- data.frame(
   ),
   `ANOVA clássica` = c(
     "Variâncias iguais entre os grupos",
-    fmt(f_anova),
-    paste0(gl_fator, "; ", gl_residuo),
-    formatar_p(p_anova)
+    fmt(f_classica),
+    paste0(gl1_classica, "; ", gl2_classica),
+    formatar_p(p_classica)
   ),
   `ANOVA de Welch` = c(
     "Não exige variâncias iguais",
@@ -367,9 +463,13 @@ tabela_figura <- tabela_resumo |>
       summarise(y_max = max(resposta), .groups = "drop"),
     by = "grupo"
   ) |>
-  mutate(y_letra = pmax(ic_sup, y_max))
+  mutate(y_letra = pmax(ic_sup, y_max) + 0.06 *
+    diff(range(c(base_anova$resposta, ic_inf, ic_sup), na.rm = TRUE)))
 
 grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
+  # A barra parte de zero; transparência preserva a leitura dos indivíduos.
+  geom_col(aes(y = media, fill = grupo), width = 0.30, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+  scale_fill_manual(values = cores_grupos) +
   geom_jitter(
     data = base_anova,
     aes(y = resposta, colour = grupo),
@@ -379,27 +479,27 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   ) +
   geom_errorbar(
     aes(ymin = ic_inf, ymax = ic_sup),
-    width = 0.15,
+    width = 0.08,
     linewidth = 0.8,
     colour = "#0F3B5F"
   ) +
   geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
   geom_text(
     aes(y = y_letra, label = letra),
-    vjust = -0.9,
+    vjust = 0.5,
     fontface = "bold",
-    size = 4
+    size = 4.6, colour = "#0F3B5F"
   ) +
-  geom_text(
-    aes(y = media, label = paste0(fmt(media, 1), " ± ", fmt(dp, 1))),
-    nudge_x = 0.08,
-    hjust = 0,
-    vjust = -0.4,
-    size = 3.5
+  # O rótulo descreve dispersão (DP); a haste descreve incerteza (IC).
+  geom_label(
+    aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
+    nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold", size = 3.2, colour = "#0F3B5F",
+    linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+    fill = NA
   ) +
   scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
   scale_colour_manual(values = cores_grupos, guide = "none") +
-  scale_y_continuous(expand = expansion(mult = c(0.05, 0.12))) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
   labs(
     x = rotulo_fator,
     y = rotulo_resposta,
@@ -451,7 +551,7 @@ grafico_pares <- ggplot(
   ) +
   geom_point(size = 3, colour = "#0F3B5F") +
   labs(
-    x = paste0("Diferença de médias de ", rotulo_resposta, ", IC ", ic_percentual, "% (Tukey)"),
+    x = paste0("Diferença de médias de ", rotulo_resposta, ", IC ", ic_percentual, "% (", post_teste, ")"),
     y = NULL
   ) +
   tema_projeto()
@@ -501,13 +601,21 @@ texto_efeito <- stringr::str_glue(
   "(η² = {fmt(eta2, 3)}; ω² = {fmt(omega2, 3)}), uma referência estatística, ",
   "não biológica."
 )
+if (metodo_usado == "welch") texto_efeito <- paste0(
+  "Ômega quadrado aproximado = ", fmt(omega2, 3), ". Fórmula: ",
+  "max(0, (F - 1) * gl1 / (F * gl1 + gl2 + 1)). ",
+  "O IC bilateral usa F não central e também é aproximado. ",
+  "Esta medida não é a decomposição clássica da variância explicada."
+)
 print(texto_efeito)
 
 texto_tukey <- if (!is.na(p_anova) && p_anova < alfa) {
-  "Pelo teste de Tukey, grupos que compartilham uma letra não diferiram entre si ao nível adotado."
+  "Pelo teste de Tukey, grupos que compartilham uma letra não apresentaram evidência de diferença ao nível adotado."
 } else {
   "Como a ANOVA não indicou diferença global, as comparações de Tukey servem apenas para descrição."
 }
+texto_tukey <- gsub("Tukey", post_teste, texto_tukey, fixed = TRUE)
+texto_tukey <- paste(texto_tukey, aviso_comparacoes)
 print(texto_tukey)
 
 # O artigo recebe frases curtas; o caderno recebe também a orientação de leitura.
@@ -537,7 +645,7 @@ print(alerta_modelo)
 # Poder do teste: a probabilidade de detectar um efeito do tamanho observado.
 # pwr.anova.test() quer o efeito na escala f de Cohen: f = sqrt(η² / (1 − η²)),
 # e supõe grupos de mesmo tamanho — usamos o n médio por grupo.
-poder_anova <- if (eta2 > 0 && is.finite(eta2)) {
+poder_anova <- if (metodo_usado == "classica" && is.finite(eta2) && eta2 > 0 && eta2 < 1) {
   pwr::pwr.anova.test(
     k = n_grupos,
     n = mean(tabela_resumo$n),
@@ -561,6 +669,7 @@ alerta_poder <- if (!is.na(p_anova) && p_anova >= alfa &&
 } else {
   ""
 }
+if (metodo_usado == "welch") alerta_poder <- "O poder não foi calculado: a fórmula disponível supõe a ANOVA clássica com grupos de mesmo tamanho."
 print(alerta_poder)
 
 # Síntese estatística: os argumentos científicos serão escritos no QMD.
@@ -570,6 +679,7 @@ texto_sintese_estatistica <- stringr::str_glue(
   "{formatar_p(p_anova, no_texto = TRUE)}; η² = {fmt(eta2, 3)}). ",
   "A interpretação deve considerar os pressupostos e o delineamento."
 )
+if (metodo_usado == "welch") texto_sintese_estatistica <- paste(texto_anova, texto_efeito)
 print(texto_sintese_estatistica)
 
 # 11. Salvar cópias para consulta e compartilhamento ------------------------
@@ -628,15 +738,30 @@ for (nome in names(figuras)) {
 # 12. Registrar o ambiente computacional -----------------------------------
 # sessionInfo() informa o R e os pacotes; a versão do Quarto é consultada à parte.
 # Este registro documenta o ambiente. Não instala nem fixa versões por si só.
-versao_quarto <- if (nzchar(Sys.which("quarto"))) {
-  system2("quarto", "--version", stdout = TRUE)
-} else "Quarto não encontrado no PATH desta sessão."
-registro_ambiente <- c(
-  paste("Quarto:", versao_quarto),
-  capture.output(sessionInfo())
+# O executável pode estar no PATH ou ser indicado por QUARTO_PATH.
+quarto_bin <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+versao_quarto <- if (nzchar(quarto_bin) && file.exists(quarto_bin)) {
+  paste(system2(quarto_bin, "--version", stdout = TRUE), collapse = " ")
+} else "não encontrado nesta sessão"
+# Incluímos dependências carregadas indiretamente, além dos pacotes da análise.
+pacotes_ambiente <- sort(unique(c(loadedNamespaces(), "catalyser", "EAPADados")))
+# RemoteSha só existe quando a instalação preservou o commit do GitHub.
+# Sua ausência fica explícita: a versão não identifica sozinha uma revisão local.
+tabela_ambiente <- do.call(rbind, lapply(pacotes_ambiente, function(pacote) {
+  descricao <- utils::packageDescription(pacote)
+  revisao <- descricao$RemoteSha
+  if (is.null(revisao) || !nzchar(revisao)) revisao <- "não registrado"
+  data.frame(Componente = pacote, Versão = descricao$Version, Revisão = revisao,
+             check.names = FALSE)
+}))
+tabela_ambiente <- rbind(
+  data.frame(Componente = c("R", "Quarto"),
+    Versão = c(as.character(getRversion()), versao_quarto), Revisão = c("", "")),
+  tabela_ambiente
 )
-writeLines(
-  registro_ambiente,
-  here::here("saida", "sessionInfo.txt"),
-  useBytes = TRUE
-)
+# A tabela é legível no relatório; sessionInfo conserva o registro técnico completo.
+registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
+  "", apply(tabela_ambiente, 1, paste, collapse = " | "))
+writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
+write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
+  row.names = FALSE, fileEncoding = "UTF-8")

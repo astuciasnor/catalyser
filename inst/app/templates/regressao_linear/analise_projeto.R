@@ -43,7 +43,7 @@ library(stringr)
 # EAPADados: dados de contexto da pesca e da aquicultura do curso.
 if (!requireNamespace("EAPADados", quietly = TRUE)) {
   stop(
-    "Este projeto usa o pacote EAPADados, que não está instalado.",
+    "Este projeto faz parte do ecossistema CatalyseR e pede o pacote complementar EAPADados para compatibilidade, mas ele não está instalado.",
     " Instale uma vez, no console: remotes::install_github('astuciasnor/EAPADados')",
     call. = FALSE
   )
@@ -66,6 +66,7 @@ source(here::here("R", "funcoes.R"), encoding = "UTF-8")
 variavel_resposta <- {{RESPOSTA_R}}
 variavel_preditor <- {{PREDITOR_R}}
 variavel_grupo <- {{GRUPO_R}}
+retas_por_grupo <- {{RETAS_POR_GRUPO}}
 # Os rótulos são textos de apresentação: alterá-los não renomeia as colunas.
 rotulo_resposta <- {{ROTULO_RESPOSTA_R}}
 rotulo_preditor <- {{ROTULO_PREDITOR_R}}
@@ -415,28 +416,68 @@ grafico_regressao <- ggplot(
   ) +
   tema_projeto()
 
-# 8.2. Dispersão por grupo (exploração, sem outro modelo)
+# 8.2. Grupos: conservar a escolha de retas separadas feita no painel.
+# A tabela principal e os diagnósticos continuam identificados como globais.
+# Retas separadas não constituem um teste de igualdade das inclinações.
 grafico_grupos <- NULL
+tabela_modelos_grupo <- NULL
+modelos_grupo <- list()
+texto_ajuste_por_grupo <- ""
 if (tem_grupo) {
   paleta_grupos <- rep(cores_grupo, length.out = nlevels(base_regressao[[variavel_grupo]]))
-  grafico_grupos <- ggplot(
-    base_regressao,
-    aes(
-      x = .data[[variavel_preditor]],
-      y = .data[[variavel_resposta]],
-      colour = .data[[variavel_grupo]],
-      shape = .data[[variavel_grupo]]
-    )
-  ) +
+  grafico_grupos <- ggplot(base_regressao,
+    aes(x = .data[[variavel_preditor]], y = .data[[variavel_resposta]],
+      colour = .data[[variavel_grupo]])) +
     geom_point(size = 2.4, alpha = 0.85) +
     scale_colour_manual(values = paleta_grupos) +
-    labs(
-      x = rotulo_preditor,
-      y = rotulo_resposta,
-      colour = rotulo_grupo,
-      shape = rotulo_grupo
-    ) +
+    labs(x = rotulo_preditor, y = rotulo_resposta, colour = rotulo_grupo) +
     tema_projeto()
+  if (retas_por_grupo) {
+    bases_grupo <- split(base_regressao, base_regressao[[variavel_grupo]], drop = TRUE)
+    resultados_grupo <- list()
+    texto_grupos <- character()
+    for (nome_grupo in names(bases_grupo)) {
+      base_grupo <- bases_grupo[[nome_grupo]]
+      estimavel <- nrow(base_grupo) >= 3 &&
+        length(unique(base_grupo[[variavel_preditor]])) > 1
+      if (!estimavel) {
+        texto_grupos <- c(texto_grupos, paste(nome_grupo, ": ajuste não estimável (n < 3 ou X constante)"))
+        next
+      }
+      # Mesmo método, agora apenas com as observações desta categoria.
+      modelo_grupo <- lm(formula(modelo_lm), data = base_grupo)
+      modelos_grupo[[nome_grupo]] <- modelo_grupo
+      r2_grupo <- summary(modelo_grupo)$r.squared
+      resultados_grupo[[nome_grupo]] <- data.frame(Grupo = nome_grupo,
+        N = nobs(modelo_grupo), Intercepto = coef(modelo_grupo)[1],
+        Inclinacao = coef(modelo_grupo)[2], R2 = r2_grupo, row.names = NULL)
+      texto_grupos <- c(texto_grupos, paste0(nome_grupo, ": ŷ = ",
+        fmt(coef(modelo_grupo)[1], 3), " + (", fmt(coef(modelo_grupo)[2], 3),
+        ") × x; R² = ", fmt(r2_grupo, 3)))
+      # O IC desenhado vem deste modelo, na confiança escolhida.
+      grade_grupo <- data.frame(x = seq(min(base_grupo[[variavel_preditor]]),
+        max(base_grupo[[variavel_preditor]]), length.out = 100))
+      names(grade_grupo) <- variavel_preditor
+      previsao_grupo <- as.data.frame(predict(modelo_grupo, newdata = grade_grupo,
+        interval = "confidence", level = nivel_confianca))
+      grade_grupo <- bind_cols(grade_grupo, previsao_grupo)
+      grade_grupo[[variavel_grupo]] <- factor(nome_grupo,
+        levels = levels(base_regressao[[variavel_grupo]]))
+      grafico_grupos <- grafico_grupos +
+        geom_ribbon(data = grade_grupo, aes(y = NULL, ymin = lwr, ymax = upr,
+          fill = .data[[variavel_grupo]]), alpha = .15, colour = NA) +
+        geom_line(data = grade_grupo, aes(y = fit), linewidth = 1)
+    }
+    tabela_modelos_grupo <- bind_rows(resultados_grupo)
+    grafico_grupos <- grafico_grupos + scale_fill_manual(values = paleta_grupos, guide = "none") +
+      labs(subtitle = if (mostrar_equacao) paste(texto_grupos, collapse = "\n") else NULL)
+    grafico_regressao <- grafico_grupos
+    texto_ajuste_por_grupo <- paste(
+      "A figura apresenta retas e R² calculados separadamente por categoria.",
+      "As tabelas principais, a síntese e os diagnósticos abaixo se referem ao modelo global.",
+      "As retas separadas não testam diferenças de inclinação entre categorias;",
+      "cada ajuste também exige conferência de seus pressupostos.")
+  }
 }
 
 # 8.3. Resíduos versus ajustados: procure curvas e mudança de dispersão.
@@ -665,6 +706,9 @@ tabelas <- list(
   testes_diagnosticos = tabela_testes,
   descritiva = tabela_descritiva
 )
+if (!is.null(tabela_modelos_grupo) && nrow(tabela_modelos_grupo)) {
+  tabelas$modelos_por_grupo <- tabela_modelos_grupo
+}
 for (nome in names(tabelas)) {
   caminho_csv <- here::here("saida", "tabelas", paste0(nome, ".csv"))
   write.csv2(
@@ -704,15 +748,30 @@ for (nome in names(figuras)) {
 # 11. Registrar o ambiente computacional -----------------------------------
 # sessionInfo() informa o R e os pacotes; a versão do Quarto é consultada à parte.
 # Este registro documenta o ambiente. Não instala nem fixa versões por si só.
-versao_quarto <- if (nzchar(Sys.which("quarto"))) {
-  system2("quarto", "--version", stdout = TRUE)
-} else "Quarto não encontrado no PATH desta sessão."
-registro_ambiente <- c(
-  paste("Quarto:", versao_quarto),
-  capture.output(sessionInfo())
+# O executável pode estar no PATH ou ser indicado por QUARTO_PATH.
+quarto_bin <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+versao_quarto <- if (nzchar(quarto_bin) && file.exists(quarto_bin)) {
+  paste(system2(quarto_bin, "--version", stdout = TRUE), collapse = " ")
+} else "não encontrado nesta sessão"
+# Incluímos dependências carregadas indiretamente, além dos pacotes da análise.
+pacotes_ambiente <- sort(unique(c(loadedNamespaces(), "catalyser", "EAPADados")))
+# RemoteSha só existe quando a instalação preservou o commit do GitHub.
+# Sua ausência fica explícita: a versão não identifica sozinha uma revisão local.
+tabela_ambiente <- do.call(rbind, lapply(pacotes_ambiente, function(pacote) {
+  descricao <- utils::packageDescription(pacote)
+  revisao <- descricao$RemoteSha
+  if (is.null(revisao) || !nzchar(revisao)) revisao <- "não registrado"
+  data.frame(Componente = pacote, Versão = descricao$Version, Revisão = revisao,
+             check.names = FALSE)
+}))
+tabela_ambiente <- rbind(
+  data.frame(Componente = c("R", "Quarto"),
+    Versão = c(as.character(getRversion()), versao_quarto), Revisão = c("", "")),
+  tabela_ambiente
 )
-writeLines(
-  registro_ambiente,
-  here::here("saida", "sessionInfo.txt"),
-  useBytes = TRUE
-)
+# A tabela é legível no relatório; sessionInfo conserva o registro técnico completo.
+registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
+  "", apply(tabela_ambiente, 1, paste, collapse = " | "))
+writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
+write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
+  row.names = FALSE, fileEncoding = "UTF-8")

@@ -35,6 +35,10 @@ mod_anova_ui <- function(id) {
             uiOutput(ns("aviso_ficha")),
             selectInput(ns("var_y"), "Variável resposta (Y — numérica):", choices = NULL),
             selectInput(ns("var_x"), "Fator / grupo (X — categórico):", choices = NULL),
+            selectInput(ns("metodo"), "Método da ANOVA:",
+              choices = c("Automático, conforme Levene" = "auto",
+                "Clássica com Tukey" = "classica", "Welch com Games-Howell" = "welch"),
+              selected = "auto"),
             sliderInput(ns("conf_level"), "Nível de confiança (%):",
                         min = 80, max = 99, value = 95, step = 1),
             execucao_explicita_controles_ui(ns)
@@ -183,7 +187,7 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
       req(input$var_y, input$var_x)
       execucao_assinatura(
         input,
-        c("var_y", "var_x", "conf_level", "graph_theme",
+        c("var_y", "var_x", "conf_level", "metodo", "graph_theme",
           "custom_title", "custom_label_x", "custom_label_y"),
         revisao_execucao()
       )
@@ -195,7 +199,10 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
       req(df, input$var_y, input$var_x)
       mensagem <- anova_validar_entrada(df, input$var_y, input$var_x)
       if (!is.null(mensagem)) stop(mensagem, call. = FALSE)
-      calcular_anova(df, input$var_y, input$var_x, nivel_confianca = nivel_confianca())
+      calcular_anova(df, input$var_y, input$var_x, nivel_confianca = nivel_confianca(),
+        metodo = input$metodo %||% "auto",
+        rotulo_resposta = if (nzchar(input$custom_label_y %||% "")) input$custom_label_y else input$var_y,
+        rotulo_fator = if (nzchar(input$custom_label_x %||% "")) input$custom_label_x else input$var_x)
     }, ignoreInit = FALSE)
 
     exec_ctrl <- execucao_explicita_server(
@@ -229,7 +236,7 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
         anova_titulo_secao("Resumo por grupo"),
         tableOutput(ns("descritivos_table")),
         helpText(
-          "A coluna Diferença traz as letras de Tukey: grupos que compartilham",
+          paste0("A coluna Diferença traz as letras de ", r$post_teste, ": grupos que compartilham"),
           "ao menos uma letra não apresentaram evidência de diferença entre si.",
           "A letra 'a' fica com o grupo de maior média.",
           style = "font-size: 0.82rem;"
@@ -239,7 +246,7 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
         tableOutput(ns("anova_table")),
         anova_titulo_secao("Tamanho de efeito"),
         tableOutput(ns("efeito_table")),
-        helpText(
+        if (r$metodo_usado == "classica") helpText(
           "η² é a fração da variação da resposta atribuída ao fator; ω² corrige o viés",
           "otimista do η² em amostras pequenas. A coluna Leitura usa a convenção de Cohen",
           "(0,01 pequeno · 0,06 médio · 0,14 grande) — é referência estatística, não",
@@ -247,6 +254,7 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
           "pode ser irrelevante na prática.",
           style = "font-size: 0.82rem;"
         ),
+        if (nzchar(r$aviso_comparacoes)) div(class = "alert alert-warning py-2 small", r$aviso_comparacoes),
         if (!is.na(r$efeito_aviso)) div(class = "alert alert-light border py-2 small", r$efeito_aviso),
         hr(),
         anova_titulo_secao("Gráfico principal"),
@@ -294,8 +302,8 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
       r <- result_rv()
       req(r)
       tagList(
-        anova_titulo_secao(sprintf("Comparações múltiplas de Tukey (IC %.0f%%)",
-                                   100 * r$nivel_confianca)),
+        anova_titulo_secao(sprintf("Comparações múltiplas de %s (IC %.0f%%)",
+                                   r$post_teste, 100 * r$nivel_confianca)),
         plotOutput(ns("tukey_pares_plot"), height = "380px"),
         tableOutput(ns("tukey_table")),
         helpText(
@@ -378,7 +386,9 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
           resposta = r$dep_var,
           fator = r$ind_var,
           nivel_confianca = r$nivel_confianca,
-          ajuste_comparacoes = "tukey",
+          metodo = r$metodo,
+          metodo_usado = r$metodo_usado,
+          ajuste_comparacoes = if (r$metodo_usado == "welch") "games_howell" else "tukey",
           tema = input$graph_theme %||% "minimal",
           titulo_grafico = input$custom_title %||% "",
           rotulo_x = input$custom_label_x %||% "",
@@ -395,8 +405,8 @@ mod_anova_server <- function(id, data_rv, import_info, ficha_rv = NULL) {
           excluidos = as.integer(r$excluidos),
           grupos = as.integer(r$n_grupos),
           f = unname(r$f_anova),
-          gl_1 = as.integer(r$df_entre),
-          gl_2 = as.integer(r$df_dentro),
+          gl_1 = unname(r$df_entre),
+          gl_2 = unname(r$df_dentro),
           p = unname(r$p_anova),
           eta2 = unname(r$eta2),
           omega2 = unname(r$omega2)

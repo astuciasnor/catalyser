@@ -1,7 +1,7 @@
 ---
 title: "{{TITULO}}"
 subtitle: "Caderno completo · da base preparada à comparação dos grupos"
-author: "EAPA — Estatística Aplicada à Pesca e Aquicultura com R"
+author: "EAPA, Estatística Aplicada à Pesca e Aquicultura com R"
 date: today
 bibliography: referencias.bib
 csl: apa.csl
@@ -60,14 +60,14 @@ base e usa a fotografia adotada para impedir mudanças silenciosas no Render.
 
 ## Modelo
 
-Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey, com
+Ajustou-se uma análise de variância de um fator, seguida do pós-teste escolhido, com
 intervalos de confiança de `r ic_percentual`%. Os pressupostos foram examinados
 pelos testes de Shapiro-Wilk e de Levene e pelos gráficos de resíduos.
 
 # Exploração: conhecer os grupos antes do teste
 
-Os números da ANOVA só merecem leitura depois dos pressupostos: variâncias
-parecidas e resíduos aproximadamente normais são o que dá sentido ao teste F.
+A leitura da ANOVA exige examinar o delineamento, a distribuição e a dispersão
+dos dados. Welch permite variâncias diferentes; os demais cuidados continuam necessários.
 Por isso esta seção explora os grupos e termina com o diagnóstico dos
 resíduos, antes de apresentar os resultados.
 
@@ -128,23 +128,27 @@ flextable_ocean(tabela_testes)
 
 `r texto_pressupostos`
 
-A @tbl-welch compara a ANOVA clássica, usada na análise, com a ANOVA de
-Welch, que não supõe variâncias iguais. É uma comparação apenas informativa:
-mostra o quanto a conclusão dependeria dessa escolha [@delacre2019]. A
+`r texto_metodo`
+
+A @tbl-welch compara a ANOVA clássica com Welch, que não exige variâncias
+iguais. O método escolhido acima determina o teste global, o pós-teste e a
+leitura do efeito. Welch é uma alternativa recomendada diante da heterogeneidade [@delacre2019]. A
 @fig-barras, no mesmo espírito de transparência, mostra cada observação como
-ponto, em vez de resumir os grupos em barras [@weissgerber2015]. Os testes
-formais de pressupostos, por sua vez, complementam — sem substituir — a
+ponto sobre barras semitransparentes, preservando a distribuição dos dados
+[@weissgerber2015]. Os testes
+formais de pressupostos, por sua vez, complementam a
 inspeção visual dos resíduos [@kozak2018].
 
 ```{r}
 #| label: tbl-welch
-#| tbl-cap: "ANOVA clássica e ANOVA de Welch lado a lado. A análise usa a clássica; a comparação é apenas informativa."
+#| tbl-cap: "ANOVA clássica e ANOVA de Welch lado a lado. O método aplicado está indicado no texto."
 flextable_ocean(tabela_comparativa)
 ```
 
 # Resultados: o que a ANOVA responde?
 
-A @tbl-anova resume a decomposição da variabilidade que sustenta o teste F.
+A @tbl-anova apresenta o teste escolhido. Na clássica, mostra SQ e QM;
+no Welch, esses campos ficam vazios, pois não há essa decomposição.
 
 `r texto_anova`
 
@@ -170,29 +174,31 @@ As comparações dois a dois estão na @tbl-tukey e o resumo com as letras na
 @tbl-resumo; a @fig-pares mostra cada diferença com seu intervalo de
 confiança e a @fig-barras apresenta as médias com seus intervalos.
 
+Método das comparações: **`r post_teste`**. Confiança: **`r ic_percentual`%**.
+
 `r texto_tukey`
 
 ```{r}
 #| label: tbl-tukey
-#| tbl-cap: "Comparações entre pares pelo teste de Tukey, com intervalos de confiança e p-valores ajustados."
+#| tbl-cap: "Comparações entre pares pelo pós-teste escolhido, com intervalos de confiança e p-valores ajustados."
 flextable_ocean(tabela_tukey_exibir)
 ```
 
 ```{r}
 #| label: fig-pares
-#| fig-cap: "Diferenças entre pares com IC 95% ajustado por Tukey. IC que cruza o zero: sem diferença."
+#| fig-cap: "Diferenças entre pares com IC simultâneo no nível e método indicados no texto. IC que cruza o zero: sem evidência de diferença."
 grafico_pares
 ```
 
 ```{r}
 #| label: tbl-resumo
-#| tbl-cap: "Resumo por grupo com as letras do teste de Tukey."
+#| tbl-cap: "Resumo por grupo com as letras do pós-teste escolhido."
 flextable_ocean(tabela_resumo_exibir)
 ```
 
 ```{r}
 #| label: fig-barras
-#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do teste de Tukey."
+#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do pós-teste escolhido."
 grafico_barras
 ```
 
@@ -222,7 +228,7 @@ na base preparada.
 ```{r}
 #| label: ambiente
 #| echo: false
-cat(registro_ambiente, sep = "\n")
+flextable_ocean(tabela_ambiente)
 ```
 
 # Referências

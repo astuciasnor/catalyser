@@ -86,21 +86,23 @@ modos que pulam essa execução (como `quarto render --no-execute`): os
 relatórios leem objetos calculados pelo script e, sem a execução, param com
 `object '<nome>' not found` na primeira expressão.
 
-## Como a análise decide o método
+## Como a análise preserva as escolhas
 
 O teste t clássico pede **normalidade dentro de cada grupo** e **variâncias
 parecidas entre os grupos**. O script confere a normalidade com Shapiro-Wilk em
-cada grupo e a igualdade de variâncias com o **teste de Levene**. Quando Levene
-não dá evidência de variâncias diferentes, usa-se o **t de Student**; caso
-contrário, o **t de Welch**, guardado também para comparação. As frases dos
-relatórios seguem o resultado real de cada teste: um p acima de {{IC}}% de
-confiança complementar não prova o pressuposto, apenas não dá evidência para
-rejeitá-lo.
+cada grupo e a igualdade de variâncias com o **teste de Levene**. O método
+**Student ou Welch**, a confiança e a hipótese alternativa preservam as
+escolhas registradas no painel. Levene orienta a revisão dos pressupostos;
+ele não troca o método automaticamente. Welch fica também guardado para
+comparação, com a mesma hipótese e confiança. Um p acima de alfa (1 menos
+o nível de confiança) não prova o pressuposto, apenas não dá evidência para
+rejeitá-lo. Nas hipóteses direcionais, a comparação segue o primeiro nível
+do grupo menos o segundo; confira essa ordem no script e nas tabelas.
 
 O tamanho do efeito é o **d de Cohen**, calculado com o desvio padrão combinado,
 acompanhado do seu intervalo de confiança (pacote `effectsize`) e de rótulos de
-referência (pequeno, médio, grande). A significância diz que a diferença
-existe; o d diz o quanto ela importa. Quando o teste não encontra evidência de
+referência (pequeno, médio, grande). O p informa a evidência estatística e
+o d quantifica a diferença padronizada. Quando o teste não encontra evidência de
 diferença e o poder estatístico é baixo (pacote `pwr`), os relatórios
 acrescentam uma ressalva: ausência de evidência não é evidência de ausência.
 
@@ -139,3 +141,31 @@ do pesquisador. A base preparada foi adotada a partir da importação e dos
 tratamentos registrados na CatalyseR. A planilha original fica em
 `dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
 `saida/sessionInfo.txt` identifica o ambiente da execução.
+
+## Como ler as figuras de comparação
+
+Pontos mostram as observações e o losango marca a média. O rótulo ao lado
+traz média ± DP amostral, com duas casas decimais. Neste teste t, as hastes
+mostram a mesma média ± DP do rótulo. Na ANOVA, elas mostram o IC da média:
+consulte sempre a legenda, pois dispersão dos indivíduos e incerteza da
+média são medidas diferentes.
+
+## Ambiente computacional
+
+Ambiente registrado automaticamente na exportação:
+
+{{AMBIENTE_COMPUTACIONAL}}
+
+Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
+`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Um commit ausente nos metadados aparece como “não registrado”.
+
+Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
+
+```text
+Rscript verificar_reprodutibilidade.R
+```
+
+A conferência recalcula cada QMD em um processo novo, registra os logs em
+`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
+não for novo ou se houver referência `??`. Ela não instala pacotes.

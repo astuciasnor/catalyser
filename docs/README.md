@@ -11,6 +11,12 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+[Padrão de gráficos de médias: transparência estatística e beleza dos dados](PADRAO_GRAFICOS_MEDIAS.md) — aprovado pelo autor em 02/10/2026.
+
+[Integração dos menus, R² por categoria e barras transparentes](testes/INTEGRACAO_MENUS_GRAFICOS_20261001.md).
+
+Registro recente: [avaliação manual da Fase 2 no Windows, 01/10/2026](testes/AVALIACAO_WINDOWS_FASE2_20261001.md).
+
 Comece pelo [mapa da arquitetura e dos contratos](../ARQUITETURA.md).
 
 1. [Decisões pedagógicas e de refinamento](DECISOES_PEDAGOGICAS_E_REFINAMENTO.md)

@@ -142,3 +142,39 @@ do pesquisador. A base preparada foi adotada a partir da importação e dos
 tratamentos registrados na CatalyseR. A planilha original fica em
 `dados/brutos/{{ARQUIVO_BRUTO}}` e não é alterada. O registro
 `saida/sessionInfo.txt` identifica o ambiente da execução.
+
+## Ambiente computacional
+
+Ambiente registrado automaticamente na exportação:
+
+{{AMBIENTE_COMPUTACIONAL}}
+
+Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
+`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Um commit ausente nos metadados aparece como “não registrado”.
+
+Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
+
+```text
+Rscript verificar_reprodutibilidade.R
+```
+
+A conferência recalcula cada QMD em um processo novo, registra os logs em
+`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
+não for novo ou se houver referência `??`. Ela não instala pacotes.
+
+## Ler o diagnóstico antes dos resultados
+
+O caderno apresenta os diagnósticos dentro da Exploração, antes dos Resultados,
+com gráficos empilhados e menores. A saída crua fica para estudo no console:
+execute `summary(modelo_lm)` em R/analise.R. Os relatórios usam as tabelas
+formatadas e não exibem esse despejo de console.
+
+## Quando foram escolhidas retas por categoria
+
+`retas_por_grupo` conserva a escolha do painel. Cada reta mostra sua equação
+e R², com um modelo calculado apenas nas observações daquela categoria.
+A tabela adicional reúne N, intercepto, inclinação e R² de cada ajuste.
+A tabela principal e os diagnósticos globais são identificados separadamente.
+Retas separadas não testam se as inclinações diferem; confira também os
+pressupostos de cada categoria antes de interpretar seus coeficientes.

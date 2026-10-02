@@ -217,7 +217,14 @@ anova_validar_entrada <- function(df, dep_var, ind_var) {
 #'
 #' Função pura: recebe um data.frame e devolve uma lista com tudo o que a
 #' interface e o Projeto R precisam. Não consulta inputs do Shiny.
-calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
+calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95,
+                           metodo = "classica", rotulo_resposta = dep_var,
+                           rotulo_fator = ind_var) {
+  metodo <- match.arg(metodo, c("classica", "welch", "auto"))
+  if (length(nivel_confianca) != 1L || !is.finite(nivel_confianca) ||
+      nivel_confianca <= 0 || nivel_confianca >= 1)
+    stop("O nível de confiança precisa estar entre zero e um.", call. = FALSE)
+  alfa <- 1 - nivel_confianca
   mensagem <- anova_validar_entrada(df, dep_var, ind_var)
   if (!is.null(mensagem)) stop(mensagem, call. = FALSE)
 
@@ -288,6 +295,8 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   grupos_pequenos <- descritivos_df$Grupo[descritivos_df$N < 5L]
 
   # --- Tamanho de efeito -----------------------------------------------------
+  if (!is.finite(f_anova) || !is.finite(p_anova))
+    stop("A ANOVA não forneceu resultado finito. Confira a variação da resposta nos grupos.", call. = FALSE)
   sq_total <- sq_entre + sq_dentro
   eta2 <- sq_entre / sq_total
   omega2 <- (sq_entre - df_entre * qm_dentro) / (sq_total + qm_dentro)
@@ -352,6 +361,56 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   levene_f <- if (is.null(levene)) NA_real_ else suppressWarnings(as.numeric(levene[["F value"]][1]))
   levene_p <- if (is.null(levene)) NA_real_ else suppressWarnings(as.numeric(levene[["Pr(>F)"]][1]))
 
+  # O automático usa Levene no alfa escolhido; a escolha explícita é preservada.
+  recomendado <- if (is.na(levene_p) || levene_p < alfa) "welch" else "classica"
+  metodo_usado <- if (metodo == "auto") recomendado else metodo
+  post_teste <- if (metodo_usado == "welch") "Games-Howell" else "Tukey"
+  motivo <- if (is.na(levene_p)) {
+    "Levene não forneceu um resultado válido; Welch é a recomendação conservadora"
+  } else if (levene_p < alfa) {
+    "Levene apresentou evidência de variâncias diferentes"
+  } else {
+    "Levene não apresentou evidência para rejeitar a igualdade das variâncias"
+  }
+  texto_metodo <- paste0(
+    if (metodo == "auto") "Escolha automática: " else "Escolha explícita: ",
+    if (metodo_usado == "welch") "ANOVA de Welch" else "ANOVA clássica",
+    " com ", post_teste, ". ", motivo, "; alfa = ", anova_fmt(alfa, 3), ". ",
+    if (metodo != "auto" && metodo != recomendado)
+      "A escolha explícita difere da recomendação do diagnóstico. " else "",
+    "Não rejeitar H0 no Levene não comprova igualdade das variâncias. "
+  )
+  aviso_comparacoes <- ""
+  if (metodo_usado == "welch") {
+    # Welch pondera cada grupo pela sua variância; variância zero impede esse cálculo.
+    if (any(!is.finite(descritivos_df$Desvio_Padrao) | descritivos_df$Desvio_Padrao <= 0))
+      stop("Welch e Games-Howell precisam de variância positiva em cada grupo. Confira os dados ou escolha outro método justificado.", call. = FALSE)
+    welch <- stats::oneway.test(resposta ~ fator, data = d, var.equal = FALSE)
+    f_anova <- unname(welch$statistic)
+    p_anova <- welch$p.value
+    df_entre <- unname(welch$parameter[["num df"]])
+    df_dentro <- unname(welch$parameter[["denom df"]])
+    # Welch não tem a decomposição de somas de quadrados da ANOVA clássica.
+    anova_df <- data.frame(Fonte = c("Welch (numerador)", "Welch (denominador)"),
+      Df = c(df_entre, df_dentro), Soma_Quadrados = NA_real_,
+      Quadrados_Medios = NA_real_, F_valor = c(f_anova, NA_real_),
+      p_valor = c(p_anova, NA_real_))
+    # Conversão aproximada do F: não equivale à fração clássica de variância explicada.
+    ef <- effectsize::F_to_omega2(f_anova, df_entre, df_dentro,
+      ci = nivel_confianca, alternative = "two.sided")
+    eta2 <- NA_real_
+    omega2 <- ef$Omega2_partial[1]
+    efeito_df <- data.frame(Medida = "Ômega quadrado aproximado (Welch)",
+      Valor = omega2, IC_Inferior = ef$CI_low[1], IC_Superior = ef$CI_high[1])
+    efeito_aviso <- paste("Aproximação: max(0, (F - 1) * gl1 / (F * gl1 + gl2 + 1)).",
+      "O IC bilateral usa F não central e também é aproximado.",
+      "Esta medida não é a decomposição clássica da variância explicada.")
+    menores <- descritivos_df$Grupo[descritivos_df$N < 6L]
+    if (length(menores)) aviso_comparacoes <- paste0(
+      "Games-Howell: menos de seis observações em ", paste(menores, collapse = ", "),
+      ". O cálculo foi mantido, mas os resultados precisam de cautela. ")
+  }
+
   # --- Comparações múltiplas -------------------------------------------------
   tukey <- tryCatch(stats::TukeyHSD(fit, conf.level = nivel_confianca), error = function(e) NULL)
   tukey_df <- if (is.null(tukey)) {
@@ -368,11 +427,29 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
       Lwr = bruto$lwr,
       Upr = bruto$upr,
       p_adj = bruto$`p adj`,
-      Evidencia = ifelse(bruto$`p adj` < 0.05,
+      Evidencia = ifelse(bruto$`p adj` < alfa,
                          "Há evidência de diferença",
                          "Sem evidência de diferença"),
       stringsAsFactors = FALSE
     )
+  }
+  if (metodo_usado == "welch") {
+    combos <- utils::combn(seq_along(niveis), 2L)
+    i <- combos[1, ]; j <- combos[2, ]
+    # Cada par tem seu próprio erro e seus graus de liberdade de Satterthwaite.
+    v <- descritivos_df$Desvio_Padrao^2 / descritivos_df$N
+    erro <- sqrt(v[i] + v[j])
+    gl <- (v[i] + v[j])^2 / (v[i]^2 / (descritivos_df$N[i] - 1) +
+      v[j]^2 / (descritivos_df$N[j] - 1))
+    diferenca <- descritivos_df$Media[j] - descritivos_df$Media[i]
+    margem <- stats::qtukey(nivel_confianca, length(niveis), gl) * erro / sqrt(2)
+    p_ajustado <- stats::ptukey(abs(diferenca) / erro * sqrt(2),
+      length(niveis), gl, lower.tail = FALSE)
+    # A amplitude studentizada já ajusta as comparações; não ajustar de novo.
+    tukey_df <- data.frame(Comparacao = paste0(niveis[j], "-", niveis[i]),
+      Diferenca = diferenca, Lwr = diferenca - margem, Upr = diferenca + margem,
+      p_adj = p_ajustado,
+      Evidencia = ifelse(p_ajustado < alfa, "Há evidência de diferença", "Sem evidência de diferença"))
   }
   rownames(tukey_df) <- NULL
 
@@ -387,7 +464,8 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
     anova_letras_tukey(
       pares = combos[c(2L, 1L), , drop = FALSE],
       p_ajustado = tukey_df$p_adj[posicao],
-      medias = medias_por_grupo
+      medias = medias_por_grupo,
+      alfa = alfa
     )
   } else {
     stats::setNames(rep("a", length(niveis)), niveis)
@@ -395,11 +473,12 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   descritivos_df$Letras <- unname(letras[descritivos_df$Grupo])
 
   console <- c(
-    "# summary(modelo_anova)",
-    utils::capture.output(print(summary(fit))),
+    paste("#", if (metodo_usado == "welch") "stats::oneway.test()" else "summary(modelo_anova)"),
+    utils::capture.output(print(if (metodo_usado == "welch") welch else summary(fit))),
     "",
-    "# stats::TukeyHSD(modelo_anova)",
-    if (is.null(tukey)) "Tukey HSD indisponível." else utils::capture.output(print(tukey)),
+    paste("# Comparações:", post_teste),
+    if (metodo_usado == "welch") utils::capture.output(print(tukey_df)) else
+      if (is.null(tukey)) "Tukey HSD indisponível." else utils::capture.output(print(tukey)),
     "",
     "# stats::shapiro.test(stats::residuals(modelo_anova))",
     if (is.null(sh_test)) "Shapiro-Wilk não calculado para este tamanho amostral." else utils::capture.output(print(sh_test)),
@@ -409,6 +488,9 @@ calcular_anova <- function(df, dep_var, ind_var, nivel_confianca = 0.95) {
   )
 
   list(
+    metodo = metodo, metodo_usado = metodo_usado, post_teste = post_teste,
+    texto_metodo = texto_metodo, aviso_comparacoes = aviso_comparacoes,
+    rotulo_resposta = rotulo_resposta, rotulo_fator = rotulo_fator,
     dep_var = dep_var,
     ind_var = ind_var,
     nivel_confianca = nivel_confianca,
@@ -506,7 +588,8 @@ arrumar_tamanho_efeito_anova <- function(r) {
     `Medida` = r$efeito_df$Medida,
     `Valor` = anova_num_col(r$efeito_df$Valor, 3),
     `Intervalo de confiança` = ic,
-    `Leitura convencional` = anova_leitura_efeito(r$efeito_df$Valor),
+    `Leitura convencional` = if (identical(r$metodo_usado, "welch"))
+      "Conversão aproximada do F; IC bilateral aproximado" else anova_leitura_efeito(r$efeito_df$Valor),
     check.names = FALSE,
     stringsAsFactors = FALSE
   )
@@ -516,7 +599,7 @@ arrumar_tamanho_efeito_anova <- function(r) {
 arrumar_pressupostos_anova <- function(r) {
   leitura <- function(p, compativel, incompativel) {
     if (is.na(p)) return("Não calculado")
-    if (p >= 0.05) compativel else incompativel
+    if (p >= 1 - r$nivel_confianca) compativel else incompativel
   }
   data.frame(
     `Pressuposto` = c(
@@ -587,7 +670,7 @@ relatar_anova <- function(r) {
       "A pergunta analisada foi se a média de '%s' difere entre os %d grupos de '%s' (%s). ",
       "Entraram %d observações completas%s. "
     ),
-    r$dep_var, r$n_grupos, r$ind_var, paste(r$grupos, collapse = ", "), r$n,
+    r$rotulo_resposta %||% r$dep_var, r$n_grupos, r$rotulo_fator %||% r$ind_var, paste(r$grupos, collapse = ", "), r$n,
     if (r$excluidos > 0)
       sprintf(", depois de excluir %d linha(s) com dados faltantes na resposta ou no fator",
               r$excluidos)
@@ -595,8 +678,10 @@ relatar_anova <- function(r) {
   )
 
   aviso_pequenos <- if (length(r$grupos_pequenos)) {
-    sprintf("Atenção: os grupos %s têm menos de cinco observações, o que torna o teste menos sensível. ",
-            paste(r$grupos_pequenos, collapse = ", "))
+    sprintf("Atenção: %s %s %s menos de cinco observações, o que torna o teste menos sensível. ",
+            if (length(r$grupos_pequenos) == 1L) "o grupo" else "os grupos",
+            paste(r$grupos_pequenos, collapse = ", "),
+            if (length(r$grupos_pequenos) == 1L) "tem" else "têm")
   } else ""
 
   efeito <- sprintf(
@@ -605,8 +690,11 @@ relatar_anova <- function(r) {
     anova_leitura_efeito(r$eta2)
   )
 
-  resultado <- if (!is.na(r$p_anova) && r$p_anova < 0.05) {
-    pares <- r$tukey_df$Comparacao[!is.na(r$tukey_df$p_adj) & r$tukey_df$p_adj < 0.05]
+  if (identical(r$metodo_usado, "welch")) efeito <- paste0(
+    "Ômega quadrado aproximado = ", anova_fmt(r$omega2, 3), ". ", r$efeito_aviso, " ")
+  alfa <- 1 - r$nivel_confianca
+  resultado <- if (!is.na(r$p_anova) && r$p_anova < alfa) {
+    pares <- r$tukey_df$Comparacao[!is.na(r$tukey_df$p_adj) & r$tukey_df$p_adj < alfa]
     complemento <- if (length(pares)) {
       sprintf(
         paste0(
@@ -622,18 +710,18 @@ relatar_anova <- function(r) {
       )
     }
     sprintf(
-      "Rejeitou-se H0 de igualdade das médias: F(%d; %d) = %s, %s. %s%s",
-      r$df_entre, r$df_dentro, anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova),
+      "Rejeitou-se H0 de igualdade das médias: F(%s; %s) = %s, %s. %s%s",
+      anova_fmt(r$df_entre, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$df_dentro, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova),
       efeito, complemento
     )
   } else {
     sprintf(
       paste0(
         "Não houve evidência suficiente para rejeitar H0 de igualdade das médias: ",
-        "F(%d; %d) = %s, %s. %s",
+        "F(%s; %s) = %s, %s. %s",
         "Isso não significa que as médias sejam iguais; significa que estes dados não permitiram detectar diferença. "
       ),
-      r$df_entre, r$df_dentro, anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova), efeito
+      anova_fmt(r$df_entre, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$df_dentro, if (identical(r$metodo_usado, "welch")) 2 else 0), anova_fmt(r$f_anova, 3), anova_p_texto(r$p_anova), efeito
     )
   }
 
@@ -647,7 +735,9 @@ relatar_anova <- function(r) {
     "A ANOVA compara médias entre grupos observados; por si só, não estabelece relação de causa e efeito."
   )
 
-  paste0(abertura, aviso_pequenos, resultado, remissao, fecho)
+  texto <- paste0(abertura, r$texto_metodo, aviso_pequenos, r$aviso_comparacoes,
+                  resultado, remissao, fecho)
+  gsub("Tukey", r$post_teste %||% "Tukey", texto, fixed = TRUE)
 }
 
 # ---- Gráficos ----------------------------------------------------------------
@@ -680,11 +770,16 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     function(g) max(r$dados$resposta[r$dados$fator == g]),
     numeric(1)
   )
-  resumo$y_letra <- pmax(resumo$IC_Superior, resumo$y_max)
+  # A folga aditiva funciona também com respostas negativas.
+  amplitude <- diff(range(c(r$dados$resposta, resumo$IC_Inferior, resumo$IC_Superior), na.rm = TRUE))
+  resumo$y_letra <- pmax(resumo$IC_Superior, resumo$y_max) + 0.06 * amplitude
 
   cores <- rep(anova_cores_ocean, length.out = nlevels(resumo$fator))
 
   ggplot2::ggplot(resumo, ggplot2::aes(x = fator)) +
+    ggplot2::geom_col(ggplot2::aes(y = Media, fill = fator),
+      width = 0.30, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+    ggplot2::scale_fill_manual(values = cores) +
     ggplot2::geom_jitter(
       data = r$dados,
       ggplot2::aes(y = resposta, colour = fator),
@@ -692,7 +787,7 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ) +
     ggplot2::geom_errorbar(
       ggplot2::aes(ymin = IC_Inferior, ymax = IC_Superior),
-      width = 0.15, linewidth = 0.8, color = "#0F3B5F"
+      width = 0.08, linewidth = 0.8, color = "#0F3B5F"
     ) +
     ggplot2::geom_point(
       ggplot2::aes(y = Media),
@@ -700,22 +795,24 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
     ) +
     ggplot2::geom_text(
       ggplot2::aes(y = y_letra, label = Letras),
-      vjust = -0.9, fontface = "bold", size = 4.6, color = "#0F3B5F"
+      vjust = 0.5, fontface = "bold", size = 4.6, color = "#0F3B5F"
     ) +
     ggplot2::scale_colour_manual(values = cores) +
-    # Média ± DP ao lado do losango, à direita da haste do intervalo.
-    ggplot2::geom_text(
-      ggplot2::aes(y = Media, label = paste0(anova_num_col(Media, 1), " ± ", anova_num_col(Desvio_Padrao, 1))),
-      nudge_x = 0.08, hjust = 0, vjust = -0.4, size = 3.5, color = "#0F3B5F"
+    # Média ± DP próxima do losango, na altura do topo da barra.
+    ggplot2::geom_label(
+      ggplot2::aes(y = Media, label = paste0(anova_num_col(Media), " ± ", anova_num_col(Desvio_Padrao))),
+      nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold", size = 3.2, colour = "#0F3B5F",
+      linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+      fill = NA
     ) +
     ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.12))) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.12))) +
     anova_tema(tema) +
     ggplot2::labs(
       title = titulo_final,
       subtitle = sprintf(
-        "Pontos = observações; losango = média; rótulos = média ± DP; hastes = IC %.0f%%\nMesma letra = sem diferença detectada pelo Tukey",
-        100 * nivel
+        "Pontos = observações; losango = média; rótulos = média ± DP; hastes = IC %.0f%%\nMesma letra = sem diferença detectada pelo %s",
+        100 * nivel, r$post_teste %||% "Tukey"
       ),
       x = rotulo_x %||% r$ind_var,
       y = rotulo_y %||% r$dep_var
@@ -777,8 +874,8 @@ grafico_pontos_anova <- function(r, tema = "minimal") {
     ggplot2::labs(
       title = sprintf("%s por %s", r$dep_var, r$ind_var),
       subtitle = sprintf(
-        "Pontos = observações; ponto branco = média; hastes = IC %.0f%%; letras = Tukey",
-        100 * nivel
+        "Pontos = observações; ponto branco = média; hastes = IC %.0f%%; letras = %s",
+        100 * nivel, r$post_teste %||% "Tukey"
       ),
       x = r$ind_var, y = r$dep_var
     ) +
@@ -806,8 +903,8 @@ grafico_pares_anova <- function(r, tema = "minimal") {
     ggplot2::labs(
       title = sprintf("Diferenças entre pares — %s", r$dep_var),
       subtitle = sprintf(
-        "Ponto = diferença estimada; haste = IC %.0f%% (Tukey); IC que cruza o zero: sem diferença",
-        100 * nivel
+        "Ponto = diferença estimada; haste = IC %.0f%% (%s); IC que cruza o zero: sem evidência de diferença",
+        100 * nivel, r$post_teste %||% "Tukey"
       ),
       x = sprintf("Diferença de médias (%s)", r$dep_var),
       y = NULL

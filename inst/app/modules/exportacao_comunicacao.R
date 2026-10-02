@@ -35,6 +35,16 @@ exportacao_nome_curto <- function(x, padrao = "analise") {
   nome
 }
 
+# O título informado para o projeto conserva todas as palavras.
+# O helper curto continua servindo aos nomes legados de bases e às sugestões.
+exportacao_nome_projeto <- function(x) {
+  nome <- exportacao_nome_seguro(x)
+  if (toupper(nome) %in% c("CON", "PRN", "AUX", "NUL", paste0("COM", 1:9), paste0("LPT", 1:9)))
+    nome <- paste0(nome, "_analise")
+  if (nchar(nome) > 80L) stop("Use um nome de projeto com até 80 caracteres após retirar os acentos.", call. = FALSE)
+  nome
+}
+
 exportacao_origem_texto <- function(info = list()) {
   !identical(info$source, "package") &&
     tolower(tools::file_ext(info$file_name %||% "")) %in% c("csv", "txt", "tsv")
@@ -922,6 +932,24 @@ exportacao_codigo_estudo <- function(execucao, incluir_carregamento = TRUE,
         "resultado <- catalyser_executar(execucao, dados)"
       )
     }
+  }
+  # Na rota legada de várias análises, o roteiro clássico não pode ensinar
+  # um cálculo diferente do método novo que o painel registrou.
+  if (identical(execucao$tipo, "anova_um_fator") &&
+      !identical(as.character(p$metodo %||% "classica"), "classica")) {
+    parametros <- strsplit(exportacao_lista_r(p, 0L), "\n", fixed = TRUE)[[1]]
+    codigo <- c(
+      "# Esta comunicação reúne análises na rota legada de um QMD.",
+      "# Welch e a escolha automática são reproduzidos pelo motor do pacote.",
+      "# Para estudar os cálculos linha a linha, exporte esta ANOVA sozinha:",
+      "# o molde novo mostra todo o percurso em R/analise.R.",
+      "parametros_anova <-", parametros,
+      "resultado_anova <- catalyser::catalyser_anova(dados, parametros_anova)",
+      "tabela_anova <- resultado_anova$tabela",
+      "comparacoes_anova <- resultado_anova$comparacoes",
+      "metodo_anova <- resultado_anova$metodo_usado",
+      "resultado_anova$narrativa"
+    )
   }
   c(
     if (isTRUE(incluir_cabecalho)) c(
@@ -2143,6 +2171,23 @@ exportacao_molde_pacotes_texto <- function(pacotes) {
   saida
 }
 
+# Metadados da máquina exportadora; o script registra novamente no Render.
+exportacao_ambiente_computacional <- function(pacotes) {
+  nomes <- sort(unique(c("catalyser", "EAPADados", pacotes)))
+  linhas <- vapply(nomes, function(nome) {
+    descricao <- suppressWarnings(utils::packageDescription(nome))
+    if (!is.list(descricao)) return(paste("|", nome, "| não instalado | não registrado |"))
+    revisao <- descricao$RemoteSha %||% "não registrado"
+    paste("|", nome, "|", descricao$Version, "|", revisao, "|")
+  }, character(1))
+  quarto <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+  versao <- if (nzchar(quarto) && file.exists(quarto)) {
+    paste(system2(quarto, "--version", stdout = TRUE), collapse = " ")
+  } else "não encontrado na exportação"
+  c("| Componente | Versão | Revisão GitHub |", "|---|---|---|",
+    paste("| R |", getRversion(), "| |"), paste("| Quarto |", versao, "| |"), linhas)
+}
+
 exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
                                             import_info = list(),
                                             templates_dir = "templates",
@@ -2154,7 +2199,8 @@ exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
   )
   exportacao_preencher_template(linhas, c(
     entrada$marcadores_readme(item, nome_projeto, import_info),
-    list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes))
+    list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes),
+         AMBIENTE_COMPUTACIONAL = exportacao_ambiente_computacional(pacotes))
   ))
 }
 
@@ -2181,6 +2227,7 @@ exportacao_regressao_marcadores_script <- function(item) {
     RESPOSTA_R = encodeString(p$resposta, quote = '"'),
     PREDITOR_R = encodeString(p$preditor, quote = '"'),
     GRUPO_R = grupo_r,
+    RETAS_POR_GRUPO = if (isTRUE(p$regressao_por_grupo)) "TRUE" else "FALSE",
     ROTULO_RESPOSTA_R = encodeString(resposta, quote = '"'),
     ROTULO_PREDITOR_R = encodeString(preditor, quote = '"'),
     ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
@@ -2252,6 +2299,7 @@ exportacao_anova_marcadores_script <- function(item) {
     FATOR_R = encodeString(fator, quote = '"'),
     ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
     ROTULO_FATOR_R = encodeString(rotulo_fator, quote = '"'),
+    METODO_R = encodeString(as.character(p$metodo %||% "classica"), quote = '"'),
     CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
     TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
   )
@@ -2306,6 +2354,8 @@ exportacao_teste_t_marcadores_script <- function(item) {
     ROTULO_RESPOSTA_R = encodeString(rotulo_resposta, quote = '"'),
     ROTULO_GRUPO_R = encodeString(rotulo_grupo, quote = '"'),
     CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    ALTERNATIVA_R = encodeString(p$alternativa %||% "two.sided", quote = '"'),
+    VARIANCIAS_IGUAIS = if (isTRUE(p$variancias_iguais)) "TRUE" else "FALSE",
     TITULO_R = encodeString(as.character(p$titulo_grafico %||% ""), quote = '"')
   )
 }
@@ -2353,7 +2403,82 @@ exportacao_teste_t_simples <- function(item) {
 # nova), pasta de templates, pasta dos arquivos de apoio, prefixo do script e
 # as três tabelas de marcadores. Adicionar uma análise = criar a pasta de
 # templates e registrar uma entrada aqui.
+# Os desenhos curtos compartilham a apresentação, mas cada script explica seu teste.
+exportacao_t_degrau_marcadores_script <- function(item) {
+  p <- item$parametros
+  pareado <- identical(item$tipo, "teste_t_paired")
+  v1 <- as.character(if (pareado) p$variavel_1 else p$variavel)
+  v2 <- as.character(p$variavel_2 %||% "")
+  list(TITULO_COMENTARIO = toupper(as.character(item$titulo)),
+    VARIAVEL_1_R = encodeString(v1, quote = '"'),
+    VARIAVEL_2_R = encodeString(v2, quote = '"'),
+    ROTULO_1_R = encodeString(as.character(p$rotulo_1 %||% v1), quote = '"'),
+    ROTULO_2_R = encodeString(as.character(p$rotulo_2 %||% v2), quote = '"'),
+    MU0 = format(as.numeric(p$media_hipotetica %||% 0), digits = 15, decimal.mark = "."),
+    CONFIANCA = format(p$nivel_confianca %||% .95, digits = 15, decimal.mark = "."),
+    ALTERNATIVA_R = encodeString(p$alternativa %||% "two.sided", quote = '"'))
+}
+
+exportacao_t_degrau_marcadores_qmd <- function(item, manifesto, import_info) {
+  globais <- manifesto$secoes_globais %||% list()
+  pareado <- identical(item$tipo, "teste_t_paired")
+  secao <- function(nome, padrao) {
+    texto <- paste(as.character(globais[[nome]] %||% ""), collapse = "\n")
+    if (nzchar(trimws(texto))) texto else padrao
+  }
+  list(
+    INTRODUCAO = secao("introducao", c(
+      "*Complete a pergunta biológica e acrescente referências do organismo estudado.*",
+      if (pareado) "Duas medidas da mesma unidade permitem estudar a diferença entre elas. O teste t pareado analisa a média dessas diferenças."
+      else "O teste t de uma amostra compara a média de uma resposta numérica com um valor de referência definido antes da análise.")),
+    METODOS = secao("metodos", c(
+      "*Descreva origem, local, período, unidades e delineamento. Verifique independência e, no pareado, a correspondência real das medidas.*",
+      "O teste t foi executado em R [@rcore2025], com a alternativa e a confiança registradas na CatalyseR. Os casos incompletos foram excluídos apenas nas medidas necessárias. O efeito padronizado usa o DP da resposta, na amostra única, ou o DP das diferenças, no pareado. O IC do efeito é bilateral por t não central. A interpretação exige examinar normalidade e delineamento [@zar2010].")),
+    DISCUSSAO = secao("discussao", "*Compare a magnitude e o IC com a questão biológica. Um p-valor não mede importância prática e não demonstra causalidade. Acrescente estudos do seu tema.*"),
+    CONCLUSAO = secao("conclusao", "*Responda à pergunta com a estimativa, sua incerteza e os limites do delineamento. A síntese automática precisa da revisão do pesquisador.*")
+  )
+}
+
+exportacao_t_degrau_marcadores_readme <- function(item, nome_projeto, import_info) {
+  list(TITULO = as.character(item$titulo %||% nome_projeto),
+    PROJETO_RPROJ = paste0(nome_projeto, ".Rproj"),
+    ARQUIVO_BRUTO = exportacao_nome_planilha(import_info))
+}
+
 molde_projeto_registro <- list(
+  teste_t_one_val = list(
+    tipo = "teste_t_one_val", pasta = "teste_t_uma_amostra", apoio = "regressao_linear",
+    seleciona = function(manifesto) {
+      itens <- manifesto$execucoes %||% list()
+      length(itens) == 1L && isTRUE(itens[[1]]$incluir_word) &&
+        identical(itens[[1]]$tipo, "teste_t_one_val")
+    },
+    prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
+                       base_externa, import_info, templates_dir) {
+      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
+        "# TESTE T ", registro_bases, pipeline, base_externa, import_info)
+    },
+    marcadores_script = exportacao_t_degrau_marcadores_script,
+    marcadores_qmd = exportacao_t_degrau_marcadores_qmd,
+    marcadores_readme = exportacao_t_degrau_marcadores_readme
+  ),
+  teste_t_paired = list(
+    tipo = "teste_t_paired", pasta = "teste_t_pareado", apoio = "regressao_linear",
+    seleciona = function(manifesto) {
+      itens <- manifesto$execucoes %||% list()
+      length(itens) == 1L && isTRUE(itens[[1]]$incluir_word) &&
+        identical(itens[[1]]$tipo, "teste_t_paired")
+    },
+    prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
+                       base_externa, import_info, templates_dir) {
+      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
+        "# TESTE T ", registro_bases, pipeline, base_externa, import_info)
+    },
+    marcadores_script = exportacao_t_degrau_marcadores_script,
+    marcadores_qmd = exportacao_t_degrau_marcadores_qmd,
+    marcadores_readme = exportacao_t_degrau_marcadores_readme
+  ),
+
   regressao_linear = list(
     tipo = "regressao_linear",
     pasta = "regressao_linear",
@@ -2362,7 +2487,7 @@ molde_projeto_registro <- list(
       itens <- manifesto$execucoes %||% list()
       length(itens) == 1L &&
         isTRUE(itens[[1]]$incluir_word) &&
-        exportacao_regressao_simples(itens[[1]])
+        identical(itens[[1]]$tipo, "regressao_linear")
     },
     prefixo = exportacao_regressao_projeto_prefixo,
     marcadores_script = exportacao_regressao_marcadores_script,
@@ -2466,8 +2591,8 @@ exportacao_textos_anova <- function(item) {
       sprintf("Neste estudo, comparou-se %s entre os grupos de %s. O objetivo foi verificar se as médias diferem, identificar quais grupos se separam e estimar a magnitude dessa diferença.", resposta, fator)),
     metodos = c(
       "*Sugestão de redação: complete a origem dos dados, o período, o local, a unidade experimental, as unidades de medida e os critérios de seleção. Não declare independência sem conferir o delineamento.*", "",
-      sprintf("A comparação de %s entre os grupos de %s usou análise de variância de um fator, seguida do teste de Tukey, com as funções de base do R [@rcore2025]. Foram utilizados os casos com resposta e grupo preenchidos. Os intervalos de confiança das médias e das comparações foram de %s%%, e adotou-se nível de significância de %s [@zar2010].", resposta, fator, ic, alfa), "",
-      "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk, ambos acompanhados dos gráficos de resíduos. As letras de contraste do teste de Tukey foram obtidas com o pacote `multcompView` [@graves2026], e as figuras foram construídas com o `ggplot2` [@wickham2016]. O tamanho do efeito foi descrito por η² e ω²."),
+      sprintf("A comparação de %s entre os grupos de %s usou análise de variância de um fator, com as funções de base do R [@rcore2025]. Foram utilizados os casos com resposta e grupo preenchidos. Os intervalos de confiança das médias e das comparações foram de %s%%, e adotou-se nível de significância de %s [@zar2010].", resposta, fator, ic, alfa), "",
+      "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019], e a normalidade dos resíduos pelo teste de Shapiro-Wilk, ambos acompanhados dos gráficos de resíduos. A ANOVA clássica usa Tukey; Welch usa Games-Howell. A escolha registrada em `R/analise.R` e sua justificativa aparecem no relatório. As letras resumem os p-valores ajustados no alfa adotado, preservando os nomes dos grupos. As figuras foram construídas com o `ggplot2` [@wickham2016]. Na clássica, o efeito é descrito por η² e ω²; no Welch, usa-se uma conversão aproximada do F em ω², com IC bilateral também aproximado [@effectsizeConversao]."),
     discussao = c(
       "*Sugestão para desenvolver a discussão: comente quais grupos se separam, o tamanho das diferenças e a leitura à luz do fenômeno investigado. Compare com estudos do mesmo organismo e inclua as referências consultadas.*", "",
       "O p-valor expressa a compatibilidade dos dados com a hipótese nula; o tamanho de efeito descreve a magnitude da associação. A importância prática depende do contexto do estudo. O teste descreve diferenças entre os grupos; a atribuição de causa depende do delineamento e de como os dados foram obtidos."),
@@ -3178,7 +3303,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     }
   }
 
-  nome_projeto <- exportacao_nome_curto(nome_projeto)
+  nome_projeto <- exportacao_nome_projeto(nome_projeto)
   projeto <- file.path(destino, nome_projeto)
   if (dir.exists(projeto)) {
     stop("O diretório temporário do projeto já existe; gere a exportação novamente.", call. = FALSE)
@@ -3252,6 +3377,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
   templates <- if (!is.null(molde)) c(
+    "verificar_reprodutibilidade.R" = "verificar_reprodutibilidade.R",
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "referencias.bib" = file.path("relatorios", "referencias.bib")

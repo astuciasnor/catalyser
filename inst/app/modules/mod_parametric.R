@@ -88,7 +88,7 @@ mod_parametric_ui <- function(id) {
             conditionalPanel(
               condition = sprintf("input['%s'] == 'two_ind'", ns("test_type")),
               div(style = "margin-top: 20px;"),
-              h6("Médias com desvio padrão e letras de significância",
+              h6("Médias com IC e letras de significância",
                  style = "font-weight: 700; color: #0d6efd; margin-bottom: 10px;"),
               plotOutput(ns("test_plot_medias"), height = "400px")
             )
@@ -650,7 +650,7 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       df <- data_rv()
       req(df, input$two_var_y, input$two_var_x)
       
-      title_val <- if (nzchar(input$custom_title)) input$custom_title else "Médias com desvio padrão"
+      title_val <- if (nzchar(input$custom_title)) input$custom_title else "Médias com IC"
       x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else ""
       y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Valores"
       
@@ -676,8 +676,13 @@ mod_parametric_server <- function(id, data_rv, import_info) {
         dplyr::summarise(
           media = mean(.data[[input$two_var_y]]),
           dp = sd(.data[[input$two_var_y]]),
+          n = dplyr::n(),
           .groups = "drop"
         )
+      # IC bilateral de cada média; não confundir com IC da diferença testada.
+      margem_ic <- qt((1 + input$conf_level / 100) / 2, resumo$n - 1) * resumo$dp / sqrt(resumo$n)
+      resumo$ic_inf <- resumo$media - margem_ic
+      resumo$ic_sup <- resumo$media + margem_ic
       # As letras seguem o p do teste escolhido (Student ou Welch, conforme o
       # campo de variâncias): sem diferença, "a" para os dois grupos; com
       # diferença, "a" para o grupo de maior média e "b" para o outro.
@@ -690,45 +695,48 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       )
       # Rótulo ao lado do losango, com vírgula decimal e as mesmas casas do
       # projeto exportado (lá, fmt(); aqui, o mesmo formatC que os módulos
-      # usam). O DP é o amostral, o mesmo das hastes.
+      # usam). O DP é amostral no rótulo; as hastes mostram IC bilateral.
       rotular_media <- function(x) formatC(x, format = "f", digits = 2, decimal.mark = ",")
       resumo$rotulo_media <- paste0(rotular_media(resumo$media), " ± ", rotular_media(resumo$dp))
       # Alturas do texto: a letra fica acima do ponto mais alto e da haste
       # mais alta; o rótulo, ao lado do losango, na altura da média. A folga
       # é aditiva (6% da amplitude da figura): com valores todos negativos,
       # max * 1.06 colocaria o texto dentro dos dados.
-      valores_figura <- c(resumo$media + resumo$dp, resumo$media - resumo$dp,
+      valores_figura <- c(resumo$ic_sup, resumo$ic_inf,
                           df_clean[[input$two_var_y]])
       folga_y <- 0.06 * diff(range(valores_figura, na.rm = TRUE))
       y_letra <- max(valores_figura, na.rm = TRUE) + folga_y
-      resumo$y_rotulo <- resumo$media + folga_y
+      resumo$y_rotulo <- resumo$media
 
       ggplot(resumo, aes(x = .data[[input$two_var_x]])) +
+        geom_col(aes(y = media, fill = .data[[input$two_var_x]]),
+          width = 0.30, alpha = 0.22, show.legend = FALSE) +
+        scale_fill_manual(values = cores_grupo) +
         geom_jitter(
           data = df_clean,
           aes(y = .data[[input$two_var_y]], colour = .data[[input$two_var_x]]),
           width = 0.10, size = 2.2, alpha = 0.7
         ) +
-        geom_errorbar(aes(ymin = media - dp, ymax = media + dp),
-                      width = 0.15, linewidth = 0.8, colour = "#0F3B5F") +
+        geom_errorbar(aes(ymin = ic_inf, ymax = ic_sup),
+                      width = 0.08, linewidth = 0.8, colour = "#0F3B5F") +
         geom_point(aes(y = media), shape = 18, size = 4.4, colour = "#0F3B5F") +
-        # Rótulo à direita do losango: fundo branco translúcido e sem borda,
+        # Rótulo à direita do losango, com fundo transparente e sem borda,
         # para continuar legível sobre pontos próximos.
         geom_label(aes(y = y_rotulo, label = rotulo_media),
-                   nudge_x = 0.14, hjust = 0,
-                   label.size = 0, label.padding = unit(0.12, "lines"),
-                   fill = ggplot2::alpha("white", 0.75), colour = "#0F3B5F",
+                   nudge_x = 0.05, hjust = 0, vjust = 0.5, fontface = "bold",
+                   linewidth = 0, label.padding = grid::unit(0.12, "lines"),
+                   fill = NA, colour = "#0F3B5F",
                    size = 3.2) +
         geom_text(aes(y = y_letra, label = letra), size = 5, fontface = "bold", colour = "#0F3B5F") +
         scale_colour_manual(values = cores_grupo, guide = "none") +
         # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
-        scale_x_discrete(expand = expansion(mult = c(0.10, 0.80))) +
-        scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+        scale_x_discrete(expand = expansion(add = c(0.6, 0.9))) +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
         labs(
           title = title_val,
           x = x_label, y = y_label,
-          subtitle = paste0("Pontos: observações; losango: média; rótulo ao lado do losango: média ± DP; ",
-                            "letras iguais: sem diferença significativa")
+          subtitle = paste0("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral da média.\n",
+                            "Letras iguais: sem diferença significativa")
         ) +
         g_theme
     })
@@ -803,13 +811,14 @@ mod_parametric_server <- function(id, data_rv, import_info) {
       alfa_levene <- 1 - input$conf_level / 100
       cat("\nInterpretação:\n")
       cat(sprintf("  F(%s, %s) = %.3f; p = %.4f\n", gl_num, gl_den, f_val, p_levene))
-      if (!is.na(p_levene) && p_levene < alfa_levene) {
-        cat(sprintf("  p-valor < %.2f -> Há evidência de variâncias diferentes.\n", alfa_levene))
-        cat("  Prefira o t de Welch (desmarque 'Variâncias iguais?').\n")
-      } else {
-        cat(sprintf("  p-valor >= %.2f -> Sem evidência de variâncias diferentes.\n", alfa_levene))
-        cat("  O t de Student (variâncias iguais) é adequado.\n")
-      }
+      # A ausência de rejeição não prova igualdade; NA não é resultado favorável.
+      leitura_levene <- dplyr::case_when(
+        is.na(p_levene) ~ "Levene não pôde ser calculado; examine os dados e considere Welch.",
+        p_levene < alfa_levene ~ "Rejeitamos H0: há evidência de variâncias diferentes. Considere o t de Welch.",
+        TRUE ~ "Não há evidência suficiente de variâncias diferentes: não rejeitamos H0. Student pressupõe variâncias iguais; Welch continua disponível."
+      )
+      cat(sprintf("  Alfa do projeto = %.2f. %s\n", alfa_levene, leitura_levene))
+      cat("  Esta leitura é recomendatória; o teste aplicado segue a escolha de variâncias do painel.\n")
     })
     
     # Q-Q Plot de pressupostos

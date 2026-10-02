@@ -82,7 +82,9 @@ for (texto in list(narrativa_interface, replay$narrativa)) {
     grepl("tabela de pressupostos", texto, fixed = TRUE),
     grepl("convenção de Cohen", texto, fixed = TRUE),
     !grepl("Shapiro", texto, fixed = TRUE),
-    !grepl("Levene", texto, fixed = TRUE),
+    grepl("Levene", texto, fixed = TRUE),
+    grepl("Escolha explícita: ANOVA clássica com Tukey", texto, fixed = TRUE),
+    !grepl("Levene: F(", texto, fixed = TRUE),
     !grepl("média = ", texto, fixed = TRUE),
     !grepl("H0 aceita", texto, fixed = TRUE)
   )

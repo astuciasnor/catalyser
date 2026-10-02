@@ -1,0 +1,95 @@
+---
+title: "{{TITULO}}"
+author: "Nome do autor, instituição (preencher)"
+date: today
+bibliography: referencias.bib
+csl: apa.csl
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: false
+    number-sections: true
+execute:
+  echo: false
+---
+
+```{r}
+#| label: executar-analise
+#| include: false
+here::i_am("relatorios/relatorio_artigo.qmd")
+source(here::here("R", "analise.R"), encoding = "UTF-8")
+```
+
+# Introdução: qual é a pergunta?
+
+{{INTRODUCAO}}
+
+# Material e métodos: como foi feita a comparação?
+
+{{METODOS}}
+
+`r texto_amostra`
+
+`r texto_metodo`
+
+# Resultados: o que foi estimado?
+
+A @tbl-resumo descreve a variável que entrou no teste.
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "Resumo descritivo com IC bilateral da média no nível adotado."
+flextable_ocean(tabela_descritiva_exibir)
+```
+
+A @tbl-teste apresenta a inferência; @tbl-efeito descreve a magnitude padronizada.
+O sentido de H1 e o tipo de IC estão explicitados nos métodos [@rcore2025; @zar2010].
+
+```{r}
+#| label: tbl-teste
+#| tbl-cap: "Teste t com referência de H0 e IC da média analisada."
+flextable_ocean(tabela_t_exibir)
+```
+
+`r texto_teste`
+
+```{r}
+#| label: tbl-efeito
+#| tbl-cap: "Efeito padronizado e IC bilateral, no nível adotado."
+flextable_ocean(tabela_efeito)
+```
+
+`r texto_efeito`
+
+A @fig-principal apresenta cada observação ou diferença com a referência de H0.
+
+```{r}
+#| label: fig-principal
+#| fig-cap: "Pontos: casos completos; losango: média; rótulo: média ± DP; haste: IC bilateral da média; linha tracejada: referência de H0."
+grafico_principal
+```
+
+A @fig-trajetorias liga as duas medidas da mesma unidade. O teste analisa
+as diferenças na ordem medida 1 menos medida 2, sem tratar as medidas como grupos independentes.
+
+```{r}
+#| label: fig-trajetorias
+#| fig-cap: "Duas medidas por unidade; cada linha corresponde a um par completo."
+grafico_trajetorias
+```
+
+`r texto_pressupostos`
+
+# Discussão: o que os resultados significam no estudo?
+
+{{DISCUSSAO}}
+
+`r alerta_poder`
+
+# Conclusão: qual é a resposta e seu limite?
+
+`r texto_sintese_estatistica`
+
+{{CONCLUSAO}}
+
+# Referências

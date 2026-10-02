@@ -18,7 +18,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
     layout_columns(
       col_widths = c(1, 1, 1),
       style = "grid-template-columns: 2.5fr 7fr 2.5fr !important;",
-      
+
       # COLUNA 1: CONFIGURAÇÃO DO MODELO E RELATÓRIOS
       div(
         card(
@@ -72,7 +72,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           )
         )
       ),
-      
+
       # COLUNA 2: ABAS DE RESULTADOS (PRINCIPAL)
       execucao_explicita_resultados_ui(ns, navset_card_tab(
         id = ns("active_tab"),
@@ -115,7 +115,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
           )
         )
       )),
-      
+
       # COLUNA 3: PERSONALIZAÇÃO DA ABA ATIVA
       card(
         card_header("Configurações de Exibição"),
@@ -157,12 +157,12 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
             ),
             sliderInput(ns("conf_level"), "Nível de confiança (%):",
                         min = 80, max = 99, value = 95, step = 1),
-            selectInput(ns("graph_theme"), "Tema do Gráfico:", 
-                        choices = c("Mínimo" = "minimal", 
-                                    "Clássico" = "classic", 
-                                    "Preto e Branco" = "bw", 
-                                    "Cinza" = "gray", 
-                                    "Light" = "light"), 
+            selectInput(ns("graph_theme"), "Tema do Gráfico:",
+                        choices = c("Mínimo" = "minimal",
+                                    "Clássico" = "classic",
+                                    "Preto e Branco" = "bw",
+                                    "Cinza" = "gray",
+                                    "Light" = "light"),
                         selected = "minimal"),
             # Mostrar a equação somente na aba principal do ajuste.
             conditionalPanel(
@@ -174,7 +174,7 @@ mod_regression_ui <- function(id, is_logistic = FALSE) {
               )
             )
           ),
-          
+
           # Mensagem informativa para a Tabela de Resultados
           conditionalPanel(
             condition = sprintf("input['%s'] == 'Tabela de Resultados'", ns("active_tab")),
@@ -308,29 +308,29 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
     observe({
       df <- dados_modulo()
       req(df)
-      
+
       # Para Y e X, permitimos todas as colunas (sem supressão de tipo)
       all_cols <- names(df)
-      
+
       # Manter as seleções atuais se elas continuarem válidas no novo dataset
       curr_y <- input$var_y
       curr_x <- input$var_x
       curr_grp <- input$var_group
-      
+
       selected_y <- if (!is.null(curr_y) && curr_y %in% all_cols) curr_y else (if (length(all_cols) > 0) all_cols[1] else NULL)
       selected_x <- if (!is.null(curr_x) && curr_x %in% all_cols) curr_x else (if (length(all_cols) > 1 && all_cols[1] == selected_y) all_cols[2] else if (length(all_cols) > 0) all_cols[1] else NULL)
       selected_grp <- if (!is.null(curr_grp) && curr_grp %in% c("none", all_cols)) curr_grp else "none"
-      
+
       updateSelectInput(session, "var_y", choices = all_cols, selected = selected_y)
       updateSelectInput(session, "var_x", choices = all_cols, selected = selected_x)
-      
+
       # Atualiza a variável de agrupamento
       updateSelectInput(session, "var_group", choices = c("Nenhuma" = "none", all_cols), selected = selected_grp)
     })
-    
+
     # Os textos vazios usam os padrões definidos em cada gráfico. Navegar não
     # escreve nos inputs nem altera a assinatura da execução ou seus rótulos.
-    
+
     # O modelo só é ajustado após o clique explícito.
     model_fit <- eventReactive(gatilho_execucao(), {
       df <- dados_modulo()
@@ -345,10 +345,10 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         y_col <- df[[input$var_y]]
         unique_vals <- unique(na.omit(y_col))
         validate(
-          need(length(unique_vals) == 2, 
+          need(length(unique_vals) == 2,
                "A variável dependente (Y) deve ser binária (ex: 0 e 1, maduro e imaturo, etc.) com exatamente 2 categorias únicas para a regressão logística.")
         )
-        
+
         # Mapear Y para 0/1 se necessário
         clean_df <- df[, c(input$var_x, input$var_y), drop = FALSE]
         clean_df <- na.omit(clean_df)
@@ -359,7 +359,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         } else {
           clean_df$y_bin <- as.numeric(y_vec)
         }
-        
+
         formula_obj <- as.formula(paste("y_bin ~", backtick(input$var_x)))
         tryCatch(
           glm(formula_obj, data = clean_df, family = binomial),
@@ -371,7 +371,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           need(is.numeric(df[[input$var_y]]), "A variável dependente (Y) deve ser numérica para este tipo de modelo."),
           need(is.numeric(df[[input$var_x]]), "A variável independente (X) deve ser numérica para este tipo de modelo.")
         )
-        
+
         # Remover valores ausentes antes de ajustar o modelo
         clean_df <- df[, c(input$var_x, input$var_y), drop = FALSE]
         clean_df <- na.omit(clean_df)
@@ -405,7 +405,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
 
     # Detecta se o ajuste é uma curva não-linear (lista de ajustar_curva) vs lm
     is_curve <- function(fit) is.list(fit) && !is.null(fit$tipo) && !inherits(fit, "lm")
-    
+
     # Texto da fórmula ajustada
     output$formula_text <- renderPrint({
       fit <- model_fit()
@@ -424,7 +424,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         print(fit$call)
       }
     })
-    
+
     # Tabela de coeficientes científica
     output$coef_table <- renderDT({
       fit <- model_fit()
@@ -452,11 +452,11 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
 
       # Converte para data frame legível
       df_coef <- as.data.frame(coef_matrix)
-      
+
       stat_col <- if (inherits(fit, "glm")) "Valor z" else "Valor t"
       names(df_coef) <- c("Estimativa", "Erro Padrão", stat_col, "p-valor")
       df_coef <- cbind(Termo = rownames(df_coef), df_coef)
-      
+
       # Formatação científica da tabela
       datatable(
         df_coef,
@@ -467,7 +467,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         formatRound(columns = c("Estimativa", "Erro Padrão", stat_col), digits = 4) %>%
         formatSignif(columns = "p-valor", digits = 4)
     })
-    
+
     # O mesmo ajuste alimenta os testes, sem tratar p > alfa como confirmação.
     pressupostos_reta <- eventReactive(gatilho_execucao(), {
       fit <- model_fit()
@@ -522,10 +522,10 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         mcfadden_r2 <- 1 - dev_res / dev_null
         aic_val <- AIC(fit)
         n_obs <- length(fit$y)
-        
+
         coefs <- coef(fit)
         x50 <- -coefs[1] / coefs[2]
-        
+
         return(HTML(paste0(
           "<div style='line-height: 1.3;'>",
           "<p style='margin-bottom: 5px;'><b>McFadden Pseudo-R²:</b> ", round(mcfadden_r2, 4), " (", round(mcfadden_r2 * 100, 2), "%)</p>",
@@ -544,25 +544,25 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       rse <- sum_fit$sigma
       df_residual <- sum_fit$df[2]
       f_stat <- sum_fit$fstatistic
-      
+
       # Formata p-valor da estatística F
       f_p_val <- if (!is.null(f_stat)) {
         pf(f_stat[1], f_stat[2], f_stat[3], lower.tail = FALSE)
       } else {
         NULL
       }
-      
+
       f_stat_text <- if (!is.null(f_stat)) {
-        sprintf("%.4f (GL: %d; %d, p-valor: %s)", 
+        sprintf("%.4f (GL: %d; %d, p-valor: %s)",
                 f_stat[1], as.integer(f_stat[2]), as.integer(f_stat[3]),
                 format.pval(f_p_val, digits = 4))
       } else {
         "N/A"
       }
-      
+
       HTML(paste0(
         "<div style='line-height: 1.3;'>",
-        "<p style='margin-bottom: 5px;'><b>Coeficiente de Determinação (R²):</b> ", round(r2, 4), " (", round(r2 * 100, 2), "%)</p>",
+        "<p style='margin-bottom: 5px;'><b>Coeficiente de Determinação do modelo global (R²):</b> ", round(r2, 4), " (", round(r2 * 100, 2), "%)</p>",
         "<p style='margin-bottom: 5px;'><b>R² Ajustado:</b> ", round(adj_r2, 4), "</p>",
         "<p style='margin-bottom: 5px;'><b>Erro Padrão Residual (RSE):</b> ", round(rse, 4), " em ", df_residual, " graus de liberdade</p>",
         "<p style='margin-bottom: 5px;'><b>Estatística F:</b> ", f_stat_text, "</p>",
@@ -570,7 +570,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         "</div>"
       ))
     })
-    
+
     # Gráfico 1: Reta / Curva Ajustada
     output$fit_plot <- renderPlot({
       df <- dados_modulo()
@@ -605,7 +605,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
             )
         )
       }
-      
+
       # --- Ajuste da REGRESSÃO LOGÍSTICA BINÁRIA (GLM) ---
       if (inherits(fit, "glm")) {
         g_theme_glm <- switch(input$graph_theme,
@@ -619,23 +619,23 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           paste("Regressão Logística Binária:", input$var_y, "vs", input$var_x)
         x_label_glm <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
         y_label_glm <- if (nzchar(input$custom_label_y)) input$custom_label_y else "Probabilidade estimada"
-        
+
         coefs <- coef(fit)
         x50 <- -coefs[1] / coefs[2]
-        
+
         subtitle_glm <- if (input$show_eq) {
           sprintf("P(Y=1) = 1 / (1 + e^-(%.4f + %.4f * X))  |  L50 = %.2f", coefs[1], coefs[2], x50)
         } else {
           NULL
         }
-        
+
         # Grid para a curva
         x_range <- range(df[[input$var_x]], na.rm = TRUE)
         x50_na_faixa <- is.finite(x50) && x50 >= x_range[1] && x50 <= x_range[2]
         grade <- data.frame(x = seq(x_range[1], x_range[2], length.out = 200))
         names(grade) <- input$var_x
         grade$prob <- predict(fit, newdata = grade, type = "response")
-        
+
         # Mapear Y para 0/1 para plotagem
         df_plot <- df[, c(input$var_x, input$var_y), drop = FALSE]
         df_plot <- na.omit(df_plot)
@@ -646,7 +646,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         } else {
           df_plot$y_plot <- as.numeric(y_vec)
         }
-        
+
         grafico_glm <-
           ggplot(df_plot, aes(x = .data[[input$var_x]], y = y_plot)) +
             geom_point(color = "#495057", alpha = 0.5, size = 2.5, position = position_jitter(height = 0.02, width = 0)) +
@@ -696,25 +696,26 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           groups <- unique(df_clean[[input$var_group]])
           eq_text_list <- sapply(groups, function(g) {
             df_sub <- df_clean[df_clean[[input$var_group]] == g, ]
-            if (nrow(df_sub) > 2) {
+            if (nrow(df_sub) > 2 && length(unique(df_sub[[input$var_x]])) > 1) {
               fit_sub <- lm(as.formula(paste(backtick(input$var_y), "~", backtick(input$var_x))), data = df_sub)
               coefs_sub <- coef(fit_sub)
-              sprintf("%s: Y = %.4f + (%.4f) * X", g, coefs_sub[1], coefs_sub[2])
+              sprintf("%s: Y = %.4f + (%.4f) * X; R² = %.4f",
+                g, coefs_sub[1], coefs_sub[2], summary(fit_sub)$r.squared)
             } else {
-              sprintf("%s: N/A", g)
+              sprintf("%s: ajuste não estimável (n < 3 ou X constante)", g)
             }
           })
-          eq_text <- paste(eq_text_list, collapse = "  |  ")
+          eq_text <- paste(eq_text_list, collapse = "\n")
         }
         subtitle_val <- eq_text
       } else {
         subtitle_val <- NULL
       }
-      
+
       title_val <- if (nzchar(input$custom_title)) input$custom_title else paste("Ajuste Linear:", input$var_y, "vs", input$var_x)
       x_label <- if (nzchar(input$custom_label_x)) input$custom_label_x else input$var_x
       y_label <- if (nzchar(input$custom_label_y)) input$custom_label_y else input$var_y
-      
+
       # Seleciona o tema do ggplot2
       g_theme <- switch(input$graph_theme,
                         "minimal" = theme_minimal(base_size = 14),
@@ -723,48 +724,48 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                         "gray"    = theme_gray(base_size = 14),
                         "light"   = theme_light(base_size = 14),
                         theme_minimal(base_size = 14))
-      
+
       # Condicional de agrupamento
       if (input$var_group != "none") {
         df[[input$var_group]] <- as.factor(df[[input$var_group]])
-        
+
         if (input$grp_reg) {
           # Mapeamento estrito para RETAS INDEPENDENTES
           if (input$grp_color && input$grp_fill) {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]], group = .data[[input$var_group]], color = .data[[input$var_group]], fill = .data[[input$var_group]])) +
               geom_point(alpha = 0.8, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), linewidth = 1.2)
           } else if (input$grp_color) {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]], group = .data[[input$var_group]], color = .data[[input$var_group]])) +
               geom_point(alpha = 0.8, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, fill = "#cfe2ff", linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), fill = "#cfe2ff", linewidth = 1.2)
           } else if (input$grp_fill) {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]], group = .data[[input$var_group]], fill = .data[[input$var_group]])) +
               geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, color = "#0d6efd", linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), color = "#0d6efd", linewidth = 1.2)
           } else {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]], group = .data[[input$var_group]])) +
               geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
           }
         } else {
           # Ajustar RETA GLOBAL ÚNICA (mesmo que haja agrupamento visual)
           if (input$grp_color) {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]])) +
               geom_point(aes(color = .data[[input$var_group]]), alpha = 0.8, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
           } else {
             p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]])) +
               geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
-              geom_smooth(method = "lm", formula = y ~ x, color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
+              geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
           }
         }
       } else {
         p <- ggplot(df, aes(x = .data[[input$var_x]], y = .data[[input$var_y]])) +
           geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
-          geom_smooth(method = "lm", formula = y ~ x, color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
+          geom_smooth(method = "lm", formula = y ~ x, level = nivel_confianca(), color = "#0d6efd", fill = "#cfe2ff", linewidth = 1.2)
       }
-      
+
       p + g_theme +
         labs(
           title = title_val,
@@ -777,7 +778,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           plot.subtitle = element_text(color = "#0d6efd", face = "italic", size = 13)
         )
     })
-    
+
     # Gráfico 2: Resíduos vs Ajustados
     output$resid_fit_plot <- renderPlot({
       fit <- model_fit()
@@ -797,7 +798,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         if (eh_glm) "Probabilidades ajustadas" else "Valores Ajustados (Fitted)"
       y_label <- if (nzchar(input$resid_label_y %||% "")) input$resid_label_y else
         if (eh_glm) "Resíduos de deviance" else "Resíduos (Residuals)"
-      
+
       g_theme <- switch(input$graph_theme,
                         "minimal" = theme_minimal(base_size = 14),
                         "classic" = theme_classic(base_size = 14),
@@ -805,7 +806,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                         "gray"    = theme_gray(base_size = 14),
                         "light"   = theme_light(base_size = 14),
                         theme_minimal(base_size = 14))
-      
+
       ggplot(diag_data, aes(x = Ajustados, y = Residuos)) +
         geom_point(color = "#495057", alpha = 0.7, size = 2.5) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "#dc3545", linewidth = 1) +
@@ -820,7 +821,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           plot.title = element_text(face = "bold", size = 16, color = "#212529")
         )
     })
-    
+
     # Gráfico 3: influência para GLM; Normal Q-Q para os demais modelos.
     output$qq_plot <- renderPlot({
       fit <- model_fit()
@@ -867,12 +868,12 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         tryCatch(rstandard(fit), error = function(e) residuals(fit, type = "pearson"))
       }
       diag_data <- data.frame(ResiduosStd = std_resid)
-      
+
       # Títulos e rótulos customizados
       title_val <- if (nzchar(input$qq_title %||% "")) input$qq_title else "Normal Q-Q Plot"
       x_label <- if (nzchar(input$qq_label_x %||% "")) input$qq_label_x else "Quantis Teóricos"
       y_label <- if (nzchar(input$qq_label_y %||% "")) input$qq_label_y else "Resíduos Padronizados"
-      
+
       g_theme <- switch(input$graph_theme,
                         "minimal" = theme_minimal(base_size = 14),
                         "classic" = theme_classic(base_size = 14),
@@ -880,7 +881,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                         "gray"    = theme_gray(base_size = 14),
                         "light"   = theme_light(base_size = 14),
                         theme_minimal(base_size = 14))
-      
+
       ggplot(diag_data, aes(sample = ResiduosStd)) +
         stat_qq(color = "#495057", alpha = 0.7, size = 2.5) +
         stat_qq_line(color = "#0d6efd", linewidth = 1) +
@@ -894,15 +895,15 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           plot.title = element_text(face = "bold", size = 16, color = "#212529")
         )
     })
-    
+
     # --- EXPORTAR CÓDIGO R ---
-    
+
     # Gera o código R de reprodutibilidade reativamente
     r_code_text <- reactive({
       req(input$var_x, input$var_y, import_info())
       info <- import_info()
       base_execucao <- base_contexto()
-      
+
       # 1. Carregamento de Pacotes
       code <- c(
         "# --- Código de Reprodutibilidade da IDE_R ---",
@@ -910,7 +911,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         "library(readxl)",
         ""
       )
-      
+
       # 2. Carregamento de Dados
       if (info$source == "package") {
         code <- c(code,
@@ -943,7 +944,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
             "if (!file.exists(caminho_arquivo)) {",
             sprintf("  caminho_arquivo <- '%s'", info$file_name),
             "}",
-            sprintf("dados <- read.csv(caminho_arquivo, header = %s, sep = '%s', dec = '%s')", 
+            sprintf("dados <- read.csv(caminho_arquivo, header = %s, sep = '%s', dec = '%s')",
                     as.character(info$csv_header), info$csv_sep, info$csv_dec),
             ""
           )
@@ -970,7 +971,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       # 3. Ajuste do Modelo
       mt <- input$model_type
       if (is.null(mt) || !nzchar(mt)) mt <- "linear"
-      
+
       if (mt == "logistico") {
         code <- c(code,
           "# Ajustar modelo de Regressão Logística Binária (GLM Binomial)",
@@ -1022,7 +1023,18 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           ""
         )
       }
-      
+
+      if (mt == "linear" && input$var_group != "none" && isTRUE(input$grp_reg)) {
+        code <- c(code,
+          "# Ajustes separados: cada equação e R² usa apenas sua categoria.",
+          sprintf("grupos_regressao <- split(dados, dados[[%s]], drop = TRUE)", encodeString(input$var_group, quote = '"')),
+          "texto_grupos <- vapply(names(grupos_regressao), function(g) {",
+          "  sub <- model.frame(formula(modelo), data = grupos_regressao[[g]], na.action = na.omit)",
+          "  if (nrow(sub) < 3 || length(unique(sub[[2]])) < 2) return(paste(g, ': ajuste não estimável'))",
+          "  ajuste <- lm(formula(modelo), data = sub)",
+          "  sprintf('%s: Y = %.4f + (%.4f) * X; R² = %.4f', g, coef(ajuste)[1], coef(ajuste)[2], summary(ajuste)$r.squared)",
+          "}, character(1))", "")
+      }
       # 4. Gráfico ggplot2 com condicional de agrupamento
       theme_code <- switch(input$graph_theme,
                            "minimal" = "theme_minimal(base_size = 14)",
@@ -1031,7 +1043,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
                            "gray"    = "theme_gray(base_size = 14)",
                            "light"   = "theme_light(base_size = 14)",
                            "theme_minimal(base_size = 14)")
-      
+
       # Os rótulos da reta são preservados, qualquer que seja a aba em exibição.
       title_val <- if (nzchar(input$custom_title)) input$custom_title else {
         if (mt == "logistico") paste("Regressão Logística Binária:", input$var_y, "vs", input$var_x)
@@ -1046,7 +1058,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
       } else {
         input$var_y
       }
-      
+
       if (mt == "logistico") {
         plot_lines <- c(
           "# Gerar gráfico de regressão logística com a curva em S ajustada",
@@ -1080,7 +1092,8 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           "# Gerar gráfico da reta ajustada com ggplot2 (com agrupamento)",
           sprintf("ggplot(dados, aes(x = `%s`, y = `%s`, color = `%s`, fill = `%s`)) +", input$var_x, input$var_y, input$var_group, input$var_group),
           "  geom_point(alpha = 0.8, size = 2.5) +",
-          "  geom_smooth(method = 'lm', formula = y ~ x, linewidth = 1.2) +",
+          if (isTRUE(input$grp_reg)) sprintf("  geom_smooth(method = 'lm', formula = y ~ x, level = %s, linewidth = 1.2) +", format(nivel_confianca(), decimal.mark = ".")) else
+            sprintf("  geom_smooth(aes(group = 1), method = 'lm', formula = y ~ x, level = %s, linewidth = 1.2) +", format(nivel_confianca(), decimal.mark = ".")),
           sprintf("  %s +", theme_code),
           "  labs("
         )
@@ -1089,14 +1102,14 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           "# Gerar gráfico da reta ajustada com ggplot2",
           sprintf("ggplot(dados, aes(x = `%s`, y = `%s`)) +", input$var_x, input$var_y),
           "  geom_point(color = '#495057', alpha = 0.7, size = 2.5) +",
-          "  geom_smooth(method = 'lm', formula = y ~ x, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +",
+          sprintf("  geom_smooth(method = 'lm', formula = y ~ x, level = %s, color = '#0d6efd', fill = '#cfe2ff', linewidth = 1.2) +", format(nivel_confianca(), decimal.mark = ".")),
           sprintf("  %s +", theme_code),
           "  labs("
         )
       }
-      
+
       plot_lines <- c(plot_lines, sprintf("    title = '%s',", title_val))
-      
+
       if (input$show_eq) {
         fit <- tryCatch(model_fit(), error = function(e) NULL)
         if (!is.null(fit)) {
@@ -1105,7 +1118,9 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
             plot_lines <- c(plot_lines, sprintf("    subtitle = 'P(Y=1) = 1 / (1 + exp(-(%.4f + %.4f * X)))  |  L50 = %.2f',", coefs[1], coefs[2], -coefs[1]/coefs[2]))
           } else if (mt == "linear") {
             plot_lines <- c(plot_lines,
-              "    subtitle = sprintf('Y = %.4f + (%.4f) * X; R² = %.4f', coef(modelo)[1], coef(modelo)[2], summary(modelo)$r.squared),")
+              if (input$var_group != "none" && isTRUE(input$grp_reg))
+                "    subtitle = paste(texto_grupos, collapse = '\n')," else
+                "    subtitle = sprintf('Y = %.4f + (%.4f) * X; R² = %.4f', coef(modelo)[1], coef(modelo)[2], summary(modelo)$r.squared),")
           } else {
             plot_lines <- c(plot_lines, sprintf("    subtitle = 'Y = %.4f + (%.4f) * X',", coefs[1], coefs[2]))
           }
@@ -1113,7 +1128,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
           plot_lines <- c(plot_lines, "    subtitle = 'Equação ajustada',")
         }
       }
-      
+
       plot_lines <- c(plot_lines,
         sprintf("    x = '%s',", x_label),
         sprintf("    y = '%s'%s", y_label, if (mt == "logistico") "," else ""),
@@ -1124,12 +1139,12 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         "    plot.subtitle = element_text(color = '#0d6efd', face = 'italic', size = 13)",
         "  )"
       )
-      
+
       code <- c(code, plot_lines)
-      
+
       paste(code, collapse = "\n")
     })
-    
+
     # Exibe modal com o código R gerado
     observeEvent(input$export_code, {
       showModal(modalDialog(
@@ -1147,12 +1162,12 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         )
       ))
     })
-    
+
     # Exibe a prévia do código no modal
     output$r_code_preview <- renderPrint({
       cat(r_code_text())
     })
-    
+
     # Download do script .R
     output$download_code <- downloadHandler(
       filename = function() {
@@ -1162,7 +1177,7 @@ mod_regression_server <- function(id, data_rv, import_info, is_logistic = FALSE,
         writeLines(r_code_text(), file)
       }
     )
-    
+
     estado_execucao <- reactive({
       req(exec_ctrl$atualizada())
       fit <- model_fit()

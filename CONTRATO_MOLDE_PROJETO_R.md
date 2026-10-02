@@ -18,6 +18,7 @@ exportador geral (árvore legada, relatório sincronizado).
 ```
 projeto/
 ├── _quarto.yml                    renderiza os dois QMDs; saídas em saida/
+├── verificar_reprodutibilidade.R  executa e confere os dois renders
 ├── projeto.Rproj
 ├── dados/
 │   ├── brutos/<ARQUIVO_BRUTO>     a planilha de entrada, preservada (somente leitura)
@@ -38,6 +39,8 @@ projeto/
     ├── tabelas/                   CSVs (cópias para consulta; não alimentam os QMDs)
     ├── figuras/                   PNGs (idem)
     ├── relatorios/                onde _quarto.yml entrega HTML e Word
+    ├── ambiente.csv               versões e RemoteSha, quando registrado
+    ├── verificacao/               logs dos dois renders executados pelo verificador
     └── sessionInfo.txt            R, pacotes e versão do Quarto
 ```
 
@@ -155,8 +158,10 @@ dela, nos marcadores `{{BIBLIOTECAS_PREPARO}}`, `{{TRECHO_IMPORTAR}}` e
 11. **Salvar cópias** — `write.csv2()` (ponto e vírgula, vírgula decimal) para
     a base e as tabelas em `saida/tabelas/`; `ggsave()` para as figuras em
     `saida/figuras/` (7 × 4,6, 300 dpi, fundo branco).
-12. **Registrar o ambiente** — `registro_ambiente` com a versão do Quarto e o
-    `sessionInfo()`, gravado em `saida/sessionInfo.txt` (`useBytes = TRUE`).
+12. **Registrar o ambiente** — `tabela_ambiente` com R, Quarto, pacotes carregados,
+    catalyser e EAPADados; versões e RemoteSha quando disponível, sem inventar
+    commits ausentes. Salvar `saida/ambiente.csv` e `registro_ambiente` com
+    `sessionInfo()` em `saida/sessionInfo.txt`. O HTML apresenta a tabela formatada.
 
 ### 2.3 Voz dos comentários
 
@@ -201,8 +206,9 @@ caminhos de arquivo, nunca `saida/`. Todo script entrega pelo menos:
 | `n_total`, `n_utilizado`, `n_excluido` | tamanhos da amostra |
 | `texto_amostra` | frase com a amostra utilizada (M&M/Resultados) |
 | `texto_sintese_estatistica` | síntese de uma frase (Conclusão) |
-| `alerta_modelo` | alerta honesto sobre pressupostos/sinais de inadequação |
+| `alerta_modelo` ou `texto_pressupostos` (uma amostra/pareado) | leitura honesta dos pressupostos e limites do desenho |
 | `registro_ambiente` | vetor de linhas do ambiente computacional |
+| `tabela_ambiente` | tabela de versões e commits para o HTML e ambiente.csv |
 | `ic_percentual` | nível de confiança em texto (usado nos métodos) |
 
 Por análise, o mapa de objetos do cabeçalho lista os demais:
@@ -233,14 +239,14 @@ só apresenta objetos; não há `read.csv`, `readRDS` nem `ggsave` nos QMDs.
 que só existem depois do `source()` do chunk `executar-analise`. Renderizar sem
 execução (`quarto render --no-execute` ou qualquer modo que pule o código)
 produz `object '<nome>' not found` na primeira expressão inline — comportamento
-esperado, não um defeito do molde. Os três READMEs do molde avisam o aluno com
+esperado, não um defeito do molde. Os READMEs do molde avisam o aluno com
 essa mesma frase.
 
 ### 4.1 Caderno HTML (`relatorio_completo.qmd`)
 
 YAML: tema `[cosmo, ocean.scss]`, banner `#0F3B5F`, TOC com 2 níveis, seções
 numeradas, `code-fold`/`code-tools`, `embed-resources`, figuras 7 × 4,6 a 150
-dpi, `execute: echo: true`. Os títulos de 1º nível seguem o **padrão
+dpi. Os moldes originais usam `execute: echo: true`; uma amostra e pareado ocultam os chunks de apresentação, mantendo os cálculos visíveis em `R/analise.R`. Os títulos de 1º nível seguem o **padrão
 título-pergunta** do barbo (decisão D1 desta rodada, 28/09): "Como usar este
 caderno", "Introdução: qual relação queremos investigar?" (adaptada à análise:
 "qual comparação queremos investigar?" na ANOVA e no teste t), "Material e
@@ -276,13 +282,10 @@ dinâmica — `texto_anova` — seguida da tabela da ANOVA), **Discussão**,
   e no artigo; o Render do HTML e do DOCX não pode exibir `??` no lugar de
   número ou legenda. No teste t, os pressupostos também são `##` da Exploração
   (normalidade e variâncias numa única subseção, com a tabela de testes e as
-  frases de leitura; essa análise não tem gráficos de diagnóstico).
+  frases de leitura). O teste t independente tem resíduos e Q-Q empilhados;
+  o antigo gráfico adicional de homocedasticidade foi retirado.
 
-O barbo e a regressão exportada ainda não seguem essas regras (no barbo,
-Diagnósticos é seção de 1º nível com gráficos separados e o console aparece no
-caderno; na regressão exportada, idem) e serão ajustados em rodada própria. O
-teste t passou a segui-las nesta rodada (C8), inclusive as referências
-cruzadas.
+A regressão exportada foi alinhada a essas regras em 01/10/2026, com renders novos aprovados. O barbo manual permanece somente de leitura: o roteiro de atualização foi entregue ao professor. Não confundir a correção do exportador com uma alteração já aplicada ao barbo.
 
 Só no HTML: a seção Exploração, os diagnósticos completos, o "Como usar este
 caderno", o "Reproduzir e adaptar" e o ambiente computacional. No teste t há
@@ -295,11 +298,11 @@ YAML: `docx` com `reference-doc: custom-reference.docx`, sem TOC, seções
 numeradas, figuras 6 × 4 a 300 dpi. Depois do chunk de execução vem um bloco
 `{=html}` com o `GUIA DE EDIÇÃO` em comentário (não aparece no Word): altere
 cálculos no script e a argumentação aqui; revise os textos antes de usar como
-artigo. Os títulos são os **simples** do artigo do barbo (sem pergunta), e a
+artigo. Os títulos do artigo seguem a análise; na regressão exportada foram formulados como perguntas nesta rodada. A
 ordem das seções é a do barbo: **Introdução**, **Material e métodos**,
 **Resultados** (apenas as tabelas e a figura principais, com `tbl-cap`/
 `fig-cap`, e os textos `*_artigo` — o recorte de artigo), **Discussão** (com
-`alerta_modelo`), **Conclusão** (`texto_sintese_estatistica`),
+`alerta_modelo` ou `texto_pressupostos`), **Conclusão** (`texto_sintese_estatistica`),
 **Disponibilidade dos dados e do código**, **Referências**.
 
 Só no Word: o recorte enxuto — a tabela-resumo/descritiva, a tabela do teste,
@@ -316,7 +319,7 @@ uma linha, o valor entra no lugar. O catálogo por arquivo:
 |---|---|
 | `analise_projeto.R` | `{{TITULO_COMENTARIO}}`, `{{PERGUNTA_COMENTARIO}}`, `{{BIBLIOTECAS_PREPARO}}` (bloco derivado de `library()` da leitura/preparo, na seção 1), `{{TRECHO_IMPORTAR}}` (da planilha a `dados_brutos`, na seção 2), `{{TRECHO_PREPARO}}` (etapas 3.1–3.4: reconstruir, conferir com `catalyser_conferir_base()`, adotar com leitura única do RDS e montar `dados_da_analise`, na seção 3), variáveis e rótulos (`{{RESPOSTA_R}}`, `{{PREDITOR_R}}`, `{{GRUPO_R}}`, `{{FATOR_R}}`, `{{ROTULO_*_R}}`), `{{CONFIANCA}}`, `{{TITULO_R}}`, `{{EQUACAO}}`, `{{AUTOCORRELACAO}}` (regressão) |
 | `relatorio_completo.qmd` / `relatorio_artigo.qmd` | `{{TITULO}}`, `{{INTRODUCAO}}`, `{{METODOS}}`, `{{DISCUSSAO}}`, `{{CONCLUSAO}}`, `{{ARQUIVO_BRUTO}}`, `{{ARQUIVO_BASE}}` |
-| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}`, `{{PACOTES_INSTALAR}}` |
+| `README.md` | `{{TITULO}}`, `{{PROJETO_RPROJ}}`, `{{ARQUIVO_BRUTO}}`, `{{RESPOSTA}}`, `{{PREDITOR}}`/`{{FATOR}}`/`{{GRUPO}}`, `{{IC}}`, `{{PACOTES_INSTALAR}}`, `{{AMBIENTE_COMPUTACIONAL}}` |
 
 Regras dos marcadores:
 
@@ -410,6 +413,119 @@ Cobertura do molde:
 - `test_exportacao_comunicacao.R` / `test_exportacao_preparo.R` — o gerador
   geral e as funções de exportação que o molde reaproveita.
 
-A suíte tem 34 arquivos e deve terminar com `25/34` ou melhor no resumo;
-falhas conhecidas e fora do escopo do molde são listadas no relatório da
-rodada, não silenciadas.
+A suíte principal passou de 34 para 37 arquivos com as três novas provas dos parâmetros do t, Welch e desenhos uma amostra/pareado. A rodada completa de 01/10/2026 aprovou 31/37; as duas verificações antigas da narrativa ANOVA foram corrigidas e passaram separadamente, totalizando 33 arquivos aprovados. Quatro falhas da outra frente permanecem documentadas em APOIO/temp/DIVIDA_testes_fase2.md. Não houve nova rodada completa depois dessas duas correções. O resultado deve ser comparado ao baseline
+medido no mesmo checkout e ambiente; um número mínimo histórico não constitui
+aprovação. Na rodada de 30/09/2026, o baseline observado foi 2/34, com falha
+nativa ao encerrar processos R que carregam rlang. Não equivale ao 28/34
+esperado nem a uma certificação dos renders.
+
+Testes adicionais da Fase 2, executados separadamente a partir de inst/app:
+`Rscript tests/test_figuras_molde.R` e
+`Rscript tests/test_nome_projeto_fase2.R`. O primeiro compara as camadas da
+figura ANOVA do painel com o script exportado; o segundo confere nomes de
+projeto sem truncar palavras e preservação dos nomes legados de bases.
+
+## 10. Alterações e limites da Fase 2 (30/09/2026)
+
+### Figuras e Levene
+
+O padrão de comparação preserva pontos brutos, losango na média e letras.
+O rótulo numérico é média ± DP **amostral**, com duas casas e vírgula decimal,
+na altura da média e à direita do losango, com fundo branco semitransparente.
+Na integração autorizada em 01/10/2026, as hastes passaram a representar IC bilateral das médias na ANOVA e nos gráficos de médias dos testes t. O rótulo média ± DP permanece como descrição da dispersão; as legendas distinguem DP e IC. O IC unilateral do teste continua na tabela, sem ser substituído pelo IC bilateral da figura. As letras usam margem aditiva de 6% da amplitude
+incluindo pontos e hastes; não multiplicar o máximo por 1,06 em dados negativos.
+
+Painel e script mantêm implementação visível espelhada, sem acrescentar uma
+função genérica compartilhada ao projeto do aluno. O teste de comparação
+numérica das camadas reduz o risco de divergência. `funcoes.R` comum não mudou.
+
+O teste t independente informa H0 (variâncias iguais), H1 (variâncias
+diferentes), F, gl, p e decisão no alfa do projeto. Escrever “não rejeitamos H0”,
+sem afirmar igualdade comprovada. A interpretação do painel é recomendatória.
+Resíduos e Q-Q permanecem; o gráfico separado de homocedasticidade foi removido.
+
+### Ambiente e conferência
+
+O README registra o ambiente **da exportação**, por código. O script registra
+novamente o ambiente **da execução**, que pode ser diferente. A coluna de commit
+usa RemoteSha quando presente e informa ausência quando não há metadado.
+O verificador roda cada QMD em outro processo, exige exit 0 e arquivo novo e
+procura `??` no HTML e no XML do Word. Não instala pacotes nem aceita um arquivo
+antigo como prova. A conferência visual e de citações continua necessária.
+
+`saida/` permanece regenerável e fora do ZIP; depois de criada pode ser
+versionada pelo pesquisador. Não houve adoção automática de renv ou pins de
+GitHub. A proposta de .gitattributes está em APOIO/temp, sem aplicação.
+
+O nome explicitamente informado para o projeto conserva todas as palavras
+sanitizadas, protege nomes reservados do Windows e rejeita nomes acima de
+80 caracteres. O helper de duas palavras continua apenas em bases e sugestões
+legadas; sua semântica não mudou.
+
+### Implementação atual e limites da homologação
+
+- ANOVA permite `auto`, `classica` e `welch`. Novo painel começa em auto;
+  registros antigos sem campo conservam clássica. No alfa escolhido, Levene
+  com evidência de heterogeneidade recomenda Welch; não calculável também
+  recomenda Welch por cautela. A escolha explícita prevalece. Texto, letras,
+  tabelas e figuras identificam Tukey ou Games-Howell realmente aplicado.
+  n < 6 gera aviso no Games-Howell; variância zero impede Welch com mensagem.
+  O efeito de Welch é ômega aproximado a partir do F, com fórmula e IC
+  bilateral por F não central também aproximado. Não interpretar como
+  decomposição clássica da variância nem aplicar o poder clássico ao Welch.
+- `teste_t_one_val` e `teste_t_paired` usam os novos templates
+  `teste_t_uma_amostra` e `teste_t_pareado` quando exportados isoladamente.
+  Ambos têm script fonte única, dois QMDs, README, ambiente e verificador.
+  Uma amostra preserva referência fixa; pareado exclui o par incompleto,
+  conserva a linha original e usa medida 1 menos medida 2. Normalidade é
+  avaliada na resposta ou nas diferenças, respectivamente, sem Levene.
+  O efeito pareado é d_z, com DP das diferenças; IC do efeito é bilateral.
+  Várias execuções conservam a rota legada. Nela, ANOVA auto/Welch chama
+  o motor correto, sem oferecer código clássico para um resultado Welch.
+- O teste t independente preserva conf.level, alternative e a escolha
+  explícita Student/Welch do painel. Levene é recomendatório; não substitui
+  o método registrado. As hipóteses direcionais identificam a ordem dos grupos,
+  usam IC unilateral da diferença e preservam o sinal no cálculo aproximado
+  do poder. O IC do d de Cohen permanece bilateral e assim é identificado.
+- A regressão exportada foi alinhada às regras editoriais: diagnóstico na
+  Exploração antes de Resultados, figuras empilhadas a 75%, títulos em pergunta
+  e saída crua reservada ao console. Os cálculos permanecem os mesmos.
+  O barbo manual permanece somente de leitura; sua atualização segue o roteiro
+  entregue ao professor, com preservação do conteúdo autoral e do Git.
+- Os cinco tipos de projeto geraram HTML e Word
+  com exit 0 em 01/10/2026, usando subprocessos de ambiente novo. A revisão
+  estatística e didática pelo professor e a instalação independente seguindo
+  somente o README permanecem necessárias.
+
+Provas, decisões, planos e handoff estão em `APOIO/temp/` do repositório-mãe.
+Este contrato registra a entrega técnica da branch local. F/G foram entregues como planos, conforme permitido no pedido; a revisão do autor e a instalação em máquina nova ainda não foram homologadas. Não substitui aprovação de push/merge pelo professor.
+
+## Integração autorizada para entrega, 01/10/2026
+
+Versão 0.1.13: menus e módulos associados integram o trabalho atual da pasta
+principal com as análises da Fase 2. A pasta principal não foi alterada;
+arquivos de módulos retirados do menu foram preservados sem ativação.
+
+Barras de médias usam alpha 0,22, com indivíduos visíveis, losango na média
+e hastes de IC. As letras seguem o teste ou pós-teste efetivamente aplicado;
+a sobreposição dos ICs descritivos não substitui esse resultado.
+
+A regressão isolada por categoria também usa o molde de dois QMDs. A escolha
+entre reta global e retas separadas é preservada. Equação e R² de cada categoria
+aparecem no gráfico, quando a exibição de equações foi solicitada, e uma tabela
+reúne os ajustes separados. Tabelas e diagnósticos do modelo global recebem
+identificação explícita; o gráfico não testa igualdade de inclinações.
+A rota de múltiplas análises mantém seu contrato anterior.
+
+A suíte completa da integração teve 32/37. Depois da atualização do teste antigo
+que proibia barras, a ANOVA integrada passou separadamente: 33 arquivos têm
+aprovação registrada. As quatro falhas anteriores permanecem documentadas.
+Na interface descritiva, a primeira leitura foi afetada por normalização
+concomitante do arquivo; a repetição com arquivo estável confirmou a antiga
+exigência de layout col_widths = c(7, 5). Não houve nova suíte completa posterior.
+Provas dos painéis, das camadas e sete projetos cobrindo cinco tipos de análise aprovadas,
+com HTML e Word novos e sem referências ??. Detalhes no registro de integração.
+
+## Padrão visual aprovado, 02/10/2026
+
+Transparência estatística e beleza dos dados passam a orientar os gráficos de médias: barras estreitas transparentes a partir do zero, observações individuais, losango na média, hastes de IC bilateral e rótulo média ± DP em negrito, na altura da média, com fundo totalmente transparente. Preservar os valores negativos e todos os limites do IC. Seguir este padrão nas futuras revisões aplicáveis, com os mesmos significados no painel e no Projeto R. O autor aprovou a apresentação visual e didática; o registro não declara migração de todos os módulos ou do livro. Detalhes: [padrão de gráficos de médias](docs/PADRAO_GRAFICOS_MEDIAS.md).

@@ -2,6 +2,7 @@ invisible(Sys.setlocale("LC_ALL", "English_United States.utf8"))
 source("app.R", encoding = "UTF-8")
 source("tests/carregar_catalyser.R", encoding = "UTF-8")
 library(dplyr)
+source("tests/apoio_preparo_molde.R", encoding="UTF-8")
 library(tidyr)
 
 # Dados de pesca pequenos, com mudanças reais já na importação.
@@ -92,6 +93,12 @@ for (manter in c(FALSE, TRUE)) {
       identical(readxl::excel_sheets(file.path(projeto, "dados/brutos/pesca.xlsx")), "pesca"),
       identical(readxl::excel_sheets(info$datapath), c("pesca", "notas")),
       isTRUE(all.equal(as.data.frame(readxl::read_excel(file.path(projeto, "dados/brutos/pesca.xlsx"))), brutos)))
+    if (anova) {
+      env <- executar_preparo_molde(projeto)
+      stopifnot(iguais(env$base_reconstruida, compartilhada),
+        iguais(env$dados_analise, compartilhada),
+        iguais(env$dados_da_analise, caches$base_0001$df), nrow(env$dados_da_analise) == 5)
+    } else {
     for (script in c(TRUE, FALSE)) {
       arquivo <- if (script) "R/analise.R" else "relatorios/relatorio.qmd"
       linhas <- readLines(file.path(projeto, arquivo), encoding = "UTF-8")
@@ -117,6 +124,7 @@ for (manter in c(FALSE, TRUE)) {
       }
       obtida_ramo <- if (anova) env$dados else env$dados_da_analise
       stopifnot(iguais(obtida_ramo, caches$base_0001$df), nrow(obtida_ramo) == 5)
+    }
     }
     cat("PASSOU:", tipo, "— importação, separar, empilhar, alargar, reescala, renomes e derivada; original mantida:", manter, "\n")
     if (!manter) {
