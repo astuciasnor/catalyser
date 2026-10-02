@@ -166,21 +166,21 @@ g_residuos <- grafico_diagnosticos_anova(r, "residuos")
 g_qq <- grafico_diagnosticos_anova(r, "qq")
 geoms_principal <- vapply(g_principal$layers, function(camada) class(camada$geom)[1],
                           character(1))
-camada_pontos <- ggplot2::ggplot_build(g_principal)$data[[1]]
+camada_pontos <- ggplot2::ggplot_build(g_principal)$data[[2]]
 stopifnot(
   inherits(g_principal, "ggplot"),
   inherits(g_residuos, "ggplot"),
   inherits(g_qq, "ggplot"),
   # Observações (pontos), losango da média, hastes de IC e letras —
-  # não mais barras nem boxplot.
+  # com barras transparentes, sem substituir as observações por boxplot.
   "GeomPoint" %in% geoms_principal,
   "GeomErrorbar" %in% geoms_principal,
   "GeomText" %in% geoms_principal,
-  !("GeomCol" %in% geoms_principal),
+  "GeomCol" %in% geoms_principal,
   !("GeomBoxplot" %in% geoms_principal),
   # Nenhuma camada conecta as médias por linha entre níveis nominais.
   !("GeomLine" %in% geoms_principal),
-  # A primeira camada são os pontos das observações, um por caso analisado.
+  # A segunda camada contém os pontos, acima da barra; um por caso analisado.
   nrow(camada_pontos) == nrow(r$dados)
 )
 

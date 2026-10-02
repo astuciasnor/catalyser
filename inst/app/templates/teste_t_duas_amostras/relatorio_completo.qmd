@@ -166,11 +166,11 @@ ou valores extremos que os testes formais podem não capturar.
 # Resultados: o que o teste t responde?
 
 A @tbl-teste reúne o resultado do teste. A @fig-medias, no mesmo espírito de
-transparência, mostra cada observação como ponto, em vez de resumir os grupos
-em barras [@weissgerber2015]: o losango é a média do grupo, o rótulo ao lado
-dele escreve a média ± desvio padrão, as hastes marcam essa mesma faixa (a
-dispersão das observações, não a incerteza da média) e as letras resumem o p
-do teste. Letras iguais indicam grupos sem diferença significativa; letras
+transparência, mantém cada observação visível sobre barras semitransparentes
+[@weissgerber2015]: o losango é a média do grupo, o rótulo ao lado escreve
+a média ± desvio padrão e as hastes mostram o IC bilateral da média na
+confiança escolhida. O IC da diferença testada está na tabela, separado
+desses intervalos descritivos. As letras resumem o p do teste. Letras iguais indicam grupos sem diferença significativa; letras
 diferentes, médias diferentes.
 
 `r texto_resultado`
@@ -185,7 +185,7 @@ flextable_ocean(tabela_teste)
 
 ```{r}
 #| label: fig-medias
-#| fig-cap: "Cada ponto é uma observação; o losango é a média do grupo, o rótulo ao lado dele escreve a média ± desvio padrão e as hastes marcam essa mesma faixa. Letras iguais: grupos sem diferença significativa; letras diferentes: médias diferentes."
+#| fig-cap: "Cada ponto é uma observação; o losango é a média do grupo, o rótulo ao lado dele escreve a média ± desvio padrão e as hastes mostram o IC bilateral da média. Letras iguais: grupos sem diferença significativa; letras diferentes: médias diferentes."
 grafico_medias
 ```
 

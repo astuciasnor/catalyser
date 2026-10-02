@@ -467,6 +467,9 @@ tabela_figura <- tabela_resumo |>
     diff(range(c(base_anova$resposta, ic_inf, ic_sup), na.rm = TRUE)))
 
 grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
+  # A barra parte de zero; transparência preserva a leitura dos indivíduos.
+  geom_col(aes(y = media, fill = grupo), width = 0.55, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+  scale_fill_manual(values = cores_grupos) +
   geom_jitter(
     data = base_anova,
     aes(y = resposta, colour = grupo),

@@ -88,7 +88,8 @@ A @tbl-welch compara a ANOVA clássica com Welch, que não exige variâncias
 iguais. O método escolhido acima determina o teste global, o pós-teste e a
 leitura do efeito. Welch é uma alternativa recomendada diante da heterogeneidade [@delacre2019]. A
 @fig-barras, no mesmo espírito de transparência, mostra cada observação como
-ponto, em vez de resumir os grupos em barras [@weissgerber2015]. Os testes
+ponto sobre barras semitransparentes, preservando a distribuição dos dados
+[@weissgerber2015]. Os testes
 formais de pressupostos, por sua vez, complementam a
 inspeção visual dos resíduos [@kozak2018].
 

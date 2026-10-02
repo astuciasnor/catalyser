@@ -38,8 +38,8 @@ source(here::here("R", "analise.R"), encoding = "UTF-8")
 # Exploração: o que os dados mostram antes do teste?
 
 A @fig-principal mostra os casos completos, a média e a dispersão. O DP descreve
-os indivíduos ou as diferenças; o IC da média está na @tbl-resumo. Mostrar os
-pontos evita esconder a distribuição atrás de uma barra [@weissgerber2015].
+os indivíduos ou as diferenças; as hastes mostram o IC bilateral da média.
+Os pontos sobre barras transparentes preservam a leitura da distribuição [@weissgerber2015].
 
 ## Diagnóstico: a distribuição se aproxima da normalidade?
 
@@ -103,7 +103,7 @@ A @fig-principal apresenta cada observação ou diferença com a referência de 
 
 ```{r}
 #| label: fig-principal
-#| fig-cap: "Pontos: casos completos; losango: média; haste e rótulo: média ± DP; linha tracejada: referência de H0."
+#| fig-cap: "Pontos: casos completos; losango: média; rótulo: média ± DP; haste: IC bilateral da média; linha tracejada: referência de H0."
 grafico_principal
 ```
 

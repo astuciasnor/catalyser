@@ -53,7 +53,7 @@ flextable_ocean(tabela_descritiva_exibir)
 
 A @tbl-teste reúne o resultado do teste, e a @fig-medias apresenta as médias
 com seu desvio padrão: o losango é a média do grupo, o rótulo ao lado dele
-escreve a média ± desvio padrão, as hastes marcam essa mesma faixa e as
+escreve a média ± desvio padrão, as hastes mostram o IC bilateral da média e as
 letras resumem o p do teste (letras iguais, sem diferença significativa;
 letras diferentes, médias diferentes). Nela, cada observação aparece como
 ponto, em vez de os grupos serem resumidos apenas pela média, o que revela a
@@ -71,7 +71,7 @@ flextable_ocean(tabela_teste)
 
 ```{r}
 #| label: fig-medias
-#| fig-cap: "Cada observação como ponto, a média do grupo em losango, o rótulo da média ± desvio padrão ao lado e as hastes nessa mesma faixa; letras iguais indicam grupos sem diferença significativa."
+#| fig-cap: "Cada observação como ponto, a média do grupo em losango, o rótulo da média ± desvio padrão ao lado e as hastes com IC bilateral da média; letras iguais indicam grupos sem diferença significativa."
 grafico_medias
 ```
 

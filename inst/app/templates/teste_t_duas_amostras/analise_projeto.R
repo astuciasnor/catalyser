@@ -299,15 +299,14 @@ grafico_caixa <- ggplot2::ggplot(dados,
 
 # 8.2 Médias por grupo com as observações: cada ponto é uma observação
 # (jitter), o losango é a média do grupo, o rótulo ao lado dele escreve a
-# média ± DP e as hastes são a mesma média ± desvio padrão. O DP descreve a
-# dispersão das observações, não a incerteza da média. Mostrar os pontos em
-# vez de barras evita esconder a distribuição por trás da média (Weissgerber
-# et al., 2015). O eixo y não parte do zero: o interesse está na distância
-# entre as médias, não na razão com o zero.
+# média ± DP; as hastes mostram IC bilateral da média. O DP descreve a
+# dispersão das observações. As hastes mostram IC bilateral de cada média,
+# na confiança escolhida; o IC da diferença testada permanece na tabela.
+# Barras transparentes partem de zero e mantêm os indivíduos visíveis.
 resumo_medias <- tabela_descritiva |>
   dplyr::mutate(
-    dp_baixo = media - dp,
-    dp_alto = media + dp
+    ic_inf_media = media - qt((1 + nivel_confianca) / 2, n - 1) * ep,
+    ic_sup_media = media + qt((1 + nivel_confianca) / 2, n - 1) * ep
   )
 # As letras resumem o p do teste realmente escolhido (Student ou Welch):
 # sem diferença (p >= alfa), os dois grupos recebem "a"; com diferença, o
@@ -321,18 +320,21 @@ resumo_medias$letra <- dplyr::case_when(
   TRUE ~ "b"
 )
 # O rótulo ao lado do losango traz a média ± DP no formato das tabelas
-# (vírgula decimal, mesmas casas), e o DP é o amostral das hastes.
+# (vírgula decimal, mesmas casas), o DP é amostral; as hastes mostram IC, uma medida diferente.
 resumo_medias$rotulo_media <- paste0(fmt(resumo_medias$media), " ± ", fmt(resumo_medias$dp))
 # Alturas do texto: a letra fica acima do ponto mais alto e da haste mais
 # alta; o rótulo, ao lado do losango, na altura da média. A folga é aditiva
 # (6% da amplitude da figura), e não multiplicativa: com valores todos
 # negativos, max * 1.06 colocaria o texto dentro dos dados.
-valores_figura <- c(resumo_medias$dp_alto, resumo_medias$dp_baixo, dados[[variavel_resposta]])
+valores_figura <- c(resumo_medias$ic_sup_media, resumo_medias$ic_inf_media, dados[[variavel_resposta]])
 folga_y <- 0.06 * diff(range(valores_figura, na.rm = TRUE))
 y_letra <- max(valores_figura, na.rm = TRUE) + folga_y
 resumo_medias$y_rotulo <- resumo_medias$media
 grafico_medias <- ggplot2::ggplot(resumo_medias,
   ggplot2::aes(x = .data[[nome_col_grupo]])) +
+  ggplot2::geom_col(ggplot2::aes(y = media, fill = .data[[nome_col_grupo]]),
+    width = 0.55, alpha = 0.22, show.legend = FALSE) +
+  ggplot2::scale_fill_manual(values = cores_grupo) +
   ggplot2::geom_jitter(
     data = dados,
     ggplot2::aes(y = .data[[variavel_resposta]], colour = .data[[variavel_grupo]]),
@@ -341,7 +343,7 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
     alpha = 0.7
   ) +
   ggplot2::geom_errorbar(
-    ggplot2::aes(ymin = dp_baixo, ymax = dp_alto),
+    ggplot2::aes(ymin = ic_inf_media, ymax = ic_sup_media),
     width = 0.15,
     linewidth = 0.8,
     colour = "#0F3B5F"
@@ -362,13 +364,13 @@ grafico_medias <- ggplot2::ggplot(resumo_medias,
   ) +
   ggplot2::scale_colour_manual(values = cores_grupo, guide = "none") +
   # A folga à direita evita que o rótulo ao lado do segundo grupo seja cortado.
-  ggplot2::scale_x_discrete(expand = ggplot2::expansion(mult = c(0.20, 0.80))) +
+  ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(0.6, 0.9))) +
   ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.05, 0.15))) +
   ggplot2::labs(
     x = rotulo_grupo,
     y = rotulo_resposta,
     title = if (nzchar(titulo_grafico)) titulo_grafico else NULL,
-    subtitle = paste0("Pontos: observações; losango: média; hastes e rótulo: média ± DP.\n",
+    subtitle = paste0("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral da média.\n",
                       "Letras iguais: sem diferença significativa")
   ) +
   tema_projeto()

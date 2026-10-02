@@ -777,6 +777,9 @@ grafico_anova <- function(r, titulo = NULL, rotulo_x = NULL, rotulo_y = NULL,
   cores <- rep(anova_cores_ocean, length.out = nlevels(resumo$fator))
 
   ggplot2::ggplot(resumo, ggplot2::aes(x = fator)) +
+    ggplot2::geom_col(ggplot2::aes(y = Media, fill = fator),
+      width = 0.55, alpha = 0.22, linewidth = 0, show.legend = FALSE) +
+    ggplot2::scale_fill_manual(values = cores) +
     ggplot2::geom_jitter(
       data = r$dados,
       ggplot2::aes(y = resposta, colour = fator),

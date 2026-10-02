@@ -160,11 +160,17 @@ tabela_efeito <- data.frame(Medida = nome_efeito, Valor = fmt(d_cohen, 3),
 # Pontos mostram os indivíduos ou as diferenças; haste e rótulo mostram média ± DP.
 dados_figura <- data.frame(valor = valores, coluna = "Observações")
 resumo_figura <- data.frame(coluna = "Observações", media = media, dp = dp)
+# IC bilateral da média na figura, inclusive quando o teste é unilateral.
+margem_figura <- qt((1 + nivel_confianca) / 2, n_utilizado - 1) * dp / sqrt(n_utilizado)
+resumo_figura$ic_inf <- media - margem_figura
+resumo_figura$ic_sup <- media + margem_figura
 grafico_principal <- ggplot2::ggplot(dados_figura, ggplot2::aes(x = coluna, y = valor)) +
+  ggplot2::geom_col(data = resumo_figura, ggplot2::aes(y = media),
+    width = .55, fill = "#2E7D8F", alpha = .22) +
   ggplot2::geom_jitter(width = .08, height = 0, colour = "#2E7D8F", alpha = .65) +
   ggplot2::geom_hline(yintercept = valor_nulo, linetype = "dashed", colour = "#E76F51") +
   ggplot2::geom_errorbar(data = resumo_figura,
-    ggplot2::aes(y = media, ymin = media - dp, ymax = media + dp),
+    ggplot2::aes(y = media, ymin = ic_inf, ymax = ic_sup),
     width = .12, colour = "#0F3B5F") +
   ggplot2::geom_point(data = resumo_figura, ggplot2::aes(y = media),
     shape = 18, size = 4, colour = "#0F3B5F") +
@@ -174,7 +180,7 @@ grafico_principal <- ggplot2::ggplot(dados_figura, ggplot2::aes(x = coluna, y = 
     fill = ggplot2::alpha("white", .75), colour = "#0F3B5F") +
   ggplot2::scale_x_discrete(expand = ggplot2::expansion(add = c(.4, .7))) +
   ggplot2::labs(x = NULL, y = rotulo_analisado,
-    subtitle = paste0("Losango = média; haste e rótulo = média ± DP; referência = ", fmt(valor_nulo))) +
+    subtitle = paste0("Losango = média; rótulo = média ± DP; haste = IC bilateral da média; referência = ", fmt(valor_nulo))) +
   tema_projeto()
 # Procure valores isolados ou um padrão na sequência, sem excluir observações automaticamente.
 grafico_residuos <- ggplot2::ggplot(diagnosticos,

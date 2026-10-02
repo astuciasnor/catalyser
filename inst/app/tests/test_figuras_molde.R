@@ -30,7 +30,7 @@ exportado <- ambiente$grafico_barras
 camadas_painel <- ggplot2::ggplot_build(painel)$data
 camadas_exportado <- ggplot2::ggplot_build(exportado)$data
 # Jitter é aleatório; comparamos limites, médias, letras e rótulos determinísticos.
-for (i in 2:5) {
+for (i in c(1, 3:6)) {
   colunas <- intersect(c('x', 'y', 'ymin', 'ymax', 'label', 'shape', 'size',
                          'linewidth', 'alpha', 'fill', 'hjust', 'vjust'),
                        names(camadas_painel[[i]]))
@@ -41,7 +41,7 @@ for (i in 2:5) {
 rotulos <- vapply(split(bagres$peso_g, bagres$racao), function(x) {
   paste0(fmt(mean(x)), ' ± ', fmt(sd(x)))
 }, character(1))
-stopifnot(identical(unname(rotulos), as.character(camadas_painel[[5]]$label)))
+stopifnot(identical(unname(rotulos), as.character(camadas_painel[[6]]$label)))
 ggplot2::ggsave(file.path(destino, 'painel_anova.png'), painel,
   width = 9, height = 5.5, dpi = 140, bg = 'white')
 cat('OK: ANOVA painel/template com mesmas hastes, medias, letras, rotulos e argumentos das camadas.\n')

@@ -65,7 +65,7 @@ A @fig-principal apresenta cada observação ou diferença com a referência de 
 
 ```{r}
 #| label: fig-principal
-#| fig-cap: "Pontos: casos completos; losango: média; haste e rótulo: média ± DP; linha tracejada: referência de H0."
+#| fig-cap: "Pontos: casos completos; losango: média; rótulo: média ± DP; haste: IC bilateral da média; linha tracejada: referência de H0."
 grafico_principal
 ```
 
