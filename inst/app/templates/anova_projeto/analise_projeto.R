@@ -493,7 +493,7 @@ grafico_barras <- ggplot(tabela_figura, aes(x = grupo)) +
   # O rótulo descreve dispersão (DP); a haste descreve incerteza (IC).
   geom_label(
     aes(y = media, label = paste0(fmt(media), " ± ", fmt(dp))),
-    nudge_x = 0.18, hjust = 0, size = 3.2, colour = "#0F3B5F",
+    nudge_x = 0.10, hjust = 0, vjust = -0.2, fontface = "bold", size = 3.2, colour = "#0F3B5F",
     linewidth = 0, label.padding = grid::unit(0.12, "lines"),
     fill = ggplot2::alpha("white", 0.75)
   ) +
