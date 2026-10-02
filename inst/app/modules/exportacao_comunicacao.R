@@ -2531,6 +2531,52 @@ molde_projeto_registro <- list(
   )
 )
 
+# Procedimentos por execução no relatório integrado. O texto descreve as
+# escolhas registradas, sem inferir delineamento ou resultados pela planilha.
+exportacao_metodos_por_analise <- function(manifesto) {
+  incluidas <- Filter(function(x) isTRUE(x$incluir_word), manifesto$execucoes %||% list())
+  linhas <- character()
+  for (item in incluidas) {
+    p <- item$parametros %||% list()
+    conf <- p$nivel_confianca %||% .95
+    percentual <- format(100 * conf, trim = TRUE, decimal.mark = ",")
+    alfa <- format(1 - conf, trim = TRUE, decimal.mark = ",")
+    texto <- NULL
+    if (identical(item$tipo, "teste_t_two_ind")) {
+      metodo <- if (isTRUE(p$variancias_iguais)) "de Student, assumindo variâncias iguais" else "de Welch, sem assumir variâncias iguais"
+      hipotese <- switch(p$alternativa %||% "two.sided",
+        greater = "unilateral (a média do primeiro nível do grupo maior que a do segundo)",
+        less = "unilateral (a média do primeiro nível do grupo menor que a do segundo)",
+        "bilateral (médias diferentes)")
+      texto <- paste0(
+        "As médias de `", p$resposta, "` foram comparadas entre os dois níveis de `", p$grupo,
+        "` pelo teste t ", metodo, ", com hipótese alternativa ", hipotese,
+        ", nível de significância de ", alfa, " e confiança de ", percentual,
+        "%. A diferença de médias segue a ordem dos níveis do grupo registrada no script. ",
+        "Foram apresentados a estatística t, os graus de liberdade, o p-valor e o intervalo de confiança da diferença. ",
+        "A normalidade dentro dos grupos foi examinada pelo teste de Shapiro-Wilk e a igualdade de variâncias pelo teste de Levene, quando calculáveis. ",
+        "Levene complementa a avaliação dos pressupostos; o método aplicado segue a escolha registrada. A independência das observações deve ser fundamentada no delineamento.")
+    } else if (identical(item$tipo, "regressao_linear") &&
+               identical(p$tipo_modelo %||% "linear", "linear")) {
+      grupos <- isTRUE(p$regressao_por_grupo) && nzchar(p$grupo %||% "")
+      texto <- paste0(
+        "A relação entre `", p$resposta, "` (resposta) e `", p$preditor,
+        "` (preditor) foi analisada por regressão linear simples, ajustada por mínimos quadrados ordinários",
+        if (grupos) paste0(", separadamente para cada nível de `", p$grupo, "`") else " em um ajuste global",
+        ". Foram apresentados intercepto, inclinação e R²", if (grupos) " de cada ajuste" else " do ajuste",
+        "; a hipótese de inclinação nula foi examinada pelo teste t com nível de significância de ", alfa,
+        ". A normalidade dos resíduos foi examinada pelo teste de Shapiro-Wilk, quando calculável",
+        if (grupos) ", em cada ajuste" else "",
+        ". A interpretação também exige avaliar linearidade, homogeneidade da variância e independência pelo delineamento. ",
+        if (grupos) "As retas separadas descrevem as relações em cada grupo; esse procedimento não testa a igualdade das inclinações." else
+          "Observações influentes devem ser conferidas no contexto do estudo antes de qualquer exclusão.")
+    }
+    linhas <- c(linhas, paste0("### ", item$titulo), "",
+      if (is.null(texto)) "<!-- Descreva o procedimento desta análise conforme as escolhas do script, seus pressupostos e a pergunta do estudo. -->" else texto, "")
+  }
+  linhas
+}
+
 # Sugestões entram apenas nas seções vazias de um relatório com uma reta.
 # Não inferimos local, período, unidade amostral ou causalidade a partir da planilha.
 exportacao_textos_regressao <- function(item, import_info = list()) {
@@ -2940,7 +2986,7 @@ exportacao_gerar_qmd <- function(manifesto, titulo_projeto = "Relatório de aná
       "Descreva aqui os métodos: o que cada análise testa e a que nível de significância.", "metodos"
     ),
     "",
-    "As configurações analíticas foram registradas explicitamente na CatalyseR. Cada análise, abaixo, informa a pergunta, a base e os parâmetros usados.",
+    exportacao_metodos_por_analise(manifesto),
     "",
     "# Resultados",
     ""

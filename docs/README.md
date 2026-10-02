@@ -11,6 +11,8 @@ Em caso de divergência, prevalecem o comportamento, os testes e os módulos da
 
 ## Leitura essencial
 
+[Métodos por análise no relatório integrado, versão 0.1.15](testes/METODOS_POR_ANALISE_20261002.md).
+
 [Entrega da versão unificada 0.1.14](testes/MESCLAGEM_PRINCIPAL_20261002.md) — mesclagem da Fase 2 com a principal, provas atuais e limites.
 
 [Padrão de gráficos de médias: transparência estatística e beleza dos dados](PADRAO_GRAFICOS_MEDIAS.md) — aprovado pelo autor em 02/10/2026.
