@@ -84,10 +84,12 @@ mod_parametric_ui <- function(id) {
           title = "Gráfico do Teste",
           icon = icon("chart-line"),
           card_body(
-            plotOutput(ns("test_plot"), height = "450px"),
+            conditionalPanel(
+              condition = sprintf("input['%s'] != 'two_ind'", ns("test_type")),
+              plotOutput(ns("test_plot"), height = "450px")
+            ),
             conditionalPanel(
               condition = sprintf("input['%s'] == 'two_ind'", ns("test_type")),
-              div(style = "margin-top: 20px;"),
               h6("Médias com IC e letras de significância",
                  style = "font-weight: 700; color: #0d6efd; margin-bottom: 10px;"),
               plotOutput(ns("test_plot_medias"), height = "400px")

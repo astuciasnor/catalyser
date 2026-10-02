@@ -806,9 +806,9 @@ catalyser_teste_t <- function(dados, p) {
         ggplot2::scale_color_manual(values = c("#2E7D8F", "#E89B3C")) +
         ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, .12))) +
         ggplot2::theme_classic(base_size = 12) +
-        ggplot2::theme(legend.position = "none") +
+        ggplot2::theme(legend.position = "none", plot.subtitle = ggplot2::element_text(size = 9)) +
         ggplot2::labs(x = p$grupo, y = p$resposta, title = "Médias com IC",
-          subtitle = sprintf("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral de %.0f%% da média.", 100 * conf))
+          subtitle = paste(strwrap(sprintf("Pontos: observações; losango: média; rótulo: média ± DP; hastes: IC bilateral de %.0f%% da média.", 100 * conf), width = 60), collapse = "\n"))
     }
   } else if (identical(tipo, "paired")) {
     catalyser_colunas(dados, c(p$variavel_1, p$variavel_2))
