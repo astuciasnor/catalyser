@@ -240,4 +240,50 @@ stopifnot(grepl("Metodologia prevista", xml_word, fixed = TRUE),
   grepl("48 registros", xml_word, fixed = TRUE))
 unlink(word)
 
-cat("OK: monitoramento — calendário, tabela, metadados, Excel, ficha, infográficos e Word\n")
+# Nomes personalizados alimentam a ficha e as fórmulas; nomes reservados não
+# podem substituir identificadores ou registros da coleta.
+args_nomes <- list(inicio = as.Date("2026-01-01"), fim = as.Date("2026-02-01"),
+  frequencia = "mensal", horario = "", hora_real = FALSE, locais_raw = "Porto",
+  tem_esforco = TRUE, unidade_esforco = "viagens",
+  medidas_raw = data.frame(nome = "captura", unidade = "kg", nome_coluna = "Captura total"),
+  indices_marcados = TRUE, data_real = TRUE, responsavel = TRUE)
+cfg_nomes <- do.call(montar_config, args_nomes)
+stopifnot(identical(cfg_nomes$medidas$coluna, "captura_total"),
+  identical(cfg_nomes$indices$coluna, "captura_total_por_viagens"),
+  identical(nome_coluna_monitoramento("peso", "g", "2 medidas"), "v_2_medidas"))
+tab_nomes <- montar_tabela(cfg_nomes$datas, cfg_nomes$locais, cfg_nomes$hora,
+  cfg_nomes$medidas$coluna, cfg_nomes$esforco_col, cfg_nomes$indices$coluna,
+  cfg_nomes$data_real, cfg_nomes$responsavel)
+stopifnot(all(c("data_real", "responsavel", "captura_total") %in% names(tab_nomes)))
+excel_nomes <- tempfile(fileext = ".xlsx")
+escrever_excel(excel_nomes, tab_nomes, montar_metadados(cfg_nomes), cfg_nomes$indices)
+stopifnot(identical(names(openxlsx::read.xlsx(excel_nomes, sheet = "dados",
+  skipEmptyCols = FALSE)), names(tab_nomes)))
+unlink(excel_nomes)
+word_nomes <- tempfile(fileext = ".docx")
+escrever_word_monitoramento(word_nomes, cfg_nomes)
+texto_nomes <- officer::docx_summary(officer::read_docx(word_nomes))$text
+stopifnot(any(grepl("captura_total", texto_nomes, fixed = TRUE)),
+  any(grepl("data_real", texto_nomes, fixed = TRUE)),
+  any(grepl("responsavel", texto_nomes, fixed = TRUE)))
+unlink(word_nomes)
+args_nomes$medidas_raw$nome_coluna <- "local"
+stopifnot(inherits(try(do.call(montar_config, args_nomes), silent = TRUE), "try-error"))
+args_nomes$medidas_raw <- data.frame(nome = c("altura", "peso"), unidade = c("mm", "g"),
+  nome_coluna = c("valor", "valor"))
+args_nomes$indices_marcados <- c(FALSE, FALSE)
+stopifnot(inherits(try(do.call(montar_config, args_nomes), silent = TRUE), "try-error"))
+testServer(mod_monitoramento_server, {
+  session$setInputs(inicio = as.Date("2026-01-01"), fim = as.Date("2026-02-01"),
+    frequencia = "mensal", medida_nome_1 = "captura", medida_unidade_1 = "kg",
+    medida_coluna_1 = "cap_kg", data_real = TRUE, responsavel = TRUE,
+    tem_esforco = "sim", unidade_esforco = "viagens", indice_1 = TRUE)
+  stopifnot(cfg()$medidas$coluna == "cap_kg", cfg()$data_real, cfg()$responsavel,
+    grepl('data_real', output$tabela, fixed = TRUE), grepl('responsavel', output$tabela, fixed = TRUE))
+  session$setInputs(add_medida = 1)
+  stopifnot(medidas_vals()$nome_coluna[1] == "cap_kg", nrow(medidas_vals()) == 2L)
+  session$setInputs(tem_esforco = "nao")
+  stopifnot(medidas_vals()$nome_coluna[1] == "cap_kg", cfg()$medidas$coluna[1] == "cap_kg")
+})
+
+cat("OK: monitoramento — calendário, tabela, metadados, Excel, ficha, infográficos, Word, nomes tidy e campos opcionais\n")

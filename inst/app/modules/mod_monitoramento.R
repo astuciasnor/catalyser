@@ -24,6 +24,14 @@ limpar_nome <- function(texto) {
   gsub("^_|_$", "", limpo)
 }
 
+# Nome sugerido quando o campo fica vazio; um nome próprio substitui a sugestão.
+nome_coluna_monitoramento <- function(nome, unidade, coluna = "") {
+  texto <- if (nzchar(trimws(coluna))) coluna else paste(nome, unidade)
+  limpo <- limpar_nome(texto)
+  if (grepl("^[0-9]", limpo)) limpo <- paste0("v_", limpo)
+  limpo
+}
+
 # Primeiro dia do mês de uma data, base das sequências mensais e quinzenais.
 primeiro_do_mes <- function(d) {
   # Recompõe a data só com ano e mês, fixando o dia 1.
@@ -60,7 +68,8 @@ datas_da_serie <- function(inicio, fim, frequencia) {
 # Reúne as definições da aba 1 numa configuração única, já com nomes de coluna.
 montar_config <- function(inicio, fim, frequencia, horario, hora_real,
                           locais_raw, tem_esforco, unidade_esforco,
-                          medidas_raw, indices_marcados) {
+                          medidas_raw, indices_marcados,
+                          data_real = FALSE, responsavel = FALSE) {
   # O calendário vem da função pura de datas.
   datas <- datas_da_serie(inicio, fim, frequencia)
   # Locais sem nome digitado ganham um rótulo numerado, para a tabela nunca ficar sem coluna.
@@ -70,7 +79,8 @@ montar_config <- function(inicio, fim, frequencia, horario, hora_real,
   medidas <- medidas_raw[nzchar(trimws(medidas_raw$nome)), , drop = FALSE]
   # A coluna da medida junta nome e unidade já limpos (captura + kg vira captura_kg).
   medidas$coluna <- vapply(seq_len(nrow(medidas)), function(i) {
-    limpar_nome(paste(trimws(medidas$nome[i]), trimws(medidas$unidade[i])))
+    nome_coluna_monitoramento(medidas$nome[i], medidas$unidade[i],
+      if ("nome_coluna" %in% names(medidas)) medidas$nome_coluna[i] else "")
   }, character(1))
   # A unidade limpa do esforço serve ao nome da coluna e ao sufixo dos índices.
   uni <- limpar_nome(unidade_esforco)
@@ -91,7 +101,7 @@ montar_config <- function(inicio, fim, frequencia, horario, hora_real,
       coluna = paste0(colunas_marcadas, "_por_", sufixo),
       coluna_medida = colunas_marcadas,
       coluna_esforco = esforco_col,
-      cpue = grepl("^captura", colunas_marcadas),
+      cpue = grepl("^captura", limpar_nome(medidas_raw$nome[which(marcar)])),
       stringsAsFactors = FALSE
     )
   } else {
@@ -103,17 +113,23 @@ montar_config <- function(inicio, fim, frequencia, horario, hora_real,
   }
   # Rótulo por extenso da frequência, usado nos metadados e na tela.
   rotulo_freq <- c(diaria = "Diária", semanal = "Semanal", quinzenal = "Quinzenal", mensal = "Mensal")[[frequencia]]
+  nomes <- c("data", "local", "hora", "data_real", "responsavel", "observacao",
+    medidas$coluna, esforco_col, indices$coluna)
+  if (any(!nzchar(medidas$coluna))) stop("Informe um nome de coluna com letras ou números.", call. = FALSE)
+  if (anyDuplicated(nomes)) stop("Use nomes de coluna diferentes entre si e dos campos data, local, hora, data_real, responsavel e observacao.", call. = FALSE)
   # A configuração sai numa lista única, pronta para a tabela, o Excel e os metadados.
   list(
     datas = datas, locais = locais, hora = hora_real, horario = horario,
     frequencia = frequencia, frequencia_rotulo = rotulo_freq,
     medidas = medidas, tem_esforco = tem_esforco, unidade_esforco = unidade_esforco,
-    esforco_col = esforco_col, indices = indices
+    esforco_col = esforco_col, indices = indices,
+    data_real = data_real, responsavel = responsavel
   )
 }
 
 # Monta a tabela tidy da série: uma linha por data e local, na ordem data → local.
-montar_tabela <- function(datas, locais, hora, colunas_medidas, coluna_esforco, colunas_indices) {
+montar_tabela <- function(datas, locais, hora, colunas_medidas, coluna_esforco, colunas_indices,
+                         data_real = FALSE, responsavel = FALSE) {
   # A coluna de datas repete cada data uma vez por local (a data anda devagar).
   # A coluna de locais percorre todos os locais dentro de cada data.
   tab <- data.frame(
@@ -123,6 +139,8 @@ montar_tabela <- function(datas, locais, hora, colunas_medidas, coluna_esforco, 
   )
   # A coluna de hora só existe quando o pesquisador pede registrar a hora real.
   if (hora) tab$hora <- ""
+  if (data_real) tab$data_real <- ""
+  if (responsavel) tab$responsavel <- ""
   # Cada medida vira uma coluna numérica vazia, pronta para o campo.
   for (cm in colunas_medidas) tab[[cm]] <- NA_real_
   # A coluna de esforço só existe quando o registro de esforço está ligado.
@@ -149,12 +167,16 @@ montar_metadados <- function(cfg) {
     linha("coordenadas", ""),
     linha("registra esforço", if (cfg$tem_esforco) "sim" else "não")
   )
+  met <- rbind(met,
+    linha("inclui data efetiva", if (isTRUE(cfg$data_real)) "sim" else "não"),
+    linha("inclui responsável", if (isTRUE(cfg$responsavel)) "sim" else "não"))
   # A unidade do esforço só aparece quando o esforço está ligado.
   if (cfg$tem_esforco) met <- rbind(met, linha("unidade do esforço", cfg$unidade_esforco))
   # Uma linha por medida, com sua unidade.
   for (i in seq_len(nrow(cfg$medidas))) {
     met <- rbind(met, linha(paste0("medida: ", cfg$medidas$nome[i]),
-                            if (nzchar(trimws(cfg$medidas$unidade[i]))) cfg$medidas$unidade[i] else "sem unidade"))
+                            if (nzchar(trimws(cfg$medidas$unidade[i]))) cfg$medidas$unidade[i] else "sem unidade"),
+      linha(paste0("coluna: ", cfg$medidas$nome[i]), cfg$medidas$coluna[i]))
   }
   # Uma linha por índice, com a fórmula descrita em palavras.
   for (i in seq_len(nrow(cfg$indices))) {
@@ -399,6 +421,14 @@ escrever_word_monitoramento <- function(caminho, cfg) {
   ft <- flextable::bg(ft, bg = "#0F3B5F", part = "header")
   ft <- flextable::color(ft, color = "white", part = "header")
   doc <- flextable::body_add_flextable(doc, flextable::autofit(ft))
+  if (nrow(cfg$medidas)) {
+    campos <- cfg$medidas[c("nome", "unidade", "coluna")]
+    names(campos) <- c("Medida", "Unidade", "Coluna na ficha")
+    ft_campos <- flextable::theme_booktabs(flextable::flextable(campos))
+    doc <- flextable::body_add_flextable(doc, flextable::autofit(ft_campos))
+  }
+  opcionais <- c(if (isTRUE(cfg$data_real)) "data_real", if (isTRUE(cfg$responsavel)) "responsavel")
+  if (length(opcionais)) paragrafo(paste("Campos opcionais incluídos na ficha:", paste(opcionais, collapse = ", "), "."))
   # O infográfico ganha uma página horizontal, como nos outros delineamentos.
   secao <- function(horizontal = FALSE) officer::block_section(officer::prop_section(
     page_size = officer::page_size(width = 8.27, height = 11.69,
@@ -481,6 +511,10 @@ mod_monitoramento_ui <- function(id) {
     .mon-planejar .mon-secao { border-top: 1px solid #dbe5e8; padding-top: 16px; }
     .mon-planejar .mon-esforco { border: 0; margin: 0; padding: 0; }
     .mon-unidade-esforco { margin-top: 16px; }
+    .mon-respostas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .75fr) minmax(0, 1fr) 30px;
+      gap: 8px; align-items: end; margin-bottom: 10px; }
+    .mon-respostas .mon-rem { margin: 0; min-height: 31px; }
+    .mon-opcional { margin-top: 8px; border-top: 1px solid #dbe5e8; padding-top: 16px; }
     @media (max-width: 991px) { .mon-definicoes { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 575px) { .mon-campos { grid-template-columns: minmax(0, 1fr); } }
     .mon-estudio .mon-card li { margin-bottom: 7px; }
@@ -526,7 +560,10 @@ mod_monitoramento_ui <- function(id) {
                   shiny::textInput(ns("horario"), "Horário da coleta (opcional):", placeholder = "Ex.: 8h, na preamar"),
                   shiny::div(class = "mon-secao",
                     shiny::radioButtons(ns("hora_real"), "Incluir a hora real na ficha?",
-                      choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE))
+                      choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE)),
+                  shiny::div(class = "mon-opcional",
+                    shiny::checkboxInput(ns("data_real"), "Incluir a data efetiva da coleta", FALSE),
+                    shiny::p(class = "small text-muted mb-0", "Acrescenta data_real para registrar quando a visita aconteceu."))
                 ),
                 shiny::div(class = "mon-divisao",
                   shiny::h5("2. Onde e com que esforço"),
@@ -539,7 +576,10 @@ mod_monitoramento_ui <- function(id) {
                       choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
                     shiny::div(class = "mon-unidade-esforco",
                       shiny::textInput(ns("unidade_esforco"), "Unidade de esforço:", value = "viagens"))
-                  )
+                  ),
+                  shiny::div(class = "mon-opcional",
+                    shiny::checkboxInput(ns("responsavel"), "Incluir o responsável pela coleta", FALSE),
+                    shiny::p(class = "small text-muted mb-0", "Acrescenta responsavel para identificar quem realizou a visita."))
                 )
               )
             ),
@@ -549,7 +589,7 @@ mod_monitoramento_ui <- function(id) {
               shiny::div(class = "mon-card",
                 shiny::h5("3. Respostas"),
                 shiny::p(class = "small text-muted mb-1",
-                  "Medidas são o que se registra em campo; o nome da coluna junta nome e unidade, em minúsculas e sem acentos (captura + kg vira captura_kg)."),
+                  "Nome da coluna: deixe vazio para usar a sugestão (captura + kg → captura_kg) ou escreva um nome curto. Acentos, espaços e sinais serão convertidos para o padrão tidy."),
                 shiny::uiOutput(ns("ui_medidas")),
                 shiny::actionButton(ns("add_medida"), "+ medida", class = "btn-sm btn-outline-primary")
               )
@@ -716,21 +756,39 @@ mod_monitoramento_server <- function(id) {
 
     # ---- Faixa 3: medidas dinâmicas -----------------------------------------
     # As medidas moram num quadro reativo de nome e unidade; começa com captura em kg.
-    medidas_vals <- shiny::reactiveVal(data.frame(nome = "captura", unidade = "kg", stringsAsFactors = FALSE))
+    medidas_vals <- shiny::reactiveVal(data.frame(nome = "captura", unidade = "kg", nome_coluna = "", stringsAsFactors = FALSE))
     # Lê o que está digitado nos campos de medida neste momento.
     ler_medidas <- function() {
       n <- nrow(shiny::isolate(medidas_vals()))
       data.frame(
         nome = vapply(seq_len(n), function(j) shiny::isolate(input[[paste0("medida_nome_", j)]]) %||% "", character(1)),
         unidade = vapply(seq_len(n), function(j) shiny::isolate(input[[paste0("medida_unidade_", j)]]) %||% "", character(1)),
+        nome_coluna = vapply(seq_len(n), function(j) shiny::isolate(input[[paste0("medida_coluna_", j)]]) %||% "", character(1)),
         stringsAsFactors = FALSE
       )
     }
     shiny::observeEvent(input$add_medida, {
-      medidas_vals(rbind(ler_medidas(), data.frame(nome = "", unidade = "", stringsAsFactors = FALSE)))
+      medidas_vals(rbind(ler_medidas(), data.frame(nome = "", unidade = "", nome_coluna = "", stringsAsFactors = FALSE)))
     })
     # Um observador por linha possível (limite de 10 medidas).
     lapply(seq_len(10), function(i) {
+      shiny::observeEvent(list(input[[paste0("medida_nome_", i)]], input[[paste0("medida_unidade_", i)]],
+        input[[paste0("medida_coluna_", i)]]), {
+        sugestao <- nome_coluna_monitoramento(input[[paste0("medida_nome_", i)]] %||% "",
+          input[[paste0("medida_unidade_", i)]] %||% "")
+        shiny::updateTextInput(session, paste0("medida_coluna_", i),
+          placeholder = if (nzchar(sugestao)) sugestao else "Ex.: captura_kg")
+        coluna <- nome_coluna_monitoramento(input[[paste0("medida_nome_", i)]] %||% "",
+          input[[paste0("medida_unidade_", i)]] %||% "", input[[paste0("medida_coluna_", i)]] %||% "")
+        shiny::updateCheckboxInput(session, paste0("indice_", i),
+          label = paste0("calcular ", coluna, " por unidade de esforço",
+            if (grepl("^captura", limpar_nome(input[[paste0("medida_nome_", i)]] %||% ""))) " (CPUE)" else ""))
+      })
+      shiny::observeEvent(input[[paste0("medida_coluna_", i)]], {
+        atual <- input[[paste0("medida_coluna_", i)]]
+        limpo <- nome_coluna_monitoramento("", "", atual)
+        if (!identical(atual, limpo)) shiny::updateTextInput(session, paste0("medida_coluna_", i), value = limpo)
+      }, ignoreInit = TRUE)
       shiny::observeEvent(input[[paste0("rem_medida_", i)]], {
         vals <- ler_medidas()
         if (nrow(vals) <= 1L) return()
@@ -748,15 +806,18 @@ mod_monitoramento_server <- function(id) {
       vals <- shiny::isolate(medidas_vals())
       shiny::tagList(lapply(seq_len(nrow(vals)), function(i) {
         # O nome limpo da medida neste momento rotula a caixa de índice da linha.
-        coluna <- limpar_nome(paste(trimws(vals$nome[i]), trimws(vals$unidade[i])))
+        coluna <- nome_coluna_monitoramento(vals$nome[i], vals$unidade[i], vals$nome_coluna[i])
         shiny::div(
-          shiny::div(class = "mon-linha",
+          shiny::div(class = "mon-respostas",
             shiny::textInput(session$ns(paste0("medida_nome_", i)),
               label = if (i == 1) "Medida:" else NULL,
               value = vals$nome[i], placeholder = "Ex.: captura"),
             shiny::textInput(session$ns(paste0("medida_unidade_", i)),
               label = if (i == 1) "Unidade:" else NULL,
               value = vals$unidade[i], placeholder = "Ex.: kg"),
+            shiny::textInput(session$ns(paste0("medida_coluna_", i)),
+              label = if (i == 1) "Nome da coluna:" else NULL,
+              value = vals$nome_coluna[i], placeholder = if (nzchar(coluna)) coluna else "Ex.: captura_kg"),
             if (nrow(vals) > 1L) {
               shiny::actionButton(session$ns(paste0("rem_medida_", i)), "\u00d7",
                 class = "btn-sm btn-outline-danger mon-rem")
@@ -767,7 +828,7 @@ mod_monitoramento_server <- function(id) {
               shiny::checkboxInput(session$ns(paste0("indice_", i)),
                 label = shiny::tags$span(
                   sprintf("calcular %s por unidade de esforço", coluna),
-                  if (grepl("^captura", coluna)) shiny::tags$span(class = "text-muted", " (CPUE)")
+                  if (grepl("^captura", limpar_nome(vals$nome[i]))) shiny::tags$span(class = "text-muted", " (CPUE)")
                 ),
                 value = shiny::isolate(input[[paste0("indice_", i)]]) %||% FALSE)
             )
@@ -790,9 +851,11 @@ mod_monitoramento_server <- function(id) {
         medidas_raw = data.frame(
           nome = vapply(seq_len(n_med), function(j) input[[paste0("medida_nome_", j)]] %||% "", character(1)),
           unidade = vapply(seq_len(n_med), function(j) input[[paste0("medida_unidade_", j)]] %||% "", character(1)),
+          nome_coluna = vapply(seq_len(n_med), function(j) input[[paste0("medida_coluna_", j)]] %||% "", character(1)),
           stringsAsFactors = FALSE
         ),
-        indices_marcados = vapply(seq_len(n_med), function(j) isTRUE(input[[paste0("indice_", j)]]), logical(1))
+        indices_marcados = vapply(seq_len(n_med), function(j) isTRUE(input[[paste0("indice_", j)]]), logical(1)),
+        data_real = isTRUE(input$data_real), responsavel = isTRUE(input$responsavel)
       )
     })
 
@@ -884,7 +947,7 @@ mod_monitoramento_server <- function(id) {
     output$tabela <- DT::renderDT({
       c0 <- cfg()
       tab <- montar_tabela(c0$datas, c0$locais, c0$hora,
-        c0$medidas$coluna, c0$esforco_col, c0$indices$coluna)
+        c0$medidas$coluna, c0$esforco_col, c0$indices$coluna, c0$data_real, c0$responsavel)
       DT::datatable(tab, rownames = FALSE, options = list(
         pageLength = 12, lengthMenu = c(12, 24, 48, 96), scrollX = TRUE,
         language = idioma_tabela_monitoramento()
@@ -897,7 +960,7 @@ mod_monitoramento_server <- function(id) {
       content = function(file) {
         c0 <- cfg()
         tab <- montar_tabela(c0$datas, c0$locais, c0$hora,
-          c0$medidas$coluna, c0$esforco_col, c0$indices$coluna)
+          c0$medidas$coluna, c0$esforco_col, c0$indices$coluna, c0$data_real, c0$responsavel)
         escrever_excel(file, tab, montar_metadados(c0), c0$indices)
       }
     )
