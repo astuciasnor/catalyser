@@ -186,4 +186,58 @@ stopifnot(
   grepl("séries temporais", ficha_rotulo_analise(f_mon$analise_sugerida), fixed = TRUE)
 )
 
-cat("OK: monitoramento — calendário, tabela, metadados, Excel e ficha\n")
+# 9. A quadrícula conta as datas reais, incluindo fevereiro bissexto e meses
+# parciais. O calendário por local repete visitas, sem multiplicar locais.
+cfg_diaria <- padrao
+cfg_diaria$datas <- datas_da_serie(as.Date("2028-02-15"), as.Date("2028-03-03"), "diaria")
+cfg_diaria$frequencia <- "diaria"
+cfg_diaria$frequencia_rotulo <- "Diária"
+grade <- desenhar_calendario_monitoramento(cfg_diaria, "2028")
+stopifnot(sum(grade$data$n) == 18L, grade$data$n[2] == 15L, grade$data$n[3] == 3L)
+por_local <- desenhar_calendario_monitoramento(cfg_diaria, "2028", TRUE)
+stopifnot(sum(por_local$data$n) == 36L, nrow(por_local$data) == 24L)
+pontos <- ggplot2::ggplot_build(grade)$data[[2]]
+stopifnot(nrow(pontos) == 18L, all(pontos$x >= 1.5 & pontos$x <= 3.5))
+# Uma única data e resposta vazia também devem formar desenhos válidos.
+cfg_unica <- sem_esforco
+cfg_unica$datas <- as.Date("2026-05-10")
+cfg_unica$medidas <- cfg_unica$medidas[FALSE, ]
+stopifnot(length(ggplot2::ggplot_build(desenhar_plano_monitoramento(cfg_unica))$data) > 0L)
+stopifnot(length(ggplot2::ggplot_build(desenhar_plano_monitoramento(cfg))$data) > 0L)
+
+# 10. A troca de ano e de frequência chega aos desenhos reativos.
+testServer(mod_monitoramento_server, args = list(), {
+  session$setInputs(
+    inicio = as.Date("2027-01-01"), fim = as.Date("2028-12-01"), frequencia = "mensal",
+    horario = "", hora_real = "nao", tem_esforco = "nao",
+    local_1 = "Porto", local_2 = "Praia",
+    medida_nome_1 = "captura", medida_unidade_1 = "kg", indice_1 = FALSE,
+    ano_calendario = "2028", ano_locais = "2028"
+  )
+  session$flushReact()
+  stopifnot(identical(ano_do_plano("ano_calendario"), "2028"))
+  stopifnot(nzchar(output$desenho$src), nzchar(output$calendario$src), nzchar(output$desenho_locais$src))
+  session$setInputs(fim = as.Date("2027-12-01"), frequencia = "quinzenal")
+  session$flushReact()
+  stopifnot(identical(ano_do_plano("ano_calendario"), "2027"), length(cfg()$datas) == 24L)
+  stopifnot(sum(desenhar_calendario_monitoramento(cfg(), "2027")$data$n) == 24L)
+})
+
+# 11. O Word reúne o mesmo plano da tela e leva o esquema como imagem.
+metodo <- conteudo_metodologia_monitoramento(cfg)
+stopifnot(any(grepl("48 registros", metodo$paragrafos, fixed = TRUE)),
+  any(grepl("captura_kg_por_viagens", metodo$paragrafos, fixed = TRUE)),
+  any(grepl("não prevê uma coluna de esforço", conteudo_metodologia_monitoramento(sem_esforco)$paragrafos, fixed = TRUE)))
+word <- tempfile(fileext = ".docx")
+escrever_word_monitoramento(word, cfg)
+partes_word <- utils::unzip(word, list = TRUE)$Name
+stopifnot("word/document.xml" %in% partes_word, any(grepl("^word/media/", partes_word)))
+con <- unz(word, "word/document.xml", encoding = "UTF-8")
+xml_word <- paste(readLines(con, warn = FALSE), collapse = "")
+close(con)
+stopifnot(grepl("Metodologia prevista", xml_word, fixed = TRUE),
+  grepl("Protocolo a completar", xml_word, fixed = TRUE),
+  grepl("48 registros", xml_word, fixed = TRUE))
+unlink(word)
+
+cat("OK: monitoramento — calendário, tabela, metadados, Excel, ficha, infográficos e Word\n")
