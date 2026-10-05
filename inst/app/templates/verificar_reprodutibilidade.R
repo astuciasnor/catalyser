@@ -1,10 +1,7 @@
 # Execute na raiz do projeto: Rscript verificar_reprodutibilidade.R
 # Cada render começa em outro processo R. Nenhum pacote é instalado aqui.
-argumento <- grep('^--file=', commandArgs(FALSE), value = TRUE)
-if (length(argumento)) {
-  raiz <- dirname(normalizePath(sub('^--file=', '', argumento[1]), mustWork = TRUE))
-  setwd(raiz)
-}
+argumentos <- commandArgs(trailingOnly = TRUE)
+if (length(argumentos)) setwd(normalizePath(argumentos[1], mustWork = TRUE))
 if (!file.exists('_quarto.yml') || !file.exists('R/analise.R')) {
   stop('Abra a raiz do Projeto R antes de executar esta conferência.', call. = FALSE)
 }

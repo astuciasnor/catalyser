@@ -15,7 +15,6 @@
 #' run_app(launch.browser = FALSE)
 #' }
 #' @export
-#' @importFrom shiny runApp
 run_app <- function(
     launch.browser = TRUE,
     ...) {

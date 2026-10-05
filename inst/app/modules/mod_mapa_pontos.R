@@ -83,7 +83,7 @@ mod_mapa_pontos_ui <- function(id, modo = "bolhas") {
           helpText(if (modo == "bolhas")
                      "Analisar quantidades: o tamanho da bolha = magnitude (ex.: CPUE, biomassa) em cada local — mostra onde os valores são maiores."
                    else
-                     "Apoiar a amostragem: mostre onde a coleta aconteceu — cobertura espacial, lacunas de amostragem e ambientes cobertos.",
+                     "Apoiar a amostragem: mostre cobertura espacial, lacunas e ambientes. Não há distância universal que garanta independência; considere fluxo, conectividade, eventos compartilhados e estudo piloto. O mapa não certifica independência.",
                    style = "font-size: 0.82rem;")
         )
       )

@@ -110,7 +110,7 @@ for (nome in names(cenarios)) {
       if ((nome == 'homogeneo' && conf == .90) || (nome == 'heterogeneo' && conf == .99)) {
         log <- file.path(destino, paste0(id, '_render.log'))
         status <- system2(file.path(R.home('bin'), 'Rscript.exe'),
-          shQuote(file.path(projeto, 'verificar_reprodutibilidade.R')), stdout = log, stderr = log)
+          c(shQuote(normalizePath('templates/verificar_reprodutibilidade.R')), shQuote(projeto)), stdout = log, stderr = log)
         if (status != 0L) stop(paste(readLines(log, warn = FALSE), collapse = '\n'))
         html <- paste(readLines(file.path(projeto, 'saida/relatorios/relatorio_completo.html'),
           encoding = 'UTF-8', warn = FALSE), collapse = '\n')

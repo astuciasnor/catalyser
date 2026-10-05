@@ -142,7 +142,10 @@ mod_experimental_design_ui <- function(id, variaveis_ui = NULL, tipo_fixo = NULL
           icon = icon("file-lines"),
           card_body(
             style = "padding: 10px 15px;",
-            uiOutput(ns("report_descritivo"))
+            uiOutput(ns("report_descritivo")),
+            if (identical(tipo_fixo, "split_plot")) tags$details(class = "small mt-2",
+              tags$summary("Exemplo híbrido: ração e reservatório"),
+              p(class = "mt-1 mb-0", "Rações sorteadas entre tanques dentro de cada reservatório formam o componente experimental. O reservatório preexistente é um componente observacional: sua comparação é associativa. Para estimar a interação, cada ração precisa de mais de um tanque em cada reservatório. Esse exemplo não é gerado pelo croqui clássico de parcelas subdivididas."))
           )
         )
       ),

@@ -12,7 +12,7 @@ mesmo script: `relatorio_completo.qmd` gera o caderno HTML e
 compartilhar; os QMDs usam os objetos recém-calculados na memória.
 
 `dados/brutos/` guarda a entrada intacta; `dados/processados/` guarda a base
-adotada e `base_t.csv`. `imagens/` recebe fotos ou esquemas do pesquisador.
+adotada. `imagens/` recebe fotos ou esquemas do pesquisador.
 `saida/tabelas/`, `saida/figuras/` e `saida/relatorios/` são regeneráveis.
 
 | No script R | No relatório | Cópia salva para compartilhar |
@@ -66,14 +66,8 @@ Entrada preservada: `dados/brutos/{{ARQUIVO_BRUTO}}`.
 
 {{AMBIENTE_COMPUTACIONAL}}
 
-O Render registra versões e revisões disponíveis em `saida/ambiente.csv` e
-`saida/sessionInfo.txt`, sem fixar versões. Uma revisão desconhecida aparece
+O Render registra versões e revisões disponíveis em `saida/sessionInfo.txt`, sem fixar versões. Uma revisão desconhecida aparece
 como “não registrado”. APA é o estilo bibliográfico fornecido.
 
-Para conferir os dois documentos, na raiz do projeto:
-
-```text
-Rscript verificar_reprodutibilidade.R
-```
-
-A conferência exige arquivo novo, render bem-sucedido e ausência de `??`.
+Para gerar os dois documentos, abra cada QMD de `relatorios/` no RStudio
+e clique em Render. Cada relatório executa novamente a análise.

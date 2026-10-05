@@ -156,16 +156,8 @@ Ambiente registrado automaticamente na exportação:
 
 {{AMBIENTE_COMPUTACIONAL}}
 
-Ao executar, o script registra o ambiente efetivo em `saida/ambiente.csv` e
-`saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
+Ao executar, o script registra o ambiente efetivo em `saida/sessionInfo.txt`; o relatório completo apresenta a tabela atualizada.
 Um commit ausente nos metadados aparece como “não registrado”.
 
-Para conferir a reprodução dos dois documentos, abra um terminal na raiz e rode:
-
-```text
-Rscript verificar_reprodutibilidade.R
-```
-
-A conferência recalcula cada QMD em um processo novo, registra os logs em
-`saida/verificacao/` e retorna erro se algum render falhar, se o arquivo
-não for novo ou se houver referência `??`. Ela não instala pacotes.
+Para gerar os dois documentos, abra cada QMD de `relatorios/` no RStudio
+e clique em Render. Cada relatório executa novamente a análise.

@@ -64,7 +64,7 @@ for (igual in c(TRUE, FALSE)) {
     if ((igual && alternativa == 'greater') || (!igual && alternativa == 'less')) {
       log <- file.path(destino, paste0(nome, '_render.log'))
       status <- system2(file.path(R.home('bin'), 'Rscript.exe'),
-        shQuote(file.path(projeto, 'verificar_reprodutibilidade.R')),
+        c(shQuote(normalizePath('templates/verificar_reprodutibilidade.R')), shQuote(projeto)),
         stdout = log, stderr = log)
       if (status != 0L) stop(paste(readLines(log, warn = FALSE), collapse = '\n'))
       cat('RENDER OK:', nome, '; HTML + DOCX, arquivos novos e sem ??.\n')

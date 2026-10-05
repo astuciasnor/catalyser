@@ -400,6 +400,10 @@ ui <- page_navbar(
         padding: 8px 16px !important;
         gap: 8px !important;
       }
+      /* Recuo dos módulos para destacar os títulos de grupo em todos os menus. */
+      .navbar .dropdown-menu .dropdown-item {
+        padding-left: 35px !important;
+      }
       .dropdown-menu .dropdown-item i {
         font-size: 1rem !important;
         color: #6c757d !important;
@@ -644,12 +648,12 @@ ui <- page_navbar(
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Delineamentos observacionais")),
     planejamento_observacional_painel("transversal_comparativo"),
     planejamento_observacional_painel("longitudinal"),
+    planejamento_observacional_painel("gradiente"),
+    planejamento_observacional_painel("impacto"),
     nav_panel(
       title = "Monitoramento (Séries Temporais)", icon = icon("chart-line"),
       mod_monitoramento_ui("monitoramento")
     ),
-    planejamento_observacional_painel("gradiente"),
-    planejamento_observacional_painel("impacto"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Delineamentos experimentais")),
     nav_panel(
       title = "DIC (Inteiramente Casualizado)",

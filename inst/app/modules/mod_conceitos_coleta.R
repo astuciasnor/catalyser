@@ -39,9 +39,9 @@ conceitos_coleta <- function() {
     ),
     padronizar = list(
       titulo = "Padronize antes de comparar", chamada = "O que mais poderia explicar a diferença?",
-      texto = "Para uma comparação justa entre grupos, controle o que não interessa. Padronizar tamanho, idade ou classe comercial faz a diferença refletir o fator que você estuda, e não uma variação de porte.",
+      texto = "Para uma comparação justa entre grupos, controle o que não interessa. Padronizar tamanho, idade ou classe comercial reduz explicações alternativas, mas não garante que a diferença restante tenha uma única causa.",
       exemplo = "Ao comparar bexigas entre espécies, use adultos numa faixa estreita de comprimento e peso, por exemplo mais ou menos dez por cento no comprimento. Assim o que difere é a espécie, não o tamanho do peixe.",
-      cuidado = "Defina os critérios de padronização antes de ir a campo.",
+      cuidado = "Em organismos instalados, padronize origem, tamanho, densidade, alimentação e manejo. Transporte, confinamento e cultivo também influenciam a resposta; crescimento e sobrevivência não identificam sozinhos qual variável atuou.",
       esquema = c("Fator de interesse", "Critérios fixos", "Comparação justa"),
       proximo = "Registre esses critérios no delineamento; eles viajam para a ficha e para a metodologia."
     ),

@@ -40,11 +40,23 @@ mod_quantos_coletar_ui <- function(id) {
       ),
       bslib::nav_menu("Para comparar", icon = shiny::icon("chart-line"),
         bslib::nav_panel("Comparação de médias",
-          bslib::card_body(fillable = FALSE, mod_n_poder_ui(ns("poder")))),
+          bslib::card_body(fillable = FALSE,
+            shiny::tags$details(class = "small mb-2",
+              shiny::tags$summary("Qual unidade entra no cálculo de n?"),
+              shiny::p(class = "mt-1 mb-0", "Para comparar categorias ambientais, conte ambientes distintos por categoria. Tanques e peixes dentro de um ambiente melhoram sua descrição, mas não substituem outros ambientes. Para ambientes específicos, a UA depende da pergunta e da independência das unidades internas; estas calculadoras não dimensionam toda a hierarquia.")),
+            mod_n_poder_ui(ns("poder")))),
         bslib::nav_panel("Comparação de proporções",
-          bslib::card_body(fillable = FALSE, mod_n_duas_prop_ui(ns("duas_prop")))),
+          bslib::card_body(fillable = FALSE,
+            shiny::tags$details(class = "small mb-2",
+              shiny::tags$summary("Qual unidade entra no cálculo de n?"),
+              shiny::p(class = "mt-1 mb-0", "Para comparar categorias ambientais, conte ambientes distintos por categoria. Tanques e peixes dentro de um ambiente melhoram sua descrição, mas não substituem outros ambientes. Para ambientes específicos, a UA depende da pergunta e da independência das unidades internas; estas calculadoras não dimensionam toda a hierarquia.")),
+            mod_n_duas_prop_ui(ns("duas_prop")))),
         bslib::nav_panel("Relação entre variáveis",
-          bslib::card_body(fillable = FALSE, mod_n_correlacao_ui(ns("correlacao"))))
+          bslib::card_body(fillable = FALSE,
+            shiny::tags$details(class = "small mb-2",
+              shiny::tags$summary("Qual unidade entra no cálculo de n?"),
+              shiny::p(class = "mt-1 mb-0", "Para comparar categorias ambientais, conte ambientes distintos por categoria. Tanques e peixes dentro de um ambiente melhoram sua descrição, mas não substituem outros ambientes. Para ambientes específicos, a UA depende da pergunta e da independência das unidades internas; estas calculadoras não dimensionam toda a hierarquia.")),
+            mod_n_correlacao_ui(ns("correlacao"))))
       )
     )
   )

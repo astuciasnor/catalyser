@@ -18,7 +18,6 @@ exportador geral (árvore legada, relatório sincronizado).
 ```
 projeto/
 ├── _quarto.yml                    renderiza os dois QMDs; saídas em saida/
-├── verificar_reprodutibilidade.R  executa e confere os dois renders
 ├── projeto.Rproj
 ├── dados/
 │   ├── brutos/<ARQUIVO_BRUTO>     a planilha de entrada, preservada (somente leitura)
@@ -39,8 +38,6 @@ projeto/
     ├── tabelas/                   CSVs (cópias para consulta; não alimentam os QMDs)
     ├── figuras/                   PNGs (idem)
     ├── relatorios/                onde _quarto.yml entrega HTML e Word
-    ├── ambiente.csv               versões e RemoteSha, quando registrado
-    ├── verificacao/               logs dos dois renders executados pelo verificador
     └── sessionInfo.txt            R, pacotes e versão do Quarto
 ```
 
@@ -160,7 +157,7 @@ dela, nos marcadores `{{BIBLIOTECAS_PREPARO}}`, `{{TRECHO_IMPORTAR}}` e
     `saida/figuras/` (7 × 4,6, 300 dpi, fundo branco).
 12. **Registrar o ambiente** — `tabela_ambiente` com R, Quarto, pacotes carregados,
     catalyser e EAPADados; versões e RemoteSha quando disponível, sem inventar
-    commits ausentes. Salvar `saida/ambiente.csv` e `registro_ambiente` com
+    commits ausentes. Manter `tabela_ambiente` em memória e salvar `registro_ambiente` com
     `sessionInfo()` em `saida/sessionInfo.txt`. O HTML apresenta a tabela formatada.
 
 ### 2.3 Voz dos comentários
@@ -208,7 +205,7 @@ caminhos de arquivo, nunca `saida/`. Todo script entrega pelo menos:
 | `texto_sintese_estatistica` | síntese de uma frase (Conclusão) |
 | `alerta_modelo` ou `texto_pressupostos` (uma amostra/pareado) | leitura honesta dos pressupostos e limites do desenho |
 | `registro_ambiente` | vetor de linhas do ambiente computacional |
-| `tabela_ambiente` | tabela de versões e commits para o HTML e ambiente.csv |
+| `tabela_ambiente` | tabela de versões e commits para o HTML |
 | `ic_percentual` | nível de confiança em texto (usado nos métodos) |
 
 Por análise, o mapa de objetos do cabeçalho lista os demais:
@@ -529,3 +526,7 @@ com HTML e Word novos e sem referências ??. Detalhes no registro de integraçã
 ## Padrão visual aprovado, 02/10/2026
 
 Transparência estatística e beleza dos dados passam a orientar os gráficos de médias: barras estreitas transparentes a partir do zero, observações individuais, losango na média, hastes de IC bilateral e rótulo média ± DP em negrito, na altura da média, com fundo totalmente transparente. Preservar os valores negativos e todos os limites do IC. Seguir este padrão nas futuras revisões aplicáveis, com os mesmos significados no painel e no Projeto R. O autor aprovou a apresentação visual e didática; o registro não declara migração de todos os módulos ou do livro. Detalhes: [padrão de gráficos de médias](docs/PADRAO_GRAFICOS_MEDIAS.md).
+
+Decisão de 02/10/2026: o Projeto R não entrega fichas de planejamento,
+verificador de reprodução, ambiente.csv ou cópias base_*.csv. As bases
+adotadas em Excel e o sessionInfo.txt permanecem; os QMDs usam objetos em memória.

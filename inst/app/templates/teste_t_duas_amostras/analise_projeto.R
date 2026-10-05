@@ -548,8 +548,6 @@ print(alerta_poder)
 
 # 10. Salvar cópias para consulta e compartilhamento ------------------------
 # CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
-write.csv2(dados, here::here("dados", "processados", "base_teste_t.csv"),
-           row.names = FALSE, fileEncoding = "UTF-8")
 tabelas <- list(descritiva = tabela_descritiva, teste = tabela_teste, pressupostos = tabela_pressupostos)
 for (nome in names(tabelas)) {
   write.csv2(tabelas[[nome]], here::here("saida", "tabelas", paste0(nome, ".csv")),
@@ -587,5 +585,3 @@ tabela_ambiente <- rbind(
 registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
   "", apply(tabela_ambiente, 1, paste, collapse = " | "))
 writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
-write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8")

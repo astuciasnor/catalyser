@@ -3463,7 +3463,6 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
   templates <- if (!is.null(molde)) c(
-    "verificar_reprodutibilidade.R" = "verificar_reprodutibilidade.R",
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "referencias.bib" = file.path("relatorios", "referencias.bib")
@@ -3606,7 +3605,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   leiame <- gsub("projeto.Rproj", paste0(nome_projeto, ".Rproj"), leiame, fixed = TRUE)
   leiame <- sub("^projeto/$", paste0(nome_projeto, "/"), leiame)
   # A ficha de planejamento viaja como objeto salvo em dados/ (contrato 1), sem pasta nova.
-  if (!is.null(ficha_planejamento)) leiame <- c(leiame, ficha_salvar_projeto(ficha_planejamento, projeto))
+  # A ficha permanece na IDE; o Projeto R conserva apenas os arquivos do molde.
   writeLines(leiame, file.path(projeto, "README.md"), useBytes = TRUE)
 
   projeto

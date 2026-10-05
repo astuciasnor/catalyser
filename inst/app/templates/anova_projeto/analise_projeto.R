@@ -686,14 +686,6 @@ print(texto_sintese_estatistica)
 # CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
 # Estes arquivos são saídas: edite a análise no script, não o CSV gerado.
 
-# Uma única base processada, com identificadores, resposta e grupo analisados.
-# Os QMDs não precisam dela: eles executam este script e usam base_anova.
-write.csv2(
-  base_anova,
-  here::here("dados", "processados", "base_anova.csv"),
-  row.names = FALSE,
-  fileEncoding = "UTF-8"
-)
 
 # A lista associa o nome do arquivo ao objeto já calculado.
 # O laço repete somente a gravação, sem repetir nenhuma análise.
@@ -763,5 +755,3 @@ tabela_ambiente <- rbind(
 registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
   "", apply(tabela_ambiente, 1, paste, collapse = " | "))
 writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
-write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8")

@@ -236,8 +236,6 @@ print(texto_teste)
 
 # 10. Salvar cópias para compartilhar --------------------------------------
 # As cópias não alimentam os QMDs. A fonte dos cálculos continua neste script.
-write.csv2(base_t, here::here("dados/processados/base_t.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8")
 tabelas <- list(descritiva = tabela_descritiva, teste_t = tabela_t_exibir,
   efeito = tabela_efeito, pressupostos = tabela_pressupostos)
 for (nome in names(tabelas)) {
@@ -277,5 +275,3 @@ tabela_ambiente <- rbind(
 registro_ambiente <- c(paste("Quarto:", versao_quarto), capture.output(sessionInfo()),
   "", apply(tabela_ambiente, 1, paste, collapse = " | "))
 writeLines(registro_ambiente, here::here("saida", "sessionInfo.txt"), useBytes = TRUE)
-write.csv2(tabela_ambiente, here::here("saida", "ambiente.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8")
