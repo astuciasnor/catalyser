@@ -465,22 +465,23 @@ mod_monitoramento_ui <- function(id) {
     .mon-definicoes .mon-rem { flex: 0 0 30px; margin-bottom: 0;
       min-height: 31px; padding: 3px 8px; }
     .mon-planejar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px 20px; position: relative; padding: 14px; min-height: 490px;
-      align-content: start; }
-    .mon-planejar::before, .mon-planejar::after { content: ''; position: absolute;
-      top: 0; bottom: 0; width: calc(50% - 4px); border: 2px solid #4b5155;
-      border-radius: 12px; pointer-events: none; }
-    .mon-planejar::before { left: 0; } .mon-planejar::after { right: 0; }
+      gap: 8px; min-height: 490px; align-items: stretch; }
+    .mon-divisao { border: 2px solid #4b5155; border-radius: 12px; padding: 12px;
+      display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    .mon-datas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .mon-datas > div { min-width: 0; }
+    .mon-datas .input-group > .form-control { min-width: 0; padding: 6px 8px; font-size: 0.85rem; }
+    .mon-datas .input-group > button { flex: 0 0 32px; width: 32px; padding: 6px 4px; }
+    .mon-registros { gap: 74px; padding-top: 18px; }
     .mon-planejar h5 { color: #0F3B5F; font-size: 0.92rem; font-weight: 700; margin: 0; }
     .mon-planejar > div { min-width: 0; }
     .mon-planejar .mon-frequencia { margin: 0; }
     .mon-planejar .mon-frequencia .shiny-options-group { display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
     .mon-planejar .radio-inline { margin-left: 0; }
-    .mon-planejar .mon-horario .control-label { min-height: 34px; }
     .mon-planejar .mon-secao { border-top: 1px solid #dbe5e8; padding-top: 16px; }
     .mon-planejar .mon-esforco { border: 0; margin: 0; padding: 0; }
-    .mon-planejar .mon-esforco .conditional-panel { margin-top: 12px; }
+    .mon-unidade-esforco { margin-top: 16px; }
     @media (max-width: 991px) { .mon-definicoes { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 575px) { .mon-campos { grid-template-columns: minmax(0, 1fr); } }
     .mon-estudio .mon-card li { margin-bottom: 7px; }
@@ -515,32 +516,35 @@ mod_monitoramento_ui <- function(id) {
           shiny::div(class = "mon-definicoes",
             shiny::div(class = "mon-coluna",
               shiny::div(class = "mon-planejar",
-                shiny::div(shiny::h5("1. Tempo")), shiny::div(),
-                shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_inicio"))),
-                shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_fim"))),
+                shiny::div(class = "mon-divisao",
+                shiny::h5("1. Tempo"),
+                shiny::div(class = "mon-datas",
+                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_inicio"))),
+                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_fim")))),
                 shiny::div(class = "mon-frequencia", shiny::radioButtons(ns("frequencia"), "Frequência:",
                   choices = c("Diária" = "diaria", "Semanal" = "semanal", "Quinzenal" = "quinzenal", "Mensal" = "mensal"),
-                  selected = "mensal", inline = TRUE)), shiny::div(),
+                  selected = "mensal", inline = TRUE)),
                 shiny::div(class = "mon-horario",
                   shiny::textInput(ns("horario"), "Horário da coleta (opcional):", placeholder = "Ex.: 8h, na preamar")
                 ),
-                shiny::div(class = "mon-horario",
-                  shiny::radioButtons(ns("hora_real"), "Registrar a hora real de cada coleta?",
-                    choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE)
-                ),
                 shiny::div(class = "mon-secao", shiny::h5("2. Onde e com que esforço")),
-                shiny::div(class = "mon-secao"),
                   shiny::div(
                     shiny::uiOutput(ns("ui_locais")),
                     shiny::actionButton(ns("add_local"), "+ local", class = "btn-sm btn-outline-primary")
-                  ),
+                  )
+                ),
+                shiny::div(class = "mon-divisao mon-registros",
+                  shiny::radioButtons(ns("hora_real"), "Registrar a hora real de cada coleta?",
+                    choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
                   shiny::div(class = "mon-esforco",
                     shiny::radioButtons(ns("tem_esforco"), "Registrar esforço em cada coleta?",
                       choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
                     shiny::conditionalPanel(sprintf("input['%s'] === 'sim'", ns("tem_esforco")),
-                      shiny::textInput(ns("unidade_esforco"), "Unidade do esforço:", value = "viagens")
+                      shiny::div(class = "mon-unidade-esforco",
+                        shiny::textInput(ns("unidade_esforco"), "Unidade do esforço:", value = "viagens"))
                     )
                   )
+                )
               )
             ),
 
