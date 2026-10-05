@@ -100,11 +100,11 @@ instalar_catalyser <- function(iniciar = FALSE) {
   }
 
   # --- 5. Extras opcionais (so avisa) ---------------------------------------
-  secao("4/4  Extras opcionais (Mapas e Series Temporais)")
-  op <- c("sf","geobr","ggspatial","leaflet","tsibble","feasts","fabletools")
+  secao("4/4  Extras opcionais (Mapear e Analisar, Series Temporais)")
+  op <- c("sf","geobr","ggspatial","hexbin","PMCMRplus","tsibble","feasts","fabletools")
   faltando_op <- op[!vapply(op, requireNamespace, logical(1), quietly = TRUE)]
   if (length(faltando_op))
-    cat(sprintf("  %s Ausentes (opcional): %s\n     Instale com install.packages(...) so se for usar Mapas/Series.\n",
+    cat(sprintf("  %s Ausentes (opcional): %s\n     Instale com install.packages(...) so se for usar Mapas, Series ou o teste de Nemenyi.\n",
                 SETA, paste(faltando_op, collapse = ", ")))
   else
     cat(sprintf("  %s Todos os extras presentes.\n", OK))

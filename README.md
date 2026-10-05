@@ -34,7 +34,25 @@ source("https://raw.githubusercontent.com/astuciasnor/catalyser/main/instalar_ca
 
 Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar novamente quando quiser: o instalador atualiza a CatalyseR pela branch `main`, preserva os pacotes CRAN compatíveis e abre a IDE no navegador padrão. A instalação fica no computador; nas próximas sessões, basta executar `catalyser::run_app()`. É necessário ter R >= 4.3 instalado e internet para a instalação. Não é necessário instalar Git.
 
-> **Menu Mapas (opcional):** exige os pacotes `sf` e `geobr`, que dependem de bibliotecas de fonte. No Windows pode ser preciso instalar o [Rtools](https://cran.r-project.org/bin/windows/Rtools/) antes. As demais análises da CatalyseR **não** precisam desses pacotes.
+### Alternativa: instalação com `pak`
+
+Quem já usa o `pak` pode instalar direto do GitHub. Ele resolve as dependências (inclusive o EAPADados) e usa pacotes binários do CRAN quando existem:
+
+```r
+install.packages("pak")
+pak::pkg_install("astuciasnor/catalyser", upgrade = FALSE)
+catalyser::run_app(launch.browser = TRUE)
+```
+
+Para instalar também os extras opcionais (mapas, hexágonos, teste de Nemenyi), troque a segunda linha por:
+
+```r
+pak::pkg_install("astuciasnor/catalyser", upgrade = FALSE, dependencies = TRUE)
+```
+
+A CatalyseR é escrita só em R e não precisa de Rtools. Se aparecer um aviso sobre o Rtools ao instalar a partir da pasta local (`install.packages(..., repos = NULL, type = "source")`), ele pode ser ignorado.
+
+> **Menu Mapear e Analisar (opcional):** os mapas usam `sf`, `geobr` e `ggspatial`. No Windows e no macOS eles vêm em binário do CRAN; no Linux, `sf` pede bibliotecas do sistema (GDAL, GEOS, PROJ). As demais análises da CatalyseR **não** precisam desses pacotes.
 
 ---
 

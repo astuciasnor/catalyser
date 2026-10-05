@@ -7,10 +7,61 @@ if (file.exists(file.path("..", "..", "R", "descrevendo_dados.R"))) {
     "catalyser_codigo_descricao", "catalyser_descricao", "cores_ocean", "tema_ocean",
     "aplicar_faceta_ocean", "desenhar_distribuicao", "desenhar_barras_ocean",
     "desenhar_caixa_ocean", "desenhar_dispersao_ocean", "resumir_continuas",
-    "tabela_frequencia_exploratoria"
+    "tabela_frequencia_exploratoria", "exploracao_tipos", "exploracao_base_visual",
+    "exploracao_cores", "exploracao_grupo", "exploracao_retratos", "exploracao_mapa_ausentes", "exploracao_saude", "exploracao_normalidade_grupos"
   )) {
     assign(nome, getFromNamespace(nome, "catalyser"), envir = globalenv())
   }
+}
+
+# Cada entrada conserva a base exata: mudar os dados pede uma nova leitura.
+exploracao_ficha_ler <- function(ficha, dados) {
+  entradas <- ficha()
+  iguais <- which(vapply(entradas, function(x) identical(x$dados, dados), logical(1)))
+  if (length(iguais)) entradas[[iguais[1]]]$leituras else NULL
+}
+
+exploracao_ficha_gravar <- function(ficha, dados, nome, tipo) {
+  entradas <- shiny::isolate(ficha())
+  iguais <- which(vapply(entradas, function(x) identical(x$dados, dados), logical(1)))
+  i <- if (length(iguais)) iguais[1] else length(entradas) + 1L
+  entrada <- if (length(iguais)) entradas[[i]] else list(dados = dados, leituras = character())
+  entrada$leituras[nome] <- tipo
+  entradas[[i]] <- entrada
+  ficha(entradas)
+}
+
+# Os retratos têm espaço próprio; detalhes e edição ficam nas abas seguintes.
+mod_explorar_dataset_ui <- function(id) {
+  ns <- shiny::NS(id)
+  tagList(
+    tags$h2("Explorar Dataset", class = "h4 mb-1"),
+    p("Confira o conjunto, observe cada variável e escolha a próxima pergunta.", class = "text-muted small mb-3"),
+    mod_seletor_base_analise_ui(ns("base"), compacto = TRUE),
+    div(class = "exploracao-espaco",
+      bslib::navset_card_tab(id = ns("abas"), title = "Painel de Resultados da Exploração:",
+        bslib::nav_panel("Painel de retratos", value = "panorama",
+          uiOutput(ns("indicadores")), uiOutput(ns("saude")),
+          selectInput(ns("pagina_retratos"), "Página de variáveis:", choices = c("1" = 1), width = "160px"),
+          uiOutput(ns("retratos_plot")),
+          tags$details(tags$summary("Leitura e código R"), uiOutput(ns("panorama_narrativa")), verbatimTextOutput(ns("panorama_codigo")))),
+        bslib::nav_panel("Tabela", value = "tabela", DT::DTOutput(ns("panorama_tabela"))),
+        bslib::nav_panel("Mapa de ausentes", value = "ausentes", plotOutput(ns("mapa_ausentes"), height = "480px")),
+        bslib::nav_panel("Ficha de variáveis", value = "ficha",
+          p("A leitura é um palpite. Corrija uma vez para as telas deste menu. Os valores da base permanecem iguais.", class = "text-muted small"),
+          bslib::layout_columns(col_widths = c(5, 5, 2),
+            selectInput(ns("ficha_variavel"), "Variável:", choices = NULL),
+            selectInput(ns("ficha_tipo"), "Como ler:", choices = c("Detectar automaticamente" = "automatico", "Categórica nominal", "Categórica ordinal", "Numérica discreta", "Numérica contínua")),
+            div(class = "pt-4", actionButton(ns("ficha_salvar"), "Confirmar", class = "btn-outline-primary"))),
+          uiOutput(ns("ficha_pista")), DT::DTOutput(ns("ficha_tabela"))),
+        bslib::nav_panel("Inserir análise", value = "inserir", icon = icon("bookmark"),
+          p("Guarde o panorama e a primeira página dos retratos no Projeto R.", class = "small text-muted"),
+          actionButton(ns("panorama_executar"), "Atualizar panorama para inserir", icon = icon("arrows-rotate"), class = "btn-outline-primary mb-3"),
+          selectInput(ns("previa_id"), "Resultados disponíveis:", choices = NULL),
+          uiOutput(ns("resumo_selecao")), mod_registrar_execucao_ui(ns("registrar")))
+      )
+    )
+  )
 }
 
 # A tela de Conhecer as Variáveis reúne tabelas descritivas e um apoio visual.
@@ -20,10 +71,11 @@ mod_conhecer_variaveis_ui <- function(id) {
     tags$h2("Conhecer as Variáveis", class = "h4 mb-1"),
     div(class = "alert alert-light border mb-2",
       strong("Aqui a tabela conduz a leitura. "),
-      "Os gráficos são apoios prontos para interpretar. Para ajustar e produzir figuras, use Visualização dos Dados. Estas frequências são descritivas; testes de proporção e qui-quadrado ficam em Frequências e Proporções."),
+      "Os gráficos são apoios para interpretar. Para ajustar figuras, use VISUALIZANDO OS DADOS, no mesmo menu. Estas frequências são descritivas; testes ficam em Frequências e Proporções."),
     mod_seletor_base_analise_ui(ns("base"), compacto = TRUE),
     bslib::navset_card_tab(
       id = ns("abas_conhecer"),
+      title = "Painel de Resultados das Variáveis:",
       bslib::nav_panel(
         "Resumo das contínuas", value = "resumo",
         bslib::layout_columns(
@@ -78,7 +130,7 @@ mod_conhecer_variaveis_ui <- function(id) {
 # Executa o retrato consolidado sem duplicar o motor gráfico de Visualização.
 mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
                                           cache_bases_rv, revisao_origem_rv,
-                                          registro_execucoes_rv, contador_execucoes_rv) {
+                                          registro_execucoes_rv, contador_execucoes_rv, ficha_rv = shiny::reactiveVal(list())) {
   shiny::moduleServer(id, function(input, output, session) {
     seletor <- mod_seletor_base_analise_server(
       "base", dados_rv, registro_bases_rv, cache_bases_rv, revisao_origem_rv,
@@ -89,7 +141,8 @@ mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
 
     variaveis_continuas <- reactive({
       base <- dados()
-      names(base)[vapply(base, function(x) identical(exploracao_tipo_variavel(x), "Numérica contínua"), logical(1))]
+      tipos <- exploracao_tipos(base, exploracao_ficha_ler(ficha_rv, base))
+      names(tipos)[tipos == "Numérica contínua"]
     })
     resumo_bruto <- reactive({
       vars <- variaveis_continuas()
@@ -110,6 +163,7 @@ mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
         colnames = nomes_exibidos,
         options = list(pageLength = 10, scrollX = TRUE, dom = "tip",
           columnDefs = list(list(targets = 8, visible = FALSE))))
+      widget <- DT::formatStyle(widget, "n_validos", background = DT::styleColorBar(range(tab$n_validos), "#E7EFEA"), backgroundSize = "95% 75%", backgroundRepeat = "no-repeat", backgroundPosition = "center")
       widget <- DT::formatStyle(widget, "ausentes", backgroundColor = DT::styleInterval(0, c("transparent", "#FFF3CD")))
       DT::formatStyle(widget, "pista_assimetria", target = "row",
         backgroundColor = DT::styleEqual(c(FALSE, TRUE), c("transparent", "#FFF3CD")))
@@ -141,7 +195,7 @@ mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
     })
     tipo_frequencia <- reactive({
       req(input$variavel_frequencia)
-      exploracao_tipo_variavel(dados()[[input$variavel_frequencia]])
+      exploracao_tipos(dados(), exploracao_ficha_ler(ficha_rv, dados()))[[input$variavel_frequencia]]
     })
     output$controle_classes <- renderUI({
       if (!identical(tipo_frequencia(), "Numérica contínua")) return(NULL)
@@ -208,7 +262,7 @@ mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
       } else {
         list(analise_id = "descricao_conhecer", tipo = "descricao_exploratoria",
           titulo = "Resumo das variáveis contínuas",
-          parametros = list(analise = "resumo_continuas", variavel = variavel_resumo(), variaveis = variaveis_continuas()),
+          parametros = list(leituras = exploracao_tipos(dados(), exploracao_ficha_ler(ficha_rv, dados())), analise = "resumo_continuas", variavel = variavel_resumo(), variaveis = variaveis_continuas()),
           saidas_disponiveis = c("narrativa", "tabela", "grafico"),
           codigo_r = "resumir_continuas(dados, variaveis_continuas)"
         )
@@ -223,6 +277,7 @@ mod_conhecer_variaveis_server <- function(id, dados_rv, registro_bases_rv,
 }
 
 mod_descrevendo_dados_ui <- function(id, area) {
+  if (identical(area, "explorar")) return(mod_explorar_dataset_ui(id))
   if (identical(area, "descrever")) return(mod_conhecer_variaveis_ui(id))
   ns <- shiny::NS(id)
   catalogo <- descricao_catalogo()[[area]]
@@ -245,7 +300,7 @@ mod_descrevendo_dados_ui <- function(id, area) {
           if (modo %in% c("retrato", "relacao")) selectInput(prefixo("tipo"), "Como ler esta variável?", choices = c("Detectar automaticamente" = "automatico", "Categórica nominal" = "Categórica nominal", "Categórica ordinal" = "Categórica ordinal", "Numérica discreta" = "Numérica discreta", "Numérica contínua" = "Numérica contínua")),
           # A segunda leitura só é necessária ao explorar uma relação.
           if (modo == "relacao") selectInput(prefixo("tipo_outra"), "Como ler a segunda variável?", choices = c("Detectar automaticamente" = "automatico", "Categórica nominal" = "Categórica nominal", "Categórica ordinal" = "Categórica ordinal", "Numérica discreta" = "Numérica discreta", "Numérica contínua" = "Numérica contínua")),
-          if (modo == "grupos") selectInput(prefixo("grupo"), "Agrupar por:", choices = NULL),
+          if (modo %in% c("grupos", "normalidade")) selectInput(prefixo("grupo"), "Agrupar por:", choices = NULL),
           if (modo == "correlacao") radioButtons(prefixo("metodo"), "Método:", c("Pearson" = "pearson", "Spearman" = "spearman")),
           if (modo == "histograma") numericInput(prefixo("classes"), "Número de classes:", 30, min = 2, max = 200, step = 1),
           if (modo == "boxplot") selectInput(prefixo("forma"), "Apresentação:", c("Boxplot" = "boxplot", "Violino" = "violino", "Ambos" = "ambos")),
@@ -279,7 +334,7 @@ mod_descrevendo_dados_ui <- function(id, area) {
       # Uma única linha basta para escolher a base nas cinco perguntas do menu.
       mod_seletor_base_analise_ui(ns("base"), compacto = TRUE),
       do.call(bslib::navset_card_tab, c(
-        list(id = ns("abas"), wrapper = function(...) bslib::card_body(..., fillable = FALSE)),
+        list(id = ns("abas"), title = paste0("Painel de Resultados de ", titulo, ":"), wrapper = function(...) bslib::card_body(..., fillable = FALSE)),
         unname(Map(painel, unname(catalogo), names(catalogo))),
         list(bslib::nav_panel(
           "Inserir análise", value = "inserir", icon = icon("bookmark"),
@@ -295,10 +350,10 @@ mod_descrevendo_dados_ui <- function(id, area) {
 
 mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
                                         cache_bases_rv, revisao_origem_rv,
-                                        registro_execucoes_rv, contador_execucoes_rv) {
+                                        registro_execucoes_rv, contador_execucoes_rv, ficha_rv = shiny::reactiveVal(list())) {
   if (identical(area, "descrever")) return(mod_conhecer_variaveis_server(
     id, dados_rv, registro_bases_rv, cache_bases_rv, revisao_origem_rv,
-    registro_execucoes_rv, contador_execucoes_rv
+    registro_execucoes_rv, contador_execucoes_rv, ficha_rv
   ))
   moduleServer(id, function(input, output, session) {
     catalogo <- descricao_catalogo()[[area]]
@@ -316,6 +371,59 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
       list(base_id = ctx$base_id, versao = ctx$versao_receita,
            revisao = revisao_origem_rv(), dados = seletor$dados())
     })
+    leituras <- reactive(exploracao_tipos(seletor$dados(), exploracao_ficha_ler(ficha_rv, seletor$dados())))
+    if (identical(area, "explorar")) {
+      observe({
+        base <- seletor$dados(); req(is.data.frame(base))
+        atual <- isolate(input$ficha_variavel)
+        updateSelectInput(session, "ficha_variavel", choices = names(base), selected = if (length(atual) && atual %in% names(base)) atual else names(base)[1])
+        paginas <- seq_len(max(1L, ceiling(ncol(base) / 12)))
+        updateSelectInput(session, "pagina_retratos", choices = paginas, selected = min(as.integer(isolate(input$pagina_retratos) %||% 1), max(paginas)))
+      })
+      observeEvent(list(input$ficha_variavel, leituras()), {
+        req(input$ficha_variavel)
+        escolha <- exploracao_ficha_ler(ficha_rv, seletor$dados())[input$ficha_variavel]
+        updateSelectInput(session, "ficha_tipo", selected = if (length(escolha) && !is.na(escolha)) escolha else "automatico")
+      })
+      observeEvent(input$ficha_salvar, {
+        req(input$ficha_variavel, input$ficha_tipo)
+        base <- seletor$dados()
+        # Uma medida só pode ser lida como numérica quando seus valores são numéricos.
+        if (grepl("Numérica", input$ficha_tipo) && !is.numeric(base[[input$ficha_variavel]])) {
+          showNotification("Prepare a coluna como numérica antes de confirmar esta leitura.", type = "warning"); return()
+        }
+        exploracao_ficha_gravar(ficha_rv, base, input$ficha_variavel, input$ficha_tipo)
+        showNotification("Leitura compartilhada com as telas deste menu.", type = "message")
+      })
+      output$ficha_pista <- renderUI({
+        req(input$ficha_variavel)
+        p(paste("Palpite pelo nome, classe e valores:", exploracao_tipo_variavel(seletor$dados()[[input$ficha_variavel]], input$ficha_variavel)), class = "small text-muted")
+      })
+      output$ficha_tabela <- DT::renderDT({
+        base <- seletor$dados(); tipos <- leituras()
+        DT::datatable(data.frame(Variável = names(base), Leitura = unname(tipos), Classe = vapply(base, function(x) paste(class(x), collapse = "/"), character(1))),
+          rownames = FALSE, options = list(dom = "t", scrollX = TRUE, pageLength = 12))
+      })
+      output$indicadores <- renderUI({
+        base <- seletor$dados(); req(is.data.frame(base)); tipos <- leituras()
+        valores <- c("Observações" = nrow(base), "Variáveis" = ncol(base),
+          "Preenchidas" = sprintf("%.1f%%", if (length(base) && nrow(base)) 100 * mean(!is.na(base)) else 0),
+          "Medidas / grupos" = paste(sum(tipos == "Numérica contínua"), sum(grepl("Categ", tipos)), sep = " / "))
+        do.call(bslib::layout_columns, c(lapply(names(valores), function(nome) div(class = "exploracao-indicador", span(nome), tags$strong(valores[[nome]]))), list(col_widths = c(3, 3, 3, 3))))
+      })
+      output$saude <- renderUI({
+        tab <- exploracao_saude(seletor$dados())
+        div(class = "exploracao-saude", lapply(seq_len(nrow(tab)), function(i) span(class = if (tab$quantidade[i]) "badge text-bg-warning" else "badge text-bg-light", paste(tab$verificacao[i], tab$quantidade[i], sep = ": "))),
+          span("Linhas iguais são um alerta para conferir, não uma ordem para excluir.", class = "small text-muted"))
+      })
+      output$retratos_plot <- renderUI({
+        pagina <- as.integer(input$pagina_retratos %||% 1)
+        quantidade <- min(12L, max(1L, ncol(seletor$dados()) - (pagina - 1L) * 12L))
+        plotOutput(session$ns("retratos"), height = paste0(250 * ceiling(quantidade / 3), "px"))
+      })
+      output$retratos <- renderPlot({ print(exploracao_retratos(seletor$dados(), leituras(), as.integer(input$pagina_retratos %||% 1))) })
+      output$mapa_ausentes <- renderPlot({ print(exploracao_mapa_ausentes(seletor$dados())) })
+    }
     observeEvent(contexto(), {
       if (identical(contexto(), contexto_anterior())) return()
       contexto_anterior(contexto())
@@ -328,9 +436,9 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
     observe({
       dados <- seletor$dados()
       req(is.data.frame(dados))
-      tipos <- vapply(dados, descricao_tipo, character(1))
-      numericas <- names(tipos)[tipos == "Numérica"]
-      categoricas <- names(tipos)[tipos == "Categórica"]
+      tipos <- exploracao_tipos(dados, exploracao_ficha_ler(ficha_rv, dados))
+      numericas <- names(tipos)[grepl("Numérica", tipos)]
+      categoricas <- names(tipos)[grepl("Categórica", tipos)]
       todas <- names(dados)
       for (modo in unname(catalogo)) {
         # Retratos novos aceitam qualquer coluna; os modos históricos preservam seus filtros.
@@ -344,7 +452,7 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
         if (area != "explorar") atualizar("variavel", escolhas)
         if (modo %in% c("correlacao", "dispersao", "marginais")) atualizar("outra", numericas, 2L)
         if (modo == "relacao") atualizar("outra", todas, 2L)
-        if (modo == "grupos") atualizar("grupo", categoricas)
+        if (modo %in% c("grupos", "normalidade")) atualizar("grupo", c("Todos juntos" = "nenhum", stats::setNames(categoricas, categoricas)))
       }
     })
 
@@ -353,15 +461,19 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
                   if (modo %in% c("correlacao", "dispersao", "marginais", "relacao")) "outra",
                   if (modo %in% c("retrato", "relacao")) "tipo",
                   if (modo == "relacao") "tipo_outra",
-                  switch(modo, grupos = "grupo", correlacao = "metodo", histograma = "classes",
+                  switch(modo, grupos = "grupo", normalidade = "grupo", correlacao = "metodo", histograma = "classes",
                          boxplot = "forma", dispersao = "tendencia", outliers = "limite_z", NULL))
-      c(list(analise = modo), stats::setNames(lapply(campos, function(campo) input[[paste0(modo, "_", campo)]]), campos))
+      p <- c(list(analise = modo, leituras = leituras()), stats::setNames(lapply(campos, function(campo) input[[paste0(modo, "_", campo)]]), campos))
+      if (modo %in% c("retrato", "relacao") && identical(p$tipo, "automatico")) p$tipo <- unname(leituras()[p$variavel])
+      if (modo == "relacao" && identical(p$tipo_outra, "automatico")) p$tipo_outra <- unname(leituras()[p$outra])
+      p
     }
     for (modo_atual in unname(catalogo)) local({
       modo <- modo_atual
       chave <- function(campo) paste0(modo, "_", campo)
       rotulo <- names(catalogo)[match(modo, catalogo)]
-      observeEvent(input[[chave("executar")]], {
+      observeEvent(if (modo == "panorama") list(contexto(), leituras(), input[[chave("executar")]]) else input[[chave("executar")]], {
+        req(is.data.frame(seletor$dados()), ncol(seletor$dados()) > 0)
         p <- parametros(modo)
         dados <- seletor$dados()
         resposta <- tryCatch(catalyser_descricao(dados, p), error = identity)
@@ -453,7 +565,7 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
         if (!is.null(resposta()$grafico)) {
           div(
             class = "descricao-grafico-compacto",
-            plotOutput(session$ns(chave("grafico")), height = "320px")
+            plotOutput(session$ns(chave("grafico")), height = if (modo == "transformacoes") "640px" else if (modo == "normalidade") "460px" else "360px")
           )
         }
       })

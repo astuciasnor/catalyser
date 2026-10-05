@@ -56,7 +56,7 @@ reescalar_para_eixo <- function(y2, y1) {
 # Construa a mesma moldura compacta em todos os tipos de gráfico.
 mod_exploracao_visual_ui <- function(id, tipo) {
   ns <- shiny::NS(id)
-  tagList(
+  div(class = "exploracao-espaco",
     tags$h2(switch(
       tipo,
       histograma = "Histograma com densidade",
@@ -76,21 +76,24 @@ mod_exploracao_visual_ui <- function(id, tipo) {
       fill = FALSE,
       sidebar = bslib::sidebar(width = 310, uiOutput(ns("controles"))),
       uiOutput(ns("aviso")),
-      .visual_card_grafico("Retrato visual", ns("grafico"), if (tipo %in% c("matriz", "calor")) 620 else 460),
-      bslib::accordion(
-        bslib::accordion_panel("Ver o código R", verbatimTextOutput(ns("codigo"))),
-        open = FALSE
+      bslib::navset_card_tab(title = "Painel Visual:",
+        bslib::nav_panel("Gráfico", .visual_card_grafico("Retrato visual", ns("grafico"), if (tipo %in% c("matriz", "calor")) 680 else 460)),
+        bslib::nav_panel("Ver o código R", verbatimTextOutput(ns("codigo")))
       )
     )
   )
 }
 
 # Atenda aos oito gráficos com um motor comum e interfaces específicas.
-mod_exploracao_visual_server <- function(id, data_rv, tipo) {
+mod_exploracao_visual_server <- function(id, data_rv, tipo, ficha_rv = shiny::reactiveVal(list())) {
   shiny::moduleServer(id, function(input, output, session) {
+    base_visual <- reactive({
+      dados <- data_rv(); shiny::req(is.data.frame(dados))
+      exploracao_base_visual(dados, exploracao_tipos(dados, exploracao_ficha_ler(ficha_rv, dados)))
+    })
     # Atualize as listas sempre que a base compartilhada mudar.
     escolhas <- reactive({
-      dados <- data_rv()
+      dados <- base_visual()
       shiny::req(is.data.frame(dados))
       list(numericas = .visual_numericas(dados), categoricas = .visual_categoricas(dados), todas = names(dados))
     })
@@ -100,7 +103,7 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
       opcoes <- escolhas()
       numericas <- opcoes$numericas
       categoricas <- opcoes$categoricas
-      shiny::validate(shiny::need(length(numericas) > 0, "A base precisa ter ao menos uma variável numérica."))
+      if (!tipo %in% c("barras", "rosca", "matriz")) shiny::validate(shiny::need(length(numericas) > 0, "A base precisa ter ao menos uma variável numérica."))
       facetas <- c("Não repetir por grupo" = "nenhuma", stats::setNames(categoricas, categoricas))
       switch(
         tipo,
@@ -115,7 +118,8 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
           tags$h5("Centro e dispersão"),
           selectInput(session$ns("y"), "Variável numérica:", numericas),
           selectInput(session$ns("grupo"), "Comparar grupos:", c("Todos juntos" = "nenhum", stats::setNames(categoricas, categoricas))),
-          radioButtons(session$ns("forma"), "Mostrar:", c("Boxplot" = "caixa", "Violino" = "violino", "Os dois" = "ambos"), inline = TRUE),
+          checkboxInput(session$ns("mostrar_ausentes"), "Mostrar grupos sem registro", TRUE),
+          radioButtons(session$ns("forma"), "Mostrar:", c("Pontos, violino e média" = "pontos", "Boxplot com pontos" = "caixa_pontos", "Violino com pontos" = "violino_pontos"), inline = TRUE),
           selectInput(session$ns("faceta"), "Repetir por:", facetas)
         ),
         dispersao = tagList(
@@ -123,7 +127,9 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
           selectInput(session$ns("x"), "Eixo X:", numericas),
           selectInput(session$ns("y"), "Eixo Y:", numericas, selected = numericas[min(2, length(numericas))]),
           selectInput(session$ns("grupo"), "Cor por grupo:", c("Nenhum" = "nenhum", stats::setNames(categoricas, categoricas))),
-          selectInput(session$ns("suavizacao"), "Linha de tendência:", c("Sem linha" = "nenhuma", "Linear" = "lm", "Suave" = "loess")),
+          checkboxInput(session$ns("linha_por_grupo"), "Uma linha por grupo", TRUE),
+          selectInput(session$ns("muitos_pontos"), "Muitos pontos:", c("Pontos" = "pontos", "Hexágonos (sem cor por grupo)" = "hex")),
+          selectInput(session$ns("suavizacao"), "Linha de tendência:", c("Suave (LOESS)" = "loess", "Linear" = "lm", "Sem linha" = "nenhuma")),
           selectInput(session$ns("faceta"), "Repetir por:", facetas)
         ),
         duplo_eixo = tagList(
@@ -137,6 +143,7 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
           selectInput(session$ns("x"), "Categoria:", categoricas),
           selectInput(session$ns("y"), "Valor a somar:", c("Contagem de casos" = "nenhum", stats::setNames(numericas, numericas))),
           selectInput(session$ns("grupo"), "Preencher por grupo:", c("Nenhum" = "nenhum", stats::setNames(categoricas, categoricas))),
+          checkboxInput(session$ns("mostrar_ausentes"), "Mostrar categorias sem registro", TRUE),
           selectInput(session$ns("posicao"), "Disposição:", c("Lado a lado" = "dodge", "Empilhadas" = "stack", "Proporção de 100%" = "fill")),
           selectInput(session$ns("faceta"), "Repetir por:", facetas)
         ),
@@ -147,13 +154,13 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
         ),
         matriz = tagList(
           tags$h5("Muitas medidas"),
-          selectizeInput(session$ns("vars"), "Variáveis numéricas, de 2 a 6:", numericas, multiple = TRUE, options = list(maxItems = 6)),
+          selectizeInput(session$ns("vars"), "Variáveis, de 2 a 6:", c(numericas, categoricas), multiple = TRUE, selected = head(c(numericas, categoricas), 6), options = list(maxItems = 6, placeholder = "Escolha medidas e grupos")),
           helpText("Cada painel mostra a relação entre um par de variáveis.")
         ),
         calor = tagList(
           tags$h5("Relações lineares"),
-          selectizeInput(session$ns("vars"), "Variáveis numéricas, de 2 a 12:", numericas, multiple = TRUE, options = list(maxItems = 12)),
-          helpText("O mapa mostra correlações de Pearson. Ele resume associação, não causa e efeito.")
+          selectizeInput(session$ns("vars"), "Variáveis numéricas, de 2 a 12:", numericas, multiple = TRUE, selected = head(numericas, 4), options = list(maxItems = 12, placeholder = "Escolha duas ou mais medidas")),
+          helpText("O mapa mostra correlações de Pearson. A correlação geral pode mudar dentro dos grupos; associação não demonstra causalidade.")
         )
       )
     })
@@ -165,7 +172,7 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
 
     # Construa o gráfico selecionado com ggplot2 e dados completos para seus eixos.
     grafico <- reactive({
-      dados <- data_rv()
+      dados <- base_visual()
       opcoes <- escolhas()
       shiny::req(nrow(dados) > 0)
       if (tipo == "histograma") {
@@ -177,12 +184,12 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
       } else if (tipo == "caixa_violino") {
         shiny::req(input$y)
         grupo <- input$grupo %||% "nenhum"
-        desenhar_caixa_ocean(dados, input$y, grupo = grupo, forma = input$forma, faceta = input$faceta)
+        desenhar_caixa_ocean(dados, input$y, grupo = grupo, forma = input$forma, faceta = input$faceta, mostrar_ausentes = isTRUE(input$mostrar_ausentes))
       } else if (tipo == "dispersao") {
         shiny::req(input$x, input$y)
         grupo <- input$grupo %||% "nenhum"
         desenhar_dispersao_ocean(dados, input$x, input$y, grupo = grupo,
-          tendencia = input$suavizacao %||% "nenhuma", faceta = input$faceta)
+          tendencia = input$suavizacao %||% "loess", faceta = input$faceta, linha_por_grupo = isTRUE(input$linha_por_grupo), muitos_pontos = input$muitos_pontos %||% "pontos")
       } else if (tipo == "duplo_eixo") {
         shiny::req(input$x, input$y1, input$y2)
         shiny::validate(shiny::need(input$y1 != input$y2, "Escolha duas variáveis numéricas diferentes."))
@@ -201,7 +208,7 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
         grupo <- input$grupo %||% "nenhum"
         y <- input$y %||% "nenhum"
         desenhar_barras_ocean(dados, input$x, grupo = grupo, peso = y,
-          posicao = input$posicao, faceta = input$faceta)
+          posicao = input$posicao, faceta = input$faceta, mostrar_ausentes = isTRUE(input$mostrar_ausentes))
       } else if (tipo == "rosca") {
         shiny::req(input$x)
         tabela <- as.data.frame(table(dados[[input$x]], useNA = "no"), stringsAsFactors = FALSE)
@@ -218,14 +225,12 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
       } else if (tipo == "matriz") {
         vars <- input$vars %||% character()
         shiny::validate(shiny::need(length(vars) >= 2, "Escolha pelo menos duas variáveis numéricas."))
-        pares <- expand.grid(x_var = vars, y_var = vars, stringsAsFactors = FALSE)
-        pares <- pares[pares$x_var != pares$y_var, , drop = FALSE]
-        painel <- do.call(rbind, lapply(seq_len(nrow(pares)), function(i) data.frame(x = dados[[pares$x_var[i]]], y = dados[[pares$y_var[i]]], x_var = pares$x_var[i], y_var = pares$y_var[i])))
-        ggplot2::ggplot(painel, ggplot2::aes(x = .data$x, y = .data$y)) +
-          ggplot2::geom_point(color = cores_ocean()[["TEAL"]], alpha = .55, na.rm = TRUE) +
-          ggplot2::facet_grid(y_var ~ x_var, scales = "free") + .visual_tema() +
-          ggplot2::theme(axis.title = ggplot2::element_blank(), strip.text = ggplot2::element_text(face = "bold")) +
-          ggplot2::labs(title = "Matriz de dispersão", subtitle = "Cada painel compara duas variáveis. A diagonal permanece vazia porque uma variável contra ela mesma não acrescenta informação.")
+        shiny::validate(shiny::need(length(vars) <= 6L, "Escolha até seis variáveis."),
+          shiny::need(requireNamespace("GGally", quietly = TRUE), "Instale GGally para abrir a matriz generalizada."))
+        GGally::ggpairs(dados[vars], progress = FALSE,
+          upper = list(continuous = GGally::wrap("cor", use = "pairwise.complete.obs")),
+          lower = list(continuous = GGally::wrap("points", alpha = .45, color = "#2E7D8F")),
+          cardinality_threshold = 12) + .visual_tema()
       } else {
         vars <- input$vars %||% character()
         shiny::validate(shiny::need(length(vars) >= 2, "Escolha pelo menos duas variáveis numéricas."))
@@ -250,14 +255,14 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
 
     # Mostre o código essencial que corresponde à intenção escolhida.
     output$codigo <- shiny::renderText({
-      switch(tipo,
+      trecho <- switch(tipo,
         histograma = sprintf("desenhar_distribuicao(\n  dados, variavel = %s, tipo = %s, classes = 30,\n  grupo = %s, faceta = %s\n)",
           deparse(input$x %||% "variavel"),
           deparse(if (isTRUE(input$densidade)) "densidade" else "histograma"),
           deparse(input$grupo %||% "nenhum"), deparse(input$faceta %||% "nenhuma")),
         caixa_violino = sprintf("desenhar_caixa_ocean(\n  dados, variavel = %s, grupo = %s, forma = %s, faceta = %s\n)",
           deparse(input$y %||% "variavel"), deparse(input$grupo %||% "nenhum"),
-          deparse(input$forma %||% "ambos"), deparse(input$faceta %||% "nenhuma")),
+          deparse(input$forma %||% "pontos"), deparse(input$faceta %||% "nenhuma")),
         dispersao = sprintf("desenhar_dispersao_ocean(\n  dados, x = %s, y = %s, grupo = %s, tendencia = %s, faceta = %s\n)",
           deparse(input$x %||% "x"), deparse(input$y %||% "y"), deparse(input$grupo %||% "nenhum"),
           deparse(input$suavizacao %||% "nenhuma"), deparse(input$faceta %||% "nenhuma")),
@@ -267,9 +272,14 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo) {
           deparse(input$y %||% "nenhum"), deparse(input$posicao %||% "dodge"),
           deparse(input$faceta %||% "nenhuma")),
         rosca = "ggplot(tabela, aes(x = 2, y = n, fill = categoria)) +\n  geom_col() + coord_polar(theta = 'y') + xlim(.5, 2.5)",
-        matriz = "# A CatalyseR monta cada par de variáveis e os organiza em facet_grid().\nggplot(painel, aes(x, y)) + geom_point() + facet_grid(y_var ~ x_var)",
+        matriz = paste0("GGally::ggpairs(dados[", paste(deparse(input$vars), collapse = ""), "], progress = FALSE) + tema_ocean()"),
         calor = "correlacoes <- cor(dados[variaveis], use = 'pairwise.complete.obs')\nggplot(tabela, aes(x, y, fill = correlacao)) + geom_tile()"
       )
+      if (tipo %in% c("caixa_violino", "barras")) trecho <- sub("\\n\\)$", paste0(",\n  mostrar_ausentes = ", isTRUE(input$mostrar_ausentes), "\n)"), trecho)
+      if (tipo == "dispersao") trecho <- sub("\\n\\)$", paste0(",\n  linha_por_grupo = ", isTRUE(input$linha_por_grupo), ",\n  muitos_pontos = ", deparse(input$muitos_pontos %||% "pontos"), "\n)"), trecho)
+      paste0("# Leitura confirmada nesta base; a conversão usa uma cópia.\nleituras <- ",
+        paste(deparse(exploracao_tipos(data_rv(), exploracao_ficha_ler(ficha_rv, data_rv()))), collapse = "\n"),
+        "\ndados <- exploracao_base_visual(dados, leituras)\n\n", trecho)
     })
   })
 }

@@ -23,7 +23,8 @@ if (file.exists(file.path("..", "..", "R", "descrevendo_dados.R"))) {
     "catalyser_codigo_descricao", "catalyser_descricao", "cores_ocean", "tema_ocean",
     "aplicar_faceta_ocean", "desenhar_distribuicao", "desenhar_barras_ocean",
     "desenhar_caixa_ocean", "desenhar_dispersao_ocean", "resumir_continuas",
-    "tabela_frequencia_exploratoria"
+    "tabela_frequencia_exploratoria", "exploracao_tipos", "exploracao_base_visual",
+    "exploracao_cores", "exploracao_grupo", "exploracao_retratos", "exploracao_mapa_ausentes", "exploracao_saude", "exploracao_normalidade_grupos"
   )) {
     assign(nome, getFromNamespace(nome, "catalyser"), envir = globalenv())
   }
@@ -358,19 +359,32 @@ ui <- page_navbar(
       }
       
       /* Cores individuais e modernas para cada ícone de menu PENDENCIA-V2: trocar nth-child por classes com nome, para não desalinhar quando a ordem mudar. */
-      .navbar-nav > li:nth-child(1) .nav-link i, .navbar-nav > li:nth-child(1) .dropdown-toggle i { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
-      .navbar-nav > li:nth-child(2) .nav-link i, .navbar-nav > li:nth-child(2) .dropdown-toggle i { color: #0d6efd !important; } /* Preparando Dados -> azul */
-      .navbar-nav > li:nth-child(3) .nav-link i, .navbar-nav > li:nth-child(3) .dropdown-toggle i { color: #00b894 !important; } /* Explorar e Visualizar -> verde-água */
-      .navbar-nav > li:nth-child(4) .nav-link i, .navbar-nav > li:nth-child(4) .dropdown-toggle i { color: #E89B3C !important; } /* Frequências e Proporções -> âmbar */
-      .navbar-nav > li:nth-child(5) .nav-link i, .navbar-nav > li:nth-child(5) .dropdown-toggle i { color: #f97316 !important; } /* Testes Paramétricos -> laranja */
-      .navbar-nav > li:nth-child(6) .nav-link i, .navbar-nav > li:nth-child(6) .dropdown-toggle i { color: #84cc16 !important; } /* Testes Não Paramétricos -> verde-limão */
-      .navbar-nav > li:nth-child(7) .nav-link i, .navbar-nav > li:nth-child(7) .dropdown-toggle i { color: #7c3aed !important; } /* Regressões Lineares e MLG -> roxo */
-      .navbar-nav > li:nth-child(8) .nav-link i, .navbar-nav > li:nth-child(8) .dropdown-toggle i { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
-      .navbar-nav > li:nth-child(9) .nav-link i, .navbar-nav > li:nth-child(9) .dropdown-toggle i { color: #2E7D8F !important; } /* Séries Temporais -> teal */
-      .navbar-nav > li:nth-child(10) .nav-link i, .navbar-nav > li:nth-child(10) .dropdown-toggle i { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
-      .navbar-nav > li:nth-child(11) .nav-link i, .navbar-nav > li:nth-child(11) .dropdown-toggle i { color: #6366f1 !important; } /* Mapear e Analisar -> roxo-violeta */
-      .navbar-nav > li:nth-child(12) .nav-link i, .navbar-nav > li:nth-child(12) .dropdown-toggle i { color: #198754 !important; } /* Laboratório de Conceitos -> verde */
-      .navbar-nav > li:nth-child(13) .nav-link i, .navbar-nav > li:nth-child(13) .dropdown-toggle i { color: #0ea5e9 !important; } /* Comunicação de Resultados -> azul-ciano */
+      .exploracao-espaco { --bslib-spacer: 1rem; }
+      .exploracao-espaco .card-body { padding: 1.1rem; }
+      .exploracao-espaco .bslib-sidebar-layout { gap: 1rem; }
+      .exploracao-espaco .form-group { margin-bottom: .9rem; }
+      .exploracao-espaco pre { white-space: pre-wrap; line-height: 1.5; }
+      .exploracao-espaco input::placeholder { color: #7c8790; font-size: .9em; }
+      .exploracao-indicador { background: #f3f8f7; border-left: 3px solid #2E7D8F; border-radius: .5rem; padding: .8rem 1rem; margin-bottom: .6rem; }
+      .exploracao-indicador span { display: block; color: #61717d; font-size: .85rem; }
+      .exploracao-indicador strong { display: block; color: #0F3B5F; font-size: 1.5rem; }
+      .exploracao-saude { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .5rem 0 1.2rem; }
+      .exploracao-saude .badge { padding: .5rem .7rem; font-weight: 500; white-space: normal; }
+      .descricao-conteudo .bslib-sidebar-layout { gap: 1rem; }
+      .descricao-conteudo .form-group { margin-bottom: .9rem; }
+      .cor-menu-planejar { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
+      .cor-menu-preparar { color: #0d6efd !important; } /* Preparando Dados -> azul */
+      .cor-menu-explorar { color: #00b894 !important; } /* Explorar e Visualizar -> verde-água */
+      .cor-menu-frequencias { color: #E89B3C !important; } /* Frequências e Proporções -> âmbar */
+      .cor-menu-parametricos { color: #f97316 !important; } /* Testes Paramétricos -> laranja */
+      .cor-menu-naoparametricos { color: #84cc16 !important; } /* Testes Não Paramétricos -> verde-limão */
+      .cor-menu-lineares { color: #7c3aed !important; } /* Regressões Lineares e MLG -> roxo */
+      .cor-menu-naolineares { color: #ec4899 !important; } /* Regressão Não Linear -> rosa/magenta */
+      .cor-menu-temporais { color: #2E7D8F !important; } /* Séries Temporais -> teal */
+      .cor-menu-multivariada { color: #d946ef !important; } /* Estatística Multivariada -> rosa/magenta */
+      .cor-menu-mapas { color: #6366f1 !important; } /* Mapear e Analisar -> roxo-violeta */
+      .cor-menu-laboratorio { color: #198754 !important; } /* Laboratório de Conceitos -> verde */
+      .cor-menu-comunicacao { color: #0ea5e9 !important; } /* Comunicação de Resultados -> azul-ciano */
       
       /* Atalhos da terceira faixa, dimensionados como as logos. */
       #sobre-custom-btn,
@@ -638,7 +652,7 @@ ui <- page_navbar(
   # 1. Planejando sua Pesquisa
   nav_menu(
     title = HTML("Planejando<br>sua Pesquisa"),
-    icon = icon("compass-drafting"),
+    icon = icon("compass-drafting", class = "cor-menu-planejar"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Antes de contar")),
     nav_panel(
       title = "Conceitos antes da coleta",
@@ -686,7 +700,7 @@ ui <- page_navbar(
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Montagem da amostra")),
     nav_panel(
       title = "Quanto amostrar",
-      icon = icon("calculator"),
+      icon = icon("calculator", class = "cor-menu-parametricos"),
       mod_quantos_coletar_ui("quantos_coletar")
     ),
     nav_panel(
@@ -707,7 +721,7 @@ ui <- page_navbar(
   # 2. Preparando Dados
   nav_menu(
     title = HTML("Preparar<br>Dados"),
-    icon = icon("database"),
+    icon = icon("database", class = "cor-menu-preparar"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Importação de dados")),
     nav_panel(
       title = "Importar Dados",
@@ -783,7 +797,7 @@ ui <- page_navbar(
           ),
           nav_panel(
             title = "Resumo dos Dados",
-            icon = icon("chart-bar"),
+            icon = icon("chart-bar", class = "cor-menu-explorar"),
             card_body(
               style = "padding: 10px 15px;",
               verbatimTextOutput("data_summary_text")
@@ -852,7 +866,7 @@ ui <- page_navbar(
     ),
     nav_panel(
       title = "Preparar Bases Derivadas",
-      icon = icon("diagram-project"),
+      icon = icon("diagram-project", class = "cor-menu-multivariada"),
       mod_bases_derivadas_ui("bases_derivadas")
     )
   ),
@@ -908,11 +922,11 @@ ui <- page_navbar(
   # 4. Frequências e Proporções — respostas categóricas de unidades independentes.
   nav_menu(
     title = HTML("Frequências<br>e Proporções"),
-    icon = icon("chart-pie"),
+    icon = icon("chart-pie", class = "cor-menu-frequencias"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Proporções")),
     nav_panel(
       title = "Uma proporção",
-      icon = icon("percent"),
+      icon = icon("percent", class = "cor-menu-naoparametricos"),
       mod_proporcoes_ui("proporcao_uma", "uma")
     ),
     nav_panel(
@@ -1014,7 +1028,7 @@ ui <- page_navbar(
     ),
     nav_panel(
       title = "ANCOVA (Análise de Covariância)",
-      icon = icon("chart-line"),
+      icon = icon("chart-line", class = "cor-menu-lineares"),
       mod_ancova_ui("ancova")
     ),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparação de variâncias")),
@@ -1127,7 +1141,7 @@ ui <- page_navbar(
   # 7.1. Regressão Não Linear
   nav_menu(
     title = HTML("Regressão<br>Não Linear"),
-    icon = icon("bezier-curve"),
+    icon = icon("bezier-curve", class = "cor-menu-naolineares"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Escolher a curva")),
     nav_panel(
       title = "Descobrindo o Modelo",
@@ -1170,7 +1184,7 @@ ui <- page_navbar(
   # 8. Séries Temporais: uma família própria, marcada pela ordem das observações.
   nav_menu(
     title = HTML("Séries<br>Temporais"),
-    icon = icon("clock"),
+    icon = icon("clock", class = "cor-menu-temporais"),
     nav_panel(
       title = "Visualizar e suavizar",
       icon = icon("chart-line"),
@@ -1259,7 +1273,7 @@ ui <- page_navbar(
   # Itens marcados "em preparação" guardam o lugar dos módulos que ainda virão.
   nav_menu(
     title = HTML("Mapear e<br>Analisar"),
-    icon = icon("map"),
+    icon = icon("map", class = "cor-menu-mapas"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Mapeando valores")),
     nav_panel(
       title = "Coroplético (Brasil por Estado)",
@@ -1304,14 +1318,14 @@ ui <- page_navbar(
   # O Laboratório transversal aparece antes da etapa final de Comunicação.
   # Os itens ficam em grupos por pergunta; alguns reúnem variações em abas (segunda faixa).
   do.call(nav_menu, c(
-    list(title = HTML("Laboratório<br>de Conceitos"), icon = icon("flask")),
+    list(title = HTML("Laboratório<br>de Conceitos"), icon = icon("flask", class = "cor-menu-laboratorio")),
     laboratorio_paineis()
   )),
 
   # Comunicação encerra o percurso; Ajuda e Sobre ficam nos ícones à direita.
   nav_menu(
     title = HTML("Comunicação<br>de Resultados"),
-    icon = icon("file-export"),
+    icon = icon("file-export", class = "cor-menu-comunicacao"),
     nav_panel(
       title = "Projeto de Comunicação",
       icon = icon("file-export"),
@@ -1766,11 +1780,12 @@ install.packages(\"knitr\")</code></pre>
         </ul>
 
         <h5 class='text-primary' style='font-family: \"Outfit\", sans-serif; font-weight: 600; margin-top: 15px;'>2. Empacotamento em Pacote R (A mais portátil e offline)</h5>
-        <p>O aplicativo pode ser empacotado como uma biblioteca oficial de R (por exemplo, criando um pacote chamado <code>RCatalyst</code>) e disponibilizado no GitHub.</p>
+        <p>A CatalyseR já é distribuída como pacote de R, chamado <code>catalyser</code>, no GitHub.</p>
         <ul>
-          <li><b>Como funciona:</b> Os arquivos da IDE são estruturados como uma biblioteca de R. O usuário instala o pacote com o comando:
-            <pre style='background: #f1f3f5; padding: 8px; border-radius: 6px; font-size: 0.85rem;'>remotes::install_github(\"usuario/RCatalyst\")
-RCatalyst::run_ide()</pre>
+          <li><b>Como funciona:</b> O usuário instala o pacote uma vez e, depois, abre a IDE com um comando:
+            <pre style='background: #f1f3f5; padding: 8px; border-radius: 6px; font-size: 0.85rem;'>install.packages(\"pak\")
+pak::pkg_install(\"astuciasnor/catalyser\", upgrade = FALSE)
+catalyser::run_app(launch.browser = TRUE)</pre>
           </li>
           <li><b>Vantagem pedagógica:</b> Serve como um excelente passo intermediário de transição, onde o aluno executa um comando simples para abrir a interface em sua própria máquina, offline, familiarizando-se com o terminal do RStudio.</li>
         </ul>
@@ -2969,11 +2984,12 @@ RCatalyst::run_ide()</pre>
   mod_model_discovery_server("discovery", dados_analise, import_info)
 
   # --- CHAMADAS DOS MÓDULOS DE DESCRIÇÃO DE DADOS ---
+  ficha_exploracao_rv <- reactiveVal(list())
   descricao_areas <- lapply(names(descricao_catalogo()), function(area) {
     mod_descrevendo_dados_server(
       paste0("descricao_", area), area, dados_analise, registro_bases_rv,
       cache_bases_rv, revisao_dados_analise_rv, registro_execucoes_rv,
-      contador_execucoes_rv
+      contador_execucoes_rv, ficha_rv = ficha_exploracao_rv
     )
   })
   proporcao_uma <- mod_proporcoes_server(
@@ -2993,14 +3009,12 @@ RCatalyst::run_ide()</pre>
     revisao_dados_analise_rv, registro_execucoes_rv, contador_execucoes_rv
   )
   grafico_linhas <- mod_lines_server("lines", seletor_lines$dados, import_info)
-  mod_exploracao_visual_server("visual_histograma", dados_analise, "histograma")
-  mod_exploracao_visual_server("visual_caixa", dados_analise, "caixa_violino")
-  mod_exploracao_visual_server("visual_dispersao", dados_analise, "dispersao")
-  mod_exploracao_visual_server("visual_duplo_eixo", dados_analise, "duplo_eixo")
-  mod_exploracao_visual_server("visual_barras", dados_analise, "barras")
-  mod_exploracao_visual_server("visual_rosca", dados_analise, "rosca")
-  mod_exploracao_visual_server("visual_matriz", dados_analise, "matriz")
-  mod_exploracao_visual_server("visual_calor", dados_analise, "calor")
+  mod_exploracao_visual_server("visual_histograma", dados_analise, "histograma", ficha_rv = ficha_exploracao_rv)
+  mod_exploracao_visual_server("visual_caixa", dados_analise, "caixa_violino", ficha_rv = ficha_exploracao_rv)
+  mod_exploracao_visual_server("visual_dispersao", dados_analise, "dispersao", ficha_rv = ficha_exploracao_rv)
+  mod_exploracao_visual_server("visual_barras", dados_analise, "barras", ficha_rv = ficha_exploracao_rv)
+  mod_exploracao_visual_server("visual_matriz", dados_analise, "matriz", ficha_rv = ficha_exploracao_rv)
+  mod_exploracao_visual_server("visual_calor", dados_analise, "calor", ficha_rv = ficha_exploracao_rv)
   mod_mapa_server("mapa", dados_analise, import_info)
   mod_mapa_pontos_server("mapa_pontos", dados_analise, import_info, "pontos")
   mod_mapa_pontos_server("mapa_bolhas", dados_analise, import_info, "bolhas")

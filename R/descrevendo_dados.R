@@ -17,18 +17,66 @@ descricao_tipo <- function(x) {
 }
 
 # Reconhece o tipo substantivo que orienta o retrato, sem tomar a decisão pelo pesquisador.
-exploracao_tipo_variavel <- function(x) {
+exploracao_tipo_variavel <- function(x, nome = "") {
   if (inherits(x, c("Date", "POSIXt"))) return("Data — conferir")
   if (is.ordered(x)) return("Categórica ordinal")
   if (is.factor(x) || is.character(x) || is.logical(x)) return("Categórica nominal")
   if (is.numeric(x)) {
     valores <- x[is.finite(x)]
-    if (length(valores) && all(abs(valores - round(valores)) < sqrt(.Machine$double.eps))) {
-      return("Numérica discreta")
-    }
-    return("Numérica contínua")
+    nome <- tolower(iconv(nome, to = "ASCII//TRANSLIT"))
+    nome[is.na(nome)] <- ""
+    # Nome e unidade são pistas; a ficha permite corrigir este palpite.
+    return(dplyr::case_when(
+      grepl("^(ano|mes|dia|year|month|day)$", nome) ~ "Categórica ordinal",
+      grepl("(^|_)(id|codigo|code|identificador)($|_)", nome) ~ "Categórica nominal",
+      grepl("(^|_)(aneis|anéis|rings|contagem|count|numero|n)($|_)", nome) ~ "Numérica discreta",
+      grepl("_(mm|cm|m|mg|kg|g|ml|l|c|pct)$", nome) ~ "Numérica contínua",
+      any(abs(valores - round(valores)) >= sqrt(.Machine$double.eps)) ~ "Numérica contínua",
+      length(unique(valores)) >= 20L ~ "Numérica contínua",
+      TRUE ~ "Numérica discreta"
+    ))
   }
   "Outro — conferir"
+}
+
+# Confirme uma leitura por base; as correções nunca alteram seus valores.
+exploracao_tipos <- function(dados, escolhas = NULL) {
+  tipos <- stats::setNames(vapply(names(dados), function(nome) {
+    exploracao_tipo_variavel(dados[[nome]], nome)
+  }, character(1)), names(dados))
+  permitidos <- c("Categórica nominal", "Categórica ordinal", "Numérica discreta", "Numérica contínua", "Data — conferir", "Outro — conferir")
+  corrigir <- intersect(names(escolhas), names(tipos))
+  corrigir <- corrigir[escolhas[corrigir] %in% permitidos]
+  tipos[corrigir] <- escolhas[corrigir]
+  tipos
+}
+
+# Converta categorias apenas numa cópia de apresentação, inclusive códigos numéricos.
+exploracao_base_visual <- function(dados, tipos) {
+  for (nome in names(tipos)[grepl("Categ", tipos)]) {
+    if (identical(tipos[[nome]], "Categórica ordinal")) {
+      valores <- sort(unique(dados[[nome]][!is.na(dados[[nome]])]))
+      if (is.ordered(dados[[nome]])) valores <- levels(dados[[nome]])
+      dados[[nome]] <- factor(dados[[nome]], levels = valores, ordered = TRUE)
+    } else dados[[nome]] <- factor(dados[[nome]])
+  }
+  dados
+}
+
+# Navy, Amber e Teal separam os primeiros grupos; formas reforçam a leitura.
+exploracao_cores <- function(n) rep(c("#0F3B5F", "#E89B3C", "#2E7D8F", "#62B6B7", "#E76F51"), length.out = n)
+
+# Um vazio de grupo permanece visível e tem nome, em vez de virar a categoria NA.
+exploracao_grupo <- function(x) {
+  niveis <- if (is.factor(x)) levels(droplevels(x)) else sort(unique(as.character(x[!is.na(x)])))
+  rotulos <- as.character(x)
+  if (anyNA(x)) {
+    rotulo_na <- "sem registro"
+    while (rotulo_na %in% niveis) rotulo_na <- paste0(rotulo_na, " (ausente)")
+    rotulos[is.na(x)] <- rotulo_na
+    niveis <- c(niveis, rotulo_na)
+  }
+  factor(rotulos, levels = niveis)
 }
 
 # Traduz uma combinação de tipos em uma sugestão visível, sem transformar sugestão em regra.
@@ -121,10 +169,10 @@ desenhar_distribuicao <- function(dados, variavel, tipo = "densidade", classes =
     p + ggplot2::geom_freqpoly(ggplot2::aes(y = ggplot2::after_stat(density)), bins = classes,
                                color = cores_ocean()[["NAVY"]], linewidth = 1, na.rm = TRUE)
   } else if (identical(tipo, "densidade")) {
-    p + ggplot2::geom_density(color = "#0F3B5F", linewidth = 1, na.rm = TRUE)
+    p + ggplot2::geom_density(alpha = .16, color = "#0F3B5F", linewidth = .7, na.rm = TRUE)
   } else p
   if (com_grupo) p <- p + ggplot2::scale_fill_manual(values = rep(
-    cores_ocean(),
+    exploracao_cores(5),
     length.out = length(unique(stats::na.omit(dados[[grupo]])))))
   aplicar_faceta_ocean(p, dados, faceta) + tema_ocean() +
     ggplot2::labs(title = "Distribuição da variável", x = variavel, y = "Densidade", fill = if (com_grupo) grupo else NULL)
@@ -132,10 +180,14 @@ desenhar_distribuicao <- function(dados, variavel, tipo = "densidade", classes =
 
 # Desenha barras para categorias, contagens e frequências exploratórias.
 desenhar_barras_ocean <- function(dados, variavel, grupo = NULL, peso = NULL,
-                                  posicao = "dodge", faceta = NULL) {
+                                  posicao = "dodge", faceta = NULL, mostrar_ausentes = TRUE) {
   if (!variavel %in% names(dados)) stop("Escolha uma variável disponível.")
   com_grupo <- !is.null(grupo) && !identical(grupo, "nenhum") && grupo %in% names(dados)
   com_peso <- !is.null(peso) && !identical(peso, "nenhum") && peso %in% names(dados)
+  if (!mostrar_ausentes) dados <- dados[!is.na(dados[[variavel]]) &
+    (if (com_grupo) !is.na(dados[[grupo]]) else TRUE), , drop = FALSE]
+  dados[[variavel]] <- exploracao_grupo(dados[[variavel]])
+  if (com_grupo) dados[[grupo]] <- exploracao_grupo(dados[[grupo]])
   mapa <- if (com_grupo) ggplot2::aes(x = .data[[variavel]], fill = .data[[grupo]]) else ggplot2::aes(x = .data[[variavel]])
   barras <- if (com_peso && com_grupo) {
     ggplot2::geom_bar(ggplot2::aes(weight = .data[[peso]]), position = posicao, na.rm = TRUE)
@@ -148,42 +200,80 @@ desenhar_barras_ocean <- function(dados, variavel, grupo = NULL, peso = NULL,
   }
   p <- ggplot2::ggplot(dados, mapa) + barras
   if (com_grupo) p <- p + ggplot2::scale_fill_manual(values = rep(
-    cores_ocean(),
+    exploracao_cores(5),
     length.out = length(unique(stats::na.omit(dados[[grupo]])))))
+  if (identical(posicao, "fill")) p <- p + ggplot2::scale_y_continuous(labels = scales::label_percent())
   aplicar_faceta_ocean(p, dados, faceta) + tema_ocean() +
     ggplot2::labs(title = "Categorias e composição", x = variavel,
                   y = if (com_peso) paste("Soma de", peso) else "Contagem", fill = if (com_grupo) grupo else NULL)
 }
 
 # Desenha caixa, violino ou ambos com a mesma regra nos dois menus.
-desenhar_caixa_ocean <- function(dados, variavel, grupo = NULL, forma = "ambos", faceta = NULL) {
+desenhar_caixa_ocean <- function(dados, variavel, grupo = NULL, forma = "ambos", faceta = NULL, mostrar_ausentes = TRUE) {
   if (!variavel %in% names(dados) || !is.numeric(dados[[variavel]])) stop("Escolha uma variável numérica.")
   grupo_valido <- !is.null(grupo) && !identical(grupo, "nenhum") && grupo %in% names(dados)
   plotar <- dados
-  plotar$grupo_visual <- if (grupo_valido) as.character(plotar[[grupo]]) else "Todas as observações"
+  plotar <- plotar[is.finite(plotar[[variavel]]), , drop = FALSE]
+  if (grupo_valido && !mostrar_ausentes) plotar <- plotar[!is.na(plotar[[grupo]]), , drop = FALSE]
+  plotar$grupo_visual <- exploracao_grupo(if (grupo_valido) plotar[[grupo]] else rep("Todas as observações", nrow(plotar)))
   p <- ggplot2::ggplot(plotar, ggplot2::aes(x = .data$grupo_visual, y = .data[[variavel]], fill = .data$grupo_visual))
   if (forma %in% c("violino", "ambos")) p <- p + ggplot2::geom_violin(alpha = .55, na.rm = TRUE)
   if (forma %in% c("caixa", "boxplot", "ambos")) p <- p + ggplot2::geom_boxplot(width = .22, alpha = .8, outlier.color = cores_ocean()[["CORAL"]], na.rm = TRUE)
+  if (forma %in% c("pontos", "caixa_pontos", "violino_pontos")) {
+    # Densidades são apoio; grupos pequenos ou constantes ficam somente com pontos.
+    grupos <- split(plotar, plotar$grupo_visual, drop = TRUE)
+    densos <- Filter(function(d) nrow(d) >= 3L && length(unique(d[[variavel]])) >= 2L, grupos)
+    if (forma %in% c("pontos", "violino_pontos") && length(densos)) p <- p +
+      ggplot2::geom_violin(data = do.call(rbind, densos), alpha = .18, color = NA, trim = TRUE)
+    if (forma == "caixa_pontos") p <- p + ggplot2::geom_boxplot(width = .35, alpha = .18, outlier.shape = NA)
+    p <- p + ggplot2::geom_point(
+      ggplot2::aes(color = .data$grupo_visual, shape = .data$grupo_visual),
+      position = ggplot2::position_jitter(width = .12, height = 0, seed = 42), alpha = .55, size = 1.7
+    )
+    chaves <- c("grupo_visual", if (!is.null(faceta) && faceta %in% names(plotar)) faceta)
+    fatias <- split(seq_len(nrow(plotar)), interaction(plotar[chaves], drop = TRUE))
+    resumo <- do.call(rbind, lapply(fatias, function(i) {
+      z <- plotar[[variavel]][i]; n <- length(z)
+      erro <- if (n >= 2L) stats::qt(.975, n - 1L) * stats::sd(z) / sqrt(n) else NA_real_
+      cbind(plotar[i[1], chaves, drop = FALSE], media = mean(z), inferior = mean(z) - erro, superior = mean(z) + erro)
+    }))
+    if (!is.null(resumo)) p <- p +
+      ggplot2::geom_errorbar(data = resumo, ggplot2::aes(x = .data$grupo_visual, ymin = .data$inferior, ymax = .data$superior), inherit.aes = FALSE, width = .08, na.rm = TRUE) +
+      ggplot2::geom_point(data = resumo, ggplot2::aes(x = .data$grupo_visual, y = .data$media), inherit.aes = FALSE, shape = 23, fill = "white", size = 3)
+    contagem <- table(plotar$grupo_visual)
+    p <- p + ggplot2::scale_x_discrete(labels = function(x) paste0(x, "\n(n = ", contagem[x], ")")) +
+      ggplot2::scale_color_manual(values = exploracao_cores(length(contagem))) +
+      ggplot2::scale_shape_manual(values = rep(c(16, 17, 15, 18, 3), length.out = length(contagem))) +
+      ggplot2::labs(subtitle = "Pontos: observações; losango: média; barra: IC 95% da média (t). n reúne as facetas.")
+  }
   aplicar_faceta_ocean(p, plotar, faceta) +
     ggplot2::scale_fill_manual(values = rep(
-      cores_ocean(),
+      exploracao_cores(5),
       length.out = length(unique(stats::na.omit(plotar$grupo_visual))))) +
     tema_ocean() + ggplot2::theme(legend.position = "none") +
     ggplot2::labs(title = "Centro, dispersão e valores distantes", x = if (grupo_valido) grupo else NULL, y = variavel)
 }
 
 # Desenha a relação entre duas medidas com tendência opcional.
-desenhar_dispersao_ocean <- function(dados, x, y, grupo = NULL, tendencia = "lm", faceta = NULL) {
+desenhar_dispersao_ocean <- function(dados, x, y, grupo = NULL, tendencia = "lm", faceta = NULL,
+                                    linha_por_grupo = TRUE, muitos_pontos = "pontos") {
   if (!all(c(x, y) %in% names(dados))) stop("Escolha duas variáveis disponíveis.")
   com_grupo <- !is.null(grupo) && !identical(grupo, "nenhum") && grupo %in% names(dados)
   p <- ggplot2::ggplot(dados, ggplot2::aes(x = .data[[x]], y = .data[[y]]))
-  if (com_grupo) p <- p + ggplot2::geom_point(ggplot2::aes(color = .data[[grupo]]), alpha = .75, na.rm = TRUE) +
+  if (com_grupo) p <- p + ggplot2::geom_point(ggplot2::aes(color = .data[[grupo]], shape = .data[[grupo]]), alpha = .6, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = rep(
-      cores_ocean(),
-      length.out = length(unique(stats::na.omit(dados[[grupo]])))))
+      exploracao_cores(5),
+      length.out = length(unique(stats::na.omit(dados[[grupo]]))))) +
+    ggplot2::scale_shape_manual(values = rep(c(16, 17, 15, 18, 3), length.out = length(unique(stats::na.omit(dados[[grupo]])))))
+  else if (identical(muitos_pontos, "hex") && requireNamespace("hexbin", quietly = TRUE)) p <- p +
+    ggplot2::geom_hex(bins = 35, na.rm = TRUE) + ggplot2::scale_fill_gradient(low = "#E7EFEA", high = "#0F3B5F", name = "Observações")
   else p <- p + ggplot2::geom_point(color = cores_ocean()[["NAVY"]], alpha = .75, na.rm = TRUE)
-  if (!is.null(tendencia) && !identical(tendencia, "nenhuma")) p <- p +
-    ggplot2::geom_smooth(method = tendencia, formula = y ~ x, se = TRUE, color = cores_ocean()[["CORAL"]], fill = cores_ocean()[["AMBER"]], na.rm = TRUE)
+  if (!is.null(tendencia) && !identical(tendencia, "nenhuma")) {
+    p <- if (com_grupo && linha_por_grupo) p + ggplot2::geom_smooth(
+      ggplot2::aes(color = .data[[grupo]], group = .data[[grupo]]),
+      method = tendencia, formula = y ~ x, se = FALSE, na.rm = TRUE
+    ) else p + ggplot2::geom_smooth(method = tendencia, formula = y ~ x, se = TRUE, color = cores_ocean()[["CORAL"]], fill = cores_ocean()[["AMBER"]], na.rm = TRUE)
+  }
   aplicar_faceta_ocean(p, dados, faceta) + tema_ocean() +
     ggplot2::labs(title = "Relação entre duas variáveis", x = x, y = y, color = if (com_grupo) grupo else NULL)
 }
@@ -278,19 +368,17 @@ catalyser_codigo_descricao <- function(parametros) {
     narrativa <- ""
     tema <- ggplot2::theme_minimal(base_size = 12)
   })))
+  # As leituras confirmadas acompanham o código e o replay desta execução.
+  codigo <- c(codigo, paste0("leituras <- ", literal(p$leituras)),
+    paste0("exploracao_tipo_variavel <- ", literal(exploracao_tipo_variavel)),
+    paste0("exploracao_tipos <- ", literal(exploracao_tipos)))
+  if (identical(p$analise, "normalidade")) codigo <- c(codigo,
+    paste0("grupo <- ", literal(p$grupo)),
+    paste0("exploracao_grupo <- ", literal(exploracao_grupo)),
+    paste0("exploracao_normalidade_grupos <- ", literal(exploracao_normalidade_grupos)))
   exploracao <- p$analise %in% c("estrutura", "faltantes", "tipos", "panorama")
   if (exploracao) codigo <- c(codigo, linhas(quote({
-    tipos <- vapply(dados, function(coluna) {
-      if (inherits(coluna, c("Date", "POSIXt"))) return("Data — conferir")
-      if (is.ordered(coluna)) return("Categórica ordinal")
-      if (is.factor(coluna) || is.character(coluna) || is.logical(coluna)) return("Categórica nominal")
-      if (is.numeric(coluna)) {
-        valores <- coluna[is.finite(coluna)]
-        if (length(valores) && all(abs(valores - round(valores)) < sqrt(.Machine$double.eps))) return("Numérica discreta")
-        return("Numérica contínua")
-      }
-      "Outro — conferir"
-    }, character(1))
+    tipos <- exploracao_tipos(dados, leituras)
     ausentes <- vapply(dados, function(coluna) sum(is.na(coluna)), integer(1))
     narrativa <- sprintf("A base contém %d observações e %d variáveis. Tipos detectados pela classe armazenada; códigos numéricos de categorias precisam ser conferidos por você.", nrow(dados), ncol(dados))
   }))) else codigo <- c(codigo, linhas(quote({
@@ -299,21 +387,11 @@ catalyser_codigo_descricao <- function(parametros) {
   })))
   # O código exportado repete a sugestão para que o Projeto R conte a mesma história da tela.
   if (p$analise %in% c("retrato", "relacao")) codigo <- c(codigo, linhas(quote({
-    tipo_detectado <- function(coluna) {
-      if (inherits(coluna, c("Date", "POSIXt"))) return("Data — conferir")
-      if (is.ordered(coluna)) return("Categórica ordinal")
-      if (is.factor(coluna) || is.character(coluna) || is.logical(coluna)) return("Categórica nominal")
-      if (is.numeric(coluna)) {
-        valores <- coluna[is.finite(coluna)]
-        if (length(valores) && all(abs(valores - round(valores)) < sqrt(.Machine$double.eps))) return("Numérica discreta")
-        return("Numérica contínua")
-      }
-      "Outro — conferir"
-    }
+    tipo_detectado <- function(coluna, nome = "") exploracao_tipo_variavel(coluna, nome)
     tipo_confirmado <- function(detectado, escolha) if (identical(escolha, "automatico")) detectado else escolha
     categorica <- function(tipo) grepl("Categ", tipo, fixed = TRUE)
     numerica <- function(tipo) grepl("Num", tipo, fixed = TRUE)
-    tipo_x <- tipo_confirmado(tipo_detectado(coluna), tipo)
+    tipo_x <- tipo_confirmado(tipo_detectado(coluna, variavel), tipo)
     sugestao_caminho <- function(tipo_x, tipo_y = NULL) {
       if (is.null(tipo_y) && categorica(tipo_x)) return(list("Tabela de frequências e barras", "Qui-quadrado de aderência", "Qui-quadrado (aderência)"))
       if (is.null(tipo_y) && numerica(tipo_x)) return(list("Centro, dispersão, histograma e boxplot", "Teste t de uma amostra", "Teste t de Student"))
@@ -340,8 +418,8 @@ catalyser_codigo_descricao <- function(parametros) {
   })))
   # O Projeto R recebe as mesmas funções canônicas, sem uma segunda implementação dos gráficos.
   if (p$analise %in% c("retrato", "relacao", "resumo_continuas", "frequencia_exploratoria",
-                       "histograma", "boxplot", "densidade", "dispersao", "grupos")) {
-    funcoes <- c("cores_ocean", "tema_ocean", "aplicar_faceta_ocean", "desenhar_distribuicao",
+                       "histograma", "boxplot", "densidade", "dispersao", "grupos", "panorama")) {
+    funcoes <- c("exploracao_cores", "exploracao_grupo", "exploracao_retratos", "cores_ocean", "tema_ocean", "aplicar_faceta_ocean", "desenhar_distribuicao",
                  "desenhar_barras_ocean", "desenhar_caixa_ocean", "desenhar_dispersao_ocean",
                  "resumir_continuas", "tabela_frequencia_exploratoria")
     codigo <- c(codigo, "# 3. Funções compartilhadas por Explorando e Visualização.",
@@ -385,6 +463,7 @@ catalyser_codigo_descricao <- function(parametros) {
       tabela <- data.frame("Nome da variável" = names(dados), "Tipo de variável" = unname(tipos),
                            "Valores ausentes" = ausentes, "Pistas para começar" = unname(pistas),
                            row.names = NULL, check.names = FALSE)
+      grafico <- exploracao_retratos(dados, tipos)
       narrativa <- paste(narrativa, "Comece conferindo a natureza de cada coluna: um código numérico pode representar uma categoria. A CatalyseR sugere um retrato, mas você pode mudar essa leitura no próximo passo.")
     }),
     retrato = quote({
@@ -434,7 +513,7 @@ catalyser_codigo_descricao <- function(parametros) {
     }),
     relacao = quote({
       if (length(outra) != 1L || !outra %in% names(dados) || identical(variavel, outra)) stop("Escolha duas variáveis diferentes.")
-      tipo_y <- tipo_confirmado(tipo_detectado(dados[[outra]]), tipo_outra)
+      tipo_y <- tipo_confirmado(tipo_detectado(dados[[outra]], outra), tipo_outra)
       caminho <- sugestao_caminho(tipo_x, tipo_y)
       sugestao <- list(retrato = caminho[[1]], analise = caminho[[2]], destino = caminho[[3]])
       if (categorica(tipo_x) && categorica(tipo_y)) {
@@ -616,6 +695,13 @@ catalyser_codigo_descricao <- function(parametros) {
       console <- if (is.null(teste)) tabela[["Situação"]] else utils::capture.output(teste)
       narrativa <- paste(narrativa, "A banda usa estatísticas de ordem beta com média e DP estimados: é pontual e aproximada, não uma banda simultânea. Em modelos, confira os resíduos, não apenas os dados brutos.",
                          if (is.null(teste)) "Acima de 5.000 valores, examine o gráfico; Shapiro não foi executado." else if (teste$p.value < .05) "Shapiro aponta evidência de desvio da normalidade (5%)." else "Shapiro não encontrou evidência suficiente de desvio; isso não prova normalidade.")
+      if (!is.null(grupo) && grupo %in% names(dados)) {
+        por_grupo <- exploracao_normalidade_grupos(dados, variavel, grupo)
+        tabela <- por_grupo$tabela
+        grafico <- por_grupo$grafico
+        narrativa <- por_grupo$narrativa
+        console <- utils::capture.output(tabela)
+      }
     }),
     outliers = quote({
       if (length(limite_z) != 1L || !is.finite(limite_z) || limite_z <= 0) stop("O limite do escore-z precisa ser positivo.")
@@ -652,6 +738,12 @@ catalyser_codigo_descricao <- function(parametros) {
       grafico <- ggplot2::ggplot(grafico_dados, ggplot2::aes(sample = .data$Valor)) + ggplot2::stat_qq(colour = "#2E7D8F") +
         ggplot2::stat_qq_line(colour = "#E76F51") + ggplot2::facet_wrap(stats::as.formula("~ Transformação"), scales = "free_y") + tema +
         ggplot2::labs(x = "Quantis normais teóricos", y = "Quantis observados", title = "Compare a forma; não escolha por p-valor")
+      grafico_dados$Transformação <- factor(grafico_dados$Transformação, levels = names(candidatas))
+      histogramas <- ggplot2::ggplot(grafico_dados, ggplot2::aes(x = .data$Valor)) +
+        ggplot2::geom_histogram(bins = 25, fill = "#2E7D8F", color = "white") +
+        ggplot2::facet_wrap(~ Transformação, scales = "free", nrow = 1) + tema +
+        ggplot2::labs(x = "Valor na escala indicada", y = "Observações", title = "Antes e depois: distribuição")
+      grafico <- patchwork::wrap_plots(histogramas, grafico + ggplot2::facet_wrap(~ Transformação, scales = "free", nrow = 1), ncol = 1)
       narrativa <- paste(narrativa, "Sugestões exploratórias, não correções automáticas. Box-Cox usa um modelo só com intercepto e uma grade de lambda de −2 a 2; refaça a avaliação no modelo científico e em seus resíduos. Considere unidades, zeros e interpretação biológica. Nenhuma transformação foi aplicada à base.",
                          if (is.finite(lambda) && abs(lambda) == 2) "Ótimo na borda da grade: lambda ainda não está bem localizado." else "")
     })
@@ -661,6 +753,81 @@ catalyser_codigo_descricao <- function(parametros) {
     # Entrega detalhes e sugestão separadamente para a interface manter o primeiro olhar limpo.
     "resultado <- list(narrativa = narrativa, tabela = tabela, detalhes = detalhes, sugestao = sugestao, grafico = grafico, console = console)",
     "resultado <- resultado[!vapply(resultado, is.null, logical(1))]")
+}
+
+# Um retrato por variável, organizado por papel, com até doze cartões por página.
+exploracao_retratos <- function(dados, tipos = exploracao_tipos(dados), pagina = 1L) {
+  papeis <- c("Numérica contínua" = "Medidas", "Numérica discreta" = "Contagens",
+              "Categórica nominal" = "Grupos", "Categórica ordinal" = "Grupos",
+              "Data — conferir" = "Tempo", "Outro — conferir" = "Conferir")
+  ordem <- names(tipos)[order(match(unname(papeis[tipos]), c("Medidas", "Contagens", "Grupos", "Tempo", "Conferir")))]
+  ordem <- ordem[seq_along(ordem) > (pagina - 1L) * 12L & seq_along(ordem) <= pagina * 12L]
+  if (!length(ordem)) return(NULL)
+  graficos <- lapply(ordem, function(nome) {
+    x <- dados[[nome]]; tipo <- tipos[[nome]]
+    percentual <- if (nrow(dados)) 100 * sum(is.na(x)) / nrow(dados) else 0
+    if (tipo == "Numérica contínua" && any(is.finite(x))) {
+      g <- desenhar_distribuicao(dados, nome, tipo = "histograma")
+    } else if (grepl("Categ|discreta", tipo) && any(!is.na(x))) {
+      contagem <- table(x, useNA = "no")
+      if (!identical(tipo, "Categórica ordinal")) contagem <- sort(contagem, decreasing = TRUE)
+      tab <- data.frame(categoria = names(contagem)[seq_len(min(10L, length(contagem)))], n = as.numeric(contagem)[seq_len(min(10L, length(contagem)))])
+      g <- ggplot2::ggplot(tab, ggplot2::aes(x = factor(.data$categoria, levels = rev(tab$categoria)), y = .data$n)) +
+        ggplot2::geom_col(fill = "#2E7D8F") + ggplot2::coord_flip() + tema_ocean() +
+        ggplot2::labs(x = NULL, y = "Observações", caption = if (length(contagem) > 10L) "Dez valores mostrados; veja todos na tabela." else NULL)
+    } else {
+      g <- ggplot2::ggplot() + ggplot2::annotate("text", x = 0, y = 0, label = "Confira a coluna na ficha") + ggplot2::theme_void()
+    }
+    g + ggplot2::labs(title = gsub("_", " ", nome),
+      subtitle = sprintf("%s · %s · %.1f%% ausentes", papeis[[tipo]], tipo, percentual)) +
+      ggplot2::theme(plot.title = ggplot2::element_text(size = 11), plot.subtitle = ggplot2::element_text(size = 8), axis.text = ggplot2::element_text(size = 8))
+  })
+  patchwork::wrap_plots(graficos, ncol = 3)
+}
+
+# Ausências são mostradas por linha original, sem ordenar ou remover indivíduos.
+exploracao_mapa_ausentes <- function(dados) {
+  if (!nrow(dados) || !ncol(dados)) return(NULL)
+  ordem <- names(sort(vapply(dados, function(x) sum(is.na(x)), integer(1)), decreasing = TRUE))
+  tab <- data.frame(linha = rep(seq_len(nrow(dados)), times = ncol(dados)),
+                    variavel = rep(ordem, each = nrow(dados)),
+                    ausente = as.vector(is.na(dados[ordem])))
+  ggplot2::ggplot(tab, ggplot2::aes(x = factor(.data$variavel, levels = ordem), y = .data$linha, fill = .data$ausente)) +
+    ggplot2::geom_raster() + ggplot2::scale_y_reverse() +
+    ggplot2::scale_fill_manual(values = c("FALSE" = "#E7EFEA", "TRUE" = "#E89B3C"), labels = c("Preenchida", "Ausente"), drop = FALSE, name = NULL) +
+    tema_ocean() + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 25, hjust = 1)) +
+    ggplot2::labs(x = NULL, y = "Linha na base", subtitle = sprintf("%d células ausentes em %d linhas. Nenhuma linha foi excluída.", sum(is.na(dados)), sum(!stats::complete.cases(dados))))
+}
+
+# Alertas pedem conferência; linhas iguais não comprovam indivíduos duplicados.
+exploracao_saude <- function(dados) {
+  iguais <- sum(duplicated(dados))
+  constantes <- sum(vapply(dados, function(x) length(unique(x[!is.na(x)])) <= 1L, logical(1)))
+  ausentes <- sum(vapply(dados, anyNA, logical(1)))
+  data.frame(verificacao = c("Linhas iguais, conferir", "Colunas sem variação, conferir", "Colunas com ausências"),
+             quantidade = c(iguais, constantes, ausentes), stringsAsFactors = FALSE)
+}
+
+# Dentro de cada grupo, confira a forma; um p-valor isolado não certifica pressupostos.
+exploracao_normalidade_grupos <- function(dados, variavel, grupo) {
+  categorias <- exploracao_grupo(dados[[grupo]])
+  grupos <- split(dados[[variavel]], categorias, drop = TRUE)
+  tabela <- do.call(rbind, lapply(names(grupos), function(nome) {
+    x <- grupos[[nome]]; x <- x[is.finite(x)]; n <- length(x)
+    valido <- n >= 3L && n <= 5000L && stats::sd(x) > 0
+    teste <- if (valido) stats::shapiro.test(x) else NULL
+    data.frame(Grupo = nome, n = n, W = if (valido) unname(teste$statistic) else NA_real_,
+      p_valor = if (valido) teste$p.value else NA_real_,
+      Situação = if (valido) "Conferir QQ e delineamento" else "Sem teste: requer n entre 3 e 5.000 e variação")
+  }))
+  plotar <- data.frame(valor = dados[[variavel]], grupo = categorias)
+  plotar <- plotar[is.finite(plotar$valor), , drop = FALSE]
+  grafico <- ggplot2::ggplot(plotar, ggplot2::aes(sample = .data$valor)) +
+    ggplot2::stat_qq(color = "#2E7D8F", alpha = .6) + ggplot2::stat_qq_line(color = "#E89B3C") +
+    ggplot2::facet_wrap(~ grupo, scales = "free") + ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::labs(x = "Quantis normais teóricos", y = variavel, title = "Normalidade dentro dos grupos")
+  list(tabela = tabela, grafico = grafico,
+    narrativa = "Shapiro-Wilk e QQ por grupo, usando somente medidas finitas. Grupos sem registro ficam identificados. Ausência de evidência não prova normalidade; no modelo, examine resíduos, variância e independência pelo delineamento.")
 }
 
 #' Executar uma análise do menu Descrevendo Dados

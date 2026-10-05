@@ -47,7 +47,7 @@ mod_registrar_execucao_ui <- function(id) {
       layout_columns(
         col_widths = c(7, 5),
         div(
-          textInput(ns("titulo"), "Título da execução:", value = ""),
+          textInput(ns("titulo"), "Título da execução:", value = "", placeholder = "Ex.: retrato da massa por espécie"),
           helpText("Dê um nome que indique a resposta e os grupos comparados, por exemplo: Comprimento do bico entre espécies de pinguins. Na exportação de uma única ANOVA de um fator, esse será o título do relatório.")
         ),
         uiOutput(ns("dependencia"))
