@@ -5,11 +5,11 @@
 #  COMO USAR (super simples):
 #    1) Abra ESTE arquivo no RStudio (duplo clique nele).
 #    2) Clique no botao "Source" (canto superior direito do editor)  [ou Ctrl+Shift+S].
-#    3) Espere os "ok". No fim, a CatalyseR abre sozinha.
+#    3) Espere os "ok". No fim, o instalador mostra o comando para abrir a IDE.
 #
 #  So precisa de R >= 4.3 e internet. NAO precisa de git, conta no GitHub, nem
 #  Rtools (os pacotes sao de R puro). Pode clicar em Source de novo quando quiser:
-#  ele preserva os pacotes CRAN compatíveis, atualiza a IDE e a reabre.
+#  ele preserva os pacotes CRAN compatíveis e atualiza a IDE, sem abri-la.
 # =============================================================================
 
 instalar_catalyser <- function(iniciar = FALSE) {
@@ -140,5 +140,5 @@ instalar_catalyser <- function(iniciar = FALSE) {
   invisible(FALSE)
 }
 
-# Ao clicar em Source: instala o que falta e, se tudo der certo, abre a IDE.
-instalar_catalyser(iniciar = TRUE)
+# Ao clicar em Source: apenas instala; o usuário abre a IDE quando quiser.
+instalar_catalyser(iniciar = FALSE)

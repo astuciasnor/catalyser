@@ -32,29 +32,38 @@ sem reiniciar e aparece “objeto não encontrado” ao abrir, reinicie o R e ex
 `catalyser::run_app(launch.browser = TRUE)` novamente. A reinstalação atualiza os
 arquivos no computador; uma sessão aberta pode continuar com o pacote antigo na memória.
 
-A forma **recomendada** instala tudo de uma vez — dados (EAPADados) e dependências, em **binário** (sem precisar de Rtools) — e abre a IDE ao final. No console do R/RStudio, rode:
+A forma **recomendada para os alunos** instala os dados (EAPADados) e a CatalyseR diretamente do código R, com dependências CRAN em **binário no Windows**, sem precisar de Rtools. O instalador apenas instala e mostra o comando de abertura. No console do R/RStudio, rode:
 
 ```r
 source("https://raw.githubusercontent.com/astuciasnor/catalyser/main/instalar_catalyser.R")
 ```
 
-Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar novamente quando quiser: o instalador atualiza a CatalyseR pela branch `main`, preserva os pacotes CRAN compatíveis e abre a IDE no navegador padrão. A instalação fica no computador; nas próximas sessões, basta executar `catalyser::run_app()`. É necessário ter R >= 4.3 instalado e internet para a instalação. Não é necessário instalar Git.
-
-### Alternativa: instalação com `pak`
-
-Quem já usa o `pak` pode instalar direto do GitHub. Ele resolve as dependências (inclusive o EAPADados) e usa pacotes binários do CRAN quando existem:
+Ou, pela interface do RStudio: baixe o arquivo `instalar_catalyser.R`, abra-o e clique em **Source** (canto superior direito do editor). Pode rodar novamente quando quiser: o instalador atualiza a CatalyseR pela branch `main` e preserva os pacotes CRAN compatíveis. A instalação fica no computador. Para abrir a IDE quando quiser, execute:
 
 ```r
-install.packages("pak")
-pak::pkg_install("astuciasnor/catalyser", upgrade = FALSE)
 catalyser::run_app(launch.browser = TRUE)
 ```
 
-Para instalar também os extras opcionais (mapas, hexágonos, teste de Nemenyi), troque a segunda linha por:
+É necessário ter R >= 4.3 instalado e internet para a instalação. Não é necessário instalar Git.
+
+### Alternativa: instalação manual com `remotes`
+
+No Windows, use `build = FALSE` para instalar diretamente do código R, sem a etapa de construção do pacote:
 
 ```r
-pak::pkg_install("astuciasnor/catalyser", upgrade = FALSE, dependencies = TRUE)
+install.packages("remotes", type = "binary")
+remotes::install_github(
+  "astuciasnor/catalyser",
+  build = FALSE,
+  upgrade = "never",
+  type = "binary"
+)
+catalyser::run_app(launch.browser = TRUE)
 ```
+
+Para instalar também os extras opcionais (mapas, hexágonos, teste de Nemenyi), acrescente `dependencies = TRUE` à chamada de `install_github()`.
+
+O caminho com `pak::pkg_install()` não é recomendado para os alunos: foi observado um erro de ferramentas de compilação na etapa de construção da CatalyseR no Windows com R 4.6.1, mesmo com `NeedsCompilation: no`. Se aparecer “Could not find tools necessary to compile a package”, reinicie o R e use o instalador recomendado acima.
 
 A CatalyseR é escrita só em R e não precisa de Rtools. Se aparecer um aviso sobre o Rtools ao instalar a partir da pasta local (`install.packages(..., repos = NULL, type = "source")`), ele pode ser ignorado.
 
