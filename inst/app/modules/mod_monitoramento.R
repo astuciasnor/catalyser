@@ -534,15 +534,13 @@ mod_monitoramento_ui <- function(id) {
                   )
                 ),
                 shiny::div(class = "mon-divisao mon-registros",
-                  shiny::radioButtons(ns("hora_real"), "Registrar a hora real de cada coleta?",
+                  shiny::radioButtons(ns("hora_real"), "Incluir a hora real na ficha?",
                     choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
                   shiny::div(class = "mon-esforco",
                     shiny::radioButtons(ns("tem_esforco"), "Registrar esforço em cada coleta?",
                       choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
-                    shiny::conditionalPanel(sprintf("input['%s'] === 'sim'", ns("tem_esforco")),
-                      shiny::div(class = "mon-unidade-esforco",
-                        shiny::textInput(ns("unidade_esforco"), "Unidade do esforço:", value = "viagens"))
-                    )
+                    shiny::div(class = "mon-unidade-esforco",
+                      shiny::textInput(ns("unidade_esforco"), "Unidade de esforço:", value = "viagens"))
                   )
                 )
               )
