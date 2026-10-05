@@ -18,14 +18,29 @@ if (file.exists(file.path("..", "..", "R", "descrevendo_dados.R"))) {
   source(file.path("..", "..", "R", "descrevendo_dados.R"), encoding = "UTF-8")
 } else {
   # Modo pacote instalado: traz as funcoes internas direto do namespace catalyser.
-  for (nome in c(
+  funcoes_motor <- c(
     "descricao_catalogo", "descricao_tipo", "exploracao_tipo_variavel",
     "catalyser_codigo_descricao", "catalyser_descricao", "cores_ocean", "tema_ocean",
     "aplicar_faceta_ocean", "desenhar_distribuicao", "desenhar_barras_ocean",
     "desenhar_caixa_ocean", "desenhar_dispersao_ocean", "resumir_continuas",
     "tabela_frequencia_exploratoria", "exploracao_tipos", "exploracao_base_visual",
     "exploracao_cores", "exploracao_grupo", "exploracao_retratos", "exploracao_mapa_ausentes", "exploracao_saude", "exploracao_normalidade_grupos"
-  )) {
+  )
+  ns_catalyser <- asNamespace("catalyser")
+  ausentes_motor <- funcoes_motor[!vapply(
+    funcoes_motor, exists, logical(1), envir = ns_catalyser, inherits = FALSE
+  )]
+  if (length(ausentes_motor)) {
+    stop(
+      "O aplicativo e o pacote catalyser carregado nesta sessão estão incompatíveis. ",
+      "Após atualizar o pacote, reinicie o R (no RStudio: Session > Restart R ou Ctrl+Shift+F10) ",
+      "e execute catalyser::run_app(launch.browser = TRUE) novamente. ",
+      "Se o erro persistir numa sessão nova, reinstale o pacote. ",
+      "Funções ausentes: ", paste(ausentes_motor, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  for (nome in funcoes_motor) {
     assign(nome, getFromNamespace(nome, "catalyser"), envir = globalenv())
   }
 }

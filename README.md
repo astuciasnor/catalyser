@@ -26,6 +26,12 @@ A plataforma é dividida em módulos analíticos completos e independentes:
 
 ## 🛠️ Instalação
 
+Antes de atualizar uma CatalyseR que já foi usada nesta sessão, reinicie o R
+(no RStudio: **Session > Restart R**, ou **Ctrl+Shift+F10**). Se você já atualizou
+sem reiniciar e aparece “objeto não encontrado” ao abrir, reinicie o R e execute
+`catalyser::run_app(launch.browser = TRUE)` novamente. A reinstalação atualiza os
+arquivos no computador; uma sessão aberta pode continuar com o pacote antigo na memória.
+
 A forma **recomendada** instala tudo de uma vez — dados (EAPADados) e dependências, em **binário** (sem precisar de Rtools) — e abre a IDE ao final. No console do R/RStudio, rode:
 
 ```r

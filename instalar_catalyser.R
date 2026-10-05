@@ -14,6 +14,9 @@
 
 instalar_catalyser <- function(iniciar = FALSE) {
 
+  # Reinstalar muda os arquivos, mas não substitui o namespace já em memória.
+  ide_ja_carregada <- "catalyser" %in% loadedNamespaces()
+
   options(repos = c(CRAN = "https://cloud.r-project.org"))
   # NUNCA compilar da fonte (sem Rtools, sem o prompt "compilar?"): so binarios prontos.
   options(install.packages.check.source = "no")
@@ -119,7 +122,11 @@ instalar_catalyser <- function(iniciar = FALSE) {
     cat("      catalyser::run_app(launch.browser = TRUE)\n\n")
     cat("  Para iniciar sem abrir o navegador automaticamente:\n\n")
     cat("      catalyser::run_app(launch.browser = FALSE)\n\n")
-    if (isTRUE(iniciar)) {
+    if (ide_ja_carregada) {
+      cat("  A CatalyseR estava carregada antes da atualização.\n")
+      cat("  Reinicie o R: Session > Restart R (Ctrl+Shift+F10 no RStudio).\n")
+      cat("  Depois execute catalyser::run_app(launch.browser = TRUE).\n\n")
+    } else if (isTRUE(iniciar)) {
       cat("  Abrindo a IDE no navegador padrao...\n\n")
       try(catalyser::run_app(launch.browser = TRUE))
     }
