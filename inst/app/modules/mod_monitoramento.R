@@ -448,6 +448,24 @@ mod_monitoramento_ui <- function(id) {
     .mon-coluna { border: 2px solid #168BFF; border-radius: 14px;
       padding: 12px; height: 100%; min-width: 0; }
     .mon-coluna .mon-card:last-child { margin-bottom: 0; }
+    .mon-definicoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px; align-items: stretch; }
+    .mon-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 18px; align-items: start; }
+    .mon-definicoes .shiny-input-container { width: 100%; min-width: 0; }
+    .mon-definicoes .form-group { margin-bottom: 0; }
+    .mon-definicoes .mon-card { padding: 14px; }
+    .mon-definicoes .mon-card h5 { margin-bottom: 12px; }
+    .mon-definicoes .control-label { display: block; margin-bottom: 5px; }
+    .mon-definicoes .mon-data .input-group { width: 100% !important; }
+    .mon-frequencia { margin: 14px 0; }
+    .mon-esforco { border-top: 1px solid #dbe5e8; margin-top: 14px; padding-top: 12px; }
+    .mon-definicoes .mon-linha { gap: 8px; margin-bottom: 8px; }
+    .mon-definicoes .mon-linha .shiny-input-container { flex: 1 1 0; }
+    .mon-definicoes .mon-rem { flex: 0 0 30px; margin-bottom: 0;
+      min-height: 31px; padding: 3px 8px; }
+    @media (max-width: 991px) { .mon-definicoes { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 575px) { .mon-campos { grid-template-columns: minmax(0, 1fr); } }
     .mon-estudio .mon-card li { margin-bottom: 7px; }
     .mon-estudio .mon-card li:last-child { margin-bottom: 0; }
     .mon-modelo { background: #E6F3F1; padding: 14px; border-radius: 8px;
@@ -477,18 +495,18 @@ mod_monitoramento_ui <- function(id) {
 
           # Duas colunas de cartões para aproveitar a largura da tela: à
           # esquerda o tempo e o esforço; à direita as respostas.
-          bslib::layout_columns(col_widths = c(6, 6),
+          shiny::div(class = "mon-definicoes",
             shiny::div(class = "mon-coluna",
               shiny::div(class = "mon-card",
                 shiny::h5("1. Tempo"),
-                bslib::layout_columns(col_widths = c(6, 6),
-                  shiny::uiOutput(ns("ui_inicio")),
-                  shiny::uiOutput(ns("ui_fim"))
+                shiny::div(class = "mon-campos",
+                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_inicio"))),
+                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_fim")))
                 ),
-                shiny::radioButtons(ns("frequencia"), "Frequência:",
+                shiny::div(class = "mon-frequencia", shiny::radioButtons(ns("frequencia"), "Frequência:",
                   choices = c("Diária" = "diaria", "Semanal" = "semanal", "Quinzenal" = "quinzenal", "Mensal" = "mensal"),
-                  selected = "mensal", inline = TRUE),
-                bslib::layout_columns(col_widths = c(6, 6),
+                  selected = "mensal", inline = TRUE)),
+                shiny::div(class = "mon-campos",
                   shiny::textInput(ns("horario"), "Horário da coleta (opcional):", placeholder = "Ex.: 8h, na preamar"),
                   shiny::radioButtons(ns("hora_real"), "Registrar a hora real de cada coleta?",
                     choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE)
@@ -497,13 +515,13 @@ mod_monitoramento_ui <- function(id) {
 
               shiny::div(class = "mon-card",
                 shiny::h5("2. Onde e com que esforço"),
-                bslib::layout_columns(col_widths = c(7, 5),
+                shiny::tagList(
                   shiny::div(
                     shiny::uiOutput(ns("ui_locais")),
                     shiny::actionButton(ns("add_local"), "+ local", class = "btn-sm btn-outline-primary")
                   ),
-                  shiny::div(
-                    shiny::radioButtons(ns("tem_esforco"), "Registra esforço?",
+                  shiny::div(class = "mon-campos mon-esforco",
+                    shiny::radioButtons(ns("tem_esforco"), "Registrar esforço em cada coleta?",
                       choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
                     shiny::conditionalPanel(sprintf("input['%s'] === 'sim'", ns("tem_esforco")),
                       shiny::textInput(ns("unidade_esforco"), "Unidade do esforço:", value = "viagens")
