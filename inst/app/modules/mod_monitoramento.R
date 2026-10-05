@@ -465,14 +465,13 @@ mod_monitoramento_ui <- function(id) {
     .mon-definicoes .mon-rem { flex: 0 0 30px; margin-bottom: 0;
       min-height: 31px; padding: 3px 8px; }
     .mon-planejar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px; min-height: 490px; align-items: stretch; }
+      gap: 8px; min-height: 550px; align-items: stretch; }
     .mon-divisao { border: 2px solid #4b5155; border-radius: 12px; padding: 12px;
       display: flex; flex-direction: column; gap: 18px; min-width: 0; }
     .mon-datas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .mon-datas > div { min-width: 0; }
     .mon-datas .input-group > .form-control { min-width: 0; padding: 6px 8px; font-size: 0.85rem; }
     .mon-datas .input-group > button { flex: 0 0 32px; width: 32px; padding: 6px 4px; }
-    .mon-registros { gap: 74px; padding-top: 18px; }
     .mon-planejar h5 { color: #0F3B5F; font-size: 0.92rem; font-weight: 700; margin: 0; }
     .mon-planejar > div { min-width: 0; }
     .mon-planejar .mon-frequencia { margin: 0; }
@@ -517,25 +516,24 @@ mod_monitoramento_ui <- function(id) {
             shiny::div(class = "mon-coluna",
               shiny::div(class = "mon-planejar",
                 shiny::div(class = "mon-divisao",
-                shiny::h5("1. Tempo"),
-                shiny::div(class = "mon-datas",
-                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_inicio"))),
-                  shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_fim")))),
-                shiny::div(class = "mon-frequencia", shiny::radioButtons(ns("frequencia"), "Frequência:",
-                  choices = c("Diária" = "diaria", "Semanal" = "semanal", "Quinzenal" = "quinzenal", "Mensal" = "mensal"),
-                  selected = "mensal", inline = TRUE)),
-                shiny::div(class = "mon-horario",
-                  shiny::textInput(ns("horario"), "Horário da coleta (opcional):", placeholder = "Ex.: 8h, na preamar")
+                  shiny::h5("1. Tempo"),
+                  shiny::div(class = "mon-datas",
+                    shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_inicio"))),
+                    shiny::div(class = "mon-data", shiny::uiOutput(ns("ui_fim")))),
+                  shiny::div(class = "mon-frequencia", shiny::radioButtons(ns("frequencia"), "Frequência:",
+                    choices = c("Diária" = "diaria", "Semanal" = "semanal", "Quinzenal" = "quinzenal", "Mensal" = "mensal"),
+                    selected = "mensal", inline = TRUE)),
+                  shiny::textInput(ns("horario"), "Horário da coleta (opcional):", placeholder = "Ex.: 8h, na preamar"),
+                  shiny::div(class = "mon-secao",
+                    shiny::radioButtons(ns("hora_real"), "Incluir a hora real na ficha?",
+                      choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE))
                 ),
-                shiny::div(class = "mon-secao", shiny::h5("2. Onde e com que esforço")),
+                shiny::div(class = "mon-divisao",
+                  shiny::h5("2. Onde e com que esforço"),
                   shiny::div(
                     shiny::uiOutput(ns("ui_locais")),
                     shiny::actionButton(ns("add_local"), "+ local", class = "btn-sm btn-outline-primary")
-                  )
-                ),
-                shiny::div(class = "mon-divisao mon-registros",
-                  shiny::radioButtons(ns("hora_real"), "Incluir a hora real na ficha?",
-                    choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
+                  ),
                   shiny::div(class = "mon-esforco",
                     shiny::radioButtons(ns("tem_esforco"), "Registrar esforço em cada coleta?",
                       choices = c("Não" = "nao", "Sim" = "sim"), inline = TRUE),
