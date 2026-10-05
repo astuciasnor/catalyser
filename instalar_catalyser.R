@@ -57,7 +57,10 @@ instalar_catalyser <- function(iniciar = FALSE) {
     cat(sprintf("  %s %-14s %s...\n", SETA, pkg, acao))
     res <- tryCatch({
       if (is.null(github)) install.packages(pkg, quiet = TRUE, type = tipo_pkg)
-      else remotes::install_github(github, quiet = TRUE, upgrade = "never", force = TRUE)
+      else remotes::install_github(
+        github, quiet = TRUE, upgrade = "never", force = TRUE,
+        build = FALSE, type = tipo_pkg
+      )
       nova_versao <- utils::packageVersion(pkg)
       is.null(versao_minima) || nova_versao >= base::package_version(versao_minima)
     }, error = function(e) { cat("       ", conditionMessage(e), "\n", sep = ""); FALSE })
@@ -124,8 +127,7 @@ instalar_catalyser <- function(iniciar = FALSE) {
   }
   cat(sprintf("\n  %s Nao foi possivel instalar: %s\n\n", FALHA, paste(falhou, collapse = ", ")))
   cat("  Dicas:\n")
-  cat("   - Se o erro mencionar 'Rtools': instale o Rtools (Windows) em\n")
-  cat("     https://cran.r-project.org/bin/windows/Rtools/  e rode de novo.\n")
+  cat("   - No Windows, instale dependencias CRAN em binario; a CatalyseR nao compila codigo nativo.\n")
   cat("   - Sem internet ou atras de proxy: verifique a conexao e tente de novo.\n")
   cat("   - Rode este script novamente: ele preserva as dependencias compativeis e atualiza a IDE.\n\n")
   invisible(FALSE)
