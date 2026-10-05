@@ -358,7 +358,12 @@ ui <- page_navbar(
         margin-right: 0px !important;
       }
       
-      /* Cores individuais e modernas para cada ícone de menu PENDENCIA-V2: trocar nth-child por classes com nome, para não desalinhar quando a ordem mudar. */
+      /* Cores por classe: cada menu mantém sua cor quando a ordem muda. */
+      .exploracao-espaco h2, .exploracao-espaco h5 { color: #0F3B5F !important; }
+      .exploracao-espaco .exploracao-confirmar { background: #0F3B5F !important; border-color: #0F3B5F !important; color: white !important; }
+      .exploracao-espaco .exploracao-confirmar:hover { background: #2E7D8F !important; }
+      .exploracao-espaco > p { margin-bottom: .6rem !important; }
+      .exploracao-espaco .catalyser-base-selector-compact { margin: .5rem 0 .8rem !important; }
       .exploracao-espaco { --bslib-spacer: 1rem; }
       .exploracao-espaco .card-body { padding: 1.1rem; }
       .exploracao-espaco .bslib-sidebar-layout { gap: 1rem; }
@@ -700,7 +705,7 @@ ui <- page_navbar(
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Montagem da amostra")),
     nav_panel(
       title = "Quanto amostrar",
-      icon = icon("calculator", class = "cor-menu-parametricos"),
+      icon = icon("calculator"),
       mod_quantos_coletar_ui("quantos_coletar")
     ),
     nav_panel(
@@ -797,7 +802,7 @@ ui <- page_navbar(
           ),
           nav_panel(
             title = "Resumo dos Dados",
-            icon = icon("chart-bar", class = "cor-menu-explorar"),
+            icon = icon("chart-bar"),
             card_body(
               style = "padding: 10px 15px;",
               verbatimTextOutput("data_summary_text")
@@ -866,7 +871,7 @@ ui <- page_navbar(
     ),
     nav_panel(
       title = "Preparar Bases Derivadas",
-      icon = icon("diagram-project", class = "cor-menu-multivariada"),
+      icon = icon("diagram-project"),
       mod_bases_derivadas_ui("bases_derivadas")
     )
   ),
@@ -877,7 +882,7 @@ ui <- page_navbar(
   # Rosca e Duplo eixo Y saíram do menu; os módulos seguem no código (PENDENCIA-V2: limpar).
   nav_menu(
     title = HTML("Explorar e<br>Visualizar"),
-    icon = icon("chart-bar"),
+    icon = icon("chart-bar", class = "cor-menu-explorar"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Explorando os dados")),
     nav_panel(
       title = "Explorar Dataset",
@@ -926,7 +931,7 @@ ui <- page_navbar(
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Proporções")),
     nav_panel(
       title = "Uma proporção",
-      icon = icon("percent", class = "cor-menu-naoparametricos"),
+      icon = icon("percent"),
       mod_proporcoes_ui("proporcao_uma", "uma")
     ),
     nav_panel(
@@ -970,7 +975,7 @@ ui <- page_navbar(
   # 5. Testes Paramétricos
   nav_menu(
     title = HTML("Testes<br>Paramétricos"),
-    icon = icon("calculator"),
+    icon = icon("calculator", class = "cor-menu-parametricos"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparação de médias")),
     nav_panel(
       title = "Teste t de Student",
@@ -1028,7 +1033,7 @@ ui <- page_navbar(
     ),
     nav_panel(
       title = "ANCOVA (Análise de Covariância)",
-      icon = icon("chart-line", class = "cor-menu-lineares"),
+      icon = icon("chart-line"),
       mod_ancova_ui("ancova")
     ),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Comparação de variâncias")),
@@ -1047,7 +1052,7 @@ ui <- page_navbar(
   # 6. Testes Não Paramétricos
   nav_menu(
     title = HTML("Testes Não<br>Paramétricos"),
-    icon = icon("percent"),
+    icon = icon("percent", class = "cor-menu-naoparametricos"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Duas amostras")),
     nav_panel(
       title = "Mann-Whitney (2 grupos)",
@@ -1075,7 +1080,7 @@ ui <- page_navbar(
   # 7. Modelos de Regressão
   nav_menu(
     title = HTML("Regressões<br>Lineares e MLG"),
-    icon = icon("chart-line"),
+    icon = icon("chart-line", class = "cor-menu-lineares"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Associação")),
     nav_panel(
       title = "Correlação",
@@ -1215,7 +1220,7 @@ ui <- page_navbar(
   # 9. Estatística Multivariada
   nav_menu(
     title = HTML("Estatística<br>Multivariada"),
-    icon = icon("diagram-project"),
+    icon = icon("diagram-project", class = "cor-menu-multivariada"),
     nav_item(div(class = "dropdown-header fw-bold text-uppercase small", "Reduzir dimensão")),
     nav_panel(
       title = "PCA (Componentes Principais)",

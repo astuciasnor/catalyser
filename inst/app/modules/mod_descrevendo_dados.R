@@ -34,7 +34,7 @@ exploracao_ficha_gravar <- function(ficha, dados, nome, tipo) {
 # Os retratos têm espaço próprio; detalhes e edição ficam nas abas seguintes.
 mod_explorar_dataset_ui <- function(id) {
   ns <- shiny::NS(id)
-  tagList(
+  div(class = "exploracao-espaco",
     tags$h2("Explorar Dataset", class = "h4 mb-1"),
     p("Confira o conjunto, observe cada variável e escolha a próxima pergunta.", class = "text-muted small mb-3"),
     mod_seletor_base_analise_ui(ns("base"), compacto = TRUE),
@@ -42,7 +42,7 @@ mod_explorar_dataset_ui <- function(id) {
       bslib::navset_card_tab(id = ns("abas"), title = "Painel de Resultados da Exploração:",
         bslib::nav_panel("Painel de retratos", value = "panorama",
           uiOutput(ns("indicadores")), uiOutput(ns("saude")),
-          selectInput(ns("pagina_retratos"), "Página de variáveis:", choices = c("1" = 1), width = "160px"),
+          uiOutput(ns("paginacao_retratos")),
           uiOutput(ns("retratos_plot")),
           tags$details(tags$summary("Leitura e código R"), uiOutput(ns("panorama_narrativa")), verbatimTextOutput(ns("panorama_codigo")))),
         bslib::nav_panel("Tabela", value = "tabela", DT::DTOutput(ns("panorama_tabela"))),
@@ -52,7 +52,7 @@ mod_explorar_dataset_ui <- function(id) {
           bslib::layout_columns(col_widths = c(5, 5, 2),
             selectInput(ns("ficha_variavel"), "Variável:", choices = NULL),
             selectInput(ns("ficha_tipo"), "Como ler:", choices = c("Detectar automaticamente" = "automatico", "Categórica nominal", "Categórica ordinal", "Numérica discreta", "Numérica contínua")),
-            div(class = "pt-4", actionButton(ns("ficha_salvar"), "Confirmar", class = "btn-outline-primary"))),
+            div(class = "pt-4", actionButton(ns("ficha_salvar"), "Confirmar", class = "btn-primary exploracao-confirmar"))),
           uiOutput(ns("ficha_pista")), DT::DTOutput(ns("ficha_tabela"))),
         bslib::nav_panel("Inserir análise", value = "inserir", icon = icon("bookmark"),
           p("Guarde o panorama e a primeira página dos retratos no Projeto R.", class = "small text-muted"),
@@ -407,7 +407,7 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
       output$indicadores <- renderUI({
         base <- seletor$dados(); req(is.data.frame(base)); tipos <- leituras()
         valores <- c("Observações" = nrow(base), "Variáveis" = ncol(base),
-          "Preenchidas" = sprintf("%.1f%%", if (length(base) && nrow(base)) 100 * mean(!is.na(base)) else 0),
+          "Preenchidas" = paste0(formatC(if (length(base) && nrow(base)) 100 * mean(!is.na(base)) else 0, format = "f", digits = 1, decimal.mark = ","), "%"),
           "Medidas / grupos" = paste(sum(tipos == "Numérica contínua"), sum(grepl("Categ", tipos)), sep = " / "))
         do.call(bslib::layout_columns, c(lapply(names(valores), function(nome) div(class = "exploracao-indicador", span(nome), tags$strong(valores[[nome]]))), list(col_widths = c(3, 3, 3, 3))))
       })
@@ -415,6 +415,10 @@ mod_descrevendo_dados_server <- function(id, area, dados_rv, registro_bases_rv,
         tab <- exploracao_saude(seletor$dados())
         div(class = "exploracao-saude", lapply(seq_len(nrow(tab)), function(i) span(class = if (tab$quantidade[i]) "badge text-bg-warning" else "badge text-bg-light", paste(tab$verificacao[i], tab$quantidade[i], sep = ": "))),
           span("Linhas iguais são um alerta para conferir, não uma ordem para excluir.", class = "small text-muted"))
+      })
+      output$paginacao_retratos <- renderUI({
+        if (ncol(seletor$dados()) <= 12L) return(NULL)
+        selectInput(session$ns("pagina_retratos"), "Página de variáveis:", choices = seq_len(ceiling(ncol(seletor$dados()) / 12)), width = "160px")
       })
       output$retratos_plot <- renderUI({
         pagina <- as.integer(input$pagina_retratos %||% 1)

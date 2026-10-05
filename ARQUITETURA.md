@@ -12,6 +12,29 @@ Publicação completa em 04/10/2026, versão 0.1.20: reunidas as revisões locai
 
 ## Onde fica cada responsabilidade
 
+### Explorar e Visualizar, guia v2 (05/10/2026)
+
+O motor `R/descrevendo_dados.R` concentra a leitura sugerida de tipos, os retratos,
+as ausências e os gráficos. A ficha compartilhada guarda correções por fotografia
+exata dos dados da sessão; uma base com valores diferentes não herda as correções.
+Ela só muda a leitura e a cópia de apresentação. Os parâmetros das execuções
+registram as leituras para o código independente e o replay.
+
+Explorar Dataset abre com retratos, indicadores e alertas, preservando a tabela
+em outra aba. A ficha e o mapa de ausentes têm abas próprias. Retratos com mais
+de doze variáveis são paginados; o panorama inserido no Projeto R contém a primeira
+página. Comparar grupos oferece pontos, média e IC t de 95%, com n válido e grupo
+sem registro; a dispersão permite linha por grupo ou geral. A matriz usa GGally,
+com até seis variáveis e doze categorias por coluna. Hexágonos são uma opção para
+dispersão sem cor por grupo. Os ícones dos menus têm classes de cor independentes
+da posição. Os gráficos do ateliê permanecem fora do registro editorial, exceto
+Linhas, que conserva a rota existente.
+
+Verificação: `inst/app/tests/test_exploracao_guia_v2.R`, além dos testes existentes
+de exploração visual e do motor. As imagens de conferência ficam em
+`APOIO/verificacao-exploracao/`. A ficha não infere o delineamento; QQ dos dados por
+grupo não substitui diagnóstico de resíduos nem comprova independência.
+
 | Local | Papel |
 | --- | --- |
 | `R/` | Cálculos e apresentação reconstruíveis pelo pacote; `analises.R` contém `catalyser_executar()`. |

@@ -244,7 +244,7 @@ desenhar_caixa_ocean <- function(dados, variavel, grupo = NULL, forma = "ambos",
     p <- p + ggplot2::scale_x_discrete(labels = function(x) paste0(x, "\n(n = ", contagem[x], ")")) +
       ggplot2::scale_color_manual(values = exploracao_cores(length(contagem))) +
       ggplot2::scale_shape_manual(values = rep(c(16, 17, 15, 18, 3), length.out = length(contagem))) +
-      ggplot2::labs(subtitle = "Pontos: observações; losango: média; barra: IC 95% da média (t). n reúne as facetas.")
+      ggplot2::labs(subtitle = paste0("Pontos: observações · Losango: média · Barras: IC 95% da média (t).", if (!is.null(faceta) && faceta %in% names(plotar)) " n reúne as facetas." else ""))
   }
   aplicar_faceta_ocean(p, plotar, faceta) +
     ggplot2::scale_fill_manual(values = rep(
@@ -387,7 +387,10 @@ catalyser_codigo_descricao <- function(parametros) {
   })))
   # O código exportado repete a sugestão para que o Projeto R conte a mesma história da tela.
   if (p$analise %in% c("retrato", "relacao")) codigo <- c(codigo, linhas(quote({
-    tipo_detectado <- function(coluna, nome = "") exploracao_tipo_variavel(coluna, nome)
+    tipo_detectado <- function(coluna, nome = "") {
+      if (nome %in% names(leituras)) return(unname(leituras[[nome]]))
+      exploracao_tipo_variavel(coluna, nome)
+    }
     tipo_confirmado <- function(detectado, escolha) if (identical(escolha, "automatico")) detectado else escolha
     categorica <- function(tipo) grepl("Categ", tipo, fixed = TRUE)
     numerica <- function(tipo) grepl("Num", tipo, fixed = TRUE)
@@ -739,6 +742,8 @@ catalyser_codigo_descricao <- function(parametros) {
         ggplot2::stat_qq_line(colour = "#E76F51") + ggplot2::facet_wrap(stats::as.formula("~ Transformação"), scales = "free_y") + tema +
         ggplot2::labs(x = "Quantis normais teóricos", y = "Quantis observados", title = "Compare a forma; não escolha por p-valor")
       grafico_dados$Transformação <- factor(grafico_dados$Transformação, levels = names(candidatas))
+      # As duas filas precisam manter a mesma ordem para comparar cada transformação.
+      grafico$data <- grafico_dados
       histogramas <- ggplot2::ggplot(grafico_dados, ggplot2::aes(x = .data$Valor)) +
         ggplot2::geom_histogram(bins = 25, fill = "#2E7D8F", color = "white") +
         ggplot2::facet_wrap(~ Transformação, scales = "free", nrow = 1) + tema +
@@ -772,7 +777,8 @@ exploracao_retratos <- function(dados, tipos = exploracao_tipos(dados), pagina =
       contagem <- table(x, useNA = "no")
       if (!identical(tipo, "Categórica ordinal")) contagem <- sort(contagem, decreasing = TRUE)
       tab <- data.frame(categoria = names(contagem)[seq_len(min(10L, length(contagem)))], n = as.numeric(contagem)[seq_len(min(10L, length(contagem)))])
-      g <- ggplot2::ggplot(tab, ggplot2::aes(x = factor(.data$categoria, levels = rev(tab$categoria)), y = .data$n)) +
+      tab$categoria <- factor(tab$categoria, levels = rev(tab$categoria))
+      g <- ggplot2::ggplot(tab, ggplot2::aes(x = .data$categoria, y = .data$n)) +
         ggplot2::geom_col(fill = "#2E7D8F") + ggplot2::coord_flip() + tema_ocean() +
         ggplot2::labs(x = NULL, y = "Observações", caption = if (length(contagem) > 10L) "Dez valores mostrados; veja todos na tabela." else NULL)
     } else {

@@ -59,6 +59,17 @@ shiny::testServer(mod_exploracao_visual_server,
     stopifnot(grepl("linha_por_grupo = FALSE", output$codigo, fixed = TRUE))
   })
 
+# A ficha altera a leitura, atualiza o panorama e não muda os dados da base.
+shiny::testServer(mod_descrevendo_dados_server,
+  args = list(area = "explorar", dados_rv = shiny::reactiveVal(dados),
+    registro_bases_rv = shiny::reactiveVal(bases_vazio()), cache_bases_rv = shiny::reactiveVal(bases_cache_vazio()),
+    revisao_origem_rv = shiny::reactiveVal(1L), registro_execucoes_rv = shiny::reactiveVal(execucoes_vazio()),
+    contador_execucoes_rv = shiny::reactiveVal(0L), ficha_rv = shiny::reactiveVal(list())), {
+    session$setInputs(ficha_variavel = "massa_g", ficha_tipo = "Numérica discreta", ficha_salvar = 1)
+    stopifnot(leituras()[["massa_g"]] == "Numérica discreta",
+              identical(seletor$dados(), original), length(historico()) >= 1L)
+  })
+
 pasta <- "../../../APOIO/verificacao-exploracao"
 dir.create(pasta, recursive = TRUE, showWarnings = FALSE)
 ggplot2::ggsave(file.path(pasta, "retratos.png"), resultado$grafico, width = 13, height = 7, dpi = 120)

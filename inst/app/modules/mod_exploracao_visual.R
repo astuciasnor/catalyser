@@ -77,7 +77,7 @@ mod_exploracao_visual_ui <- function(id, tipo) {
       sidebar = bslib::sidebar(width = 310, uiOutput(ns("controles"))),
       uiOutput(ns("aviso")),
       bslib::navset_card_tab(title = "Painel Visual:",
-        bslib::nav_panel("Gráfico", .visual_card_grafico("Retrato visual", ns("grafico"), if (tipo %in% c("matriz", "calor")) 680 else 460)),
+        bslib::nav_panel("Gráfico", div(class = "mx-auto", style = "max-width:1100px;width:100%;", plotOutput(ns("grafico"), height = if (tipo %in% c("matriz", "calor")) "680px" else "460px"))),
         bslib::nav_panel("Ver o código R", verbatimTextOutput(ns("codigo")))
       )
     )
@@ -116,8 +116,8 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo, ficha_rv = shiny::re
         ),
         caixa_violino = tagList(
           tags$h5("Centro e dispersão"),
-          selectInput(session$ns("y"), "Variável numérica:", numericas),
-          selectInput(session$ns("grupo"), "Comparar grupos:", c("Todos juntos" = "nenhum", stats::setNames(categoricas, categoricas))),
+          selectInput(session$ns("y"), "Variável numérica:", numericas, selected = if ("massa_g" %in% numericas) "massa_g" else numericas[1]),
+          selectInput(session$ns("grupo"), "Comparar grupos:", c("Todos juntos" = "nenhum", stats::setNames(categoricas, categoricas)), selected = if ("especie" %in% categoricas) "especie" else "nenhum"),
           checkboxInput(session$ns("mostrar_ausentes"), "Mostrar grupos sem registro", TRUE),
           radioButtons(session$ns("forma"), "Mostrar:", c("Pontos, violino e média" = "pontos", "Boxplot com pontos" = "caixa_pontos", "Violino com pontos" = "violino_pontos"), inline = TRUE),
           selectInput(session$ns("faceta"), "Repetir por:", facetas)
@@ -128,7 +128,7 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo, ficha_rv = shiny::re
           selectInput(session$ns("y"), "Eixo Y:", numericas, selected = numericas[min(2, length(numericas))]),
           selectInput(session$ns("grupo"), "Cor por grupo:", c("Nenhum" = "nenhum", stats::setNames(categoricas, categoricas))),
           checkboxInput(session$ns("linha_por_grupo"), "Uma linha por grupo", TRUE),
-          selectInput(session$ns("muitos_pontos"), "Muitos pontos:", c("Pontos" = "pontos", "Hexágonos (sem cor por grupo)" = "hex")),
+          selectInput(session$ns("muitos_pontos"), "Muitos pontos:", c("Pontos" = "pontos", "Hexágonos (sem cor por grupo)" = "hex"), selected = if (nrow(base_visual()) > 2000L) "hex" else "pontos"),
           selectInput(session$ns("suavizacao"), "Linha de tendência:", c("Suave (LOESS)" = "loess", "Linear" = "lm", "Sem linha" = "nenhuma")),
           selectInput(session$ns("faceta"), "Repetir por:", facetas)
         ),
@@ -227,6 +227,8 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo, ficha_rv = shiny::re
         shiny::validate(shiny::need(length(vars) >= 2, "Escolha pelo menos duas variáveis numéricas."))
         shiny::validate(shiny::need(length(vars) <= 6L, "Escolha até seis variáveis."),
           shiny::need(requireNamespace("GGally", quietly = TRUE), "Instale GGally para abrir a matriz generalizada."))
+        categorias_matriz <- vars[vapply(dados[vars], function(x) is.factor(x) || is.character(x), logical(1))]
+        shiny::validate(shiny::need(all(vapply(dados[categorias_matriz], function(x) length(unique(x[!is.na(x)])) <= 12L, logical(1))), "Escolha grupos com até doze categorias; deixe identificadores fora da matriz."))
         GGally::ggpairs(dados[vars], progress = FALSE,
           upper = list(continuous = GGally::wrap("cor", use = "pairwise.complete.obs")),
           lower = list(continuous = GGally::wrap("points", alpha = .45, color = "#2E7D8F")),
@@ -265,14 +267,17 @@ mod_exploracao_visual_server <- function(id, data_rv, tipo, ficha_rv = shiny::re
           deparse(input$forma %||% "pontos"), deparse(input$faceta %||% "nenhuma")),
         dispersao = sprintf("desenhar_dispersao_ocean(\n  dados, x = %s, y = %s, grupo = %s, tendencia = %s, faceta = %s\n)",
           deparse(input$x %||% "x"), deparse(input$y %||% "y"), deparse(input$grupo %||% "nenhum"),
-          deparse(input$suavizacao %||% "nenhuma"), deparse(input$faceta %||% "nenhuma")),
+          deparse(input$suavizacao %||% "loess"), deparse(input$faceta %||% "nenhuma")),
         duplo_eixo = "escala <- reescalar_para_eixo(dados$y2, dados$y1)\nggplot(dados, aes(x)) +\n  geom_line(aes(y = y1)) +\n  geom_line(aes(y = escala$y2_no_eixo_esquerdo)) +\n  scale_y_continuous(sec.axis = sec_axis(~ (. - escala$b) / escala$a))",
         barras = sprintf("desenhar_barras_ocean(\n  dados, variavel = %s, grupo = %s, peso = %s, posicao = %s, faceta = %s\n)",
           deparse(input$x %||% "categoria"), deparse(input$grupo %||% "nenhum"),
           deparse(input$y %||% "nenhum"), deparse(input$posicao %||% "dodge"),
           deparse(input$faceta %||% "nenhuma")),
         rosca = "ggplot(tabela, aes(x = 2, y = n, fill = categoria)) +\n  geom_col() + coord_polar(theta = 'y') + xlim(.5, 2.5)",
-        matriz = paste0("GGally::ggpairs(dados[", paste(deparse(input$vars), collapse = ""), "], progress = FALSE) + tema_ocean()"),
+        matriz = paste0("GGally::ggpairs(dados[", paste(deparse(input$vars), collapse = ""), "], progress = FALSE,\n",
+          "  upper = list(continuous = GGally::wrap('cor', use = 'pairwise.complete.obs')),\n",
+          "  lower = list(continuous = GGally::wrap('points', alpha = .45, color = '#2E7D8F')),\n",
+          "  cardinality_threshold = 12) + tema_ocean()"),
         calor = "correlacoes <- cor(dados[variaveis], use = 'pairwise.complete.obs')\nggplot(tabela, aes(x, y, fill = correlacao)) + geom_tile()"
       )
       if (tipo %in% c("caixa_violino", "barras")) trecho <- sub("\\n\\)$", paste0(",\n  mostrar_ausentes = ", isTRUE(input$mostrar_ausentes), "\n)"), trecho)
