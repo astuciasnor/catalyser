@@ -1,0 +1,307 @@
+---
+title: "{{TITULO}}"
+subtitle: "Caderno completo · da base preparada à comparação dos grupos, em ClaRa"
+author: "EAPA, Estatística Aplicada à Pesca e Aquicultura com R"
+date: today
+bibliography: referencias.bib
+csl: apa.csl
+format:
+  html:
+    theme: [cosmo, ocean.scss]
+    title-block-banner: "#0F3B5F"
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    code-summary: "Ver código"
+    code-tools: true
+    embed-resources: true
+    fig-width: 7
+    fig-height: 4.6
+    fig-dpi: 150
+execute:
+  echo: true
+---
+
+# Como usar este caderno
+
+Este documento acompanha o percurso completo da ANOVA, escrito em ClaRa: cada
+função responde a uma pergunta da pesquisa, em português, e por trás dela roda
+R comum. Os chunks repetem as chamadas principais de `R/analise.R`, de forma
+mais enxuta, e o caderno roda sozinho: o Render não lê o script. Abra o código
+de cada bloco para ver a chamada que produziu a tabela, a figura ou a frase.
+
+**Os textos são sugestões para estudo e adaptação.** Os números se atualizam
+com os dados, mas a interpretação depende da pergunta, das unidades e do
+delineamento da pesquisa.
+
+```{r}
+#| label: preparar
+#| message: false
+# Pacotes, funções de apresentação e a ClaRa.
+library(here)
+here::i_am("relatorios/relatorio_completo.qmd")
+library(dplyr)
+library(ggplot2)
+source(here("R", "funcoes.R"), encoding = "UTF-8")
+source(here("R", "clara.R"), encoding = "UTF-8")
+
+# A base desta análise, já preparada e conferida em R/analise.R (seção 3).
+dados_da_analise <- readRDS(here("dados", "processados", "{{ARQUIVO_BASE}}"))
+```
+
+```{r}
+#| label: comparar
+# Resumo, ANOVA, pressupostos, Tukey e letras, numa função só.
+resultado <- dados_da_analise |>
+  comparar_medias(resposta        = {{RESPOSTA_CLARA}},
+                  grupos          = {{FATOR_CLARA}},
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},
+                  confianca       = {{CONFIANCA}})
+
+# Tamanho de efeito e as frases do relatório.
+efeito <- resultado |>
+  medir_efeito()
+
+textos <- resultado |>
+  escrever_resultados()
+```
+
+# Introdução: qual comparação queremos investigar?
+
+{{INTRODUCAO}}
+
+# Material e métodos: o que entrou na comparação?
+
+{{METODOS}}
+
+## Dados e preparo
+
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR
+registrou o preparo na seção 3 de `R/analise.R` e guardou a base adotada em
+`dados/processados/{{ARQUIVO_BASE}}`. O script reconstrói o percurso e confere a
+base; este caderno parte da base adotada.
+
+`r textos$amostra`
+
+## Modelo
+
+Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey,
+com intervalos de confiança de `r 100 * resultado$nomes$confianca`%. Os
+pressupostos foram examinados pelos testes de Shapiro-Wilk e de Levene e pelos
+gráficos de resíduos. As funções da ClaRa (`comparar_medias()`,
+`medir_efeito()`, `escrever_resultados()` e os gráficos) mostram o R que rodam
+quando recebem `mostrar_codigo = TRUE`.
+
+# Exploração: conhecer os grupos antes do teste
+
+A leitura da ANOVA exige examinar o delineamento, a distribuição e a dispersão
+dos dados. Por isso esta seção explora os grupos e termina com o diagnóstico
+dos resíduos, antes de apresentar os resultados.
+
+A @tbl-resumo-exploracao reúne os números de cada grupo e a @fig-boxplot
+mostra a distribuição das observações, antes de qualquer teste.
+
+```{r}
+#| label: tbl-resumo-exploracao
+#| tbl-cap: "Resumo por grupo antes do teste: tamanho, centro e dispersão."
+resultado$resumo |>
+  transmute({{ROTULO_FATOR_COL}} = {{FATOR_CLARA}},
+            n,
+            Média = fmt(media),
+            DP    = fmt(dp),
+            EP    = fmt(ep)) |>
+  flextable_ocean()
+```
+
+```{r}
+#| label: fig-boxplot
+#| fig-cap: "Distribuição da resposta em cada grupo, com as observações sobrepostas."
+resultado |>
+  grafico_boxplot()
+```
+
+## Diagnósticos: até onde podemos confiar no teste F?
+
+### Independência e delineamento
+
+A independência não é comprovada por um gráfico ou teste. Confira a unidade
+experimental, medidas repetidas, tanques, locais e outras formas de
+agrupamento antes de interpretar a ANOVA.
+
+### Homogeneidade e normalidade
+
+A ANOVA supõe variâncias parecidas entre os grupos e resíduos aproximadamente
+normais. A @fig-residuos compara os resíduos com os valores ajustados:
+faixas de alturas muito diferentes sugerem variâncias desiguais. A @fig-qq
+compara os resíduos padronizados com os quantis da normal; pontos que se
+afastam da reta indicam assimetria ou valores extremos. A @tbl-testes reúne
+os testes formais que complementam essa inspeção.
+
+```{r}
+#| label: fig-residuos
+#| fig-cap: "Resíduos versus valores ajustados; faixas de alturas muito diferentes sugerem variâncias desiguais."
+#| out-width: "75%"
+#| fig-align: center
+resultado |>
+  grafico_residuos()
+```
+
+```{r}
+#| label: fig-qq
+#| fig-cap: "Gráfico Q-Q dos resíduos padronizados do modelo."
+#| out-width: "75%"
+#| fig-align: center
+resultado |>
+  grafico_qq()
+```
+
+```{r}
+#| label: tbl-testes
+#| tbl-cap: "Testes de pressupostos, complementares à inspeção gráfica e ao delineamento."
+resultado$pressupostos |>
+  transmute(Pressuposto = pressuposto,
+            Teste       = teste,
+            Estatística = fmt(estatistica, 3),
+            p           = formatar_p(p),
+            Leitura     = leitura) |>
+  flextable_ocean()
+```
+
+`r textos$pressupostos`
+
+A @fig-barras mostra cada observação como ponto sobre barras
+semitransparentes, preservando a distribuição dos dados [@weissgerber2015].
+Os testes formais de pressupostos, por sua vez, complementam a inspeção
+visual dos resíduos [@kozak2018]. Se o Levene indicar variâncias diferentes,
+a ANOVA de Welch, disponível na CatalyseR, é a alternativa a considerar.
+
+# Resultados: o que a ANOVA responde?
+
+A @tbl-anova apresenta o teste.
+
+`r textos$teste`
+
+```{r}
+#| label: tbl-anova
+#| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
+resultado$anova |>
+  transmute(Fonte = c({{ROTULO_FATOR_R}}, "Resíduo"),
+            GL    = gl,
+            SQ    = fmt(sq),
+            QM    = fmt(qm),
+            F     = ifelse(is.na(f), "", fmt(f)),
+            p     = ifelse(is.na(p), "", formatar_p(p))) |>
+  flextable_ocean()
+```
+
+A @tbl-efeito traz o tamanho do efeito medido pela análise.
+
+`r textos$efeito`
+
+```{r}
+#| label: tbl-efeito
+#| tbl-cap: "Tamanho do efeito do fator, com intervalo de confiança."
+efeito |>
+  transmute(Medida  = medida,
+            Valor   = fmt(valor, 3),
+            {{IC_COL}} = paste(fmt(ic_inf, 3), "a", fmt(ic_sup, 3)),
+            Leitura = leitura) |>
+  flextable_ocean()
+```
+
+## Comparações entre os grupos
+
+As comparações dois a dois estão na @tbl-tukey e o resumo com as letras na
+@tbl-resumo; a @fig-pares mostra cada diferença com seu intervalo de
+confiança e a @fig-barras apresenta as médias com seus intervalos.
+
+`r textos$comparacoes`
+
+```{r}
+#| label: tbl-tukey
+#| tbl-cap: "Comparações entre pares pelo teste de Tukey, com intervalos de confiança e p-valores ajustados."
+resultado$pares |>
+  transmute(Comparação   = comparacao,
+            Diferença    = fmt(diferenca),
+            {{IC_COL}}     = paste(fmt(ic_inf), "a", fmt(ic_sup)),
+            `p ajustado` = formatar_p(p_ajustado)) |>
+  flextable_ocean()
+```
+
+```{r}
+#| label: fig-pares
+#| fig-cap: "Diferenças entre pares com IC simultâneo de Tukey. IC que cruza o zero: sem evidência de diferença."
+resultado |>
+  grafico_pares()
+```
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "Resumo por grupo com as letras do teste de Tukey."
+resultado$resumo |>
+  transmute({{ROTULO_FATOR_COL}} = {{FATOR_CLARA}},
+            n,
+            Média  = fmt(media),
+            DP     = fmt(dp),
+            EP     = fmt(ep),
+            {{IC_COL}} = paste(fmt(ic_inf), "a", fmt(ic_sup)),
+            Letras = letra) |>
+  flextable_ocean()
+```
+
+```{r}
+#| label: fig-barras
+#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do teste de Tukey."
+resultado |>
+  grafico_medias(titulo           = {{TITULO_CLARA}},
+                 explicacao       = TRUE,
+                 haste            = "ic",
+                 mostrar_barras   = TRUE,
+                 largura_barras   = 0.3,
+                 mostrar_pontos   = TRUE,
+                 mostrar_media_dp = TRUE,
+                 casas            = 2,
+                 mostrar_letras   = TRUE,
+                 cores            = "ocean",
+                 tamanho_texto    = 12,
+                 fonte            = "sans")
+```
+
+# Discussão: voltar à pergunta biológica
+
+{{DISCUSSAO}}
+
+`r textos$alerta`
+
+`r textos$poder`
+
+# Conclusão
+
+`r textos$sintese`
+
+{{CONCLUSAO}}
+
+# Reproduzir e adaptar
+
+Abra o arquivo `.Rproj`, reinicie o R e renderize este documento. Para
+estudar a análise passo a passo, rode `R/analise.R`. Para amadurecer a
+argumentação científica, edite os QMDs. Uma escolha mudada no script (um
+rótulo, a confiança) precisa ser mudada também aqui. Preserve os dados de
+entrada e registre qualquer mudança feita na base preparada.
+
+## Ambiente computacional
+
+```{r}
+#| label: ambiente
+#| echo: false
+pacotes <- c("dplyr", "ggplot2", "broom", "car", "multcompView",
+             "effectsize", "flextable")
+data.frame(Componente = c("R", "ClaRa", pacotes),
+           Versão     = c(as.character(getRversion()), versao_clara,
+                          vapply(pacotes, function(p) as.character(packageVersion(p)), ""))) |>
+  flextable_ocean()
+```
+
+# Referências

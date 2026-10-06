@@ -1,0 +1,156 @@
+---
+title: "{{TITULO}}"
+subtitle: "Modelo de relatório científico · ANOVA de um fator"
+author: "Nome do autor, instituição (preencher)"
+date: today
+date-format: long
+bibliography: referencias.bib
+csl: apa.csl
+format:
+  docx:
+    reference-doc: custom-reference.docx
+    toc: false
+    number-sections: true
+    fig-width: 6
+    fig-height: 4
+    fig-dpi: 300
+---
+
+```{=html}
+<!-- GUIA DE EDIÇÃO: os chunks repetem as chamadas da ClaRa de R/analise.R,
+de forma mais enxuta, e este documento roda sozinho. O Word não mostra o
+código; abra cada chunk no RStudio para ver a chamada. Revise os textos antes
+de usar este documento como artigo, monografia ou relatório científico. -->
+```
+
+```{r}
+#| label: preparar
+# Pacotes, funções de apresentação e a ClaRa.
+library(here)
+here::i_am("relatorios/relatorio_artigo.qmd")
+library(dplyr)
+library(ggplot2)
+source(here("R", "funcoes.R"), encoding = "UTF-8")
+source(here("R", "clara.R"), encoding = "UTF-8")
+
+# A base desta análise, já preparada e conferida em R/analise.R (seção 3).
+dados_da_analise <- readRDS(here("dados", "processados", "{{ARQUIVO_BASE}}"))
+
+# Resumo, ANOVA, pressupostos, Tukey e letras, numa função só.
+resultado <- dados_da_analise |>
+  comparar_medias(resposta        = {{RESPOSTA_CLARA}},
+                  grupos          = {{FATOR_CLARA}},
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},
+                  confianca       = {{CONFIANCA}})
+
+# As frases do relatório, que mudam junto com os dados.
+textos <- resultado |>
+  escrever_resultados()
+```
+
+# Introdução
+
+{{INTRODUCAO}}
+
+# Material e métodos
+
+{{METODOS}}
+
+# Resultados
+
+`r textos$amostra`
+
+A @tbl-resumo descreve cada grupo com as letras do teste de Tukey.
+
+```{r}
+#| label: tbl-resumo
+#| tbl-cap: "Resumo por grupo: n, média, desvio padrão (DP), erro padrão (EP), intervalo de confiança da média e letras do teste de Tukey."
+resultado$resumo |>
+  transmute({{ROTULO_FATOR_COL}} = {{FATOR_CLARA}},
+            n,
+            Média  = fmt(media),
+            DP     = fmt(dp),
+            EP     = fmt(ep),
+            {{IC_COL}} = paste(fmt(ic_inf), "a", fmt(ic_sup)),
+            Letras = letra) |>
+  flextable_ocean()
+```
+
+`r textos$teste` `r textos$efeito`
+
+A @tbl-anova apresenta a análise de variância.
+
+```{r}
+#| label: tbl-anova
+#| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
+resultado$anova |>
+  transmute(Fonte = c({{ROTULO_FATOR_R}}, "Resíduo"),
+            GL    = gl,
+            SQ    = fmt(sq),
+            QM    = fmt(qm),
+            F     = ifelse(is.na(f), "", fmt(f)),
+            p     = ifelse(is.na(p), "", formatar_p(p))) |>
+  flextable_ocean()
+```
+
+`r textos$comparacoes`
+
+A @fig-pares mostra cada diferença entre pares com seu intervalo de
+confiança; a @fig-barras apresenta as médias dos grupos com seus intervalos
+e as letras do teste de Tukey.
+
+```{r}
+#| label: fig-pares
+#| fig-cap: "Diferenças entre pares com IC simultâneo de Tukey. IC que cruza o zero: sem evidência de diferença."
+resultado |>
+  grafico_pares()
+```
+
+```{r}
+#| label: fig-barras
+#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do teste de Tukey."
+resultado |>
+  grafico_medias(titulo           = {{TITULO_CLARA}},
+                 explicacao       = FALSE,
+                 haste            = "ic",
+                 mostrar_barras   = TRUE,
+                 largura_barras   = 0.3,
+                 mostrar_pontos   = TRUE,
+                 mostrar_media_dp = TRUE,
+                 casas            = 2,
+                 mostrar_letras   = TRUE,
+                 cores            = "ocean",
+                 tamanho_texto    = 12,
+                 fonte            = "serif")
+```
+
+`r textos$pressupostos`
+
+A @fig-barras mostra cada observação como ponto sobre barras
+semitransparentes, preservando a distribuição dos dados [@weissgerber2015].
+Os testes formais de pressupostos, por sua vez, complementam a inspeção
+visual dos resíduos [@kozak2018].
+
+# Discussão
+
+{{DISCUSSAO}}
+
+`r textos$alerta`
+
+`r textos$poder`
+
+# Conclusão
+
+`r textos$sintese`
+
+{{CONCLUSAO}}
+
+# Disponibilidade dos dados e do código
+
+O projeto reúne os dados de entrada, a base preparada adotada, o roteiro
+`R/analise.R` em ClaRa e dois documentos Quarto. O caderno HTML apresenta o
+percurso completo; este documento seleciona os resultados principais. Os três
+fazem as mesmas chamadas da ClaRa.
+
+# Referências
