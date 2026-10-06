@@ -62,7 +62,14 @@ stopifnot(!any(grepl("{{", c(linhas_script, readme), fixed = TRUE)),
   any(grepl("grafico_medias(titulo           = NULL,", linhas_script, fixed = TRUE)),
   any(grepl("escrever_resultados()", linhas_script, fixed = TRUE)),
   any(grepl('"multcompView"', readme, fixed = TRUE)),
-  any(grepl('"effectsize"', readme, fixed = TRUE)))
+  any(grepl('"effectsize"', readme, fixed = TRUE)),
+  # Só CRAN: sem catalyser, EAPADados nem instalação pelo GitHub.
+  !any(grepl("catalyser|EAPADados", linhas_script)),
+  !any(grepl("install_github|\"remotes\"", readme)),
+  any(grepl("all.equal(lapply(base_reconstruida, as.character), lapply(fotografia, as.character))",
+            linhas_script, fixed = TRUE)),
+  # O roteiro cabe em 200 linhas, com comentários.
+  length(linhas_script) <= 200L)
 for (documento in documentos) {
   qmd <- readLines(file.path(projeto, "relatorios", documento), encoding = "UTF-8")
   stopifnot(!any(grepl("{{", qmd, fixed = TRUE)),
@@ -92,6 +99,8 @@ for (i in seq_along(entradas)) {
     "grDevices::pdf(NULL)",
     sprintf("source(%s, encoding = 'UTF-8')", literal(entradas[i])),
     "stopifnot(inherits(resultado, 'clara_medias'), inherits(textos, 'clara_textos'))",
+    # No script, a conferência da base precisa dar TRUE.
+    if (i == 1L) "stopifnot(isTRUE(all.equal(lapply(base_reconstruida, as.character), lapply(fotografia, as.character))))",
     sprintf("saveRDS(list(f = resultado$anova$f[1], p = resultado$anova$p[1], n = resultado$amostra$usadas, medias = resultado$resumo$media, pares = resultado$pares, textos = unclass(textos)), %s)", literal(saida_rds))
   ), verificador, useBytes = TRUE)
   status <- system2(file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
