@@ -25,6 +25,7 @@ de usar este documento como artigo, monografia ou relatório científico. -->
 
 ```{r}
 #| label: preparar
+#| include: false
 # Pacotes, funções de apresentação e a ClaRa.
 library(here)
 here::i_am("relatorios/relatorio_artigo.qmd")
@@ -96,16 +97,8 @@ resultado$anova |>
 
 `r textos$comparacoes`
 
-A @fig-pares mostra cada diferença entre pares com seu intervalo de
-confiança; a @fig-barras apresenta as médias dos grupos com seus intervalos
-e as letras do teste de Tukey.
-
-```{r}
-#| label: fig-pares
-#| fig-cap: "Diferenças entre pares com IC simultâneo de Tukey. IC que cruza o zero: sem evidência de diferença."
-resultado |>
-  grafico_pares()
-```
+A @fig-barras apresenta as médias dos grupos com seus intervalos e as letras
+do teste de Tukey.
 
 ```{r}
 #| label: fig-barras

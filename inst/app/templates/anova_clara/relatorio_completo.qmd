@@ -25,15 +25,11 @@ execute:
 
 # Como usar este caderno
 
-Este documento acompanha o percurso completo da ANOVA, escrito em ClaRa: cada
-função responde a uma pergunta da pesquisa, em português, e por trás dela roda
-R comum. Os chunks repetem as chamadas principais de `R/analise.R`, de forma
-mais enxuta, e o caderno roda sozinho: o Render não lê o script. Abra o código
-de cada bloco para ver a chamada que produziu a tabela, a figura ou a frase.
-
-**Os textos são sugestões para estudo e adaptação.** Os números se atualizam
-com os dados, mas a interpretação depende da pergunta, das unidades e do
-delineamento da pesquisa.
+Este caderno acompanha a ANOVA em ClaRa: cada função responde a uma pergunta
+da pesquisa e, por trás dela, roda R comum. Os chunks repetem as chamadas de
+`R/analise.R`, mais enxutas, e o caderno roda sozinho. **Os textos são
+sugestões**: os números se atualizam com os dados, mas a interpretação depende
+da pergunta e do delineamento.
 
 ```{r}
 #| label: preparar
@@ -78,11 +74,9 @@ textos <- resultado |>
 
 ## Dados e preparo
 
-A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR
-registrou o preparo na seção 3 de `R/analise.R` e guardou a base adotada em
-`dados/processados/{{ARQUIVO_BASE}}`. O script reconstrói o percurso e confere a
-base; este caderno parte da base adotada.
-
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A seção 3 de
+`R/analise.R` reconstrói o preparo e confere a base adotada,
+`dados/processados/{{ARQUIVO_BASE}}`, de onde este caderno parte.
 `r textos$amostra`
 
 ## Modelo
@@ -90,18 +84,14 @@ base; este caderno parte da base adotada.
 Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey,
 com intervalos de confiança de `r 100 * resultado$nomes$confianca`%. Os
 pressupostos foram examinados pelos testes de Shapiro-Wilk e de Levene e pelos
-gráficos de resíduos. As funções da ClaRa (`comparar_medias()`,
-`medir_efeito()`, `escrever_resultados()` e os gráficos) mostram o R que rodam
-quando recebem `mostrar_codigo = TRUE`.
+gráficos de resíduos. Com `mostrar_codigo = TRUE`, cada função da ClaRa mostra
+o R que roda.
 
 # Exploração: conhecer os grupos antes do teste
 
-A leitura da ANOVA exige examinar o delineamento, a distribuição e a dispersão
-dos dados. Por isso esta seção explora os grupos e termina com o diagnóstico
-dos resíduos, antes de apresentar os resultados.
-
-A @tbl-resumo-exploracao reúne os números de cada grupo e a @fig-boxplot
-mostra a distribuição das observações, antes de qualquer teste.
+Antes do teste, a @tbl-resumo-exploracao reúne os números de cada grupo e a
+@fig-boxplot mostra a distribuição das observações; a seção termina com o
+diagnóstico dos resíduos.
 
 ```{r}
 #| label: tbl-resumo-exploracao
@@ -126,18 +116,15 @@ resultado |>
 
 ### Independência e delineamento
 
-A independência não é comprovada por um gráfico ou teste. Confira a unidade
-experimental, medidas repetidas, tanques, locais e outras formas de
-agrupamento antes de interpretar a ANOVA.
+Nenhum gráfico ou teste comprova a independência. Confira a unidade
+experimental, medidas repetidas, tanques e locais antes de interpretar a ANOVA.
 
 ### Homogeneidade e normalidade
 
-A ANOVA supõe variâncias parecidas entre os grupos e resíduos aproximadamente
-normais. A @fig-residuos compara os resíduos com os valores ajustados:
-faixas de alturas muito diferentes sugerem variâncias desiguais. A @fig-qq
-compara os resíduos padronizados com os quantis da normal; pontos que se
-afastam da reta indicam assimetria ou valores extremos. A @tbl-testes reúne
-os testes formais que complementam essa inspeção.
+A ANOVA supõe variâncias parecidas e resíduos aproximadamente normais. Na
+@fig-residuos, faixas de alturas muito diferentes sugerem variâncias
+desiguais; na @fig-qq, pontos longe da reta indicam assimetria ou valores
+extremos. A @tbl-testes reúne os testes formais.
 
 ```{r}
 #| label: fig-residuos
@@ -171,17 +158,14 @@ resultado$pressupostos |>
 
 `r textos$pressupostos`
 
-A @fig-barras mostra cada observação como ponto sobre barras
-semitransparentes, preservando a distribuição dos dados [@weissgerber2015].
-Os testes formais de pressupostos, por sua vez, complementam a inspeção
-visual dos resíduos [@kozak2018]. Se o Levene indicar variâncias diferentes,
-a ANOVA de Welch, disponível na CatalyseR, é a alternativa a considerar.
+Os testes formais complementam a inspeção visual dos resíduos [@kozak2018].
+Se o Levene indicar variâncias diferentes, a ANOVA de Welch, disponível na
+CatalyseR, é a alternativa a considerar. A @fig-barras mostra cada
+observação como ponto, preservando a distribuição dos dados [@weissgerber2015].
 
 # Resultados: o que a ANOVA responde?
 
-A @tbl-anova apresenta o teste.
-
-`r textos$teste`
+A @tbl-anova apresenta o teste. `r textos$teste`
 
 ```{r}
 #| label: tbl-anova
@@ -285,22 +269,19 @@ resultado |>
 
 # Reproduzir e adaptar
 
-Abra o arquivo `.Rproj`, reinicie o R e renderize este documento. Para
-estudar a análise passo a passo, rode `R/analise.R`. Para amadurecer a
-argumentação científica, edite os QMDs. Uma escolha mudada no script (um
-rótulo, a confiança) precisa ser mudada também aqui. Preserve os dados de
-entrada e registre qualquer mudança feita na base preparada.
+Abra o `.Rproj`, reinicie o R e renderize este documento. Estude a análise
+em `R/analise.R` e a argumentação nos QMDs; uma escolha mudada no script (um
+rótulo, a confiança) se muda aqui também. Preserve os dados de entrada.
 
 ## Ambiente computacional
 
 ```{r}
 #| label: ambiente
 #| echo: false
-pacotes <- c("dplyr", "ggplot2", "broom", "car", "multcompView",
-             "effectsize", "flextable")
+pacotes <- c("dplyr", "ggplot2", "broom", "car", "multcompView", "effectsize", "flextable")
+versoes <- vapply(pacotes, function(p) as.character(packageVersion(p)), "")
 data.frame(Componente = c("R", "ClaRa", pacotes),
-           Versão     = c(as.character(getRversion()), versao_clara,
-                          vapply(pacotes, function(p) as.character(packageVersion(p)), ""))) |>
+           Versão     = c(as.character(getRversion()), versao_clara, versoes)) |>
   flextable_ocean()
 ```
 

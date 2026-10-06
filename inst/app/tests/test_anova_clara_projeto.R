@@ -115,6 +115,40 @@ for (i in seq_along(entradas)) {
     isTRUE(all.equal(obtido$pares$ic_inf, unname(tukey_esperado[, "lwr"]))),
     all(nzchar(unlist(obtido$textos[c("amostra", "teste", "efeito", "sintese")]))))
 }
+# O caderno cabe em 300 linhas; o Word traz a tabela da ANOVA e a figura
+# principal, sem a figura dos pares, e esconde o chunk de preparo.
+completo <- readLines(file.path(projeto, "relatorios", "relatorio_completo.qmd"), encoding = "UTF-8")
+artigo <- readLines(file.path(projeto, "relatorios", "relatorio_artigo.qmd"), encoding = "UTF-8")
+stopifnot(length(completo) <= 300L,
+  !any(grepl("fig-pares", artigo, fixed = TRUE)),
+  any(grepl("label: tbl-anova", artigo, fixed = TRUE)),
+  any(grepl("label: fig-barras", artigo, fixed = TRUE)),
+  any(grepl("#| include: false", artigo, fixed = TRUE)))
+
+# Render dos dois documentos, quando houver Quarto: sem "??" no HTML e sem as
+# mensagens de carga dos pacotes no Word.
+quarto_bin <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
+if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) {
+  cat("LACUNA: quarto não encontrado; o Render não foi verificado.\n")
+} else {
+  render_log <- file.path(destino, "render.log")
+  antigo <- setwd(projeto)
+  status <- system2(quarto_bin, "render", stdout = render_log, stderr = render_log)
+  setwd(antigo)
+  if (status != 0L) stop(paste(readLines(render_log, warn = FALSE), collapse = "\n"))
+  html <- readLines(file.path(projeto, "saida", "relatorios", "relatorio_completo.html"),
+                    encoding = "UTF-8", warn = FALSE)
+  docx <- file.path(projeto, "saida", "relatorios", "relatorio_artigo.docx")
+  pasta_docx <- file.path(destino, "docx")
+  utils::unzip(docx, files = "word/document.xml", exdir = pasta_docx)
+  texto_docx <- paste(readLines(file.path(pasta_docx, "word", "document.xml"),
+                                encoding = "UTF-8", warn = FALSE), collapse = "")
+  stopifnot(!any(grepl("??", html, fixed = TRUE)),
+    !grepl("here() starts", texto_docx, fixed = TRUE),
+    !grepl("carregada", texto_docx, fixed = TRUE),
+    !grepl("mascarados", texto_docx, fixed = TRUE))
+}
+
 # O script grava as cópias para compartilhar.
 stopifnot(file.exists(file.path(projeto, "saida", "tabelas", "resumo_grupos.csv")),
   file.exists(file.path(projeto, "saida", "figuras", "barras.png")),
