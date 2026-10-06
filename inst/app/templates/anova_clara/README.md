@@ -2,8 +2,8 @@
 
 Este Projeto R foi gerado pela CatalyseR para estudar e comunicar uma ANOVA de
 um fator, escrita em **ClaRa**, o R escrito com clareza. Abra
-**{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local, pacotes
-do CRAN e dois pacotes do ecossistema instalados do GitHub.
+**{{PROJETO_RPROJ}}** no RStudio. O projeto funciona com a base local e
+pacotes do CRAN; não precisa da CatalyseR instalada.
 
 ## Um convite a aprender programação
 
@@ -65,17 +65,7 @@ install.packages(
 )
 ```
 
-Depois, os dois pacotes do ecossistema, que não estão no CRAN e são
-instalados do GitHub:
-
-```r
-remotes::install_github("astuciasnor/catalyser")
-remotes::install_github("astuciasnor/EAPADados")
-```
-
-Nenhum pacote é instalado automaticamente durante a análise. Se um dos dois
-pacotes do GitHub faltar, o script para na seção 1 e mostra o comando de
-instalação.
+Nenhum pacote é instalado automaticamente durante a análise.
 
 ## Gerar os documentos
 
@@ -96,7 +86,8 @@ Abra o `.Rproj` antes de executar.
 
 A entrada preservada é `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR exportou
 a receita de preparo e a fotografia da base adotada. A seção 3 do script
-reconstrói o percurso e confere essa fotografia; os relatórios partem da base
+reconstrói o percurso e confere essa fotografia com `all.equal()`, do R base;
+os relatórios partem da base
 adotada. Alterar a receita não substitui silenciosamente a base adotada.
 
 A análise usa:

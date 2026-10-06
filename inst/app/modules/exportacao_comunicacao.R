@@ -2125,7 +2125,32 @@ exportacao_molde_projeto_script <- function(entrada, manifesto, nome_projeto,
   posicao <- which(corpo == sentinela)
   if (length(posicao) != 1L) stop("Sentinela das bibliotecas não localizada.", call. = FALSE)
   posicao <- posicao[1]
-  c(corpo[seq_len(posicao - 1L)], bloco, corpo[seq.int(posicao + 1L, length(corpo))])
+  linhas <- c(corpo[seq_len(posicao - 1L)], bloco, corpo[seq.int(posicao + 1L, length(corpo))])
+  if (isTRUE(entrada$clara)) linhas <- exportacao_clara_ajustar_script(linhas)
+  linhas
+}
+
+# Rota ClaRa: o roteiro fica só com pacotes do CRAN. A conferência da base
+# deixa o catalyser_conferir_base() e passa a ser um all.equal() do R base,
+# comparando os valores como texto (a planilha não guarda se uma coluna é
+# fator ou texto, como fazia a função do catalyser). As bibliotecas que
+# R/funcoes.R já chama com pacote:: saem da seção 1.
+exportacao_clara_ajustar_script <- function(linhas) {
+  inicios <- which(trimws(linhas) == "catalyser_conferir_base(")
+  for (i in rev(inicios)) {
+    objeto <- sub(",$", "", trimws(linhas[i + 1L]))
+    caminho <- sub(",$", "", trimws(linhas[i + 2L]))
+    fim <- i + which(trimws(linhas[seq.int(i + 1L, length(linhas))]) == ")")[1]
+    linhas <- c(linhas[seq_len(i - 1L)],
+      sprintf("fotografia <- readRDS(%s)", caminho),
+      sprintf("all.equal(lapply(%s, as.character), lapply(fotografia, as.character))", objeto),
+      linhas[seq.int(fim + 1L, length(linhas))])
+  }
+  linhas <- sub("^# dados/processados/[.] catalyser_conferir_base\\(\\) compara a receita com ela$",
+    "# dados/processados/. all.equal() compara a receita com ela, como texto,", linhas)
+  linhas <- sub("^# O QUE CONFERIR: a mensagem deve dizer que as duas bases são idênticas[.]$",
+    "# O QUE CONFERIR: TRUE diz que as bases são idênticas; senão, o R diz o que mudou.", linhas)
+  linhas[!grepl("^library\\((flextable|lubridate)\\)$", linhas)]
 }
 
 exportacao_molde_projeto_qmd <- function(entrada, arquivo, manifesto, titulo_projeto,
@@ -3613,12 +3638,13 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       c("catalyser", "EAPADados", "remotes")
     )
     # A ClaRa carrega os seus pacotes ao rodar cada análise; eles entram na
-    # lista de instalação do README pela mesma razão.
+    # lista de instalação do README. Só do CRAN: a rota ClaRa dispensa remotes.
     if (isTRUE(molde$clara)) {
-      pacotes_projeto <- union(pacotes_projeto, c("dplyr", "ggplot2", "broom", "car",
-        "multcompView", "effectsize", "rlang", "stringr", "pwr"))
+      pacotes_projeto <- sort(union(pacotes_projeto, c("dplyr", "ggplot2", "broom", "car",
+        "multcompView", "effectsize", "rlang", "stringr", "pwr")))
+    } else {
+      pacotes_projeto <- sort(c(pacotes_projeto, "remotes"))
     }
-    pacotes_projeto <- sort(c(pacotes_projeto, "remotes"))
   } else {
     writeLines(
       exportacao_gerar_script(
