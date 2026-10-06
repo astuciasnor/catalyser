@@ -2351,6 +2351,48 @@ exportacao_anova_marcadores_readme <- function(item, nome_projeto, import_info) 
   )
 }
 
+# ---- ANOVA em ClaRa (opção experimental) ------------------------------------
+# A rota ClaRa escreve R/analise.R e os dois QMDs com as funções da ClaRa
+# (templates/clara/), em vez do roteiro passo a passo. Só vale para a ANOVA
+# de um fator com o método clássico: a ClaRa ainda não faz a ANOVA de Welch.
+# As outras situações continuam no molde da ANOVA, sem mudança.
+exportacao_anova_clara_aceita <- function(manifesto) {
+  if (!isTRUE(manifesto$codigo_clara) || !isTRUE(exportacao_anova_simples(manifesto))) {
+    return(FALSE)
+  }
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  identical(as.character(item$parametros$metodo %||% "classica"), "classica")
+}
+
+# Nome de coluna para uma chamada da ClaRa: sem aspas quando é um nome
+# válido no R (peso_g); entre crases quando não é, para a ClaRa poder
+# recusá-lo com a mensagem amigável dela.
+exportacao_nome_clara <- function(x) {
+  x <- as.character(x)
+  if (identical(make.names(x), x)) x else paste0("`", gsub("`", "", x, fixed = TRUE), "`")
+}
+
+exportacao_anova_clara_marcadores <- function(item) {
+  p <- item$parametros
+  base <- exportacao_anova_marcadores_script(item)
+  rotulo_fator <- as.character(p$rotulo_x %||% "")
+  if (!nzchar(trimws(rotulo_fator))) rotulo_fator <- as.character(p$fator %||% "grupo")
+  titulo <- as.character(p$titulo_grafico %||% "")
+  ic <- format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  c(base, list(
+    RESPOSTA_CLARA = exportacao_nome_clara(p$resposta %||% "resposta"),
+    FATOR_CLARA = exportacao_nome_clara(p$fator %||% "grupo"),
+    ROTULO_FATOR_COL = paste0("`", gsub("`", "", rotulo_fator, fixed = TRUE), "`"),
+    IC_COL = paste0("`IC ", ic, "%`"),
+    TITULO_CLARA = if (nzchar(trimws(titulo))) encodeString(titulo, quote = '"') else "NULL"
+  ))
+}
+
+exportacao_anova_clara_marcadores_qmd <- function(item, manifesto, import_info) {
+  c(exportacao_anova_marcadores_qmd(item, manifesto, import_info),
+    exportacao_anova_clara_marcadores(item))
+}
+
 exportacao_teste_t_marcadores_script <- function(item) {
   p <- item$parametros
   rotulo <- function(x, padrao) {
@@ -2508,6 +2550,24 @@ molde_projeto_registro <- list(
     marcadores_script = exportacao_regressao_marcadores_script,
     marcadores_qmd = exportacao_regressao_marcadores_qmd,
     marcadores_readme = exportacao_regressao_marcadores_readme
+  ),
+  # Vem antes da entrada da ANOVA: quando o pesquisador escolhe a ClaRa e a
+  # análise é a ANOVA clássica, esta entrada é a primeira a aceitar.
+  anova_clara = list(
+    tipo = "anova_um_fator",
+    pasta = "anova_clara",
+    apoio = "regressao_linear",
+    clara = TRUE,
+    seleciona = exportacao_anova_clara_aceita,
+    prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
+                       base_externa, import_info, templates_dir) {
+      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
+        "# ANOVA DE UM FATOR — ", registro_bases, pipeline, base_externa,
+        import_info)
+    },
+    marcadores_script = exportacao_anova_clara_marcadores,
+    marcadores_qmd = exportacao_anova_clara_marcadores_qmd,
+    marcadores_readme = exportacao_anova_marcadores_readme
   ),
   anova_um_fator = list(
     tipo = "anova_um_fator",
@@ -3502,6 +3562,13 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       file.path(projeto, "_quarto.yml"), overwrite = TRUE
     )
   }
+  # Rota ClaRa: o projeto leva a sua cópia da ClaRa em R/, ao lado do script.
+  if (isTRUE(molde$clara)) {
+    arquivos_clara <- list.files(file.path(templates_dir, "clara"),
+                                 pattern = "^clara.*[.]R$", full.names = TRUE)
+    if (!length(arquivos_clara)) stop("Os arquivos da ClaRa não foram encontrados.", call. = FALSE)
+    file.copy(arquivos_clara, file.path(projeto, "R"), overwrite = TRUE)
+  }
 
   if (exportacao_anova_simples(manifesto) && !anova_nova) {
     # A ANOVA mantém seus ajudantes de apresentação e recebe a mesma ligação
@@ -3545,6 +3612,12 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       )),
       c("catalyser", "EAPADados", "remotes")
     )
+    # A ClaRa carrega os seus pacotes ao rodar cada análise; eles entram na
+    # lista de instalação do README pela mesma razão.
+    if (isTRUE(molde$clara)) {
+      pacotes_projeto <- union(pacotes_projeto, c("dplyr", "ggplot2", "broom", "car",
+        "multcompView", "effectsize", "rlang", "stringr", "pwr"))
+    }
     pacotes_projeto <- sort(c(pacotes_projeto, "remotes"))
   } else {
     writeLines(

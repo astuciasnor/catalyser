@@ -186,6 +186,9 @@ mod_comunicacao_ui <- function(id) {
                   class = "small text-muted",
                   "Baixe o projeto reproduzível e continue no RStudio: o Word e o caderno HTML nascem lá, no Render."
                 ),
+                # Opção experimental: o roteiro e os relatórios escritos em ClaRa.
+                checkboxInput(ns("codigo_clara"), "Escrever o código em ClaRa (experimental)", value = FALSE),
+                helpText("Por enquanto, só para a ANOVA de um fator com o método clássico. Nas demais análises, o projeto sai como antes."),
                 uiOutput(ns("acoes_exportacao"))
               )
             )
@@ -500,7 +503,8 @@ mod_comunicacao_server <- function(id, dados_analise, import_info,
         registro_bases = registro_bases_rv() %||% list(),
         cache_bases = cache_bases_rv() %||% list(),
         registro_execucoes = registro_execucoes_rv() %||% list(),
-        manifesto = manifesto(),
+        # A escolha da ClaRa viaja no manifesto; o exportador decide a rota.
+        manifesto = c(manifesto(), list(codigo_clara = isTRUE(input$codigo_clara))),
         revisao_origem = revisao_origem_rv(),
         import_info = import_info() %||% list(),
         templates_dir = "templates",
