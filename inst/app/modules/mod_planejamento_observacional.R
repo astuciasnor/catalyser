@@ -1060,28 +1060,6 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
     ),
     bslib::navset_card_tab(
       id = ns("etapas"),
-
-      # Exercício de entrada: aplica um cenário pequeno e deixa explícitas as
-      # decisões espaciais que a turma ainda precisa justificar.
-      if (tipo_resolvido == "transversal_comparativo") bslib::nav_panel(
-        "Exercício", icon = shiny::icon("graduation-cap"),
-        bslib::card_body(fillable = FALSE,
-          bslib::layout_columns(col_widths = c(7, 5), gap = "20px",
-            shiny::div(class = "obs-card-interno",
-              shiny::h5(shiny::icon("water"), " Exercício: faixas ambientais de um sistema estuarino"),
-              shiny::p("Em uma única campanha, compare três faixas do mesmo sistema: estuário interno, estuário externo e costa. Cada faixa terá cinco estações independentes; em cada estação será coletada uma amostra de água. Não haverá amostra composta (pool)."),
-              shiny::p(class = "small text-muted", "O exercício gera 15 UAs e 15 linhas de coleta. Elas representam a variação entre estações dentro deste sistema; não representam automaticamente todos os estuários e costas da região."),
-              shiny::actionButton(ns("usar_exercicio_faixas"), "Usar este cenário no formulário", icon = shiny::icon("arrow-right"), class = "btn-primary")),
-            shiny::div(class = "obs-card-interno",
-              shiny::h5(shiny::icon("pen-to-square"), " O que a turma deve completar"),
-              shiny::tags$ol(class = "small ps-3 mb-2",
-                shiny::tags$li("Definir pergunta, respostas, sistema, período e janela de maré."),
-                shiny::tags$li("Delimitar o quadro amostral e justificar como as estações serão selecionadas."),
-                shiny::tags$li("Registrar latitude e longitude previstas de cada estação, em WGS 84, com precisão horizontal de até 5 m."),
-                shiny::tags$li("Explicar como hidrodinâmica, conectividade e estudo-piloto definirão o espaçamento mínimo.")),
-              shiny::div(class = "alert alert-warning small mb-0",
-                shiny::tags$b("Não fixe 100 ou 200 m por convenção. "),
-                "As distâncias reais podem variar; a distância mínima precisa ser justificada para este sistema antes da coleta."))))),
       
       # ABA 1: O DELINEAMENTO E VARIÁVEIS DE RESPOSTA (3 COLUNAS)
       bslib::nav_panel("Definições", icon = shiny::icon("compass-drafting"),
@@ -1369,39 +1347,6 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
 
     ou_vazio <- function(valor, padrao) {
       if (is.null(valor) || !length(valor) || (is.character(valor) && !nzchar(valor))) padrao else valor
-    }
-
-    # O cenário didático não resolve o planejamento pelo aluno: só preenche a
-    # estrutura mínima para que ele complete o local, a seleção e a justificativa.
-    if (identical(tipo_resolvido, "transversal_comparativo")) {
-      shiny::observeEvent(input$usar_exercicio_faixas, {
-        shiny::updateTextInput(session, "pergunta",
-          value = "A qualidade da água difere entre as faixas ambientais deste sistema estuarino?")
-        shiny::updateSelectInput(session, "comparacao_ambiental", selected = "faixas")
-        shiny::updateTextInput(session, "fator_nome", value = "faixa_ambiental")
-        shiny::updateTextInput(session, "fator_niveis",
-          value = "Estuário interno, Estuário externo, Costa")
-        shiny::updateTextInput(session, "unidade_item", value = "garrafa de água (1 L)")
-        shiny::updateCheckboxInput(session, "usar_fator2", value = FALSE)
-        shiny::updateCheckboxInput(session, "registrar_coordenadas", value = TRUE)
-        shiny::updateTextInput(session, "espacamento_minimo_m", value = "")
-        shiny::updateTextAreaInput(session, "justificativa_espacamento", value = "")
-        shiny::updateNumericInput(session, "precisao_gps_m", value = 5)
-        shiny::updateNumericInput(session, "n_vars_resposta", value = 3)
-        shiny::updateTabsetPanel(session, "etapas", selected = "Definições")
-        session$onFlushed(function() {
-          for (i in seq_len(3)) {
-            shiny::updateNumericInput(session, id_amostra(i), value = 5)
-            shiny::updateNumericInput(session, id_amostra(i, TRUE), value = 1)
-          }
-          shiny::updateTextInput(session, "var_nome_1", value = "salinidade")
-          shiny::updateTextInput(session, "var_unidade_1", value = "psu")
-          shiny::updateTextInput(session, "var_nome_2", value = "turbidez")
-          shiny::updateTextInput(session, "var_unidade_2", value = "NTU")
-          shiny::updateTextInput(session, "var_nome_3", value = "oxigenio_dissolvido")
-          shiny::updateTextInput(session, "var_unidade_3", value = "mg/L")
-        }, once = TRUE)
-      }, ignoreInit = TRUE)
     }
 
     n_longitudinal <- shiny::reactive({

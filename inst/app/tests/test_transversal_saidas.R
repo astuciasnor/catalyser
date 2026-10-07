@@ -109,8 +109,9 @@ testServer(mod_planejamento_observacional_server,
     session$flushReact()
     stopifnot(!"sexo" %in% names(tabela_coleta_dados()))
 
-    # Exercício ambiental: três faixas, cinco estações por faixa, uma amostra
-    # por estação e coordenadas previstas; pool = 1 não é amostra composta.
+    # Cenário usado pela atividade externa: três faixas, cinco estações por
+    # faixa, uma amostra por estação e coordenadas previstas; pool = 1 não é
+    # amostra composta.
     session$setInputs(fator_nome = "faixa_ambiental",
       fator_niveis = "Estuário interno, Estuário externo, Costa",
       uas_grupo_1 = 5, uas_grupo_2 = 5, uas_grupo_3 = 5,
@@ -148,7 +149,7 @@ stopifnot(!grepl("teste-baixar_projeto|teste-baixar_dicionario", ui),
   grepl("teste-baixar_planilha", ui), grepl("teste-baixar_relatorio", ui))
 stopifnot(grepl("teste-ui_amostra_categorias", ui),
   !grepl('id="teste-n_uas"|id="teste-tipo_pool"', ui),
-  grepl("teste-usar_exercicio_faixas", ui), grepl("teste-registrar_coordenadas", ui))
+  !grepl("teste-usar_exercicio_faixas", ui), grepl("teste-registrar_coordenadas", ui))
 stopifnot(grepl("teste-unidade_item", ui), grepl("garrafa de água", ui, fixed = TRUE))
 stopifnot(grepl('data-value="Definições"', ui), grepl('data-value="Desenho"', ui), grepl('data-value="Resumo"', ui),
   lengths(regmatches(ui, gregexpr('id="teste-baixar_planilha"', ui))) == 1L,
