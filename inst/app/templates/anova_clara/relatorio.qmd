@@ -1,11 +1,12 @@
 ---
-title: "{{TITULO}}"
+title: "{{TITULO_RELATORIO}}"
 subtitle: "Modelo de relatório científico · ANOVA de um fator"
 author: "Nome do autor, instituição (preencher)"
 date: today
 date-format: long
 bibliography: referencias.bib
 csl: apa.csl
+link-citations: true
 format:
   docx:
     reference-doc: custom-reference.docx

@@ -140,7 +140,15 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   any(grepl("label: tbl-anova", relatorio, fixed = TRUE)),
   any(grepl("label: fig-barras", relatorio, fixed = TRUE)),
   any(grepl("#| include: false", relatorio, fixed = TRUE)),
-  any(grepl("# 10. Textos dinâmicos", linhas_script, fixed = TRUE)))
+  any(grepl("# 10. Textos dinâmicos", linhas_script, fixed = TRUE)),
+  any(grepl("^textos\\$efeito$", linhas_script)),
+  any(grepl("^textos\\$pressupostos$", linhas_script)),
+  # Bibliografia e estilo só no cabeçalho do relatório, onde o aluno procura.
+  !any(grepl("^(bibliography|csl):", quarto_yml)),
+  any(grepl("^csl: apa.csl$", relatorio)),
+  # Sem título escrito na tela, o relatório não herda os nomes crus das colunas.
+  any(relatorio == 'title: "Título do trabalho (preencher)"'),
+  !any(grepl("entre grupos de", relatorio, fixed = TRUE)))
 
 # Render, quando houver Quarto: só o Word, sem as mensagens de carga dos
 # pacotes.
