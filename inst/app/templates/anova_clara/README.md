@@ -22,8 +22,7 @@ código mostrado é exatamente o que rodou. Para entender uma função, digite
 {{PROJETO_RPROJ}}
 ├── _quarto.yml
 ├── dados/
-│   ├── brutos/                    entrada preservada
-│   └── processados/               cópia da base em Excel, para consulta
+│   └── {{ARQUIVO_BRUTO}}          a planilha, entrada preservada
 ├── R/
 │   ├── analise.R                  o roteiro da análise, em ClaRa
 │   ├── funcoes.R                  apresentação de números e tabelas
@@ -88,14 +87,16 @@ Abra o `.Rproj` antes de executar.
 
 ## Dados e preparo
 
-A entrada preservada é `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR exportou
+A entrada preservada é `dados/{{ARQUIVO_BRUTO}}`, a única coisa na pasta
+`dados/`: com uma planilha só, não há subpastas. A CatalyseR exportou
 a receita de preparo: a seção 3 do script a aplica à planilha, com pipe e
 dplyr, e o script e o relatório partem da base que ela produz. No lugar de
 uma cópia da base, o script traz um **carimbo**: o número de linhas, a
 contagem e a média por grupo que a CatalyseR mostrou na tela. Confira a
 tabela do R com o carimbo; se a receita mudar o número de linhas, o
-`stopifnot()` para o script e o Render. Em `dados/processados/` fica uma
-cópia da base em Excel, para quem quiser abri-la fora do R.
+`stopifnot()` para o script e o Render. Para abrir a base fora do R, o
+script grava uma cópia em `saida/tabelas/base.csv`, refeita a cada execução:
+ela sempre bate com a receita.
 
 A análise usa:
 
@@ -122,7 +123,7 @@ exportados em datas diferentes podem ter versões diferentes da ClaRa.
 
 Registre aqui a origem da planilha, a licença e o período de coleta. A
 CatalyseR não conhece a proveniência dos seus dados e não a declara no lugar
-do pesquisador. A planilha original fica em `dados/brutos/{{ARQUIVO_BRUTO}}` e
+do pesquisador. A planilha original fica em `dados/{{ARQUIVO_BRUTO}}` e
 não é alterada.
 
 ## Como ler a figura principal
