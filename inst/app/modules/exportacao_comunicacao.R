@@ -3702,7 +3702,10 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     arquivos_clara <- list.files(file.path(templates_dir, "clara"),
                                  pattern = "^clara.*[.]R$", full.names = TRUE)
     if (!length(arquivos_clara)) stop("Os arquivos da ClaRa não foram encontrados.", call. = FALSE)
-    file.copy(arquivos_clara, file.path(projeto, "R"), overwrite = TRUE)
+    # A ClaRa fica numa pasta própria, R/clara/: em R/ o aluno vê só o seu
+    # roteiro (analise.R) e as funções de apresentação (funcoes.R).
+    dir.create(file.path(projeto, "R", "clara"), showWarnings = FALSE)
+    file.copy(arquivos_clara, file.path(projeto, "R", "clara"), overwrite = TRUE)
   }
 
   if (exportacao_anova_simples(manifesto) && !anova_nova) {
