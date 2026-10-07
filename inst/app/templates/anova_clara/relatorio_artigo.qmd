@@ -31,14 +31,14 @@ library(here)
 here::i_am("relatorios/relatorio_artigo.qmd")
 library(dplyr)
 library(ggplot2)
+library(readxl)
 source(here("R", "funcoes.R"), encoding = "UTF-8")
 source(here("R", "clara.R"), encoding = "UTF-8")
 
-# A base desta análise, já preparada e conferida em R/analise.R (seção 3).
-dados_da_analise <- readRDS(here("dados", "processados", "{{ARQUIVO_BASE}}"))
+{{TRECHO_PREPARO_QMD}}
 
 # Resumo, ANOVA, pressupostos, Tukey e letras, numa função só.
-resultado <- dados_da_analise |>
+resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
                   rotulo_resposta = {{ROTULO_RESPOSTA_R}},

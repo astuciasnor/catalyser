@@ -39,17 +39,17 @@ library(here)
 here::i_am("relatorios/relatorio_completo.qmd")
 library(dplyr)
 library(ggplot2)
+library(readxl)
 source(here("R", "funcoes.R"), encoding = "UTF-8")
 source(here("R", "clara.R"), encoding = "UTF-8")
 
-# A base desta análise, já preparada e conferida em R/analise.R (seção 3).
-dados_da_analise <- readRDS(here("dados", "processados", "{{ARQUIVO_BASE}}"))
+{{TRECHO_PREPARO_QMD}}
 ```
 
 ```{r}
 #| label: comparar
 # Resumo, ANOVA, pressupostos, Tukey e letras, numa função só.
-resultado <- dados_da_analise |>
+resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
                   rotulo_resposta = {{ROTULO_RESPOSTA_R}},
@@ -74,24 +74,21 @@ textos <- resultado |>
 
 ## Dados e preparo
 
-A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A seção 3 de
-`R/analise.R` reconstrói o preparo e confere a base adotada,
-`dados/processados/{{ARQUIVO_BASE}}`, de onde este caderno parte.
+A entrada preservada está em `dados/brutos/{{ARQUIVO_BRUTO}}`. A receita de
+preparo registrada na CatalyseR transforma a planilha na base da análise; a
+seção 3 de `R/analise.R` a confere com o carimbo do que a tela mostrou.
 `r textos$amostra`
 
 ## Modelo
 
-Ajustou-se uma análise de variância de um fator, seguida do teste de Tukey,
-com intervalos de confiança de `r 100 * resultado$nomes$confianca`%. Os
-pressupostos foram examinados pelos testes de Shapiro-Wilk e de Levene e pelos
-gráficos de resíduos. Com `mostrar_codigo = TRUE`, cada função da ClaRa mostra
-o R que roda.
+ANOVA de um fator com Tukey e IC de `r 100 * resultado$nomes$confianca`%;
+pressupostos pelos testes de Shapiro-Wilk e de Levene e pelos gráficos de
+resíduos. Com `mostrar_codigo = TRUE`, cada função da ClaRa mostra o R que roda.
 
 # Exploração: conhecer os grupos antes do teste
 
-Antes do teste, a @tbl-resumo-exploracao reúne os números de cada grupo e a
-@fig-boxplot mostra a distribuição das observações; a seção termina com o
-diagnóstico dos resíduos.
+Antes do teste: os números de cada grupo (@tbl-resumo-exploracao), as
+observações (@fig-boxplot) e, por fim, o diagnóstico dos resíduos.
 
 ```{r}
 #| label: tbl-resumo-exploracao

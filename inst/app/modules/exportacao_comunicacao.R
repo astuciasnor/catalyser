@@ -2130,26 +2130,9 @@ exportacao_molde_projeto_script <- function(entrada, manifesto, nome_projeto,
   linhas
 }
 
-# Rota ClaRa: o roteiro fica só com pacotes do CRAN. A conferência da base
-# deixa o catalyser_conferir_base() e passa a ser um all.equal() do R base,
-# comparando os valores como texto (a planilha não guarda se uma coluna é
-# fator ou texto, como fazia a função do catalyser). As bibliotecas que
-# R/funcoes.R já chama com pacote:: saem da seção 1.
+# Rota ClaRa: as bibliotecas que R/funcoes.R já chama com pacote:: saem da
+# seção 1 do roteiro.
 exportacao_clara_ajustar_script <- function(linhas) {
-  inicios <- which(trimws(linhas) == "catalyser_conferir_base(")
-  for (i in rev(inicios)) {
-    objeto <- sub(",$", "", trimws(linhas[i + 1L]))
-    caminho <- sub(",$", "", trimws(linhas[i + 2L]))
-    fim <- i + which(trimws(linhas[seq.int(i + 1L, length(linhas))]) == ")")[1]
-    linhas <- c(linhas[seq_len(i - 1L)],
-      sprintf("fotografia <- readRDS(%s)", caminho),
-      sprintf("all.equal(lapply(%s, as.character), lapply(fotografia, as.character))", objeto),
-      linhas[seq.int(fim + 1L, length(linhas))])
-  }
-  linhas <- sub("^# dados/processados/[.] catalyser_conferir_base\\(\\) compara a receita com ela$",
-    "# dados/processados/. all.equal() compara a receita com ela, como texto,", linhas)
-  linhas <- sub("^# O QUE CONFERIR: a mensagem deve dizer que as duas bases são idênticas[.]$",
-    "# O QUE CONFERIR: TRUE diz que as bases são idênticas; senão, o R diz o que mudou.", linhas)
   linhas[!grepl("^library\\((flextable|lubridate)\\)$", linhas)]
 }
 
@@ -2415,7 +2398,124 @@ exportacao_anova_clara_marcadores <- function(item) {
 
 exportacao_anova_clara_marcadores_qmd <- function(item, manifesto, import_info) {
   c(exportacao_anova_marcadores_qmd(item, manifesto, import_info),
-    exportacao_anova_clara_marcadores(item))
+    exportacao_anova_clara_marcadores(item),
+    list(TRECHO_PREPARO_QMD = manifesto$clara$qmd))
+}
+
+# Rota ClaRa: a base nasce da planilha e da receita, sem fotografia. A receita
+# é a mesma que exportacao_conferir_preparo_anova() já confere contra a base
+# da tela antes do ZIP; aqui ela vira um só encadeamento, da planilha até a
+# `base` desta análise (trilha, ramo e grupos como fator na ordem mostrada
+# na tela), sem nomes intermediários. Em vez da fotografia, o roteiro leva
+# um carimbo: linhas, contagem e média por grupo, tirados da base que a
+# CatalyseR mostrou, para o aluno conferir com o R. Só o número de linhas é
+# travado com stopifnot(). Devolve os blocos do script e do chunk dos QMDs.
+exportacao_clara_receita <- function(manifesto, import_info, pipeline, registro_bases,
+                                     base_externa, dados_analise, cache_bases) {
+  item <- exportacao_execucoes_incluidas(manifesto)[[1]]
+  resposta <- as.character(item$parametros$resposta %||% "resposta")
+  fator <- as.character(item$parametros$fator %||% "grupo")
+  ramo <- identical(item$base_tipo, "derivada")
+
+  receita <- exportacao_preparo_anova(manifesto, import_info, pipeline, registro_bases, base_externa)
+  # dplyr já é carregado na seção 1; sem o prefixo, a receita se lê melhor.
+  receita <- receita[!grepl("^library\\((dplyr|tidyr)\\)$", trimws(receita))]
+  receita <- gsub("dplyr::", "", receita, fixed = TRUE)
+  # Os passos de uma cadeia "destino <- origem |>" são as linhas recuadas logo
+  # abaixo dela. Sem passos, a cadeia é só "destino <- origem". NULL quando a
+  # receita não tem essa forma (preparo com lógica própria).
+  passos_de <- function(cabecalho) {
+    i <- which(receita == paste(cabecalho, "|>"))
+    if (length(i) != 1L) return(if (any(receita == cabecalho)) character() else NULL)
+    fim <- i
+    while (fim < length(receita) && grepl("^  ", receita[fim + 1L])) fim <- fim + 1L
+    receita[seq.int(i + 1L, fim)]
+  }
+  # Encadeia blocos de passos, pondo o pipe no fim de cada bloco menos o último.
+  encadear <- function(blocos) {
+    blocos <- Filter(length, blocos)
+    unlist(lapply(seq_along(blocos), function(k) {
+      bloco <- blocos[[k]]
+      if (k < length(blocos)) bloco[length(bloco)] <- paste0(bloco[length(bloco)], " |>")
+      bloco
+    }), use.names = FALSE)
+  }
+  compartilhada <- passos_de("base_compartilhada <- dados_brutos")
+  especificos <- if (ramo) passos_de("dados <- base_compartilhada") else character()
+  # Linhas de código soltas, fora das duas cadeias (ex.: cols_medida <- c(...)).
+  cabecalhos <- c("base_compartilhada <- dados_brutos", "base_compartilhada <- dados_brutos |>",
+                  "dados <- base_compartilhada", "dados <- base_compartilhada |>")
+  soltas <- receita[nzchar(trimws(receita)) & !grepl("^\\s*#", receita) &
+                      !grepl("^  ", receita) & !receita %in% cabecalhos]
+  cadeia_unica <- !is.null(compartilhada) && !is.null(especificos) &&
+    all(grepl("^cols_medida <- c\\(", soltas))
+
+  col_fator <- exportacao_nome_clara(fator)
+  col_resposta <- exportacao_nome_clara(resposta)
+  base_tela <- as.data.frame(if (ramo) cache_bases[[item$base_id]]$df else dados_analise)
+  grupos <- base_tela[[fator]]
+  niveis <- if (is.factor(grupos)) levels(grupos) else sort(unique(as.character(stats::na.omit(grupos))))
+  grupos <- factor(as.character(grupos), levels = niveis)
+  contagem <- as.vector(table(grupos))
+  medias <- as.vector(tapply(base_tela[[resposta]], grupos, mean, na.rm = TRUE))
+  numero <- function(x) ifelse(is.finite(x), formatC(x, format = "fg", digits = 4, decimal.mark = ","), "sem dados")
+  niveis_r <- paste0("c(", paste(encodeString(niveis, quote = '"'), collapse = ", "), ")")
+
+  passo_fator <- c(
+    "  # Os grupos como fator, na ordem em que a CatalyseR os mostrou.",
+    sprintf("  mutate(%s = factor(%s, levels = %s))", col_fator, col_fator, niveis_r)
+  )
+  if (cadeia_unica) {
+    if (ramo && length(especificos)) {
+      registro <- bases_obter(registro_bases, item$base_id)
+      nome_ramo <- trimws(registro$nome_amigavel %||% registro$nome_r %||% "")
+      especificos <- c(sprintf("  # Ramo%s: o preparo específico desta análise.",
+                               if (nzchar(nome_ramo)) paste0(" \"", nome_ramo, "\"") else ""),
+                       especificos)
+    }
+    receita_final <- c(soltas, "base <- dados_brutos |>",
+                       encadear(list(compartilhada, especificos, passo_fator)))
+  } else {
+    # Preparo com lógica própria: a receita fica como veio e a base sai no fim.
+    while (length(receita) && !nzchar(trimws(receita[length(receita)]))) receita <- receita[-length(receita)]
+    receita_final <- c(receita, "",
+                       sprintf("base <- %s |>", if (ramo) "dados" else "base_compartilhada"),
+                       passo_fator)
+  }
+  travar <- sprintf("stopifnot(nrow(base) == %dL)", nrow(base_tela))
+  carimbo <- c(
+    "# 3.2 Conferir com a tela. O carimbo é o que a CatalyseR mostrou ao exportar.",
+    "# O QUE CONFERIR: a tabela calculada pelo R deve repetir o carimbo.",
+    sprintf("# Carimbo: %d linhas.", nrow(base_tela)),
+    strwrap(paste0("Contagem por ", fator, ": ",
+                   paste(niveis, contagem, collapse = "; "), "."),
+            width = 76, initial = "# ", prefix = "#   "),
+    strwrap(paste0("Média de ", resposta, ": ",
+                   paste(niveis, numero(medias), collapse = "; "), "."),
+            width = 76, initial = "# ", prefix = "#   "),
+    "base |>",
+    sprintf("  group_by(%s) |>", col_fator),
+    sprintf("  summarise(n = n(), media = mean(%s, na.rm = TRUE))", col_resposta),
+    "",
+    "# Se a receita mudar o número de linhas, o Render para aqui.",
+    travar
+  )
+  script <- c(
+    "# 3.1 A receita. Da planilha à base desta análise, num só encadeamento:",
+    "# cada passo é uma linha, lida de cima para baixo.",
+    receita_final, "", carimbo
+  )
+
+  # Nos QMDs, a mesma leitura e a mesma receita, sem os comentários.
+  sem_comentario <- function(x) x[nzchar(trimws(x)) & !grepl("^\\s*#", x)]
+  qmd <- c(
+    "# A planilha e a receita de R/analise.R (seções 2 e 3).",
+    sprintf('dados_brutos <- as.data.frame(read_excel(here("dados", "brutos", "%s"), sheet = "%s"))',
+            exportacao_nome_planilha(import_info), exportacao_aba_planilha(import_info)),
+    sem_comentario(receita_final),
+    travar
+  )
+  list(script = script, qmd = exportacao_sanitizar_molde(qmd))
 }
 
 exportacao_teste_t_marcadores_script <- function(item) {
@@ -2584,11 +2684,11 @@ molde_projeto_registro <- list(
     apoio = "regressao_linear",
     clara = TRUE,
     seleciona = exportacao_anova_clara_aceita,
+    # A receita e o carimbo já vêm prontos no manifesto (exportacao_clara_receita).
     prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
                        base_externa, import_info, templates_dir) {
-      exportacao_molde_projeto_prefixo_preparo(manifesto, nome_projeto,
-        "# ANOVA DE UM FATOR — ", registro_bases, pipeline, base_externa,
-        import_info)
+      list(importar = exportacao_molde_importar(import_info),
+           preparo = manifesto$clara$script)
     },
     marcadores_script = exportacao_anova_clara_marcadores,
     marcadores_qmd = exportacao_anova_clara_marcadores_qmd,
@@ -3442,9 +3542,18 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   manifesto <- exportacao_sem_execucoes_repetidas(manifesto)
   validacao <- exportacao_validar_manifesto(manifesto, exigir_word = FALSE)
   if (!validacao$ok) stop(paste(validacao$mensagens, collapse = " "), call. = FALSE)
+  # A rota ClaRa parte da planilha e da receita, sem fotografia. Registros
+  # antigos que só se reproduzem pela base salva continuam no molde da ANOVA.
+  if (isTRUE(manifesto$codigo_clara) && exportacao_anova_usa_base_resolvida(base_externa)) {
+    manifesto$codigo_clara <- FALSE
+  }
   # A árvore nova (R/analise.R como fonte da verdade, dois QMDs) é escolhida
   # pela entrada do registro do molde cujo seletor aceita este manifesto.
   molde <- exportacao_molde_projeto_entrada(manifesto)
+  if (isTRUE(molde$clara)) {
+    manifesto$clara <- exportacao_clara_receita(manifesto, import_info, pipeline,
+      registro_bases, base_externa, dados_analise, cache_bases)
+  }
   anova_nova <- !is.null(molde) && identical(molde$tipo, "anova_um_fator")
 
   if (exportacao_anova_simples(manifesto) && !anova_nova) {
@@ -3514,7 +3623,8 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # Exporta somente os valores da aba importada, antes de qualquer preparo.
   # A pasta de trabalho original e suas outras abas ficam com o pesquisador.
   exportacao_salvar_planilha(dados_brutos, caminho_bruto, aba = exportacao_aba_planilha(import_info))
-  exportacao_salvar_dataframe(
+  # Na rota ClaRa a base nasce da receita; não viaja fotografia em .rds.
+  if (!isTRUE(molde$clara)) exportacao_salvar_dataframe(
     dados_analise, file.path(projeto, "dados", "processados", "base_compartilhada.rds")
   )
   exportacao_salvar_planilha(
@@ -3535,7 +3645,7 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
     if (nome %in% nomes_usados) nome <- paste0(nome, "_", exportacao_nome_curto(id))
     nomes_usados <- c(nomes_usados, nome)
     exportacao_salvar_planilha(df, file.path(projeto, "dados", "processados", paste0(nome, ".xlsx")))
-    saveRDS(as.data.frame(df), file.path(projeto, "dados", "processados",
+    if (!isTRUE(molde$clara)) saveRDS(as.data.frame(df), file.path(projeto, "dados", "processados",
       exportacao_rds_base(list(base_tipo = "derivada", base_id = id))))
   }
   # Somente registros legados precisam da fotografia pós-estrutural.

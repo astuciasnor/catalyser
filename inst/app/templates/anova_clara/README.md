@@ -23,7 +23,7 @@ código mostrado é exatamente o que rodou. Para entender uma função, digite
 ├── _quarto.yml
 ├── dados/
 │   ├── brutos/                    entrada preservada
-│   └── processados/               bases adotadas e base da ANOVA
+│   └── processados/               cópia da base em Excel, para consulta
 ├── R/
 │   ├── analise.R                  o roteiro da análise, em ClaRa
 │   ├── funcoes.R                  apresentação de números e tabelas
@@ -85,10 +85,13 @@ Abra o `.Rproj` antes de executar.
 ## Dados e preparo
 
 A entrada preservada é `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR exportou
-a receita de preparo e a fotografia da base adotada. A seção 3 do script
-reconstrói o percurso e confere essa fotografia com `all.equal()`, do R base;
-os relatórios partem da base
-adotada. Alterar a receita não substitui silenciosamente a base adotada.
+a receita de preparo: a seção 3 do script a aplica à planilha, com pipe e
+dplyr, e o script e os relatórios partem da base que ela produz. No lugar de
+uma cópia da base, o script traz um **carimbo**: o número de linhas, a
+contagem e a média por grupo que a CatalyseR mostrou na tela. Confira a
+tabela do R com o carimbo; se a receita mudar o número de linhas, o
+`stopifnot()` para o script e o Render. Em `dados/processados/` fica uma
+cópia da base em Excel, para quem quiser abri-la fora do R.
 
 A análise usa:
 
