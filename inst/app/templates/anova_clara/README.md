@@ -31,25 +31,29 @@ código mostrado é exatamente o que rodou. Para entender uma função, digite
 │                                  arquivo clara_*.R por pergunta
 ├── imagens/                       fotos e esquemas fornecidos pelo pesquisador
 ├── relatorios/
-│   ├── relatorio_completo.qmd     caderno HTML
-│   ├── relatorio_artigo.qmd       documento Word
+│   ├── relatorio.qmd              o relatório, que vira Word
 │   ├── referencias.bib
 │   ├── apa.csl
-│   ├── custom-reference.docx
-│   └── ocean.scss
+│   └── custom-reference.docx
 └── saida/                         nasce quando o script roda
     ├── tabelas/
     ├── figuras/
+    ├── relatorios/                o Word gerado no Render
     └── sessionInfo.txt
 ```
 
-O `R/analise.R` é o lugar de estudo: rode as seções em ordem e examine os
-objetos no console. Os dois QMDs **repetem as chamadas principais da ClaRa**,
-de forma mais enxuta, e rodam sozinhos: o Render não lê o script. Por isso,
-uma escolha mudada no script (um rótulo, a confiança, um detalhe da figura)
-precisa ser mudada também nos relatórios.
+Cada arquivo tem um papel só:
 
-| No script e nos relatórios | O que guarda | Cópia salva pelo script |
+- **`R/analise.R` é o caderno de estudo.** Rode as seções em ordem e examine
+  os objetos no console: a receita de preparo, a exploração, a análise, os
+  diagnósticos dos pressupostos e os textos dinâmicos.
+- **`relatorios/relatorio.qmd` é o relatório.** Nele você escreve o artigo ou
+  a tese; o Render gera o Word com os resultados principais. Ele **repete as
+  chamadas principais da ClaRa**, de forma mais enxuta, e roda sozinho: o
+  Render não lê o script. Por isso, uma escolha mudada no script (um rótulo,
+  a confiança, um detalhe da figura) precisa ser mudada também no relatório.
+
+| No script e no relatório | O que guarda | Cópia salva pelo script |
 |---|---|---|
 | `resultado <- ... comparar_medias(...)` | resumo, ANOVA, pressupostos e Tukey | `saida/tabelas/resumo_grupos.csv`, `anova.csv`, `tukey.csv` |
 | `resultado \|> grafico_medias(...)` | a figura principal | `saida/figuras/barras.png` |
@@ -67,13 +71,13 @@ install.packages(
 
 Nenhum pacote é instalado automaticamente durante a análise.
 
-## Gerar os documentos
+## Gerar o relatório
 
 1. Abra o `.Rproj` e reinicie o R para começar com uma sessão limpa.
-2. Abra `relatorios/relatorio_completo.qmd` e clique em **Render** para o HTML.
-3. Abra `relatorios/relatorio_artigo.qmd` e clique em **Render** para o Word.
+2. Abra `relatorios/relatorio.qmd` e clique em **Render**: sai o Word, em
+   `saida/relatorios/`.
 
-Também é possível gerar os dois documentos, na raiz do projeto, com:
+Também é possível gerá-lo, na raiz do projeto, com:
 
 ```sh
 quarto render
@@ -86,7 +90,7 @@ Abra o `.Rproj` antes de executar.
 
 A entrada preservada é `dados/brutos/{{ARQUIVO_BRUTO}}`. A CatalyseR exportou
 a receita de preparo: a seção 3 do script a aplica à planilha, com pipe e
-dplyr, e o script e os relatórios partem da base que ela produz. No lugar de
+dplyr, e o script e o relatório partem da base que ela produz. No lugar de
 uma cópia da base, o script traz um **carimbo**: o número de linhas, a
 contagem e a média por grupo que a CatalyseR mostrou na tela. Confira a
 tabela do R com o carimbo; se a receita mudar o número de linhas, o
@@ -101,15 +105,16 @@ A análise usa:
 
 ## Como escrever e adaptar
 
-Os dois QMDs trazem sugestões em Introdução, Material e métodos, Resultados,
-Discussão e Conclusão. O HTML documenta o percurso completo, com a exploração e
-os diagnósticos; o Word seleciona os resultados esperados em um artigo. As
-frases de `escrever_resultados()` mudam junto com os dados, mas a discussão e
-a conclusão científica precisam ser revistas pelo pesquisador.
+O relatório traz sugestões em Introdução, Material e métodos, Resultados,
+Discussão e Conclusão, com os resultados esperados em um artigo: a tabela da
+ANOVA, o resumo por grupo e a figura principal. A exploração e os
+diagnósticos ficam no roteiro, onde se conferem. As frases de
+`escrever_resultados()` mudam junto com os dados, mas a discussão e a
+conclusão científica precisam ser revistas pelo pesquisador.
 
 ## A versão da ClaRa
 
-Este projeto leva a sua própria cópia da ClaRa em `R/`. A versão aparece no
+Este projeto leva a sua própria cópia da ClaRa em `R/clara/`. A versão aparece no
 console quando ela é carregada e fica em `saida/sessionInfo.txt`. Projetos
 exportados em datas diferentes podem ter versões diferentes da ClaRa.
 
@@ -131,7 +136,7 @@ fosse o outro.
 ## Método da ANOVA
 
 Este roteiro usa a ANOVA clássica com Tukey. Se o Levene indicar variâncias
-diferentes, o relatório avisa; nesse caso, a ANOVA de Welch com Games-Howell,
+diferentes, o roteiro e o relatório avisam; nesse caso, a ANOVA de Welch com Games-Howell,
 disponível na CatalyseR, é a alternativa a considerar.
 
 ## Ambiente computacional

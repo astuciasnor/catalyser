@@ -1,6 +1,7 @@
 # Execute de inst/app. Confere a opção experimental "código em ClaRa" do
-# Projeto R da ANOVA de um fator: a árvore leva a ClaRa em R/, o script e os
-# dois QMDs usam as funções da ClaRa, cada um roda em sessão nova e reproduz
+# Projeto R da ANOVA de um fator: a árvore leva a ClaRa em R/clara/, o script
+# e o relatório (um só QMD, o Word) usam as funções da ClaRa, cada um roda em
+# sessão nova e reproduz
 # os números da ANOVA. Confere também que, sem a opção ou com Welch, o
 # projeto continua saindo pelo molde atual.
 grDevices::pdf(NULL)
@@ -42,7 +43,7 @@ projeto <- exportacao_criar_projeto(destino = destino, nome_projeto = "anova_cla
 
 # Árvore: a ClaRa inteira em R/, ao lado do script e das funções de apresentação.
 script <- file.path(projeto, "R", "analise.R")
-documentos <- c("relatorio_completo.qmd", "relatorio_artigo.qmd")
+documentos <- "relatorio.qmd"
 arquivos_clara <- c("clara.R", "clara_medias.R", "clara_medianas.R",
                     "clara_qualquer_analise.R", "clara_motor.R")
 stopifnot(file.exists(script),
@@ -120,20 +121,26 @@ for (i in seq_along(entradas)) {
     isTRUE(all.equal(obtido$pares$ic_inf, unname(tukey_esperado[, "lwr"]))),
     all(nzchar(unlist(obtido$textos[c("amostra", "teste", "efeito", "sintese")]))))
 }
-# O Word traz a tabela da ANOVA e a figura principal, sem a figura dos
-# pares, e esconde o chunk de preparo.
-completo <- readLines(file.path(projeto, "relatorios", "relatorio_completo.qmd"), encoding = "UTF-8")
-artigo <- readLines(file.path(projeto, "relatorios", "relatorio_artigo.qmd"), encoding = "UTF-8")
+# Um só documento: o relatório Word, com a tabela da ANOVA e a figura
+# principal, sem a figura dos pares, e com o chunk de preparo escondido. O
+# caderno de estudo é o próprio R/analise.R: não há HTML nem ocean.scss.
+relatorio <- readLines(file.path(projeto, "relatorios", "relatorio.qmd"), encoding = "UTF-8")
+quarto_yml <- readLines(file.path(projeto, "_quarto.yml"), encoding = "UTF-8")
 # O tamanho é acompanhado, não travado: várias análises e bases pedem mais.
-cat(sprintf("TAMANHO: analise.R %d linhas; relatorio_completo.qmd %d; relatorio_artigo.qmd %d.\n",
-            length(linhas_script), length(completo), length(artigo)))
-stopifnot(!any(grepl("fig-pares", artigo, fixed = TRUE)),
-  any(grepl("label: tbl-anova", artigo, fixed = TRUE)),
-  any(grepl("label: fig-barras", artigo, fixed = TRUE)),
-  any(grepl("#| include: false", artigo, fixed = TRUE)))
+cat(sprintf("TAMANHO: analise.R %d linhas; relatorio.qmd %d.\n",
+            length(linhas_script), length(relatorio)))
+stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]qmd$"), "relatorio.qmd"),
+  !file.exists(file.path(projeto, "relatorios", "ocean.scss")),
+  any(grepl("- relatorios/relatorio.qmd", quarto_yml, fixed = TRUE)),
+  !any(grepl("relatorio_completo|relatorio_artigo", quarto_yml)),
+  !any(grepl("fig-pares", relatorio, fixed = TRUE)),
+  any(grepl("label: tbl-anova", relatorio, fixed = TRUE)),
+  any(grepl("label: fig-barras", relatorio, fixed = TRUE)),
+  any(grepl("#| include: false", relatorio, fixed = TRUE)),
+  any(grepl("# 10. Textos dinâmicos", linhas_script, fixed = TRUE)))
 
-# Render dos dois documentos, quando houver Quarto: sem "??" no HTML e sem as
-# mensagens de carga dos pacotes no Word.
+# Render, quando houver Quarto: só o Word, sem as mensagens de carga dos
+# pacotes.
 quarto_bin <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
 if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) {
   cat("LACUNA: quarto não encontrado; o Render não foi verificado.\n")
@@ -143,15 +150,13 @@ if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) {
   status <- system2(quarto_bin, "render", stdout = render_log, stderr = render_log)
   setwd(antigo)
   if (status != 0L) stop(paste(readLines(render_log, warn = FALSE), collapse = "\n"))
-  html <- readLines(file.path(projeto, "saida", "relatorios", "relatorio_completo.html"),
-                    encoding = "UTF-8", warn = FALSE)
-  docx <- file.path(projeto, "saida", "relatorios", "relatorio_artigo.docx")
+  stopifnot(identical(list.files(file.path(projeto, "saida", "relatorios")), "relatorio.docx"))
+  docx <- file.path(projeto, "saida", "relatorios", "relatorio.docx")
   pasta_docx <- file.path(destino, "docx")
   utils::unzip(docx, files = "word/document.xml", exdir = pasta_docx)
   texto_docx <- paste(readLines(file.path(pasta_docx, "word", "document.xml"),
                                 encoding = "UTF-8", warn = FALSE), collapse = "")
-  stopifnot(!any(grepl("??", html, fixed = TRUE)),
-    !grepl("here() starts", texto_docx, fixed = TRUE),
+  stopifnot(!grepl("here() starts", texto_docx, fixed = TRUE),
     !grepl("carregada", texto_docx, fixed = TRUE),
     !grepl("mascarados", texto_docx, fixed = TRUE))
 }
@@ -222,5 +227,5 @@ for (i in seq_along(entradas_ramo)) {
   stopifnot(obtido$n == 18L, isTRUE(all.equal(obtido$medias, medias_ramo)))
 }
 
-cat("OK: rota ClaRa escolhida só com a opção e o método clássico; ClaRa copiada em R/; script e dois QMDs em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
+cat("OK: rota ClaRa escolhida só com a opção e o método clássico; ClaRa copiada em R/clara/; script e o relatório Word em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
 cat("PROJETO:", projeto, "\n")

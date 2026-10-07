@@ -2683,6 +2683,8 @@ molde_projeto_registro <- list(
     pasta = "anova_clara",
     apoio = "regressao_linear",
     clara = TRUE,
+    # Um só QMD: o relatório Word. O caderno de estudo é o próprio R/analise.R.
+    documentos = c(relatorio.qmd = "relatorio.qmd"),
     seleciona = exportacao_anova_clara_aceita,
     # A receita e o carimbo já vêm prontos no manifesto (exportacao_clara_receita).
     prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
@@ -3659,7 +3661,11 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   # documentadas e com ajuda em português (`?catalyser_anova`). Viajam três
   # templates: o modelo de página do Word e o tema do HTML, ao lado do
   # relatório, e o funcoes.R com a ligação script <-> relatório.
-  templates <- if (!is.null(molde)) c(
+  templates <- if (isTRUE(molde$clara)) c(
+    # Rota ClaRa: só o Word; o tema do HTML (ocean.scss) não viaja.
+    "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
+    "referencias.bib" = file.path("relatorios", "referencias.bib")
+  ) else if (!is.null(molde)) c(
     "custom-reference.docx" = file.path("relatorios", "custom-reference.docx"),
     "ocean.scss" = file.path("relatorios", "ocean.scss"),
     "referencias.bib" = file.path("relatorios", "referencias.bib")
@@ -3696,6 +3702,9 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       file.path(apoio, "_quarto.yml"),
       file.path(projeto, "_quarto.yml"), overwrite = TRUE
     )
+    # Uma análise com _quarto.yml próprio (a rota ClaRa, de um só QMD) usa o seu.
+    proprio <- file.path(templates_dir, molde$pasta, "_quarto.yml")
+    if (file.exists(proprio)) file.copy(proprio, file.path(projeto, "_quarto.yml"), overwrite = TRUE)
   }
   # Rota ClaRa: o projeto leva a sua cópia da ClaRa em R/, ao lado do script.
   if (isTRUE(molde$clara)) {
@@ -3732,10 +3741,14 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
       import_info, templates_dir
     )
     writeLines(linhas_script, caminho_script, useBytes = TRUE)
-    for (arquivo in c("relatorio_completo.qmd", "relatorio_artigo.qmd")) {
+    # Cada entrada diz quais QMDs leva: de template para o projeto. O padrão
+    # é o par HTML + Word; a rota ClaRa leva só o relatório Word.
+    documentos <- molde$documentos %||% c(relatorio_completo.qmd = "relatorio_completo.qmd",
+                                          relatorio_artigo.qmd = "relatorio_artigo.qmd")
+    for (arquivo in names(documentos)) {
       writeLines(
         exportacao_molde_projeto_qmd(molde, arquivo, manifesto, titulo, import_info, templates_dir),
-        file.path(projeto, "relatorios", arquivo), useBytes = TRUE
+        file.path(projeto, "relatorios", documentos[[arquivo]]), useBytes = TRUE
       )
     }
     # A lista exata de pacotes do projeto (script + funções) alimenta o
