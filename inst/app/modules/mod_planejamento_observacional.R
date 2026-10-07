@@ -194,17 +194,17 @@ escrever_excel_transversal <- function(coleta, orientacoes, arquivo,
   openxlsx::saveWorkbook(wb, arquivo, overwrite = TRUE)
 }
 
-# Esquema do plano: um recorte temporal, grupos e UAs com seus pools.
+# Esquema do plano: uma coleta, grupos e UAs com seus pools.
 # O desenho usa o plano em memória, tanto na tela como no Word.
-# Faixas por grupo, como no longitudinal, com setas e detalhe de cada pool composto.
-# O detalhe ilustra a composição de uma UA; os totais vêm sempre do plano.
+# As setas são a estrutura do delineamento: coleta -> grupo -> UA.
 desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = character()) {
   n_grupos <- nrow(resumo)
-  centros <- 6.2 + rev(seq_len(n_grupos) - 1) * 1.45
-  topo <- max(centros) + 1.15
+  centros <- rev(seq_len(n_grupos)) * 3.35
+  origem <- mean(centros)
+  topo <- max(centros) + 2.25
   pools <- resumo[["Itens por UA"]]
   cores <- rep(c("#2E7D8F", "#0F3B5F", "#62B6B7"), length.out = n_grupos)
-  quebra <- function(x, largura = 30) paste(strwrap(x, width = largura), collapse = "\n")
+  quebra <- function(x, largura = 26) paste(strwrap(x, width = largura), collapse = "\n")
   p <- ggplot2::ggplot()
   texto <- function(x, y, rotulo, tamanho = 3.3, negrito = FALSE, cor = "#0F3B5F") {
     p <<- p + ggplot2::annotate("text", x = x, y = y, label = rotulo,
@@ -219,80 +219,72 @@ desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = char
       colour = cor, linewidth = 0.6,
       arrow = grid::arrow(length = grid::unit(0.10, "inches"), type = "closed"))
   }
-  texto(2, topo, quebra(paste0(if (grepl("×", fator, fixed = TRUE)) "FATORES: " else "FATOR: ", fator), 27), 3.5, TRUE)
-  caixa(4.2, 10.1, topo - 0.4, topo + 0.4, "#CBDCE9")
-  texto(7.15, topo, "COLETA EM UM ÚNICO MOMENTO", 3.5, TRUE)
-  texto(13.1, topo, "COMPOSIÇÃO DE UMA UA", 3.4, TRUE)
+
+  # A linha do tempo só situa a coleta: o desenho detalha um único recorte.
+  seta(0.45, 15.4, topo + 0.85, cor = "#2E7D8F")
+  texto(14.9, topo + 0.42, "tempo", 2.8)
+  caixa(0.45, 2.65, topo - 0.35, topo + 0.35, "#CBDCE9")
+  texto(1.55, topo, "COLETA EM UMA\nÚNICA JANELA", 3.1, TRUE)
+  texto(5.0, topo, quebra(paste0(if (grepl("×", fator, fixed = TRUE)) "FATORES: " else "FATOR: ", fator)), 3.5, TRUE)
+  texto(8.0, topo, "UNIDADES AMOSTRAIS", 3.3, TRUE)
+  texto(12.25, topo, "COMPOSIÇÃO DE CADA UA", 3.3, TRUE)
+
+  # Um ponto de coleta se abre para grupos já existentes; não há tratamentos.
+  p <- p + ggplot2::annotate("point", x = 1.65, y = origem, size = 6.5,
+    shape = 21, fill = "#2E7D8F", colour = "white", stroke = 0.7)
+  texto(1.65, origem - 0.62, "recorte\nda coleta", 2.8, FALSE)
   for (i in seq_len(n_grupos)) {
     y <- centros[i]
     n <- resumo$UAs[i]
     k <- pools[i]
-    caixa(0, 16, y - 0.65, y + 0.65, if (i %% 2) "#F1F7F8" else "#FAFCFC")
-    caixa(0, 0.07, y - 0.65, y + 0.65, cores[i])
-    texto(2, y + 0.17, quebra(resumo$Grupo[i], 25), 3.5, TRUE)
-    texto(2, y - 0.39, sprintf("%d %s · %d %s por UA", n, if (n == 1) "UA" else "UAs",
-      k, if (k == 1) "item" else "itens"), 3.0)
+
+    # A primeira seta é a seleção dos grupos de comparação.
+    seta(2.0, 3.15, origem, y, cor = cores[i])
+    caixa(3.25, 6.35, y - 0.70, y + 0.70, if (i %% 2) "#F1F7F8" else "#E6F3F1")
+    texto(4.8, y + 0.20, quebra(resumo$Grupo[i]), 3.35, TRUE)
+    texto(4.8, y - 0.42, sprintf("%d %s · pool de %d %s", n,
+      if (n == 1) "UA" else "UAs", k, if (k == 1) "item" else "itens"), 2.75)
+
+    # As setas seguintes são as unidades que pertencem a cada grupo.
     exibidas <- min(n, 5L)
-    xs <- seq(5.1, 9.3, length.out = exibidas + 1L)[seq_len(exibidas)]
-    # Uma ligação comum com setas curtas evita cruzar os símbolos das unidades.
-    seta(4.1, 4.65, y + 0.38, cor = cores[i])
-    p <- p + ggplot2::annotate("segment", x = 4.65, xend = max(xs),
-      y = y + 0.38, yend = y + 0.38, colour = cores[i], linewidth = 0.5)
-    for (x in xs) {
-      seta(x, x, y + 0.38, y + 0.15, cores[i])
-      caixa(x - 0.14, x + 0.14, y - 0.15, y + 0.12, cores[i])
+    y_uas <- y + if (exibidas == 1) 0 else seq(0.82, -0.82, length.out = exibidas)
+    for (j in seq_along(y_uas)) {
+      seta(6.45, 7.65, y, y_uas[j], cor = cores[i])
+      caixa(7.78, 8.12, y_uas[j] - 0.16, y_uas[j] + 0.16, cores[i])
     }
-    texto(7.15, y - 0.43, if (n > exibidas)
-      sprintf("%d símbolos de UA; + %d na ficha", exibidas, n - exibidas) else
-      sprintf("%d %s de UA", n, if (n == 1) "símbolo" else "símbolos"), 2.8)
-    # Toda faixa mostra a passagem item(ns) → uma UA. Para pool = 1, a
-    # bolinha única deixa visível que não há amostra composta.
-    {
-      seta(9.6, 10.7, y)
-      caixa(10.9, 15.7, y - 0.51, y + 0.51, "#E6F3F1")
-      texto(13.3, y + 0.30, if (k == 1) "1 item → 1 UA" else
-        sprintf("%d itens misturados → 1 UA", k), 3.2, TRUE)
-      # Itens ficam próximos entre si e da seta: a leitura é itens → uma UA.
-      itens_x <- seq(12.35, 12.95, length.out = min(k, 5L))
-      p <- p + ggplot2::annotate("point", x = itens_x, y = y - 0.12,
-        shape = 21, size = 2.7, fill = cores[i], colour = "white")
-      seta(13.18, 14.02, y - 0.12)
-      caixa(14.24, 14.59, y - 0.28, y + 0.02, cores[i])
-      if (k > 5) texto(12.65, y - 0.36, sprintf("+ %d itens", k - 5), 2.5)
-    }
+    texto(8.0, y - 1.18, if (n > exibidas)
+      sprintf("%d UAs desenhadas; + %d na ficha", exibidas, n - exibidas) else
+      sprintf("%d %s desenhada%s", exibidas, if (exibidas == 1) "UA" else "UAs",
+        if (exibidas == 1) "" else "s"), 2.55)
+
+    # Apenas um pequeno detalhe por grupo empresta a leitura do esquema novo:
+    # bolinha única é item único; várias bolinhas são pool físico.
+    caixa(9.25, 15.55, y - 0.62, y + 0.62, "#FAFCFC", "#D9E8E9")
+    texto(12.45, y + 0.30, if (k == 1) "item único → uma UA" else
+      sprintf("%d itens → uma UA", k), 3.05, TRUE)
+    itens_x <- seq(10.35, 10.35 + 0.28 * (min(k, 5L) - 1), length.out = min(k, 5L))
+    p <- p + ggplot2::annotate("point", x = itens_x, y = y - 0.16,
+      shape = 21, size = 2.55, fill = cores[i], colour = "white")
+    seta(max(itens_x) + 0.16, 12.0, y - 0.16, cor = cores[i])
+    caixa(12.15, 12.48, y - 0.32, y, cores[i])
+    if (k > 5) texto(11.0, y - 0.47, sprintf("+ %d", k - 5), 2.35)
   }
-  texto(8, 5.25, "DA UNIDADE AMOSTRAL AO REGISTRO DA COLETA", 3.6, TRUE)
-  caixa(0.2, 4.8, 1.7, 4.8, "#CBDCE9")
-  caixa(5.6, 10.2, 1.7, 4.8, "#E6F3F1")
-  caixa(11, 15.8, 1.7, 4.8, "#FBEAD1")
-  texto(2.5, 4.35, "O que representa uma UA?", 3.5, TRUE)
-  texto(2.5, 3.55, "Item único ou amostra composta\nConforme o protocolo do estudo", 3.0)
-  texto(2.5, 2.48, "Ex.: indivíduo ou amostra de água\nCódigo próprio e origem registrada", 2.9)
-  texto(7.9, 4.35, "Como a resposta é obtida?", 3.5, TRUE)
-  texto(7.9, 3.55, "Pool = mistura física de itens\nCada item integra uma única UA", 3.0)
-  texto(7.9, 2.48, "Ex.: medida direta ou ensaio da mistura\nMédia de medidas não é pool", 2.9)
-  texto(13.4, 4.35, "1 UA → 1 linha na coleta", 3.5, TRUE)
   nomes <- gsub("_", " ", utils::head(respostas, 3))
-  rotulo <- if (length(nomes)) paste("Respostas:", paste(nomes, collapse = ", ")) else
-    "Respostas a definir no formulário"
-  if (length(respostas) > 3) rotulo <- paste0(rotulo, "; + ", length(respostas) - 3, " na ficha")
-  texto(13.4, 3.35, quebra(rotulo, 32), 3.0)
-  texto(13.4, 2.48, "Registrar grupo, código, origem e data\nItens e medidas internas\nnão aumentam o n de UAs", 2.9)
-  seta(4.9, 5.45, 3.25)
-  seta(10.3, 10.85, 3.25)
+  rotulo_respostas <- if (length(nomes)) paste(nomes, collapse = ", ") else "a definir"
+  if (length(respostas) > 3) rotulo_respostas <- paste0(rotulo_respostas, "; + ", length(respostas) - 3, " na ficha")
   total <- sum(resumo$UAs)
   itens <- sum(resumo$UAs * pools)
-  texto(8, 1.15, sprintf("%d %s · %d %s = %d %s de coleta · %d %s",
+  caixa(0.45, 15.55, 0.45, 1.50, "#FBEAD1")
+  texto(8, 1.18, sprintf("1 UA = 1 linha na coleta · respostas: %s", rotulo_respostas), 3.05, TRUE)
+  texto(8, 0.75, sprintf("%d %s · %d %s = %d %s de coleta · %d %s",
     n_grupos, if (grepl("×", fator, fixed = TRUE)) "combinações de fatores" else if (n_grupos == 1) "grupo" else "grupos",
     total, if (total == 1) "UA" else "UAs", total, if (total == 1) "linha" else "linhas",
-    itens, if (itens == 1) "item previsto" else "itens previstos"), 3.6, TRUE)
-  texto(8, 0.55, "Os exemplos nas caixas são possibilidades; o protocolo define a unidade e a medição.", 3.0)
-  p + ggplot2::coord_cartesian(xlim = c(-0.1, 16.1), ylim = c(0, topo + 0.65), expand = FALSE, clip = "off") +
+    itens, if (itens == 1) "item previsto" else "itens previstos"), 2.75)
+  p + ggplot2::coord_cartesian(xlim = c(0, 16), ylim = c(0, topo + 1.25), expand = FALSE, clip = "off") +
     ggplot2::labs(title = "Delineamento transversal comparativo",
-      subtitle = "Comparação entre grupos preexistentes, sem sorteio de tratamentos. Setas ligam cada grupo às UAs de um único recorte temporal.",
-      caption = paste0("Símbolos genéricos: até 5 UAs por grupo e até 5 itens nos detalhes; as contagens escritas e a ficha preservam os totais.\n",
-        "Cada pool composto é detalhado na sua faixa. Pool = 1 indica item único; pool > 1 indica amostra composta física.\n",
-        "Esquema sem escala espacial. O desenho não comprova independência nem causalidade; UAs de uma mesma origem podem compartilhar dependências.")) +
+      subtitle = "Comparação entre grupos preexistentes em um único recorte temporal. As setas mostram a hierarquia da coleta.",
+      caption = paste0("Cada seta que sai de um grupo representa uma UA. Mostram-se até 5 UAs por grupo; a ficha preserva os totais.\n",
+        "Bolinha única = item único; várias bolinhas = pool físico. O esquema não tem escala espacial e não comprova independência nem causalidade.")) +
     ggplot2::theme_void(base_size = 12) + ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", colour = "#0F3B5F", size = 15, hjust = 0),
       plot.subtitle = ggplot2::element_text(size = 10, margin = ggplot2::margin(b = 12)),
@@ -1124,7 +1116,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
       if (tipo_resolvido == "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
         bslib::card_body(fillable = FALSE,
-          shiny::p("Leia cada faixa: as setas ligam o grupo às UAs previstas. Até dois pools diferentes aparecem em detalhe; todos os grupos mantêm suas contagens. As caixas inferiores mostram possibilidades de unidade e medição e a passagem para uma linha na coleta."),
+          shiny::p("Leia da esquerda para a direita: a coleta se abre para os grupos e as setas seguintes levam às UAs. À direita, as bolinhas mostram se cada UA é formada por item único ou por um pool; o rodapé informa as respostas registradas."),
           shiny::uiOutput(ns("esquema_transversal_ui")))) ,
       if (tipo_resolvido != "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
@@ -2694,7 +2686,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       striped = TRUE, bordered = TRUE, spacing = "s", rownames = FALSE)
     output$esquema_transversal_ui <- shiny::renderUI({
       shiny::plotOutput(session$ns("esquema_transversal"),
-        height = paste0(max(680, 400 + nrow(resumo_transversal()) * 72), "px"))
+        height = paste0(max(650, 250 + nrow(resumo_transversal()) * 155), "px"))
     })
     output$esquema_transversal <- shiny::renderPlot({
       shiny::req(tipo_resolvido == "transversal_comparativo")
