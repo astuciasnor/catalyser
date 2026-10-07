@@ -41,8 +41,8 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")
 resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},  # {{NOTA_ROTULO_RESPOSTA}}
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},  # {{NOTA_ROTULO_FATOR}}
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
                   confianca       = {{CONFIANCA}})
 
 # As frases do relatório, que mudam junto com os dados.
@@ -98,7 +98,8 @@ resultado$anova |>
 `r textos$comparacoes`
 
 A @fig-barras apresenta as médias dos grupos com seus intervalos e as letras
-do teste de Tukey.
+do teste de Tukey. Cada observação aparece como ponto sobre barras
+semitransparentes, o que preserva a distribuição dos dados [@weissgerber2015].
 
 ```{r}
 #| label: fig-barras
@@ -120,11 +121,6 @@ resultado |>
 
 `r textos$pressupostos`
 
-A @fig-barras mostra cada observação como ponto sobre barras
-semitransparentes, preservando a distribuição dos dados [@weissgerber2015].
-Os testes formais de pressupostos, por sua vez, complementam a inspeção
-visual dos resíduos [@kozak2018].
-
 # Discussão
 
 {{DISCUSSAO}}
@@ -135,14 +131,14 @@ visual dos resíduos [@kozak2018].
 
 # Conclusão
 
-`r textos$sintese`
-
 {{CONCLUSAO}}
+
+`r textos$sintese`
 
 # Disponibilidade dos dados e do código
 
-O projeto reúne a planilha de entrada, o roteiro `R/analise.R`, escrito em
-ClaRa, com a exploração, os diagnósticos e a receita de preparo, e este
+O projeto reúne a planilha de entrada; o roteiro `R/analise.R`, escrito em
+ClaRa, com a receita de preparo, a exploração e os diagnósticos; e este
 documento, que apresenta os resultados principais com as mesmas chamadas.
 
 # Referências

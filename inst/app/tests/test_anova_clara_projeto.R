@@ -167,7 +167,19 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   any(grepl("^csl: apa.csl$", relatorio)),
   # Sem título escrito na tela, o relatório não herda os nomes crus das colunas.
   any(relatorio == 'title: "Título do trabalho (preencher)"'),
-  !any(grepl("entre grupos de", relatorio, fixed = TRUE)))
+  !any(grepl("entre grupos de", relatorio, fixed = TRUE)),
+  # Métodos da rota ClaRa: só a clássica com Tukey; nada de Welch no Word.
+  !any(grepl("Welch|Games-Howell|effectsizeConversao", relatorio)),
+  any(grepl("[@benshachar2020]", relatorio, fixed = TRUE)),
+  # Os dois comentários dos rótulos na mesma coluna, no script e no relatório.
+  length(unique(regexpr("#", grep("^ +rotulo_(resposta|grupos) += ", linhas_script, value = TRUE)))) == 1L,
+  length(unique(regexpr("#", grep("^ +rotulo_(resposta|grupos) += ", relatorio, value = TRUE)))) == 1L,
+  # Seção 2 sem a nota repetida do caminho e sem linha em branco dupla.
+  !any(grepl("^# Entrada: ", linhas_script)),
+  !any(!nzchar(head(linhas_script, -1)) & !nzchar(linhas_script[-1])),
+  # README: a ClaRa na tabela do ambiente e o install.packages recuado.
+  any(grepl("^\\| ClaRa \\| [0-9.]+ \\|", readme)),
+  any(grepl('^  c\\("broom"', readme)))
 
 # R/funcoes.R só com o que o projeto chama: sem moda(), converter_datas()
 # nem tema_projeto(), que este projeto não usa.
@@ -212,7 +224,17 @@ stopifnot(file.exists(file.path(projeto, "saida", "tabelas", "resumo_grupos.csv"
   # A cópia da base para o Excel nasce da receita, com as 19 linhas.
   nrow(read.csv2(file.path(projeto, "saida", "tabelas", "base.csv"))) == 19L,
   file.exists(file.path(projeto, "saida", "figuras", "barras.png")),
-  file.exists(file.path(projeto, "saida", "sessionInfo.txt")))
+  file.exists(file.path(projeto, "saida", "sessionInfo.txt")),
+  # Todas as cópias, pelas funções da ClaRa (sem dir.create, lista nem for).
+  setequal(list.files(file.path(projeto, "saida", "tabelas")),
+           paste0(c("base", "resumo_grupos", "anova", "tukey", "testes_pressupostos",
+                    "tamanho_efeito"), ".csv")),
+  setequal(list.files(file.path(projeto, "saida", "figuras")),
+           paste0(c("barras", "boxplot", "pares", "residuos", "qq"), ".png")),
+  any(grepl("^salvar_tabelas[(]base += base,", linhas_script)),
+  any(grepl("^salvar_figuras[(]barras += grafico_barras,", linhas_script)),
+  !any(grepl("^for [(]|dir.create|write.csv2|ggsave", linhas_script)),
+  any(grepl("ClaRa 0.7.3", readLines(file.path(projeto, "saida", "sessionInfo.txt"), n = 1))))
 
 # Segundo caso: operação estrutural (renomear), trilha (reescalar) e um ramo
 # com filtro. A receita encadeia tudo da planilha até o ramo, e o script e

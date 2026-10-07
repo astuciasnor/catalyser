@@ -6,6 +6,7 @@
 #  agem sobre o resultado de qualquer análise da ClaRa. Aqui ficam só as
 #  funções e as listas de receitas, vazias; o arquivo de cada pergunta
 #  (clara_medias.R...) acrescenta as suas: receitas_efeito$anova <- "...".
+#  salvar_tabelas() e salvar_figuras() guardam cópias em CSV e PNG, e
 #  registrar_ambiente() fecha qualquer roteiro, gravando as versões usadas.
 #
 #  Carregado por R/clara.R; no roteiro, basta source("R/clara.R").
@@ -267,6 +268,137 @@ ggplot(diagnostico, aes(x = ajustado, y = residuo, colour = <<GRUPOS>>)) +
 # arquivo de pergunta acrescenta as suas, montadas com os trechos.
 receitas_residuos <- list()
 receitas_qq       <- list()
+
+
+# salvar_tabelas() -------------------------------------------------------------
+#
+# Pergunta: como levar as tabelas da análise para o Excel?
+#
+# Grava cada tabela num arquivo CSV, na pasta indicada. O nome escrito antes
+# do = vira o nome do arquivo: anova = resultado$anova grava anova.csv. O CSV
+# sai com ponto e vírgula entre as colunas e vírgula decimal, o formato que o
+# Excel em português abre direto. A pasta é criada se ainda não existir, e um
+# arquivo com o mesmo nome é substituído.
+#
+# Argumentos:
+#   ... ................. as tabelas, cada uma com o nome do seu arquivo
+#   pasta ............... onde gravar; criada se ainda não existir
+#   mostrar_codigo ...... TRUE imprime o código R antes de gravar
+#
+# Devolve os caminhos dos arquivos, sem imprimi-los.
+#
+# Exemplo:  salvar_tabelas(resumo_grupos = resultado$resumo,
+#                          anova         = resultado$anova,
+#                          pasta         = here("saida", "tabelas"))
+#
+salvar_tabelas <- function(...,
+                           pasta          = "saida/tabelas",
+                           mostrar_codigo = FALSE) {
+
+  # Conferimos as escolhas antes de gravar qualquer arquivo.
+  conferir_pasta(pasta)
+  conferir_sim_ou_nao(mostrar_codigo, "mostrar_codigo")
+  itens <- itens_para_salvar(rlang::enquos(...), "uma tabela",
+                             "anova = resultado$anova", is.data.frame)
+
+  # A receita: a pasta, e uma linha write.csv2() por tabela, com o código que
+  # o aluno escreveu (resultado$anova) e o nome que ele deu ao arquivo.
+  receita <- paste(c(
+    "# 1. A pasta das tabelas, criada se ainda não existir.",
+    paste("pasta <-", encodeString(pasta, quote = "\"")),
+    "dir.create(pasta, recursive = TRUE, showWarnings = FALSE)",
+    "",
+    "# 2. Uma tabela por arquivo CSV, com ponto e vírgula e vírgula decimal.",
+    sprintf("write.csv2(%s, file.path(pasta, \"%s.csv\"),\n           row.names = FALSE, fileEncoding = \"UTF-8\")",
+            itens$codigos, itens$nomes)
+  ), collapse = "\n")
+
+  # Rodamos a receita a partir de onde o aluno chamou a função: é lá que
+  # moram os objetos dele.
+  executar_receita(
+    receita           = receita,
+    objetos           = list(),
+    pacotes           = character(),
+    mostrar_codigo    = mostrar_codigo,
+    ambiente_do_aluno = parent.frame()
+  )
+
+  # Avisamos o que foi gravado e onde.
+  arquivos <- paste0(itens$nomes, ".csv")
+  message("Tabelas salvas em ", pasta, ": ", toString(arquivos), ".")
+  invisible(file.path(pasta, arquivos))
+}
+
+
+# salvar_figuras() -------------------------------------------------------------
+#
+# Pergunta: como guardar os gráficos em arquivos de imagem?
+#
+# Grava cada gráfico num arquivo PNG, na pasta indicada, com fundo branco e
+# resolução de impressão. O nome escrito antes do = vira o nome do arquivo:
+# barras = grafico_barras grava barras.png. A pasta é criada se ainda não
+# existir, e um arquivo com o mesmo nome é substituído.
+#
+# Argumentos:
+#   ... ................. os gráficos, cada um com o nome do seu arquivo
+#   pasta ............... onde gravar; criada se ainda não existir
+#   largura ............. largura da imagem, em centímetros
+#   altura .............. altura da imagem, em centímetros
+#   resolucao ........... pontos por polegada (300 serve para impressão)
+#   mostrar_codigo ...... TRUE imprime o código R antes de gravar
+#
+# Devolve os caminhos dos arquivos, sem imprimi-los.
+#
+# Exemplo:  salvar_figuras(barras  = grafico_barras,
+#                          pasta   = here("saida", "figuras"),
+#                          largura = 18,
+#                          altura  = 12)
+#
+salvar_figuras <- function(...,
+                           pasta          = "saida/figuras",
+                           largura        = 18,
+                           altura         = 12,
+                           resolucao      = 300,
+                           mostrar_codigo = FALSE) {
+
+  # Conferimos as escolhas antes de gravar qualquer arquivo.
+  conferir_pasta(pasta)
+  conferir_sim_ou_nao(mostrar_codigo, "mostrar_codigo")
+  for (medida in c("largura", "altura", "resolucao")) {
+    valor <- get(medida)
+    if (!is.numeric(valor) || length(valor) != 1 || is.na(valor) || valor <= 0) {
+      stop(medida, " aceita um número maior que zero.", call. = FALSE)
+    }
+  }
+  itens <- itens_para_salvar(rlang::enquos(...), "um gráfico",
+                             "barras = grafico_barras", ggplot2::is_ggplot)
+
+  # A receita: a pasta, e uma linha ggsave() por gráfico, com o objeto que o
+  # aluno escreveu e o nome que ele deu ao arquivo.
+  receita <- paste(c(
+    "# 1. A pasta das figuras, criada se ainda não existir.",
+    paste("pasta <-", encodeString(pasta, quote = "\"")),
+    "dir.create(pasta, recursive = TRUE, showWarnings = FALSE)",
+    "",
+    "# 2. Um gráfico por arquivo PNG, com fundo branco; medidas em centímetros.",
+    sprintf("ggsave(file.path(pasta, \"%s.png\"), plot = %s,\n       width = %s, height = %s, units = \"cm\", dpi = %s, bg = \"white\")",
+            itens$nomes, itens$codigos, format(largura), format(altura), format(resolucao))
+  ), collapse = "\n")
+
+  # Rodamos a receita a partir de onde o aluno chamou a função.
+  executar_receita(
+    receita           = receita,
+    objetos           = list(),
+    pacotes           = "ggplot2",
+    mostrar_codigo    = mostrar_codigo,
+    ambiente_do_aluno = parent.frame()
+  )
+
+  # Avisamos o que foi gravado e onde.
+  arquivos <- paste0(itens$nomes, ".png")
+  message("Figuras salvas em ", pasta, ": ", toString(arquivos), ".")
+  invisible(file.path(pasta, arquivos))
+}
 
 
 # registrar_ambiente() ---------------------------------------------------------

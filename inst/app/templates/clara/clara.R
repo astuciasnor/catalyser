@@ -1,6 +1,6 @@
 # =============================================================================
 #  ClaRa: o R escrito com clareza
-#  Versão 0.7.2 (outubro de 2026)
+#  Versão 0.7.3 (outubro de 2026)
 # =============================================================================
 #
 #  Cada função da ClaRa responde a uma pergunta da pesquisa, em português.
@@ -21,6 +21,7 @@
 #    clara_medianas.R ........... comparar_medianas(), grafico_medianas()
 #    clara_qualquer_analise.R ... medir_efeito(), escrever_resultados(),
 #                                 grafico_residuos(), grafico_qq(),
+#                                 salvar_tabelas(), salvar_figuras(),
 #                                 registrar_ambiente()
 #    clara_motor.R .............. ajuda() e as peças internas; o aluno não
 #                                 precisa abrir
@@ -57,5 +58,5 @@ rm(arquivo)
 # A versão desta cópia da ClaRa. Cada projeto exportado leva a sua cópia;
 # a versão diz qual é, quando algo não funcionar igual em dois projetos.
 # Ao mudar a ClaRa, atualize aqui e no título acima.
-versao_clara <- "0.7.2"
+versao_clara <- "0.7.3"
 message("ClaRa ", versao_clara, " carregada.")

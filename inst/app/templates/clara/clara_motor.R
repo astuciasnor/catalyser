@@ -275,6 +275,52 @@ nome_do_objeto <- function(expressao, padrao) {
   if (is.symbol(expressao)) deparse(expressao) else padrao
 }
 
+# Junta o que o aluno pediu para salvar, em salvar_tabelas() e
+# salvar_figuras(). Cada item leva o nome do seu arquivo: o nome escrito
+# (anova = resultado$anova) ou, sem ele, o nome do próprio objeto (base).
+# Devolve os nomes e o código de cada item como o aluno o escreveu; o
+# conferir() diz se o valor é do tipo certo (tabela ou gráfico).
+itens_para_salvar <- function(itens, o_que, exemplo, conferir) {
+  if (!length(itens)) {
+    stop("Diga o que salvar, com o nome do arquivo antes do =, por exemplo: ",
+         exemplo, ".", call. = FALSE)
+  }
+  nomes   <- rlang::names2(itens)
+  codigos <- vapply(itens, rlang::quo_text, character(1), USE.NAMES = FALSE)
+  for (i in seq_along(itens)) {
+    if (nzchar(nomes[i])) next
+    expressao <- rlang::quo_get_expr(itens[[i]])
+    if (!is.symbol(expressao)) {
+      stop("Dê um nome a ", codigos[i], ": ele vira o nome do arquivo, ",
+           "como em nome = ", codigos[i], ".", call. = FALSE)
+    }
+    nomes[i] <- as.character(expressao)
+  }
+  ruins <- nomes[!grepl("^[A-Za-z0-9_-]+$", nomes)]
+  if (length(ruins)) {
+    stop("Os nomes viram nomes de arquivo: use só letras sem acento, números ",
+         "e _. Troque: ", toString(ruins), ".", call. = FALSE)
+  }
+  if (anyDuplicated(nomes)) {
+    stop("Dois itens com o mesmo nome: ", toString(unique(nomes[duplicated(nomes)])),
+         ". Cada arquivo precisa de um nome só dele.", call. = FALSE)
+  }
+  for (i in seq_along(itens)) {
+    if (!conferir(rlang::eval_tidy(itens[[i]]))) {
+      stop(codigos[i], " não é ", o_que, ".", call. = FALSE)
+    }
+  }
+  list(nomes = nomes, codigos = codigos)
+}
+
+# Confere se a pasta recebeu um caminho só, entre aspas ou com here().
+conferir_pasta <- function(pasta) {
+  if (!is.character(pasta) || length(pasta) != 1 || !nzchar(pasta)) {
+    stop("pasta aceita um caminho só, como here(\"saida\", \"tabelas\").",
+         call. = FALSE)
+  }
+}
+
 # Troca cada marcador <<NOME>> da receita pelo valor correspondente. Um
 # valor vazio (NULL) fica de fora: a análise não usa aquele marcador.
 preencher_receita <- function(receita, valores) {
@@ -293,13 +339,16 @@ mostrar_receita <- function(receita) {
 }
 
 # Roda a receita num espaço próprio, onde os objetos têm os nomes do aluno.
-# Assim, o código mostrado e o código executado são o mesmo texto.
-executar_receita <- function(receita, objetos, pacotes, mostrar_codigo) {
+# Assim, o código mostrado e o código executado são o mesmo texto. Quando a
+# receita repete o código que o aluno escreveu (resultado$resumo), ela roda
+# a partir do lugar de onde a função foi chamada, para achar os objetos dele.
+executar_receita <- function(receita, objetos, pacotes, mostrar_codigo,
+                             ambiente_do_aluno = globalenv()) {
   for (pacote in pacotes) {
     suppressPackageStartupMessages(library(pacote, character.only = TRUE))
   }
   if (mostrar_codigo) mostrar_receita(receita)
-  ambiente <- list2env(objetos, parent = globalenv())
+  ambiente <- list2env(objetos, parent = ambiente_do_aluno)
   eval(parse(text = receita, keep.source = FALSE), envir = ambiente)
 }
 
