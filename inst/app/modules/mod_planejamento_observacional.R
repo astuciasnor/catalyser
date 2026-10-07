@@ -197,7 +197,9 @@ escrever_excel_transversal <- function(coleta, orientacoes, arquivo,
 # Esquema do plano: uma coleta, grupos e UAs com seus pools.
 # O desenho usa o plano em memória, tanto na tela como no Word.
 # As setas são a estrutura do delineamento: coleta -> grupo -> UA.
-desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = character()) {
+desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = character(), item = "item a definir") {
+  item <- trimws(item)
+  if (!nzchar(item)) item <- "item a definir"
   n_grupos <- nrow(resumo)
   centros <- rev(seq_len(n_grupos)) * 3.35
   origem <- mean(centros)
@@ -242,8 +244,8 @@ desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = char
     seta(2.0, 3.15, origem, y, cor = cores[i])
     caixa(3.25, 6.35, y - 0.70, y + 0.70, if (i %% 2) "#F1F7F8" else "#E6F3F1")
     texto(4.8, y + 0.20, quebra(resumo$Grupo[i]), 3.35, TRUE)
-    texto(4.8, y - 0.42, sprintf("%d %s · pool de %d %s", n,
-      if (n == 1) "UA" else "UAs", k, if (k == 1) "item" else "itens"), 2.75)
+    texto(4.8, y - 0.42, quebra(sprintf("%d %s · %d %s/UA (%s)", n,
+      if (n == 1) "UA" else "UAs", k, if (k == 1) "item" else "itens", item), 42), 2.55)
 
     # As setas seguintes são as unidades que pertencem a cada grupo.
     exibidas <- min(n, 5L)
@@ -259,9 +261,9 @@ desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = char
 
     # Apenas um pequeno detalhe por grupo empresta a leitura do esquema novo:
     # bolinha única é item único; várias bolinhas são pool físico.
-    caixa(9.25, 15.55, y - 0.62, y + 0.62, "#FAFCFC", "#D9E8E9")
-    texto(12.45, y + 0.30, if (k == 1) "item único → uma UA" else
-      sprintf("%d itens → uma UA", k), 3.05, TRUE)
+    caixa(9.25, 15.55, y - 0.82, y + 0.82, "#FAFCFC", "#D9E8E9")
+    texto(12.45, y + 0.30, quebra(sprintf("%d %s (%s) → uma UA", k,
+      if (k == 1) "item" else "itens", item), 30), 3.05, TRUE)
     itens_x <- seq(10.35, 10.35 + 0.28 * (min(k, 5L) - 1), length.out = min(k, 5L))
     p <- p + ggplot2::annotate("point", x = itens_x, y = y - 0.16,
       shape = 21, size = 2.55, fill = cores[i], colour = "white")
@@ -279,12 +281,12 @@ desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = char
   texto(8, 0.75, sprintf("%d %s · %d %s = %d %s de coleta · %d %s",
     n_grupos, if (grepl("×", fator, fixed = TRUE)) "combinações de fatores" else if (n_grupos == 1) "grupo" else "grupos",
     total, if (total == 1) "UA" else "UAs", total, if (total == 1) "linha" else "linhas",
-    itens, if (itens == 1) "item previsto" else "itens previstos"), 2.75)
+    itens, sprintf("unidades físicas previstas (%s)", item)), 2.65)
   p + ggplot2::coord_cartesian(xlim = c(0, 16), ylim = c(0, topo + 1.25), expand = FALSE, clip = "off") +
     ggplot2::labs(title = "Delineamento transversal comparativo",
       subtitle = "Comparação entre grupos preexistentes em um único recorte temporal. As setas mostram a hierarquia da coleta.",
       caption = paste0("Cada seta que sai de um grupo representa uma UA. Mostram-se até 5 UAs por grupo; a ficha preserva os totais.\n",
-        "Bolinha única = item único; várias bolinhas = pool físico. O esquema não tem escala espacial e não comprova independência nem causalidade.")) +
+        "Cada bolinha é a unidade física declarada acima; várias bolinhas indicam pool físico. O esquema não tem escala espacial e não comprova independência nem causalidade.")) +
     ggplot2::theme_void(base_size = 12) + ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", colour = "#0F3B5F", size = 15, hjust = 0),
       plot.subtitle = ggplot2::element_text(size = 10, margin = ggplot2::margin(b = 12)),
@@ -465,7 +467,7 @@ desenhar_plano_longitudinal <- function(coleta, fator, unidade, momentos,
       plot.margin = ggplot2::margin(12, 16, 12, 16), plot.background = ggplot2::element_rect(fill = "white", colour = NA))
 }
 
-escrever_word_transversal <- function(arquivo, pergunta, metodologia, resumo, dicionario, cuidados, coleta, esquema, longitudinal = FALSE, fonte = "Curadoria EAPA: Planejamento_03_TRANSVERSAL, exemplo de bexigas natatórias (setembro de 2026). Referências de apoio registradas na curadoria: Hurlbert (1984), Quinn e Keough (2002), Blainey, Krzywinski e Altman (2014) e Wickham (2014).", titulo_documento = NULL, impacto = FALSE) {
+escrever_word_transversal <- function(arquivo, pergunta, metodologia, resumo, dicionario, cuidados, coleta, esquema, longitudinal = FALSE, fonte = "Curadoria EAPA: Planejamento_03_TRANSVERSAL, exemplo de bexigas natatórias (setembro de 2026). Referências de apoio registradas na curadoria: Hurlbert (1984), Quinn e Keough (2002), Blainey, Krzywinski e Altman (2014) e Wickham (2014).", titulo_documento = NULL, impacto = FALSE, item = "itens") {
   # O Word é criado diretamente: este download não depende do Quarto instalado.
   doc <- officer::read_docx()
   doc <- officer::body_set_default_section(doc, officer::prop_section(
@@ -499,7 +501,7 @@ escrever_word_transversal <- function(arquivo, pergunta, metodologia, resumo, di
   for (p in strsplit(metodologia, "\n\n", fixed = TRUE)[[1]]) paragrafo(p)
   titulo("Distribuição prevista das unidades amostrais")
   tabela(resumo)
-  if (impacto) paragrafo(sprintf("Total previsto: %d sítios e %d linhas de coleta (sítio × campanha × subamostra). Essas contagens não demonstram independência nem representam um cálculo de tamanho amostral.", sum(resumo$UAs_iniciais), sum(resumo$Linhas))) else if (longitudinal) paragrafo(sprintf("Total previsto: %d UAs iniciais e %d linhas de coleta (UA × momento).", sum(resumo$UAs_iniciais), sum(resumo$Linhas))) else paragrafo(sprintf("Total previsto: %d UAs e %d itens. Essas quantidades descrevem o plano informado; não representam um cálculo de tamanho amostral nem um sorteio realizado.", sum(resumo$UAs), sum(resumo[["Itens previstos"]])))
+  if (impacto) paragrafo(sprintf("Total previsto: %d sítios e %d linhas de coleta (sítio × campanha × subamostra). Essas contagens não demonstram independência nem representam um cálculo de tamanho amostral.", sum(resumo$UAs_iniciais), sum(resumo$Linhas))) else if (longitudinal) paragrafo(sprintf("Total previsto: %d UAs iniciais e %d linhas de coleta (UA × momento).", sum(resumo$UAs_iniciais), sum(resumo$Linhas))) else paragrafo(sprintf("Total previsto: %d UAs e %d unidades físicas (%s). Essas quantidades descrevem o plano informado; não representam um cálculo de tamanho amostral nem um sorteio realizado.", sum(resumo$UAs), sum(resumo[["Itens previstos"]]), item))
   # Cada quebra encerra a seção anterior. O restante volta ao retrato padrão.
   secao <- function(horizontal = FALSE) officer::block_section(officer::prop_section(
     page_size = officer::page_size(width = 8.27, height = 11.69,
@@ -956,7 +958,9 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
               } else if (tipo_resolvido == "transversal_comparativo") {
                 shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
                   shiny::h5(shiny::icon("layer-group"), " 3. UAs e pool por categoria"),
-                  shiny::p(class = "small text-muted", "Cada UA ocupa uma linha. Pool conta os itens misturados fisicamente numa amostra composta; 1 indica um indivíduo. Uma média de medidas individuais é um resumo, não um pool."),
+                  shiny::textInput(ns("unidade_item"), "O que é cada item ou porção física?",
+                    value = "peixe individual", placeholder = "Ex.: peixe individual; garrafa de água (1 L); porção de 1 kg de sedimento"),
+                  shiny::p(class = "small text-muted", "Descreva a unidade física que forma cada UA. Pool conta itens ou porções misturados numa amostra composta; 1 indica uma unidade física, e não necessariamente um indivíduo. Uma média de medidas individuais é um resumo, não um pool."),
                   shiny::uiOutput(ns("ui_amostra_categorias")),
                   shiny::div(class = "mt-2", shiny::uiOutput(ns("alerta_pool_diagnostico")))
                 )
@@ -1152,7 +1156,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
       if (tipo_resolvido == "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
         bslib::card_body(fillable = FALSE,
-          shiny::p("Leia da esquerda para a direita: a coleta se abre para os grupos e as setas seguintes levam às UAs. À direita, as bolinhas mostram se cada UA é formada por item único ou por um pool; o rodapé informa as respostas registradas."),
+          shiny::p("Leia da esquerda para a direita: a coleta se abre para os grupos e as setas seguintes levam às UAs. À direita, as bolinhas mostram a unidade física declarada — por exemplo, peixe, garrafa de água ou porção de sedimento — e se cada UA é formada por uma unidade ou por um pool; o rodapé informa as respostas registradas."),
           shiny::uiOutput(ns("esquema_transversal_ui")))) ,
       if (tipo_resolvido != "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
@@ -1377,6 +1381,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         shiny::updateTextInput(session, "fator_nome", value = "faixa_ambiental")
         shiny::updateTextInput(session, "fator_niveis",
           value = "Estuário interno, Estuário externo, Costa")
+        shiny::updateTextInput(session, "unidade_item", value = "garrafa de água (1 L)")
         shiny::updateCheckboxInput(session, "usar_fator2", value = FALSE)
         shiny::updateCheckboxInput(session, "registrar_coordenadas", value = TRUE)
         shiny::updateTextInput(session, "espacamento_minimo_m", value = "")
@@ -1793,7 +1798,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       shiny::tags$table(class = "obs-amostra-tabela",
         shiny::tags$thead(shiny::tags$tr(shiny::tags$th(ou_vazio(input$fator_nome, "Categoria")),
           if (segundo_fator()) shiny::tags$th(ou_vazio(input$fator2_nome, "Segundo fator")),
-          shiny::tags$th("UAs"), shiny::tags$th("Itens por UA (pool)"))),
+          shiny::tags$th("UAs"), shiny::tags$th(paste0("Unidades físicas por UA (", ou_vazio(input$unidade_item, "item a definir"), ")")))),
         shiny::tags$tbody(linhas))
     })
 
@@ -1881,9 +1886,9 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         return(shiny::div(class = "alert alert-light border py-2 px-3 small mb-0",
           style = "border-left: 4px solid #2E7D8F !important;",
           shiny::tags$b("Confira a composição das UAs. "),
-          sprintf("%d %s: %d UAs e %d indivíduos/itens previstos. ", nrow(resumo), if (segundo_fator()) "combinações de níveis" else "categorias", sum(resumo$UAs), sum(resumo[["Itens previstos"]])),
+          sprintf("%d %s: %d UAs e %d unidades físicas previstas (%s). ", nrow(resumo), if (segundo_fator()) "combinações de níveis" else "categorias", sum(resumo$UAs), sum(resumo[["Itens previstos"]]), ou_vazio(input$unidade_item, "item a definir")),
           if (segundo_fator()) "A quantidade de UAs vale para cada combinação, por exemplo, para cada espécie e sexo. Cada pool deve reunir itens da mesma combinação; não misture categorias dos fatores estudados. ",
-          "Pool = 1 indica um indivíduo; pool maior que 1 indica uma amostra composta. ",
+          sprintf("Pool = 1 indica uma unidade física (%s); pool maior que 1 indica uma amostra composta. ", ou_vazio(input$unidade_item, "item a definir")),
           "O número de UAs não inclui repetições de bancada. Pools diferentes podem alterar a variabilidade; confirme a massa disponível para todos os ensaios."))
       }
       # No gradiente este espaço é o resumo do plano: estações, linhas e a
@@ -2186,6 +2191,12 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       fator_col <- fator_nome_limpo()
       unidade_col <- unidade_coluna_nome()
       impacto <- identical(tipo_resolvido, "impacto")
+      item_pool <- if (identical(tipo_resolvido, "transversal_comparativo")) ou_vazio(input$unidade_item, "item a definir") else "indivíduos/porções"
+      descricao_pool <- if (identical(tipo_resolvido, "transversal_comparativo")) {
+        paste0("Quantidade de unidades físicas para compor a UA. Unidade declarada: ", item_pool, ". Pool = 1 indica uma unidade; pool maior que 1 indica mistura física.")
+      } else {
+        "Quantidade de itens misturados para compor a UA (pool = 1 indica item único)"
+      }
       df_dict <- data.frame(
         coluna = c(unidade_col, fator_col, "replica", "pool"),
         tipo = c("Identificador", "Qualitativa nominal", "Contagem / Ordem", "Contagem (itens por UA)"),
@@ -2195,12 +2206,12 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
           if (tipo_resolvido == "longitudinal") "Ordem da UA dentro do grupo" else "Réplica do grupo",
           "Amostra composta (pool)"
         ),
-        unidade = c("", "", "", "indivíduos/porções"),
+        unidade = c("", "", "", item_pool),
         descricao = c(
           if (impacto) "Identificador único do sítio amostral" else if (tipo_resolvido == "longitudinal") "Código permanente da UA acompanhada; a independência precisa ser justificada pelo desenho e pela origem" else "Identificador único da unidade amostral independente",
           paste(if (impacto) "Condições do sítio:" else "Níveis do fator:", paste(niveis_primeiro_fator(), collapse = ", ")),
           if (tipo_resolvido == "longitudinal") "Número da UA dentro do grupo; não representa uma réplica do ambiente" else "Número da réplica independente dentro de cada grupo",
-          "Quantidade de itens misturados para compor a UA (pool = 1 indica item único)"
+          descricao_pool
         ),
         stringsAsFactors = FALSE
       )
@@ -2381,10 +2392,11 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         if (segundo_fator()) fator_extenso <- paste(fator_extenso, "e", ou_vazio(input$fator2_nome, "sexo"))
         total <- sum(quantidades)
         sem_pool <- all(unname(pools[grupos]) == 1L)
+        item <- ou_vazio(input$unidade_item, "item a definir")
         composicao <- if (sem_pool) {
-          "Não haverá amostra composta: cada UA corresponderá a uma estação e a uma amostra de água. A coluna pool terá valor 1 apenas para registrar que a amostra não foi formada pela mistura de itens."
+          paste0("Não haverá amostra composta: cada UA será formada por 1 item (", item, "). A coluna pool terá valor 1 apenas para registrar que a UA não foi formada pela mistura de unidades físicas.")
         } else {
-          paste0(paste(sprintf("%s: %d UAs, com %d item(ns) por UA", grupos, quantidades, unname(pools[grupos])), collapse = "; "), ". Quando houver pool, cada item contribuirá com a mesma massa ou volume e integrará somente uma UA.")
+          paste0(paste(sprintf("%s: %d UAs, com %d itens (%s) por UA", grupos, quantidades, unname(pools[grupos]), item), collapse = "; "), ". Quando houver pool, cada unidade física contribuirá com a mesma massa ou volume e integrará somente uma UA.")
         }
         espacamento <- trimws(ou_vazio(input$espacamento_minimo_m, ""))
         plano_espacial <- if (isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) c(
@@ -2395,6 +2407,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         return(paste(c(
           sprintf("Será realizado um estudo observacional transversal comparativo entre as categorias de %s (%s), em um único recorte temporal. Serão previstas %d unidades amostrais, distribuídas por categoria conforme o plano de coleta. A independência dessas unidades deverá ser assegurada pelo plano de seleção e pela consideração da origem das amostras.", fator_extenso, paste(grupos, collapse = ", "), total),
           paste("Local e período previstos:", ou_vazio(input$local_periodo, "A definir antes da coleta.")),
+          paste("Unidade física declarada:", item),
           paste("Composição prevista das unidades:", composicao),
           paste("Critérios de seleção e formação das UAs:", ou_vazio(input$criterios_coleta, "A definir: população, elegibilidade, janela biométrica quando pertinente, lotes e seleção dentro de cada grupo.")),
           paste("Procedimentos de coleta e medição:", ou_vazio(input$procedimentos_coleta, "A definir: identificação, conservação, preparo e métodos de medição.")),
@@ -2755,6 +2768,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
             if (length(unique(quantidades)) == 1L) unname(quantidades[1]) else NULL
           } else n_uas,
           uas_por_grupo = if (tipo_resolvido == "transversal_comparativo") uas_por_grupo() else NULL,
+          item_por_ua = if (tipo_resolvido == "transversal_comparativo") ou_vazio(input$unidade_item, "item a definir") else NULL,
           niveis = length(grupos),
           subamostra_coluna = col_subamostra,
           subamostras_por_sitio = if (tem_subamostras) subamostras else NULL,
@@ -2787,15 +2801,16 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       n_respostas <- max(1L, min(10L, as.integer(ou_vazio(input$n_vars_resposta, 2))))
       respostas <- vapply(seq_len(n_respostas), function(i)
         ou_vazio(input[[paste0("var_nome_", i)]], paste0("resposta_", i)), character(1))
-      desenhar_plano_transversal(resumo_transversal(), fator, respostas)
+      desenhar_plano_transversal(resumo_transversal(), fator, respostas,
+        ou_vazio(input$unidade_item, "item a definir"))
     })
     output$resumo_transversal_intro <- shiny::renderUI({
       resumo <- resumo_transversal()
       shiny::tagList(
         shiny::p(shiny::strong("Pergunta: "), ou_vazio(input$pergunta, "A definir")),
         shiny::p(shiny::strong("Local e período: "), ou_vazio(input$local_periodo, "A definir")),
-        shiny::p(sprintf("%d grupos · %d UAs · %d itens previstos", nrow(resumo),
-          sum(resumo$UAs), sum(resumo[["Itens previstos"]])))
+        shiny::p(sprintf("%d grupos · %d UAs · %d unidades físicas previstas (%s)", nrow(resumo),
+          sum(resumo$UAs), sum(resumo[["Itens previstos"]]), ou_vazio(input$unidade_item, "item a definir")))
       )
     })
     output$resumo_transversal_tabela <- shiny::renderTable({ resumo_transversal() },
@@ -2882,8 +2897,8 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
           nrow(tab), ou_vazio(input$n_vars_resposta, 2)))
     }, striped = TRUE, bordered = TRUE, spacing = "s", rownames = FALSE)
     cuidados_transversal <- c(
-      "Uma linha da coleta representa uma UA: um indivíduo (pool = 1) ou uma amostra composta. O número de UAs é o n do planejamento; sua independência depende da seleção e da origem das amostras.",
-      "Se houver pool, cada indivíduo deve contribuir com a mesma massa e integrar uma única UA. Registre os indivíduos e sua ligação com a UA nos registros de campo ou laboratório.",
+      "Uma linha da coleta representa uma UA: uma unidade física declarada (pool = 1) ou uma amostra composta. O número de UAs é o n do planejamento; sua independência depende da seleção e da origem das amostras.",
+      "Especifique a unidade física que forma cada UA, por exemplo, 1 peixe, 1 garrafa de água (1 L) ou 1 kg de sedimento. Se houver pool, cada unidade deve contribuir com a mesma massa ou volume e integrar uma única UA.",
       "Com dois fatores, cada UA recebe uma categoria de cada fator. Um pool não deve misturar categorias dos fatores em comparação. O n é contado por combinação e não duplicado por haver dois fatores.",
       "Medidas internas e réplicas de bancada não aumentam o n. Guarde as leituras individuais e registre o resumo adequado por UA. A ficha transversal não tem n_medidas; documente a contagem nos registros de campo. Pool indica mistura física, não média.",
       "Defina a população, a elegibilidade e a seleção dentro de cada grupo antes da coleta. Registre lote, local e data; indivíduos do mesmo lote podem apresentar dependência.",
@@ -2896,9 +2911,10 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       dic <- dicionario_dados()
       rbind(
         orientacoes_contexto(),
-        data.frame(secao = "Planejamento", campo = c("Pergunta", "Local e período", "Seleção", "Procedimentos", "Distância mínima entre estações (m)", "Hidrodinâmica e estudo-piloto", "Coordenadas previstas"),
+        data.frame(secao = "Planejamento", campo = c("Pergunta", "Local e período", "Seleção", "Procedimentos", "Item ou porção física", "Distância mínima entre estações (m)", "Hidrodinâmica e estudo-piloto", "Coordenadas previstas"),
           orientacao = c(ou_vazio(input$pergunta, "A definir"), ou_vazio(input$local_periodo, "A definir"),
             ou_vazio(input$criterios_coleta, "A definir"), ou_vazio(input$procedimentos_coleta, "A definir"),
+            ou_vazio(input$unidade_item, "item a definir"),
             ou_vazio(input$espacamento_minimo_m, "A definir após piloto e avaliação hidrodinâmica"),
             ou_vazio(input$justificativa_espacamento, "A definir antes da coleta"),
             if (isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) sprintf("Latitude e longitude WGS 84 por estação; precisão horizontal máxima: %d m.", as.integer(ou_vazio(input$precisao_gps_m, 5))) else "Não solicitadas nesta ficha")),
@@ -2963,7 +2979,8 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         if (identical(tipo_resolvido, "transversal_comparativo")) {
           escrever_word_transversal(file, ou_vazio(input$pergunta, "A definir"),
             texto_metodologia_artigo_str(), resumo_transversal(), dicionario_dados(),
-            cuidados_transversal, tabela_coleta_dados(), esquema_transversal())
+            cuidados_transversal, tabela_coleta_dados(), esquema_transversal(),
+            item = ou_vazio(input$unidade_item, "item a definir"))
           return(invisible(NULL))
         }
         if (tipo_resolvido == "longitudinal") {
