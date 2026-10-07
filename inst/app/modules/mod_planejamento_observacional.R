@@ -823,6 +823,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                 if (tipo_resolvido %in% c("transversal_comparativo", "longitudinal")) shiny::tagList(
                   shiny::selectInput(ns("comparacao_ambiental"), "Comparação ambiental (opcional):",
                     choices = c("Não se aplica" = "na",
+                      "Faixas de um mesmo sistema (ex.: estuário interno, externo e costa)" = "faixas",
                       "Ambientes específicos escolhidos (ex.: três estuários)" = "especificos",
                       "Categorias de ambientes (ex.: reservatórios eutrofizados e pouco eutrofizados)" = "categorias"),
                     selected = "na", width = "100%"),
@@ -833,6 +834,19 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                   shiny::textAreaInput(ns("procedimentos_coleta"), "Procedimentos de coleta e medição:",
                     placeholder = if (tipo_resolvido == "longitudinal") "Descreva identificação permanente, biometria, horário, maré e protocolo entre visitas." else "Descreva identificação, conservação, preparo, ensaios e unidades de medida.", rows = 3, width = "100%")
                 ),
+                if (tipo_resolvido == "transversal_comparativo") shiny::div(class = "mt-3",
+                  shiny::h5(shiny::icon("location-dot"), " Espaçamento e localização das estações"),
+                  shiny::p(class = "small text-muted", "Use estes campos quando a UA for uma estação ou ponto de coleta. A distância mínima é uma decisão do protocolo; ela não é provada pelo desenho."),
+                  shiny::textInput(ns("espacamento_minimo_m"), "Distância mínima planejada entre estações (m):",
+                    placeholder = "Deixe em branco até concluir o piloto e a avaliação hidrodinâmica.", width = "100%"),
+                  shiny::textAreaInput(ns("justificativa_espacamento"), "Hidrodinâmica, estudo-piloto e justificativa do espaçamento:",
+                    placeholder = "Descreva circulação, maré, conectividade, alcance espacial e como o piloto orientará a distância mínima.", rows = 3, width = "100%"),
+                  shiny::checkboxInput(ns("registrar_coordenadas"), "Incluir coordenadas previstas de cada estação na ficha de coleta", FALSE),
+                  shiny::conditionalPanel(condition = sprintf("input['%s']", ns("registrar_coordenadas")),
+                    bslib::layout_columns(col_widths = c(7, 5), gap = "10px",
+                      shiny::selectInput(ns("referencia_coordenadas"), "Sistema de referência:",
+                        choices = c("WGS 84 — latitude / longitude decimal" = "WGS84"), width = "100%"),
+                      shiny::numericInput(ns("precisao_gps_m"), "Precisão horizontal máxima (m):", 5, min = 1, step = 1, width = "100%")))) ,
                 shiny::div(class = if (tipo_resolvido == "transversal_comparativo") "obs-fator-niveis" else NULL,
                 if (tipo_resolvido == "transversal_comparativo") shiny::h5(shiny::icon("tags"), " 2. Fator (variável independente) e seus níveis ou grupos"),
                 shiny::textInput(
@@ -1042,6 +1056,28 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
     ),
     bslib::navset_card_tab(
       id = ns("etapas"),
+
+      # Exercício de entrada: aplica um cenário pequeno e deixa explícitas as
+      # decisões espaciais que a turma ainda precisa justificar.
+      if (tipo_resolvido == "transversal_comparativo") bslib::nav_panel(
+        "Exercício", icon = shiny::icon("graduation-cap"),
+        bslib::card_body(fillable = FALSE,
+          bslib::layout_columns(col_widths = c(7, 5), gap = "20px",
+            shiny::div(class = "obs-card-interno",
+              shiny::h5(shiny::icon("water"), " Exercício: faixas ambientais de um sistema estuarino"),
+              shiny::p("Em uma única campanha, compare três faixas do mesmo sistema: estuário interno, estuário externo e costa. Cada faixa terá cinco estações independentes; em cada estação será coletada uma amostra de água. Não haverá amostra composta (pool)."),
+              shiny::p(class = "small text-muted", "O exercício gera 15 UAs e 15 linhas de coleta. Elas representam a variação entre estações dentro deste sistema; não representam automaticamente todos os estuários e costas da região."),
+              shiny::actionButton(ns("usar_exercicio_faixas"), "Usar este cenário no formulário", icon = shiny::icon("arrow-right"), class = "btn-primary")),
+            shiny::div(class = "obs-card-interno",
+              shiny::h5(shiny::icon("pen-to-square"), " O que a turma deve completar"),
+              shiny::tags$ol(class = "small ps-3 mb-2",
+                shiny::tags$li("Definir pergunta, respostas, sistema, período e janela de maré."),
+                shiny::tags$li("Delimitar o quadro amostral e justificar como as estações serão selecionadas."),
+                shiny::tags$li("Registrar latitude e longitude previstas de cada estação, em WGS 84, com precisão horizontal de até 5 m."),
+                shiny::tags$li("Explicar como hidrodinâmica, conectividade e estudo-piloto definirão o espaçamento mínimo.")),
+              shiny::div(class = "alert alert-warning small mb-0",
+                shiny::tags$b("Não fixe 100 ou 200 m por convenção. "),
+                "As distâncias reais podem variar; a distância mínima precisa ser justificada para este sistema antes da coleta."))))),
       
       # ABA 1: O DELINEAMENTO E VARIÁVEIS DE RESPOSTA (3 COLUNAS)
       bslib::nav_panel("Definições", icon = shiny::icon("compass-drafting"),
@@ -1331,6 +1367,38 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       if (is.null(valor) || !length(valor) || (is.character(valor) && !nzchar(valor))) padrao else valor
     }
 
+    # O cenário didático não resolve o planejamento pelo aluno: só preenche a
+    # estrutura mínima para que ele complete o local, a seleção e a justificativa.
+    if (identical(tipo_resolvido, "transversal_comparativo")) {
+      shiny::observeEvent(input$usar_exercicio_faixas, {
+        shiny::updateTextInput(session, "pergunta",
+          value = "A qualidade da água difere entre as faixas ambientais deste sistema estuarino?")
+        shiny::updateSelectInput(session, "comparacao_ambiental", selected = "faixas")
+        shiny::updateTextInput(session, "fator_nome", value = "faixa_ambiental")
+        shiny::updateTextInput(session, "fator_niveis",
+          value = "Estuário interno, Estuário externo, Costa")
+        shiny::updateCheckboxInput(session, "usar_fator2", value = FALSE)
+        shiny::updateCheckboxInput(session, "registrar_coordenadas", value = TRUE)
+        shiny::updateTextInput(session, "espacamento_minimo_m", value = "")
+        shiny::updateTextAreaInput(session, "justificativa_espacamento", value = "")
+        shiny::updateNumericInput(session, "precisao_gps_m", value = 5)
+        shiny::updateNumericInput(session, "n_vars_resposta", value = 3)
+        shiny::updateTabsetPanel(session, "etapas", selected = "Definições")
+        session$onFlushed(function() {
+          for (i in seq_len(3)) {
+            shiny::updateNumericInput(session, id_amostra(i), value = 5)
+            shiny::updateNumericInput(session, id_amostra(i, TRUE), value = 1)
+          }
+          shiny::updateTextInput(session, "var_nome_1", value = "salinidade")
+          shiny::updateTextInput(session, "var_unidade_1", value = "psu")
+          shiny::updateTextInput(session, "var_nome_2", value = "turbidez")
+          shiny::updateTextInput(session, "var_unidade_2", value = "NTU")
+          shiny::updateTextInput(session, "var_nome_3", value = "oxigenio_dissolvido")
+          shiny::updateTextInput(session, "var_unidade_3", value = "mg/L")
+        }, once = TRUE)
+      }, ignoreInit = TRUE)
+    }
+
     n_longitudinal <- shiny::reactive({
       n <- as.numeric(ou_vazio(input$n_uas, 4))
       perda <- as.numeric(ou_vazio(input$perda_pct, 20)) / 100
@@ -1618,6 +1686,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
     }, ignoreInit = TRUE)
     alcance_comparacao <- shiny::reactive({
       switch(ou_vazio(input$comparacao_ambiental, "na"),
+        faixas = "As diferenças serão interpretadas como associadas às faixas deste sistema estudado, no período informado. As estações descrevem a variação dentro do sistema; não são réplicas de outros estuários ou costas.",
         especificos = "As diferenças serão interpretadas como associadas aos ambientes estudados, nos locais e no período de coleta informados; não identificarão qual variável ambiental as produziu.",
         categorias = "A associação entre categoria e resposta dependerá de ambientes distintos em cada categoria. O número e a seleção desses ambientes deverão ser descritos no projeto; UAs de cultivo não serão usadas como sua contagem. Outras características que acompanham a categoria poderão contribuir para as diferenças, na região e no período estudados.",
         "As diferenças serão interpretadas como associadas aos grupos estudados, considerando os locais, o período e os critérios de seleção informados, sem estabelecer uma causa específica.")
@@ -1997,11 +2066,24 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         stringsAsFactors = FALSE
       )
       names(df)[names(df) == "fator"] <- fator_col
+      # Quando o plano pede localização, cada UA recebe as coordenadas previstas
+      # e a precisão exigida. Os valores ficam em branco até a definição em mapa
+      # ou em campo; não são coordenadas inventadas pela CatalyseR.
+      if (identical(tipo_resolvido, "transversal_comparativo") &&
+          isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) {
+        df$latitude_wgs84 <- ""
+        df$longitude_wgs84 <- ""
+        df$precisao_gps_m <- as.integer(ou_vazio(input$precisao_gps_m, 5))
+      }
       if (segundo_fator()) {
         combinacoes <- combinacoes_transversal()
         df[[fator_col]] <- rep(combinacoes$primeiro, times = quantidades)
         df[[fator2_coluna()]] <- rep(combinacoes$segundo, times = quantidades)
-        df <- df[c("ua", fator_col, fator2_coluna(), "replica", "pool")]
+        colunas <- c("ua", fator_col, fator2_coluna(), "replica", "pool")
+        if (isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) {
+          colunas <- c(colunas, "latitude_wgs84", "longitude_wgs84", "precisao_gps_m")
+        }
+        df <- df[colunas]
       }
 
       # No longitudinal e no impacto (BA ou BACI) a planilha fica longa: cada
@@ -2126,6 +2208,20 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         coluna = fator2_coluna(), tipo = "Qualitativa nominal", papel = "Segundo fator observado",
         unidade = "", descricao = paste("Níveis:", paste(unique(combinacoes_transversal()$segundo), collapse = ", ")),
         stringsAsFactors = FALSE))
+      if (identical(tipo_resolvido, "transversal_comparativo") &&
+          isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) {
+        precisao <- as.integer(ou_vazio(input$precisao_gps_m, 5))
+        df_dict <- rbind(df_dict, data.frame(
+          coluna = c("latitude_wgs84", "longitude_wgs84", "precisao_gps_m"),
+          tipo = c("Quantitativa contínua", "Quantitativa contínua", "Quantitativa contínua"),
+          papel = c("Localização prevista da UA", "Localização prevista da UA", "Qualidade do posicionamento"),
+          unidade = c("graus decimais", "graus decimais", "m"),
+          descricao = c(
+            "Latitude prevista da estação no sistema WGS 84; preencher após mapear ou localizar a UA.",
+            "Longitude prevista da estação no sistema WGS 84; preencher após mapear ou localizar a UA.",
+            sprintf("Precisão horizontal máxima planejada para o GPS: %d m. Não demonstra independência entre estações.", precisao)
+          ), stringsAsFactors = FALSE))
+      }
       # No longitudinal e no impacto BACI o dicionário ganha o momento.
       if (identical(tipo_resolvido, "longitudinal") ||
           (impacto && impacto_com_momentos())) {
@@ -2284,13 +2380,25 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
         quantidades <- unname(uas_por_grupo()[grupos])
         if (segundo_fator()) fator_extenso <- paste(fator_extenso, "e", ou_vazio(input$fator2_nome, "sexo"))
         total <- sum(quantidades)
-        composicao <- paste(sprintf("%s: %d UAs, com %d item(ns) por UA", grupos, quantidades, unname(pools[grupos])), collapse = "; ")
+        sem_pool <- all(unname(pools[grupos]) == 1L)
+        composicao <- if (sem_pool) {
+          "Não haverá amostra composta: cada UA corresponderá a uma estação e a uma amostra de água. A coluna pool terá valor 1 apenas para registrar que a amostra não foi formada pela mistura de itens."
+        } else {
+          paste0(paste(sprintf("%s: %d UAs, com %d item(ns) por UA", grupos, quantidades, unname(pools[grupos])), collapse = "; "), ". Quando houver pool, cada item contribuirá com a mesma massa ou volume e integrará somente uma UA.")
+        }
+        espacamento <- trimws(ou_vazio(input$espacamento_minimo_m, ""))
+        plano_espacial <- if (isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) c(
+          sprintf("Serão registradas para cada estação latitude e longitude previstas no sistema WGS 84, com precisão horizontal planejada de até %d m.", as.integer(ou_vazio(input$precisao_gps_m, 5))),
+          if (nzchar(espacamento)) paste("Distância mínima declarada entre estações:", espacamento, "m. Ela deverá ser justificada pelo estudo-piloto e pelo contexto hidrodinâmico.") else "A distância mínima entre estações ainda será definida após o estudo-piloto e a avaliação de hidrodinâmica, maré e conectividade.",
+          paste("Justificativa espacial:", ou_vazio(input$justificativa_espacamento, "A completar antes da coleta; as coordenadas e a contagem de estações não demonstram independência por si só."))
+        ) else character()
         return(paste(c(
           sprintf("Será realizado um estudo observacional transversal comparativo entre as categorias de %s (%s), em um único recorte temporal. Serão previstas %d unidades amostrais, distribuídas por categoria conforme o plano de coleta. A independência dessas unidades deverá ser assegurada pelo plano de seleção e pela consideração da origem das amostras.", fator_extenso, paste(grupos, collapse = ", "), total),
           paste("Local e período previstos:", ou_vazio(input$local_periodo, "A definir antes da coleta.")),
-          paste("Composição prevista das unidades:", composicao, ". Quando houver pool, cada indivíduo contribuirá com a mesma massa e integrará somente uma UA. As repetições de bancada serão resumidas por UA e não contadas como réplicas independentes."),
+          paste("Composição prevista das unidades:", composicao),
           paste("Critérios de seleção e formação das UAs:", ou_vazio(input$criterios_coleta, "A definir: população, elegibilidade, janela biométrica quando pertinente, lotes e seleção dentro de cada grupo.")),
           paste("Procedimentos de coleta e medição:", ou_vazio(input$procedimentos_coleta, "A definir: identificação, conservação, preparo e métodos de medição.")),
+          plano_espacial,
           "Cada UA ocupará uma linha da planilha. As respostas serão registradas nas unidades indicadas no dicionário de colunas; lote, data e ocorrências acompanharão os registros. A análise será definida considerando a natureza da resposta, a independência e os pressupostos. As diferenças entre grupos serão interpretadas como associações, considerando possíveis fatores de confusão.",
           alcance_comparacao()
         ), collapse = "\n\n"))
@@ -2457,9 +2565,10 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
 
       iguais <- pools_iguais()
       if (iguais) {
+        k <- pools_por_grupo()[1]
         shiny::div(class = "alert alert-success border mb-0",
           shiny::h6(class = "alert-heading fw-bold mb-1", shiny::icon("check"), " ANOVA de 1 Fator Clássica"),
-          shiny::p(class = "small mb-1", "Com tamanhos de pool homogêneos entre os grupos, a premissa de homogeneidade de variâncias decorrente do delineamento não é estruturalmente violada."),
+          shiny::p(class = "small mb-1", if (k == 1) "Não há amostra composta: cada UA contém um único item, como uma amostra de água em uma estação. A independência continua dependendo da seleção espacial e do contexto hidrodinâmico." else "Com tamanhos de pool homogêneos entre os grupos, a premissa de homogeneidade de variâncias decorrente do delineamento não é estruturalmente violada."),
           shiny::p(class = "small mb-0", shiny::tags$b("Fórmula no R: "), shiny::tags$code("lm(resposta ~ especie, data = dados)"), " ou ", shiny::tags$code("aov()"), " + TukeyHSD.")
         )
       } else {
@@ -2648,7 +2757,14 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
           uas_por_grupo = if (tipo_resolvido == "transversal_comparativo") uas_por_grupo() else NULL,
           niveis = length(grupos),
           subamostra_coluna = col_subamostra,
-          subamostras_por_sitio = if (tem_subamostras) subamostras else NULL
+          subamostras_por_sitio = if (tem_subamostras) subamostras else NULL,
+          localizacao_planejada = if (identical(tipo_resolvido, "transversal_comparativo") &&
+              isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) list(
+            sistema_referencia = ou_vazio(input$referencia_coordenadas, "WGS84"),
+            precisao_horizontal_m = as.integer(ou_vazio(input$precisao_gps_m, 5)),
+            espacamento_minimo_m = ou_vazio(input$espacamento_minimo_m, NULL),
+            justificativa_espacamento = ou_vazio(input$justificativa_espacamento, NULL)
+          ) else NULL
         ),
         n_planejado = NULL,
         sorteio = NULL,
@@ -2771,6 +2887,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       "Com dois fatores, cada UA recebe uma categoria de cada fator. Um pool não deve misturar categorias dos fatores em comparação. O n é contado por combinação e não duplicado por haver dois fatores.",
       "Medidas internas e réplicas de bancada não aumentam o n. Guarde as leituras individuais e registre o resumo adequado por UA. A ficha transversal não tem n_medidas; documente a contagem nos registros de campo. Pool indica mistura física, não média.",
       "Defina a população, a elegibilidade e a seleção dentro de cada grupo antes da coleta. Registre lote, local e data; indivíduos do mesmo lote podem apresentar dependência.",
+      "Quando a UA for uma estação, delimite primeiro o quadro amostral e registre as coordenadas. Não existe distância universal que garanta independência: hidrodinâmica, maré, conectividade, heterogeneidade do habitat e estudo-piloto orientam o espaçamento mínimo. Estações no mesmo sistema descrevem esse sistema; não replicam automaticamente outros sistemas.",
       "No exemplo de bexigas, confira a massa no pior caso e o consumo de todos os ensaios. Os pools e as metas da curadoria ainda precisam dessa conferência; não são uma recomendação universal.",
       "O estudo compara grupos preexistentes e descreve associações. Se espécie e origem estiverem confundidas (por exemplo, cultivo e captura), a diferença não pode ser atribuída somente à espécie.",
       "Pools diferentes podem alterar a variabilidade. A escolha da análise depende da resposta, da independência e dos pressupostos; o tamanho do pool, sozinho, não determina o teste."
@@ -2779,9 +2896,12 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       dic <- dicionario_dados()
       rbind(
         orientacoes_contexto(),
-        data.frame(secao = "Planejamento", campo = c("Pergunta", "Local e período", "Seleção", "Procedimentos"),
+        data.frame(secao = "Planejamento", campo = c("Pergunta", "Local e período", "Seleção", "Procedimentos", "Distância mínima entre estações (m)", "Hidrodinâmica e estudo-piloto", "Coordenadas previstas"),
           orientacao = c(ou_vazio(input$pergunta, "A definir"), ou_vazio(input$local_periodo, "A definir"),
-            ou_vazio(input$criterios_coleta, "A definir"), ou_vazio(input$procedimentos_coleta, "A definir"))),
+            ou_vazio(input$criterios_coleta, "A definir"), ou_vazio(input$procedimentos_coleta, "A definir"),
+            ou_vazio(input$espacamento_minimo_m, "A definir após piloto e avaliação hidrodinâmica"),
+            ou_vazio(input$justificativa_espacamento, "A definir antes da coleta"),
+            if (isTRUE(ou_vazio(input$registrar_coordenadas, FALSE))) sprintf("Latitude e longitude WGS 84 por estação; precisão horizontal máxima: %d m.", as.integer(ou_vazio(input$precisao_gps_m, 5))) else "Não solicitadas nesta ficha")),
         data.frame(secao = "Preenchimento", campo = c("Como preencher", "Exemplo ilustrativo", "Ausências"),
           orientacao = c("Preserve ua, grupo, replica e pool previstos. Preencha as respostas, lote_origem, data_coleta e observacoes. O cabeçalho está na primeira linha; não acrescente títulos acima dele.",
             "Exemplo fictício: lote_origem = barco_01; data_coleta = 2026-10-15. Para uma resposta em %, digite 12,5 (sem o símbolo). Este exemplo não é um dado coletado.",
