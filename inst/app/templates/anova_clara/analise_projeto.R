@@ -108,7 +108,8 @@ textos
 dir.create(here("saida", "tabelas"), recursive = TRUE, showWarnings = FALSE)
 dir.create(here("saida", "figuras"), recursive = TRUE, showWarnings = FALSE)
 
-tabelas <- list(resumo_grupos       = resultado$resumo,
+tabelas <- list(base                = base,           # a base preparada pela receita
+                resumo_grupos       = resultado$resumo,
                 anova               = resultado$anova,
                 tukey               = resultado$pares,
                 testes_pressupostos = resultado$pressupostos,

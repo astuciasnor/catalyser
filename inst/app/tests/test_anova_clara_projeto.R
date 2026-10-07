@@ -69,8 +69,11 @@ stopifnot(!any(grepl("{{", c(linhas_script, readme), fixed = TRUE)),
   !any(grepl("install_github|\"remotes\"", readme)),
   # Receita e carimbo no lugar da fotografia: nada de .rds no projeto.
   !any(grepl("readRDS|all.equal", linhas_script)),
-  !length(list.files(file.path(projeto, "dados", "processados"), pattern = "[.]rds$")),
-  file.exists(file.path(projeto, "dados", "processados", "base_compartilhada.xlsx")),
+  # dados/ guarda só a planilha, sem subpastas.
+  identical(list.files(file.path(projeto, "dados"), all.files = TRUE, no.. = TRUE),
+            "isoproteica_bagre.xlsx"),
+  any(grepl('here("dados", "isoproteica_bagre.xlsx")', linhas_script, fixed = TRUE)),
+  !any(grepl("brutos/|\"brutos\"|processados", linhas_script)),
   any(grepl("# Carimbo: 19 linhas.", linhas_script, fixed = TRUE)),
   any(grepl("# Contagem por racao: A 5; B 5; C 4; D 5.", linhas_script, fixed = TRUE)),
   any(grepl('mutate(racao = factor(racao, levels = c("A", "B", "C", "D")))', linhas_script, fixed = TRUE)),
@@ -80,7 +83,7 @@ for (documento in documentos) {
   stopifnot(!any(grepl("{{", qmd, fixed = TRUE)),
     !any(grepl("analise.R\"), encoding", qmd, fixed = TRUE)),
     !any(grepl("readRDS", qmd, fixed = TRUE)),
-    any(grepl("read_excel(here(\"dados\", \"brutos\"", qmd, fixed = TRUE)),
+    any(grepl("read_excel(here(\"dados\", \"isoproteica_bagre.xlsx\")", qmd, fixed = TRUE)),
     any(grepl("stopifnot(nrow(base) == 19L)", qmd, fixed = TRUE)),
     any(grepl("comparar_medias(resposta        = peso_g,", qmd, fixed = TRUE)),
     any(grepl("transmute(`Ração` = racao,", qmd, fixed = TRUE)),
@@ -163,6 +166,8 @@ if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) {
 
 # O script grava as cópias para compartilhar.
 stopifnot(file.exists(file.path(projeto, "saida", "tabelas", "resumo_grupos.csv")),
+  # A cópia da base para o Excel nasce da receita, com as 19 linhas.
+  nrow(read.csv2(file.path(projeto, "saida", "tabelas", "base.csv"))) == 19L,
   file.exists(file.path(projeto, "saida", "figuras", "barras.png")),
   file.exists(file.path(projeto, "saida", "sessionInfo.txt")))
 

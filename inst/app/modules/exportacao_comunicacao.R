@@ -2131,8 +2131,10 @@ exportacao_molde_projeto_script <- function(entrada, manifesto, nome_projeto,
 }
 
 # Rota ClaRa: as bibliotecas que R/funcoes.R já chama com pacote:: saem da
-# seção 1 do roteiro.
+# seção 1 do roteiro, e a planilha é lida direto de dados/, sem subpasta.
 exportacao_clara_ajustar_script <- function(linhas) {
+  linhas <- gsub('here("dados", "brutos", ', 'here("dados", ', linhas, fixed = TRUE)
+  linhas <- gsub("# Entrada: dados/brutos/", "# Entrada: dados/", linhas, fixed = TRUE)
   linhas[!grepl("^library\\((flextable|lubridate)\\)$", linhas)]
 }
 
@@ -2510,7 +2512,7 @@ exportacao_clara_receita <- function(manifesto, import_info, pipeline, registro_
   sem_comentario <- function(x) x[nzchar(trimws(x)) & !grepl("^\\s*#", x)]
   qmd <- c(
     "# A planilha e a receita de R/analise.R (seções 2 e 3).",
-    sprintf('dados_brutos <- as.data.frame(read_excel(here("dados", "brutos", "%s"), sheet = "%s"))',
+    sprintf('dados_brutos <- as.data.frame(read_excel(here("dados", "%s"), sheet = "%s"))',
             exportacao_nome_planilha(import_info), exportacao_aba_planilha(import_info)),
     sem_comentario(receita_final),
     travar
@@ -3594,8 +3596,10 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   }
   dir.create(projeto, recursive = TRUE, showWarnings = FALSE)
   # Imagens recebe fotos e esquemas do pesquisador, também no caminho ANOVA.
-  pastas <- c(file.path("dados", "brutos"),
-              file.path("dados", "processados"), "R", "imagens", "relatorios")
+  # Na rota ClaRa, dados/ guarda só a planilha: a base nasce da receita e a
+  # cópia dela para o Excel é gravada pelo script em saida/tabelas/.
+  pastas <- if (isTRUE(molde$clara)) c("dados", "R", "imagens", "relatorios") else
+    c(file.path("dados", "brutos"), file.path("dados", "processados"), "R", "imagens", "relatorios")
   # A pasta saida/ nasce na primeira execução do script (seção 2), que cria
   # dados/processados e saida/{tabelas,figuras,relatorios}. O projeto viaja sem
   # ela para o ZIP não carregar pastas vazias nem artefatos de build.
@@ -3621,34 +3625,37 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
   #                base_compartilhada.xlsx -> entrega, para uso fora do R.
   #
   # Nada de cópias redundantes: o que o projeto sabe reconstruir, ele reconstrói.
-  caminho_bruto <- file.path(projeto, "dados", "brutos", exportacao_nome_planilha(import_info))
+  pasta_bruta <- if (isTRUE(molde$clara)) "dados" else file.path("dados", "brutos")
+  caminho_bruto <- file.path(projeto, pasta_bruta, exportacao_nome_planilha(import_info))
   # Exporta somente os valores da aba importada, antes de qualquer preparo.
   # A pasta de trabalho original e suas outras abas ficam com o pesquisador.
   exportacao_salvar_planilha(dados_brutos, caminho_bruto, aba = exportacao_aba_planilha(import_info))
-  # Na rota ClaRa a base nasce da receita; não viaja fotografia em .rds.
-  if (!isTRUE(molde$clara)) exportacao_salvar_dataframe(
-    dados_analise, file.path(projeto, "dados", "processados", "base_compartilhada.rds")
-  )
-  exportacao_salvar_planilha(
-    dados_analise,
-    file.path(projeto, "dados", "processados", "base_compartilhada.xlsx"),
-    aba = "dados_analise"
-  )
-  # Uma cópia Excel de cada derivada usada pelas execuções do projeto.
-  # São fotografias da IDE; o Render reconstrói as bases e não as sobrescreve.
-  ids_usados <- unique(vapply(Filter(function(e) identical(e$base_tipo, "derivada"),
-    registro_execucoes), function(e) e$base_id, character(1)))
-  nomes_usados <- "base_compartilhada"
-  for (id in ids_usados) {
-    base <- bases_obter(registro_bases, id)
-    df <- cache_bases[[id]]$df
-    if (is.null(base) || is.null(df)) stop("Atualize a base derivada antes de exportar.", call. = FALSE)
-    nome <- exportacao_nome_curto(base$nome_r, padrao = "base_derivada")
-    if (nome %in% nomes_usados) nome <- paste0(nome, "_", exportacao_nome_curto(id))
-    nomes_usados <- c(nomes_usados, nome)
-    exportacao_salvar_planilha(df, file.path(projeto, "dados", "processados", paste0(nome, ".xlsx")))
-    if (!isTRUE(molde$clara)) saveRDS(as.data.frame(df), file.path(projeto, "dados", "processados",
-      exportacao_rds_base(list(base_tipo = "derivada", base_id = id))))
+  # Fotografias e cópias da IDE em dados/processados/; a rota ClaRa não as leva.
+  if (!isTRUE(molde$clara)) {
+    exportacao_salvar_dataframe(
+      dados_analise, file.path(projeto, "dados", "processados", "base_compartilhada.rds")
+    )
+    exportacao_salvar_planilha(
+      dados_analise,
+      file.path(projeto, "dados", "processados", "base_compartilhada.xlsx"),
+      aba = "dados_analise"
+    )
+    # Uma cópia Excel de cada derivada usada pelas execuções do projeto.
+    # São fotografias da IDE; o Render reconstrói as bases e não as sobrescreve.
+    ids_usados <- unique(vapply(Filter(function(e) identical(e$base_tipo, "derivada"),
+      registro_execucoes), function(e) e$base_id, character(1)))
+    nomes_usados <- "base_compartilhada"
+    for (id in ids_usados) {
+      base <- bases_obter(registro_bases, id)
+      df <- cache_bases[[id]]$df
+      if (is.null(base) || is.null(df)) stop("Atualize a base derivada antes de exportar.", call. = FALSE)
+      nome <- exportacao_nome_curto(base$nome_r, padrao = "base_derivada")
+      if (nome %in% nomes_usados) nome <- paste0(nome, "_", exportacao_nome_curto(id))
+      nomes_usados <- c(nomes_usados, nome)
+      exportacao_salvar_planilha(df, file.path(projeto, "dados", "processados", paste0(nome, ".xlsx")))
+      saveRDS(as.data.frame(df), file.path(projeto, "dados", "processados",
+        exportacao_rds_base(list(base_tipo = "derivada", base_id = id))))
+    }
   }
   # Somente registros legados precisam da fotografia pós-estrutural.
   if (exportacao_anova_usa_base_resolvida(base_externa)) {
