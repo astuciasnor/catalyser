@@ -2423,6 +2423,63 @@ exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_
   valores
 }
 
+# A ClaRa não usa operadores %...%: na receita da rota ClaRa, `x %in% c(...)`
+# vira `is.element(x, c(...))`, com um comentário que diz quais linhas ficam
+# (filter) ou quando a coluna nova vale 1 (dicotomizar). O comentário genérico
+# do passo encadeado é trocado; um rótulo de etapa é mantido, com o comentário
+# novo logo abaixo. As outras rotas continuam com %in%.
+exportacao_clara_sem_in <- function(linhas) {
+  if (!length(linhas) || !any(grepl("%in%", linhas, fixed = TRUE))) return(linhas)
+  texto <- paste(linhas, collapse = "\n")
+  padrao <- paste0("(`[^`]+`|[A-Za-z.][A-Za-z0-9._]*) %in% ",
+                   "(c\\((?:[^()\"]|\"(?:[^\"\\\\]|\\\\.)*\")*\\))")
+  achados <- gregexpr(padrao, texto, perl = TRUE)[[1]]
+  if (achados[1] == -1L) return(linhas)
+  inicios <- as.integer(achados)
+  tamanhos <- attr(achados, "match.length")
+  ini_grupos <- attr(achados, "capture.start")
+  tam_grupos <- attr(achados, "capture.length")
+  comentarios <- list()
+  # De trás para a frente, para as posições anteriores continuarem valendo.
+  for (k in rev(seq_along(inicios))) {
+    coluna <- substr(texto, ini_grupos[k, 1], ini_grupos[k, 1] + tam_grupos[k, 1] - 1L)
+    vetor <- substr(texto, ini_grupos[k, 2], ini_grupos[k, 2] + tam_grupos[k, 2] - 1L)
+    antes <- substr(texto, 1L, inicios[k] - 1L)
+    linha <- lengths(regmatches(antes, gregexpr("\n", antes, fixed = TRUE))) + 1L
+    niveis <- tryCatch(eval(parse(text = vetor), envir = baseenv()), error = function(e) NULL)
+    if (is.character(niveis) && length(niveis)) {
+      lista <- encodeString(niveis, quote = '"')
+      lista <- if (length(lista) == 1L) lista else
+        paste(paste(lista[-length(lista)], collapse = ", "), "ou", lista[length(lista)])
+      nome_coluna <- gsub("`", "", coluna, fixed = TRUE)
+      inicio_linha <- sub("^.*\n", "", antes)
+      nova <- regmatches(inicio_linha, regexec("mutate\\((`[^`]+`|[A-Za-z.][A-Za-z0-9._]*) = as\\.integer\\($", inicio_linha))[[1]]
+      if (grepl("filter\\($", inicio_linha)) {
+        comentarios[[as.character(linha)]] <- sprintf(
+          "Ficam só as linhas em que %s é %s; as demais saem.", nome_coluna, lista)
+      } else if (length(nova) == 2L) {
+        comentarios[[as.character(linha)]] <- sprintf(
+          "%s vale 1 quando %s é %s, e 0 nos outros casos.",
+          gsub("`", "", nova[2], fixed = TRUE), nome_coluna, lista)
+      }
+    }
+    texto <- paste0(antes, "is.element(", coluna, ", ", vetor, ")",
+                    substr(texto, inicios[k] + tamanhos[k], nchar(texto)))
+  }
+  linhas <- strsplit(texto, "\n", fixed = TRUE)[[1]]
+  genericos <- "^\\s*# (Mantém somente as linhas que atendem à condição\\.|Calcula ou transforma: .*)$"
+  for (i in sort(as.integer(names(comentarios)), decreasing = TRUE)) {
+    recuo <- sub("^(\\s*).*$", "\\1", linhas[i])
+    novo <- paste0(recuo, "# ", comentarios[[as.character(i)]])
+    if (i > 1L && grepl(genericos, linhas[i - 1L])) {
+      linhas[i - 1L] <- novo
+    } else {
+      linhas <- append(linhas, novo, after = i - 1L)
+    }
+  }
+  linhas
+}
+
 # Rota ClaRa: a base nasce da planilha e da receita, sem fotografia. A receita
 # é a mesma que exportacao_conferir_preparo_anova() já confere contra a base
 # da tela antes do ZIP; aqui ela vira um só encadeamento, da planilha até a
@@ -2442,6 +2499,7 @@ exportacao_clara_receita <- function(manifesto, import_info, pipeline, registro_
   # dplyr já é carregado na seção 1; sem o prefixo, a receita se lê melhor.
   receita <- receita[!grepl("^library\\((dplyr|tidyr)\\)$", trimws(receita))]
   receita <- gsub("dplyr::", "", receita, fixed = TRUE)
+  receita <- exportacao_clara_sem_in(receita)
   # Os passos de uma cadeia "destino <- origem |>" são as linhas recuadas logo
   # abaixo dela. Sem passos, a cadeia é só "destino <- origem". NULL quando a
   # receita não tem essa forma (preparo com lógica própria).

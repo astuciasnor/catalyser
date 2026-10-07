@@ -240,5 +240,21 @@ for (i in seq_along(entradas_ramo)) {
   stopifnot(obtido$n == 18L, isTRUE(all.equal(obtido$medias, medias_ramo)))
 }
 
+# Sem %in% na rota ClaRa: is.element() e um comentário que diz o que fica.
+sem_in <- exportacao_clara_sem_in(c(
+  "base_compartilhada <- dados_brutos |>",
+  "  # Mantém somente as linhas que atendem à condição.",
+  "  filter(especie %in% c(\"tambaqui\", \"pirarucu\", \"tilápia\")) |>",
+  "  # Calcula ou transforma: alimentado.",
+  "  mutate(alimentado = as.integer(racao %in% c(\"A\", \"B\")))"))
+stopifnot(!any(grepl("%in%", sem_in, fixed = TRUE)),
+  identical(sem_in[2], "  # Ficam só as linhas em que especie é \"tambaqui\", \"pirarucu\" ou \"tilápia\"; as demais saem."),
+  identical(sem_in[3], "  filter(is.element(especie, c(\"tambaqui\", \"pirarucu\", \"tilápia\"))) |>"),
+  identical(sem_in[4], "  # alimentado vale 1 quando racao é \"A\" ou \"B\", e 0 nos outros casos."))
+sem_in_solta <- exportacao_clara_sem_in(c("# Níveis escolhidos na importação",
+  "dados <- dados |> filter(especie %in% c(\"tambaqui\"))"))
+stopifnot(length(sem_in_solta) == 3L, sem_in_solta[1] == "# Níveis escolhidos na importação",
+  sem_in_solta[2] == "# Ficam só as linhas em que especie é \"tambaqui\"; as demais saem.")
+
 cat("OK: rota ClaRa escolhida só com a opção e o método clássico; ClaRa copiada em R/clara/; script e o relatório Word em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
 cat("PROJETO:", projeto, "\n")
