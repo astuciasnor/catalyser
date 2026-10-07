@@ -6,6 +6,7 @@
 #  agem sobre o resultado de qualquer análise da ClaRa. Aqui ficam só as
 #  funções e as listas de receitas, vazias; o arquivo de cada pergunta
 #  (clara_medias.R...) acrescenta as suas: receitas_efeito$anova <- "...".
+#  registrar_ambiente() fecha qualquer roteiro, gravando as versões usadas.
 #
 #  Carregado por R/clara.R; no roteiro, basta source("R/clara.R").
 # =============================================================================
@@ -266,6 +267,57 @@ ggplot(diagnostico, aes(x = ajustado, y = residuo, colour = <<GRUPOS>>)) +
 # arquivo de pergunta acrescenta as suas, montadas com os trechos.
 receitas_residuos <- list()
 receitas_qq       <- list()
+
+
+# registrar_ambiente() ---------------------------------------------------------
+#
+# Pergunta: com que versões do R e dos pacotes esta análise rodou?
+#
+# Grava num arquivo de texto a versão da ClaRa, a do R, o sistema e a versão
+# de cada pacote carregado. Se, daqui a um ano ou em outro computador, um
+# número não bater, este arquivo mostra o que mudou. Chame no fim do
+# roteiro, depois de tudo rodar: assim todos os pacotes usados aparecem.
+#
+# Argumentos:
+#   arquivo ............. onde gravar; a pasta é criada se ainda não existir
+#   mostrar_codigo ...... TRUE imprime o código R antes de gravar
+#
+# Devolve o caminho do arquivo, sem imprimi-lo.
+#
+# Exemplo:  registrar_ambiente(arquivo = here("saida", "sessionInfo.txt"))
+#
+registrar_ambiente <- function(arquivo        = "saida/sessionInfo.txt",
+                               mostrar_codigo = FALSE) {
+
+  # O caminho entra na receita entre aspas, como o aluno o escreveria.
+  receita <- preencher_receita(receita_ambiente, list(
+    ARQUIVO = encodeString(arquivo, quote = "\"")
+  ))
+
+  # Rodamos a receita, mostrando o código antes, se o aluno pediu. A versão
+  # da ClaRa vai junto, porque a receita a escreve na primeira linha.
+  executar_receita(
+    receita        = receita,
+    objetos        = list(versao_clara = versao_clara),
+    pacotes        = character(),
+    mostrar_codigo = mostrar_codigo
+  )
+
+  # Avisamos onde ficou o registro.
+  message("Ambiente registrado em ", arquivo, ".")
+  invisible(arquivo)
+}
+
+# A receita de registrar_ambiente(): a mesma para qualquer análise.
+receita_ambiente <- "
+# 1. A pasta do arquivo, criada se ainda não existir.
+dir.create(dirname(<<ARQUIVO>>), recursive = TRUE, showWarnings = FALSE)
+
+# 2. A versão da ClaRa e o retrato da sessão: R, sistema e pacotes carregados.
+ambiente <- c(paste(\"ClaRa\", versao_clara), capture.output(sessionInfo()))
+
+# 3. As linhas, gravadas no arquivo de texto.
+writeLines(ambiente, <<ARQUIVO>>)"
 
 
 # Exibição no console ----------------------------------------------------------

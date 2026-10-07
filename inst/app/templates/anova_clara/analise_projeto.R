@@ -28,14 +28,14 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")    # as funções da C
 # Primeira olhada: a resposta deve ser número (dbl) e os grupos, fator (fct).
 glimpse(base)
 
-# 4 a 7. Comparar as médias ------------------------------------------------
+# 4. Comparar as médias ----------------------------------------------------
 # Resumo, ANOVA, pressupostos (Shapiro-Wilk e Levene), Tukey e letras,
 # numa função só. Os rótulos ficam no resultado: gráficos e textos os usam.
 resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},  # {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},  # {{NOTA_ROTULO_FATOR}}
                   confianca       = {{CONFIANCA}})
 
 resultado                     # um pequeno relatório no console
@@ -46,20 +46,20 @@ efeito <- resultado |>
 
 efeito
 
-# 8. Tabelas ---------------------------------------------------------------
+# 5. Tabelas ---------------------------------------------------------------
 resultado$resumo              # n, média, DP, EP, IC e letras por grupo
 resultado$anova               # a tabela da ANOVA
 resultado$pares               # as comparações de Tukey, par a par
 resultado$pressupostos        # Shapiro-Wilk e Levene, com a leitura
 
-# 9. Gráficos --------------------------------------------------------------
-# 9.1 Exploração: caixas com as observações por cima.
+# 6. Gráficos --------------------------------------------------------------
+# 6.1 Exploração: caixas com as observações por cima.
 grafico_caixas <- resultado |>
   grafico_boxplot()
 
 grafico_caixas
 
-# 9.2 Figura principal, a que vai para o artigo: todas as escolhas
+# 6.2 Figura principal, a que vai para o artigo: todas as escolhas
 # escritas, com as opções ao lado.
 grafico_barras <- resultado |>
   grafico_medias(titulo           = {{TITULO_CLARA}},
@@ -77,25 +77,25 @@ grafico_barras <- resultado |>
 
 grafico_barras
 
-# 9.3 Resíduos contra ajustados: faixas de alturas parecidas, variâncias parecidas.
+# 6.3 Resíduos contra ajustados: faixas de alturas parecidas, variâncias parecidas.
 grafico_ajustados <- resultado |>
   grafico_residuos()
 
 grafico_ajustados
 
-# 9.4 Q-Q: pontos perto da reta, resíduos compatíveis com a normal.
+# 6.4 Q-Q: pontos perto da reta, resíduos compatíveis com a normal.
 grafico_normal <- resultado |>
   grafico_qq()
 
 grafico_normal
 
-# 9.5 Diferenças entre pares: haste que cruza o zero, sem diferença.
+# 6.5 Diferenças entre pares: haste que cruza o zero, sem diferença.
 grafico_diferencas <- resultado |>
   grafico_pares()
 
 grafico_diferencas
 
-# 10. Textos dinâmicos -----------------------------------------------------
+# 7. Textos dinâmicos ------------------------------------------------------
 # Frases que mudam junto com os dados. No Quarto: `r textos$teste`.
 textos <- resultado |>
   escrever_resultados()
@@ -106,7 +106,7 @@ textos
 textos$efeito
 textos$pressupostos
 
-# 11. Salvar cópias --------------------------------------------------------
+# 8. Salvar cópias ---------------------------------------------------------
 # Cópias para compartilhar: os relatórios não leem estes arquivos.
 # CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
 dir.create(here("saida", "tabelas"), recursive = TRUE, showWarnings = FALSE)
@@ -135,7 +135,6 @@ for (nome in names(figuras)) {
          width = 7, height = 4.6, dpi = 300, bg = "white")
 }
 
-# 12. Registrar o ambiente -------------------------------------------------
-# As versões do R, dos pacotes e da ClaRa usadas nesta execução.
-writeLines(c(paste("ClaRa", versao_clara), capture.output(sessionInfo())),
-           here("saida", "sessionInfo.txt"))
+# 9. Registrar o ambiente --------------------------------------------------
+# As versões da ClaRa, do R e dos pacotes usadas nesta execução.
+registrar_ambiente(arquivo = here("saida", "sessionInfo.txt"))

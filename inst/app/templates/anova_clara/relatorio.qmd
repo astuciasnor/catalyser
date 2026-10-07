@@ -17,13 +17,11 @@ format:
     fig-dpi: 300
 ---
 
-```{=html}
 <!-- GUIA DE EDIÇÃO: este é o único documento do projeto, o relatório que
 vira Word. Os chunks repetem as chamadas principais de R/analise.R, de forma
 mais enxuta, e o documento roda sozinho. A exploração e os diagnósticos ficam
 no roteiro. Escreva aqui o texto do artigo ou da tese; revise as frases
 automáticas antes de entregar. -->
-```
 
 ```{r}
 #| label: preparar
@@ -43,8 +41,8 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")
 resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},  # {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},  # {{NOTA_ROTULO_FATOR}}
                   confianca       = {{CONFIANCA}})
 
 # As frases do relatório, que mudam junto com os dados.

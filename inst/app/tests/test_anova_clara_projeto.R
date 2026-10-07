@@ -140,7 +140,26 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   any(grepl("label: tbl-anova", relatorio, fixed = TRUE)),
   any(grepl("label: fig-barras", relatorio, fixed = TRUE)),
   any(grepl("#| include: false", relatorio, fixed = TRUE)),
-  any(grepl("# 10. Textos dinâmicos", linhas_script, fixed = TRUE)),
+  # Seções numeradas em sequência, de 1 a 9.
+  identical(as.integer(sub("^# ([0-9]+)[.] .*$", "\\1",
+    grep("^# [0-9]+[.] .*-{3,}$", linhas_script, value = TRUE))), 1:9),
+  any(grepl("# 7. Textos dinâmicos", linhas_script, fixed = TRUE)),
+  # A planilha como tibble e a mesma olhada (glimpse) na planilha e na base.
+  !any(grepl("as.data.frame", c(linhas_script, relatorio), fixed = TRUE)),
+  !any(grepl("str(dados_brutos)", linhas_script, fixed = TRUE)),
+  any(linhas_script == "glimpse(dados_brutos)"),
+  # O ambiente fica com a ClaRa, não com writeLines/sessionInfo à vista.
+  any(linhas_script == 'registrar_ambiente(arquivo = here("saida", "sessionInfo.txt"))'),
+  !any(grepl("capture.output(sessionInfo())", linhas_script, fixed = TRUE)),
+  # Os rótulos dizem ao aluno onde trocar.
+  # Com rótulos escritos na tela, sem o exemplo; sem eles, com o exemplo.
+  sum(endsWith(c(linhas_script, relatorio), '"Peso final (g)",  # no texto e na figura')) == 2L,
+  identical(exportacao_anova_clara_marcadores(list(parametros = list(
+    resposta = "peso_g", fator = "racao")))$NOTA_ROTULO_RESPOSTA,
+    'no texto e na figura, ex.: "Peso final (g)"'),
+  # Relatório: comentário HTML puro e a leitura da planilha em duas linhas.
+  !any(grepl("{=html}", relatorio, fixed = TRUE)),
+  any(relatorio == '                           sheet = "isoproteica_bagre")'),
   any(grepl("^textos\\$efeito$", linhas_script)),
   any(grepl("^textos\\$pressupostos$", linhas_script)),
   # Bibliografia e estilo só no cabeçalho do relatório, onde o aluno procura.
@@ -149,6 +168,22 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   # Sem título escrito na tela, o relatório não herda os nomes crus das colunas.
   any(relatorio == 'title: "Título do trabalho (preencher)"'),
   !any(grepl("entre grupos de", relatorio, fixed = TRUE)))
+
+# R/funcoes.R só com o que o projeto chama: sem moda(), converter_datas()
+# nem tema_projeto(), que este projeto não usa.
+funcoes <- readLines(file.path(projeto, "R", "funcoes.R"), encoding = "UTF-8")
+definidas <- sub(" <- function.*$", "", grep("^[a-z_]+ <- function", funcoes, value = TRUE))
+stopifnot(identical(sort(definidas), c("flextable_ocean", "fmt", "formatar_p")),
+  !any(grepl("lubridate", c(funcoes, readme), fixed = TRUE)),
+  any(grepl("1. Apresentação ...... fmt(), formatar_p(), flextable_ocean()", funcoes, fixed = TRUE)))
+# Com moda() na receita, ela entra numa seção de preparo.
+com_moda <- exportacao_clara_funcoes(
+  readLines(file.path("templates", "regressao_linear", "funcoes.R"), encoding = "UTF-8"),
+  c("base <- dados_brutos |>", "  mutate(peso_g = coalesce(peso_g, moda(peso_g)))",
+    "fmt(1)"))
+stopifnot(identical(sort(sub(" <- function.*$", "", grep("^[a-z_]+ <- function", com_moda, value = TRUE))),
+                    c("fmt", "moda")),
+  any(grepl("^# 2[.] Preparo -+$", com_moda)))
 
 # Render, quando houver Quarto: só o Word, sem as mensagens de carga dos
 # pacotes.

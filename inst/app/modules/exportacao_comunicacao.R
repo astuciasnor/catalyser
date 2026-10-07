@@ -2403,9 +2403,19 @@ exportacao_anova_clara_marcadores <- function(item) {
   c(base, list(
     RESPOSTA_CLARA = exportacao_nome_clara(p$resposta %||% "resposta"),
     FATOR_CLARA = exportacao_nome_clara(p$fator %||% "grupo"),
-    ROTULO_FATOR_COL = paste0("`", gsub("`", "", rotulo_fator, fixed = TRUE), "`"),
+    # Crases só quando o rótulo não é um nome simples do R: com espaço,
+    # símbolo ou acento ("Ração"), que depende da codificação da sessão.
+    ROTULO_FATOR_COL = if (identical(make.names(rotulo_fator), rotulo_fator) &&
+                           !grepl("[^A-Za-z0-9._]", rotulo_fator)) rotulo_fator else
+      paste0("`", gsub("`", "", rotulo_fator, fixed = TRUE), "`"),
     IC_COL = paste0("`IC ", ic, "%`"),
-    TITULO_CLARA = if (nzchar(trimws(titulo))) encodeString(titulo, quote = '"') else "NULL"
+    TITULO_CLARA = if (nzchar(trimws(titulo))) encodeString(titulo, quote = '"') else "NULL",
+    # Ao lado dos rótulos, o que eles fazem; o exemplo só aparece enquanto o
+    # rótulo ainda é o nome cru da coluna, para o aluno ver onde trocar.
+    NOTA_ROTULO_RESPOSTA = paste0("no texto e na figura",
+      if (!nzchar(trimws(as.character(p$rotulo_y %||% "")))) ', ex.: "Peso final (g)"'),
+    NOTA_ROTULO_FATOR = paste0("no texto e na figura",
+      if (!nzchar(trimws(as.character(p$rotulo_x %||% "")))) ', ex.: "Ração"')
   ))
 }
 
@@ -2421,6 +2431,76 @@ exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_
   titulo_tela <- trimws(as.character(item$parametros$titulo_grafico %||% ""))
   valores$TITULO <- if (nzchar(titulo_tela)) titulo_tela else nome_projeto
   valores
+}
+
+# R/funcoes.R da rota ClaRa: só as funções que o script e o relatório chamam
+# (e as que elas usam, como fmt() dentro de formatar_p()). Cada função sai do
+# arquivo de apoio com os comentários logo acima dela; moda() e
+# converter_datas() só entram quando a receita de preparo as usa.
+exportacao_clara_funcoes <- function(funcoes, codigo) {
+  expressoes <- parse(text = funcoes, keep.source = TRUE)
+  posicoes <- attr(expressoes, "srcref")
+  blocos <- list()
+  for (i in seq_along(expressoes)) {
+    x <- expressoes[[i]]
+    if (!is.call(x) || !identical(x[[1]], as.name("<-")) || !is.symbol(x[[2]]) ||
+        !is.call(x[[3]]) || !identical(x[[3]][[1]], as.name("function"))) next
+    inicio <- posicoes[[i]][1]
+    fim <- posicoes[[i]][3]
+    # Os comentários colados acima da função (até a linha em branco) vão junto.
+    while (inicio > 1L && grepl("^#", funcoes[inicio - 1L]) &&
+           !grepl("^# ([0-9]+[.] |=)", funcoes[inicio - 1L])) inicio <- inicio - 1L
+    blocos[[as.character(x[[2]])]] <- funcoes[inicio:fim]
+  }
+  chamadas <- function(texto) {
+    names(blocos)[vapply(names(blocos), function(nome)
+      any(grepl(paste0("(^|[^A-Za-z0-9._])", nome, "\\("), texto)), logical(1))]
+  }
+  manter <- chamadas(codigo)
+  repeat {
+    novas <- setdiff(chamadas(unlist(blocos[manter], use.names = FALSE)), manter)
+    if (!length(novas)) break
+    manter <- c(manter, novas)
+  }
+  manter <- intersect(names(blocos), manter)
+  apresentacao <- intersect(manter, c("fmt", "formatar_p", "tema_projeto", "flextable_ocean"))
+  preparo <- setdiff(manter, apresentacao)
+  lista <- function(nomes) paste0(paste0(nomes, "()"), collapse = ", ")
+  secao <- function(titulo, nomes) {
+    if (!length(nomes)) return(character())
+    c("", "", sprintf("# %s %s", titulo, strrep("-", 75L - nchar(titulo))), "",
+      unlist(lapply(nomes, function(nome) c(blocos[[nome]], "")), use.names = FALSE))
+  }
+  c("# =============================================================================",
+    "#  FUNÇÕES PRÓPRIAS DO PROJETO",
+    "# =============================================================================",
+    "#",
+    "#  Este arquivo só DEFINE funções; ele não executa nada sozinho. O script",
+    "#  (R/analise.R) e o relatório (relatorios/relatorio.qmd) o carregam com:",
+    "#",
+    "#      source(here(\"R\", \"funcoes.R\"), encoding = \"UTF-8\")",
+    "#",
+    "#  Seções deste arquivo (Ctrl+Shift+O no RStudio mostra o sumário):",
+    if (length(apresentacao)) sprintf("#    1. Apresentação ...... %s", lista(apresentacao)),
+    if (length(preparo)) sprintf("#    %d. Preparo ........... %s",
+                                 1L + as.integer(length(apresentacao) > 0L), lista(preparo)),
+    "#",
+    "#  Só estão aqui as funções que este projeto usa. Dentro delas usamos",
+    "#  pacote::funcao() (ex.: flextable::flextable) em vez de library(): assim",
+    "#  a função funciona mesmo que o pacote não tenha sido carregado.",
+    "# =============================================================================",
+    secao("1. Apresentação", apresentacao),
+    secao(sprintf("%d. Preparo", 1L + as.integer(length(apresentacao) > 0L)), preparo))
+}
+
+# Seção 2 do roteiro em ClaRa: a planilha fica como o read_excel() a entrega,
+# uma tibble (o roteiro é tidyverse; nada da ClaRa pede data.frame), e a
+# primeira olhada usa glimpse(), a mesma da base na seção 3.
+exportacao_clara_importar <- function(import_info = list()) {
+  linhas <- exportacao_molde_importar(import_info)
+  linhas <- sub("as.data.frame(read_excel(caminho_planilha, sheet = aba_planilha))",
+                "read_excel(caminho_planilha, sheet = aba_planilha)", linhas, fixed = TRUE)
+  sub("^str\\(dados_brutos\\)$", "glimpse(dados_brutos)", linhas)
 }
 
 # A ClaRa não usa operadores %...%: na receita da rota ClaRa, `x %in% c(...)`
@@ -2589,8 +2669,9 @@ exportacao_clara_receita <- function(manifesto, import_info, pipeline, registro_
   sem_comentario <- function(x) x[nzchar(trimws(x)) & !grepl("^\\s*#", x)]
   qmd <- c(
     "# A planilha e a receita de R/analise.R (seções 2 e 3).",
-    sprintf('dados_brutos <- as.data.frame(read_excel(here("dados", "%s"), sheet = "%s"))',
-            exportacao_nome_planilha(import_info), exportacao_aba_planilha(import_info)),
+    # Em duas linhas, como no script: a planilha e, abaixo, a aba.
+    sprintf('dados_brutos <- read_excel(here("dados", "%s"),', exportacao_nome_planilha(import_info)),
+    sprintf('                           sheet = "%s")', exportacao_aba_planilha(import_info)),
     sem_comentario(receita_final),
     travar
   )
@@ -2768,7 +2849,7 @@ molde_projeto_registro <- list(
     # A receita e o carimbo já vêm prontos no manifesto (exportacao_clara_receita).
     prefixo = function(manifesto, nome_projeto, registro_bases, pipeline,
                        base_externa, import_info, templates_dir) {
-      list(importar = exportacao_molde_importar(import_info),
+      list(importar = exportacao_clara_importar(import_info),
            preparo = manifesto$clara$script)
     },
     marcadores_script = exportacao_anova_clara_marcadores,
@@ -3835,11 +3916,21 @@ exportacao_criar_projeto <- function(destino, nome_projeto, dados_brutos,
         file.path(projeto, "relatorios", documentos[[arquivo]]), useBytes = TRUE
       )
     }
+    funcoes_molde <- file.path(templates_dir, molde$apoio %||% "regressao_linear", "funcoes.R")
+    # Rota ClaRa: R/funcoes.R só com o que o script e o relatório chamam.
+    if (isTRUE(molde$clara)) {
+      codigo_projeto <- c(linhas_script, unlist(lapply(
+        file.path(projeto, "relatorios", documentos),
+        readLines, encoding = "UTF-8", warn = FALSE), use.names = FALSE))
+      funcoes_molde <- file.path(projeto, "R", "funcoes.R")
+      writeLines(exportacao_clara_funcoes(
+        readLines(funcoes_molde, encoding = "UTF-8", warn = FALSE), codigo_projeto),
+        funcoes_molde, useBytes = TRUE)
+    }
     # A lista exata de pacotes do projeto (script + funções) alimenta o
     # install.packages() do README, para bater com o que o Render vai usar.
     # catalyser e EAPADados ficam de fora: são instalados do GitHub, nas
     # linhas seguintes do README, com remotes.
-    funcoes_molde <- file.path(templates_dir, molde$apoio %||% "regressao_linear", "funcoes.R")
     pacotes_projeto <- setdiff(
       exportacao_molde_pacotes(c(
         linhas_script,
