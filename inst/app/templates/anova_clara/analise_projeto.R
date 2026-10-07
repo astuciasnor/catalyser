@@ -6,8 +6,10 @@
 # Cada função da ClaRa responde a uma pergunta da pesquisa. Para entender
 # uma: ajuda(comparar_medias). Para ver o R por trás dela, acrescente
 # mostrar_codigo = TRUE à chamada.
-# Os relatórios em relatorios/ repetem estas chamadas e rodam sozinhos:
-# uma escolha mudada aqui (rótulo, confiança, figura) se muda lá também.
+# Este roteiro é o caderno de estudo: aqui se explora e se confere.
+# O relatório (relatorios/relatorio.qmd) repete as chamadas principais e
+# roda sozinho: uma escolha mudada aqui (rótulo, confiança, figura) se muda
+# lá também.
 
 # 1. Preparar o ambiente ---------------------------------------------------
 library(here)
@@ -93,7 +95,7 @@ grafico_diferencas <- resultado |>
 
 grafico_diferencas
 
-# 10. Textos para o relatório ----------------------------------------------
+# 10. Textos dinâmicos -----------------------------------------------------
 # Frases que mudam junto com os dados. No Quarto: `r textos$teste`.
 textos <- resultado |>
   escrever_resultados()

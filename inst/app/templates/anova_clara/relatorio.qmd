@@ -17,10 +17,11 @@ format:
 ---
 
 ```{=html}
-<!-- GUIA DE EDIÇÃO: os chunks repetem as chamadas da ClaRa de R/analise.R,
-de forma mais enxuta, e este documento roda sozinho. O Word não mostra o
-código; abra cada chunk no RStudio para ver a chamada. Revise os textos antes
-de usar este documento como artigo, monografia ou relatório científico. -->
+<!-- GUIA DE EDIÇÃO: este é o único documento do projeto, o relatório que
+vira Word. Os chunks repetem as chamadas principais de R/analise.R, de forma
+mais enxuta, e o documento roda sozinho. A exploração e os diagnósticos ficam
+no roteiro. Escreva aqui o texto do artigo ou da tese; revise as frases
+automáticas antes de entregar. -->
 ```
 
 ```{r}
@@ -28,7 +29,7 @@ de usar este documento como artigo, monografia ou relatório científico. -->
 #| include: false
 # Pacotes, funções de apresentação e a ClaRa.
 library(here)
-here::i_am("relatorios/relatorio_artigo.qmd")
+here::i_am("relatorios/relatorio.qmd")
 library(dplyr)
 library(ggplot2)
 library(readxl)
@@ -141,9 +142,8 @@ visual dos resíduos [@kozak2018].
 
 # Disponibilidade dos dados e do código
 
-O projeto reúne os dados de entrada, a base preparada adotada, o roteiro
-`R/analise.R` em ClaRa e dois documentos Quarto. O caderno HTML apresenta o
-percurso completo; este documento seleciona os resultados principais. Os três
-fazem as mesmas chamadas da ClaRa.
+O projeto reúne a planilha de entrada, o roteiro `R/analise.R`, escrito em
+ClaRa, com a exploração, os diagnósticos e a receita de preparo, e este
+documento, que apresenta os resultados principais com as mesmas chamadas.
 
 # Referências
