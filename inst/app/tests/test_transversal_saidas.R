@@ -102,12 +102,44 @@ testServer(mod_planejamento_observacional_server,
     session$setInputs(usar_fator2 = FALSE)
     session$flushReact()
     stopifnot(!"sexo" %in% names(tabela_coleta_dados()))
+
+    # Exercício ambiental: três faixas, cinco estações por faixa, uma amostra
+    # por estação e coordenadas previstas; pool = 1 não é amostra composta.
+    session$setInputs(fator_nome = "faixa_ambiental",
+      fator_niveis = "Estuário interno, Estuário externo, Costa",
+      uas_grupo_1 = 5, uas_grupo_2 = 5, uas_grupo_3 = 5,
+      pool_combinacao_1 = 1, pool_combinacao_2 = 1, pool_combinacao_3 = 1,
+      registrar_coordenadas = TRUE, precisao_gps_m = 5,
+      espacamento_minimo_m = "", justificativa_espacamento = "Piloto com maré e hidrodinâmica.",
+      n_vars_resposta = 1, var_nome_1 = "salinidade", var_unidade_1 = "psu")
+    session$flushReact()
+    coleta_estacoes <- tabela_coleta_dados()
+    stopifnot(nrow(coleta_estacoes) == 15L,
+      identical(as.integer(table(factor(coleta_estacoes$faixa_ambiental,
+        levels = c("Estuário interno", "Estuário externo", "Costa")))), rep(5L, 3)),
+      all(coleta_estacoes$pool == 1L),
+      all(c("latitude_wgs84", "longitude_wgs84", "precisao_gps_m") %in% names(coleta_estacoes)),
+      all(coleta_estacoes$latitude_wgs84 == ""),
+      all(coleta_estacoes$longitude_wgs84 == ""),
+      all(coleta_estacoes$precisao_gps_m == 5L))
+    texto_estacoes <- texto_metodologia_artigo_str()
+    stopifnot(grepl("Não haverá amostra composta", texto_estacoes, fixed = TRUE),
+      grepl("hidrodinâmica", texto_estacoes, ignore.case = TRUE),
+      grepl("5 m", texto_estacoes, fixed = TRUE),
+      all(c("latitude_wgs84", "longitude_wgs84", "precisao_gps_m") %in% dicionario_dados()$coluna),
+      any(grepl("Hidrodinâmica e estudo-piloto", orientacoes_transversal()$campo, fixed = TRUE)),
+      identical(ficha()$hierarquia$localizacao_planejada$precisao_horizontal_m, 5L))
+    excel_estacoes <- file.path(destino, "coleta_estacoes_ambientais.xlsx")
+    escrever_excel_transversal(coleta_estacoes, orientacoes_transversal(), excel_estacoes)
+    stopifnot(all(c("latitude_wgs84", "longitude_wgs84", "precisao_gps_m") %in%
+      names(openxlsx::read.xlsx(excel_estacoes, sheet = "coleta"))))
 })
 ui <- as.character(mod_planejamento_observacional_ui("teste", "transversal_comparativo"))
 stopifnot(!grepl("teste-baixar_projeto|teste-baixar_dicionario", ui),
   grepl("teste-baixar_planilha", ui), grepl("teste-baixar_relatorio", ui))
 stopifnot(grepl("teste-ui_amostra_categorias", ui),
-  !grepl('id="teste-n_uas"|id="teste-tipo_pool"', ui))
+  !grepl('id="teste-n_uas"|id="teste-tipo_pool"', ui),
+  grepl("teste-usar_exercicio_faixas", ui), grepl("teste-registrar_coordenadas", ui))
 stopifnot(grepl('data-value="Definições"', ui), grepl('data-value="Desenho"', ui), grepl('data-value="Resumo"', ui),
   lengths(regmatches(ui, gregexpr('id="teste-baixar_planilha"', ui))) == 1L,
   lengths(regmatches(ui, gregexpr('id="teste-baixar_relatorio"', ui))) == 1L)
