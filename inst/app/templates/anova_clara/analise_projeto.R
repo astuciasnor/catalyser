@@ -21,17 +21,15 @@ source(here("R", "clara.R"), encoding = "UTF-8")    # as funções da ClaRa
 {{TRECHO_IMPORTAR}}
 
 # 3. Preparar a base da ANOVA ----------------------------------------------
-# Reconstruir o preparo, conferir com a fotografia que acompanha o projeto,
-# adotar a base e montar a base desta análise (dados_da_analise).
 {{TRECHO_PREPARO}}
 
 # Primeira olhada: a resposta deve ser número (dbl) e os grupos, fator (fct).
-glimpse(dados_da_analise)
+glimpse(base)
 
 # 4 a 7. Comparar as médias ------------------------------------------------
 # Resumo, ANOVA, pressupostos (Shapiro-Wilk e Levene), Tukey e letras,
 # numa função só. Os rótulos ficam no resultado: gráficos e textos os usam.
-resultado <- dados_da_analise |>
+resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
                   rotulo_resposta = {{ROTULO_RESPOSTA_R}},

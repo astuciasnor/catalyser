@@ -66,14 +66,23 @@ stopifnot(!any(grepl("{{", c(linhas_script, readme), fixed = TRUE)),
   # Só CRAN: sem catalyser, EAPADados nem instalação pelo GitHub.
   !any(grepl("catalyser|EAPADados", linhas_script)),
   !any(grepl("install_github|\"remotes\"", readme)),
-  any(grepl("all.equal(lapply(base_reconstruida, as.character), lapply(fotografia, as.character))",
-            linhas_script, fixed = TRUE)),
+  # Receita e carimbo no lugar da fotografia: nada de .rds no projeto.
+  !any(grepl("readRDS|all.equal", linhas_script)),
+  !length(list.files(file.path(projeto, "dados", "processados"), pattern = "[.]rds$")),
+  file.exists(file.path(projeto, "dados", "processados", "base_compartilhada.xlsx")),
+  any(grepl("# Carimbo: 19 linhas.", linhas_script, fixed = TRUE)),
+  any(grepl("# Contagem por racao: A 5; B 5; C 4; D 5.", linhas_script, fixed = TRUE)),
+  any(grepl('mutate(racao = factor(racao, levels = c("A", "B", "C", "D")))', linhas_script, fixed = TRUE)),
+  sum(grepl("stopifnot(nrow(base) == 19L)", linhas_script, fixed = TRUE)) == 1L,
   # O roteiro cabe em 200 linhas, com comentários.
   length(linhas_script) <= 200L)
 for (documento in documentos) {
   qmd <- readLines(file.path(projeto, "relatorios", documento), encoding = "UTF-8")
   stopifnot(!any(grepl("{{", qmd, fixed = TRUE)),
     !any(grepl("analise.R\"), encoding", qmd, fixed = TRUE)),
+    !any(grepl("readRDS", qmd, fixed = TRUE)),
+    any(grepl("read_excel(here(\"dados\", \"brutos\"", qmd, fixed = TRUE)),
+    any(grepl("stopifnot(nrow(base) == 19L)", qmd, fixed = TRUE)),
     any(grepl("comparar_medias(resposta        = peso_g,", qmd, fixed = TRUE)),
     any(grepl("transmute(`Ração` = racao,", qmd, fixed = TRUE)),
     any(grepl("`r textos$teste`", qmd, fixed = TRUE)))
@@ -99,8 +108,6 @@ for (i in seq_along(entradas)) {
     "grDevices::pdf(NULL)",
     sprintf("source(%s, encoding = 'UTF-8')", literal(entradas[i])),
     "stopifnot(inherits(resultado, 'clara_medias'), inherits(textos, 'clara_textos'))",
-    # No script, a conferência da base precisa dar TRUE.
-    if (i == 1L) "stopifnot(isTRUE(all.equal(lapply(base_reconstruida, as.character), lapply(fotografia, as.character))))",
     sprintf("saveRDS(list(f = resultado$anova$f[1], p = resultado$anova$p[1], n = resultado$amostra$usadas, medias = resultado$resumo$media, pares = resultado$pares, textos = unclass(textos)), %s)", literal(saida_rds))
   ), verificador, useBytes = TRUE)
   status <- system2(file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
@@ -153,6 +160,68 @@ if (!nzchar(quarto_bin) || !file.exists(quarto_bin)) {
 stopifnot(file.exists(file.path(projeto, "saida", "tabelas", "resumo_grupos.csv")),
   file.exists(file.path(projeto, "saida", "figuras", "barras.png")),
   file.exists(file.path(projeto, "saida", "sessionInfo.txt")))
+
+# Segundo caso: operação estrutural (renomear), trilha (reescalar) e um ramo
+# com filtro. A receita encadeia tudo da planilha até o ramo, e o script e
+# os QMDs chegam à mesma base e às mesmas médias da tela.
+brutos <- data.frame(
+  tanque = seq_len(19),
+  tratamento = c(rep(c("baixa", "media", "alta"), each = 6), "alta"),
+  peso_g = c(100, 112, 108, 98, 115, 104, 120, 132, 118, 140, 125, 129,
+             153, 148, 161, 155, 142, 165, NA_real_)
+)
+externa <- list(codigo = "dados <- dplyr::rename(dados, densidade = tratamento)",
+                codigo_sequencial = "dados <- dplyr::rename(dados, densidade = tratamento)")
+resolvida <- dplyr::rename(brutos, densidade = tratamento)
+trilha <- list(list(tipo = "reescalar", ativa = TRUE,
+                    params = list(coluna = "peso_g", simbolo = "k", nome = "peso_kg")))
+compartilhada <- replay_pipeline(resolvida, trilha)$df
+bases <- bases_adicionar(bases_vazio(),
+  bases_novo_registro("base_0001", "Tanques selecionados", "base_tanques", finalidade = "anova"))
+bases <- bases_adicionar_etapa(bases, "base_0001", "filtrar",
+  list(coluna = "tanque", origem = "numerica", operador = ">", valor = 1), compartilhada)
+cache <- list(base_0001 = bases_recalcular_cache(compartilhada, bases[[1]], 1L))
+bases <- bases_finalizar(bases, "base_0001", cache, 1L)
+ramo <- list(id = "execucao_0001", tipo = "anova_um_fator", titulo = "Peso de tilápias por densidade",
+  incluir_word = TRUE, estado_dependencia = "Atualizada",
+  parametros = list(resposta = "peso_kg", fator = "densidade", nivel_confianca = .95, metodo = "classica"),
+  base_id = "base_0001", base_objeto = "base_tanques", base_tipo = "derivada")
+manifesto_ramo <- list(execucoes = list(execucao_0001 = ramo), secoes_globais = list(), codigo_clara = TRUE)
+projeto_ramo <- exportacao_criar_projeto(destino = destino, nome_projeto = "tilapias_clara",
+  dados_brutos = brutos, base_resolvida = resolvida, dados_analise = compartilhada,
+  pipeline = trilha, base_externa = externa, registro_bases = bases, cache_bases = cache,
+  registro_execucoes = manifesto_ramo$execucoes, manifesto = manifesto_ramo, revisao_origem = 1L,
+  import_info = list(source = "package", package_dataset = "tilapias_teste"),
+  templates_dir = "templates")
+script_ramo <- readLines(file.path(projeto_ramo, "R", "analise.R"), encoding = "UTF-8")
+stopifnot(any(grepl("rename(densidade = tratamento)", script_ramo, fixed = TRUE)),
+  any(grepl("filter(tanque > 1)", script_ramo, fixed = TRUE)),
+  any(grepl("stopifnot(nrow(base) == 18L)", script_ramo, fixed = TRUE)),
+  !any(grepl("dplyr::", script_ramo, fixed = TRUE)),
+  length(script_ramo) <= 200L)
+esperada <- cache$base_0001$df
+medias_ramo <- as.numeric(tapply(esperada$peso_kg, factor(esperada$densidade), mean, na.rm = TRUE))
+entradas_ramo <- c(file.path(projeto_ramo, "R", "analise.R"), vapply(documentos, function(documento) {
+  extraido <- file.path(destino, paste0("ramo_", documento, ".R"))
+  knitr::purl(file.path(projeto_ramo, "relatorios", documento), output = extraido, quiet = TRUE)
+  extraido
+}, character(1)))
+for (i in seq_along(entradas_ramo)) {
+  verificador <- file.path(destino, paste0("validar_ramo_", i, ".R"))
+  saida_rds <- file.path(destino, paste0("resultado_ramo_", i, ".rds"))
+  log <- file.path(destino, paste0("execucao_ramo_", i, ".log"))
+  writeLines(c(
+    sprintf("setwd(%s)", literal(projeto_ramo)),
+    "grDevices::pdf(NULL)",
+    sprintf("source(%s, encoding = 'UTF-8')", literal(entradas_ramo[i])),
+    sprintf("saveRDS(list(n = nrow(base), medias = resultado$resumo$media), %s)", literal(saida_rds))
+  ), verificador, useBytes = TRUE)
+  status <- system2(file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
+    shQuote(verificador), stdout = log, stderr = log)
+  if (status != 0L) stop(paste(readLines(log, warn = FALSE), collapse = "\n"))
+  obtido <- readRDS(saida_rds)
+  stopifnot(obtido$n == 18L, isTRUE(all.equal(obtido$medias, medias_ramo)))
+}
 
 cat("OK: rota ClaRa escolhida só com a opção e o método clássico; ClaRa copiada em R/; script e dois QMDs em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
 cat("PROJETO:", projeto, "\n")
