@@ -194,46 +194,112 @@ escrever_excel_transversal <- function(coleta, orientacoes, arquivo,
   openxlsx::saveWorkbook(wb, arquivo, overwrite = TRUE)
 }
 
-# Esquema da curadoria: um recorte temporal, grupos e UAs com seus pools.
+# Esquema do plano: um recorte temporal, grupos e UAs com seus pools.
 # O desenho usa o plano em memória, tanto na tela como no Word.
-desenhar_plano_transversal <- function(resumo, fator = "Grupo") {
+# Faixas por grupo, como no longitudinal, com setas e detalhe de cada pool composto.
+# O detalhe ilustra a composição de uma UA; os totais vêm sempre do plano.
+desenhar_plano_transversal <- function(resumo, fator = "Grupo", respostas = character()) {
   n_grupos <- nrow(resumo)
-  centros <- rev(seq_len(n_grupos)) * 3.4
-  origem <- mean(centros)
-  grupos <- data.frame(x = 5.2, y = centros,
-    rotulo = vapply(resumo$Grupo, function(x) paste(strwrap(x, width = 24), collapse = "\n"), character(1)))
-  uas <- do.call(rbind, lapply(seq_len(n_grupos), function(i) {
-    n <- min(resumo$UAs[i], 8L)
-    data.frame(grupo_y = centros[i], y = centros[i] + if (n == 1) 0 else seq(1.3, -1.3, length.out = n),
-      itens = resumo[["Itens por UA"]][i])
-  }))
-  seta <- grid::arrow(length = grid::unit(0.12, "inches"), type = "closed")
-  ggplot2::ggplot() +
-    ggplot2::annotate("rect", xmin = 3.1, xmax = 5.3, ymin = max(centros) + 1.7, ymax = max(centros) + 2.5, fill = "#cbdce9", colour = NA) +
-    ggplot2::annotate("rect", xmin = 8.2, xmax = 10.1, ymin = max(centros) + 1.7, ymax = max(centros) + 2.5, fill = "#cbdce9", colour = NA) +
-    ggplot2::annotate("segment", x = 0.3, xend = 10, y = 0, yend = 0, arrow = seta, linewidth = 0.6) +
-    ggplot2::annotate("text", x = 9.7, y = -0.35, label = "Tempo", size = 3.5) +
-    ggplot2::annotate("segment", x = 2.4, xend = 2.4, y = 0, yend = origem, colour = "#2E7D8F") +
-    ggplot2::geom_segment(data = grupos, ggplot2::aes(x = 2.6, xend = 3.1, y = origem, yend = y), arrow = seta, linewidth = 0.6) +
-    ggplot2::annotate("point", x = 2.4, y = origem, size = 7, colour = "#2E7D8F") +
-    ggplot2::annotate("text", x = 1.15, y = origem, label = "Coleta em um\núnico momento", size = 3.8, colour = "#0F3B5F") +
-    ggplot2::geom_text(data = grupos, ggplot2::aes(x = x, y = y, label = rotulo), hjust = 1, size = 4, fontface = "bold", colour = "#0F3B5F", lineheight = 0.9) +
-    ggplot2::geom_segment(data = uas, ggplot2::aes(x = 5.7, xend = 8.1, y = grupo_y, yend = y), arrow = seta, linewidth = 0.5) +
-    ggplot2::geom_text(data = uas, ggplot2::aes(x = 8.5, y = y), label = "1", size = 3.4) +
-    ggplot2::geom_text(data = uas, ggplot2::aes(x = 9.3, y = y, label = itens), size = 3.4) +
-    ggplot2::annotate("text", x = 5.2, y = max(centros) + 2.1, label = paste0(if (grepl("×", fator, fixed = TRUE)) "Fatores: " else "Fator: ", fator), hjust = 1, fontface = "bold", size = 4, colour = "#0F3B5F") +
-    ggplot2::annotate("text", x = 8.5, y = max(centros) + 2.1, label = "UA", fontface = "bold", size = 4, colour = "#0F3B5F") +
-    ggplot2::annotate("text", x = 9.3, y = max(centros) + 2.1, label = "Itens (pool)", fontface = "bold", size = 4, colour = "#0F3B5F") +
-    ggplot2::coord_cartesian(xlim = c(0, 10.3), ylim = c(-0.6, max(centros) + 2.8), clip = "off") +
+  centros <- 6.2 + rev(seq_len(n_grupos) - 1) * 1.45
+  topo <- max(centros) + 1.15
+  pools <- resumo[["Itens por UA"]]
+  cores <- rep(c("#2E7D8F", "#0F3B5F", "#62B6B7"), length.out = n_grupos)
+  quebra <- function(x, largura = 30) paste(strwrap(x, width = largura), collapse = "\n")
+  p <- ggplot2::ggplot()
+  texto <- function(x, y, rotulo, tamanho = 3.3, negrito = FALSE, cor = "#0F3B5F") {
+    p <<- p + ggplot2::annotate("text", x = x, y = y, label = rotulo,
+      size = tamanho, colour = cor, fontface = if (negrito) "bold" else "plain", lineheight = 1.05)
+  }
+  caixa <- function(xmin, xmax, ymin, ymax, fundo, borda = NA) {
+    p <<- p + ggplot2::annotate("rect", xmin = xmin, xmax = xmax, ymin = ymin,
+      ymax = ymax, fill = fundo, colour = borda, linewidth = 0.4)
+  }
+  seta <- function(x, xend, y, yend = y, cor = "#62B6B7") {
+    p <<- p + ggplot2::annotate("segment", x = x, xend = xend, y = y, yend = yend,
+      colour = cor, linewidth = 0.6,
+      arrow = grid::arrow(length = grid::unit(0.10, "inches"), type = "closed"))
+  }
+  texto(2, topo, quebra(paste0(if (grepl("×", fator, fixed = TRUE)) "FATORES: " else "FATOR: ", fator), 27), 3.5, TRUE)
+  caixa(4.2, 10.1, topo - 0.4, topo + 0.4, "#CBDCE9")
+  texto(7.15, topo, "COLETA EM UM ÚNICO MOMENTO", 3.5, TRUE)
+  texto(13.1, topo, "COMPOSIÇÃO DE UMA UA", 3.4, TRUE)
+  for (i in seq_len(n_grupos)) {
+    y <- centros[i]
+    n <- resumo$UAs[i]
+    k <- pools[i]
+    caixa(0, 16, y - 0.65, y + 0.65, if (i %% 2) "#F1F7F8" else "#FAFCFC")
+    caixa(0, 0.07, y - 0.65, y + 0.65, cores[i])
+    texto(2, y + 0.17, quebra(resumo$Grupo[i], 25), 3.5, TRUE)
+    texto(2, y - 0.39, sprintf("%d %s · %d %s por UA", n, if (n == 1) "UA" else "UAs",
+      k, if (k == 1) "item" else "itens"), 3.0)
+    exibidas <- min(n, 5L)
+    xs <- seq(5.1, 9.3, length.out = exibidas + 1L)[seq_len(exibidas)]
+    # Uma ligação comum com setas curtas evita cruzar os símbolos das unidades.
+    seta(4.1, 4.65, y + 0.38, cor = cores[i])
+    p <- p + ggplot2::annotate("segment", x = 4.65, xend = max(xs),
+      y = y + 0.38, yend = y + 0.38, colour = cores[i], linewidth = 0.5)
+    for (x in xs) {
+      seta(x, x, y + 0.38, y + 0.15, cores[i])
+      caixa(x - 0.14, x + 0.14, y - 0.15, y + 0.12, cores[i])
+    }
+    texto(7.15, y - 0.43, if (n > exibidas)
+      sprintf("%d símbolos de UA; + %d na ficha", exibidas, n - exibidas) else
+      sprintf("%d %s de UA", n, if (n == 1) "símbolo" else "símbolos"), 2.8)
+    # Toda faixa mostra a passagem item(ns) → uma UA. Para pool = 1, a
+    # bolinha única deixa visível que não há amostra composta.
+    {
+      seta(9.6, 10.7, y)
+      caixa(10.9, 15.7, y - 0.51, y + 0.51, "#E6F3F1")
+      texto(13.3, y + 0.30, if (k == 1) "1 item → 1 UA" else
+        sprintf("%d itens misturados → 1 UA", k), 3.2, TRUE)
+      # Itens ficam próximos entre si e da seta: a leitura é itens → uma UA.
+      itens_x <- seq(12.35, 12.95, length.out = min(k, 5L))
+      p <- p + ggplot2::annotate("point", x = itens_x, y = y - 0.12,
+        shape = 21, size = 2.7, fill = cores[i], colour = "white")
+      seta(13.18, 14.02, y - 0.12)
+      caixa(14.24, 14.59, y - 0.28, y + 0.02, cores[i])
+      if (k > 5) texto(12.65, y - 0.36, sprintf("+ %d itens", k - 5), 2.5)
+    }
+  }
+  texto(8, 5.25, "DA UNIDADE AMOSTRAL AO REGISTRO DA COLETA", 3.6, TRUE)
+  caixa(0.2, 4.8, 1.7, 4.8, "#CBDCE9")
+  caixa(5.6, 10.2, 1.7, 4.8, "#E6F3F1")
+  caixa(11, 15.8, 1.7, 4.8, "#FBEAD1")
+  texto(2.5, 4.35, "O que representa uma UA?", 3.5, TRUE)
+  texto(2.5, 3.55, "Item único ou amostra composta\nConforme o protocolo do estudo", 3.0)
+  texto(2.5, 2.48, "Ex.: indivíduo ou amostra de água\nCódigo próprio e origem registrada", 2.9)
+  texto(7.9, 4.35, "Como a resposta é obtida?", 3.5, TRUE)
+  texto(7.9, 3.55, "Pool = mistura física de itens\nCada item integra uma única UA", 3.0)
+  texto(7.9, 2.48, "Ex.: medida direta ou ensaio da mistura\nMédia de medidas não é pool", 2.9)
+  texto(13.4, 4.35, "1 UA → 1 linha na coleta", 3.5, TRUE)
+  nomes <- gsub("_", " ", utils::head(respostas, 3))
+  rotulo <- if (length(nomes)) paste("Respostas:", paste(nomes, collapse = ", ")) else
+    "Respostas a definir no formulário"
+  if (length(respostas) > 3) rotulo <- paste0(rotulo, "; + ", length(respostas) - 3, " na ficha")
+  texto(13.4, 3.35, quebra(rotulo, 32), 3.0)
+  texto(13.4, 2.48, "Registrar grupo, código, origem e data\nItens e medidas internas\nnão aumentam o n de UAs", 2.9)
+  seta(4.9, 5.45, 3.25)
+  seta(10.3, 10.85, 3.25)
+  total <- sum(resumo$UAs)
+  itens <- sum(resumo$UAs * pools)
+  texto(8, 1.15, sprintf("%d %s · %d %s = %d %s de coleta · %d %s",
+    n_grupos, if (grepl("×", fator, fixed = TRUE)) "combinações de fatores" else if (n_grupos == 1) "grupo" else "grupos",
+    total, if (total == 1) "UA" else "UAs", total, if (total == 1) "linha" else "linhas",
+    itens, if (itens == 1) "item previsto" else "itens previstos"), 3.6, TRUE)
+  texto(8, 0.55, "Os exemplos nas caixas são possibilidades; o protocolo define a unidade e a medição.", 3.0)
+  p + ggplot2::coord_cartesian(xlim = c(-0.1, 16.1), ylim = c(0, topo + 0.65), expand = FALSE, clip = "off") +
     ggplot2::labs(title = "Delineamento transversal comparativo",
-      caption = paste0("Cada seta representa uma UA; pool = 1 indica indivíduo único.",
-        if (any(resumo$UAs > 8)) "\nExibidas até 8 UAs por grupo; os totais completos estão na tabela do planejamento." else "")) +
-    ggplot2::theme_void(base_size = 12) +
-    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", colour = "#0F3B5F", hjust = 0),
+      subtitle = "Comparação entre grupos preexistentes, sem sorteio de tratamentos. Setas ligam cada grupo às UAs de um único recorte temporal.",
+      caption = paste0("Símbolos genéricos: até 5 UAs por grupo e até 5 itens nos detalhes; as contagens escritas e a ficha preservam os totais.\n",
+        "Cada pool composto é detalhado na sua faixa. Pool = 1 indica item único; pool > 1 indica amostra composta física.\n",
+        "Esquema sem escala espacial. O desenho não comprova independência nem causalidade; UAs de uma mesma origem podem compartilhar dependências.")) +
+    ggplot2::theme_void(base_size = 12) + ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", colour = "#0F3B5F", size = 15, hjust = 0),
+      plot.subtitle = ggplot2::element_text(size = 10, margin = ggplot2::margin(b = 12)),
       plot.title.position = "plot",
-      plot.caption = ggplot2::element_text(hjust = 0, size = 10),
+      plot.caption = ggplot2::element_text(hjust = 0, size = 9.5, margin = ggplot2::margin(t = 10)),
       plot.background = ggplot2::element_rect(fill = "white", colour = NA),
-      plot.margin = ggplot2::margin(12, 12, 12, 12))
+      plot.margin = ggplot2::margin(12, 16, 12, 16))
 }
 
 # Infográfico gerado do plano informado, como no longitudinal.
@@ -490,6 +556,32 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
       overflow: visible !important; height: auto !important; min-height: 0; }
     .obs-estudio .card-body { display: block !important; padding: 16px 18px; }
     .obs-coluna-bloco { display: flex; flex-direction: column; gap: 12px; }
+    /* No impacto, cada sub-aba ocupa a largura disponível em três colunas.
+       O contorno envolve a coluna inteira, inclusive seus vários cartões. */
+    .obs-impacto-coluna {
+      border: 2px solid #7895ad;
+      border-radius: 10px;
+      align-self: stretch;
+      min-width: 0;
+      flex: 1;
+    }
+    .obs-impacto-coluna > .obs-card-interno { border: 0; box-shadow: none; }
+    .obs-impacto-coluna .shiny-input-container { width: 100%; min-width: 0; }
+    .obs-impacto-coluna h5 {
+      background: #cbdce9; padding: 8px 10px; border-radius: 4px;
+    }
+    .obs-modelos-impacto pre {
+      white-space: pre-wrap; overflow-wrap: anywhere;
+      font-size: 0.9rem; line-height: 1.35; padding: 8px 10px; margin-bottom: 6px;
+    }
+    .obs-modelos-impacto pre code { padding: 0; font-size: inherit; line-height: inherit; }
+    .obs-modelos-impacto .obs-modelo-caso {
+      border-top: 1px solid #dbe5e8; padding-top: 6px; margin-top: 6px;
+    }
+    .obs-modelos-impacto h6 { color: #0F3B5F; font-weight: 700; }
+    .obs-modelos-impacto p, .obs-cuidados-impacto p { margin-bottom: 6px; }
+    .obs-cuidados-impacto li { margin-bottom: 6px; }
+    .obs-cuidados-impacto .alert { padding: 10px 12px; margin-bottom: 12px; }
     .obs-gradiente-coluna {
       border: 2px solid #7895ad;
       border-radius: 10px;
@@ -614,7 +706,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
             gap = "20px",
 
             # COLUNA 1: Delineamento
-            shiny::div(class = if (tipo_resolvido %in% c("transversal_comparativo", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else if (tipo_resolvido == "gradiente") "obs-coluna-bloco obs-gradiente-coluna" else "obs-coluna-bloco",
+            shiny::div(class = if (tipo_resolvido == "impacto") "obs-coluna-bloco obs-impacto-coluna obs-apertado" else if (tipo_resolvido %in% c("transversal_comparativo", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else if (tipo_resolvido == "gradiente") "obs-coluna-bloco obs-gradiente-coluna" else "obs-coluna-bloco",
               # No estudo de gradiente o eixo é contínuo: no lugar de fator e
               # níveis entram a variável do gradiente e as estações da faixa.
               if (identical(tipo_resolvido, "gradiente")) {
@@ -707,7 +799,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
               # antes/depois — com exemplos de ambiente, não de bancada.
               if (identical(tipo_resolvido, "impacto")) {
                 shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
-                  shiny::h5(shiny::icon("sliders"), " 1. Definição do impacto e dos sítios"),
+                  shiny::h5(shiny::icon("sliders"), " 1. Pergunta e alcance do impacto"),
                   shiny::textInput(
                     ns("pergunta"), "Pergunta do estudo:",
                     value = "A qualidade da água mudou depois da instalação dos tanques-rede, em comparação com trechos de referência?",
@@ -724,32 +816,8 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                     selected = "baci",
                     inline = FALSE
                   ),
-                  # No BA (antes–depois) o próprio sítio é o seu controle, então
-                  # a condição dos sítios não se aplica: escondemos o campo.
-                  shiny::conditionalPanel(
-                    condition = sprintf("input['%s'] !== 'ba'", ns("tipo_impacto")),
-                    shiny::textInput(
-                      ns("fator_nome"), "Nome da coluna da condição do sítio:",
-                      value = "situacao",
-                      placeholder = "Ex.: situacao, condicao, trecho",
-                      width = "100%"
-                    ),
-                    shiny::textInput(
-                      ns("fator_niveis"), "Condições dos sítios (separadas por vírgula):",
-                      value = "Impacto, Referência",
-                      placeholder = "Ex.: Impacto, Referência",
-                      width = "100%"
-                    )
-                  ),
-                  shiny::numericInput(
-                    ns("n_uas"), "Sítios de impacto previstos:",
-                    value = 3, min = 1, step = 1, width = "100%"
-                  ),
-                  shiny::conditionalPanel(condition = sprintf("input['%s'] !== 'ba'", ns("tipo_impacto")),
-                    shiny::numericInput(ns("n_referencia"), "Sítios de referência previstos:", 3, min = 1, step = 1)),
-                  shiny::p(class = "small text-muted", "Sítios são locais de coleta. Sua independência e o nível de generalização precisam ser justificados; vários pontos no mesmo canal não são vários canais."),
-                  shiny::textInput(ns("coluna_unidade"), "Nome da coluna do sítio:", "sitio"),
-                  obs_tipo_unidade_ui(ns)
+                  shiny::selectInput(ns("impacto_escala"), "Alcance do estudo:",
+                    c("Um empreendimento / sistema específico", "Vários empreendimentos / sistemas"), width = "100%")
                 )
               } else {
               shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
@@ -799,9 +867,8 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                 )
               )
               },
-              # Cartão de momentos: o longitudinal acompanha unidades repetidas;
-              # o impacto BA/BACI repete cada sítio antes e depois. No CI não há
-              # segundo momento (a comparação é só entre sítios, depois da mudança).
+              # O longitudinal acompanha unidades repetidas. No impacto,
+              # as campanhas ficam na sub-aba Protocolo e calendário.
               if (identical(tipo_resolvido, "longitudinal")) {
                 shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
                   shiny::h5(shiny::icon("clock"), " 2. Momentos e unidade repetida"),
@@ -828,27 +895,13 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                   shiny::numericInput(ns("semente_visitas"), "Semente da ordem de visita:", 2027, min = 1, step = 1),
                   shiny::uiOutput(ns("avisos_longitudinal"))
                 )
-              } else if (identical(tipo_resolvido, "impacto")) {
-                shiny::conditionalPanel(
-                  condition = "true",
-                  shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
-                    shiny::h5(shiny::icon("clock"), " 2. Momentos e sítio repetido"),
-                    shiny::p(class = "small text-muted mb-2",
-                      "Cada sítio mantém o identificador nas campanhas. No CI há apenas campanhas depois; BA e BACI incluem antes e depois. No BACI, a referência acompanha o mesmo calendário."
-                    ),
-                    shiny::conditionalPanel(condition = sprintf("input['%s'] !== 'ci'", ns("tipo_impacto")),
-                      shiny::numericInput(ns("impacto_antes"), "Campanhas antes:", 6, min = 1, step = 1)),
-                    shiny::numericInput(ns("impacto_depois"), "Campanhas depois:", 6, min = 1, step = 1)
-
-                  )
-                )
               }
                 )
               }
             ),
 
             # COLUNA 2: Composição da UA (Pool) e, no longitudinal, os momentos
-            shiny::div(class = if (tipo_resolvido %in% c("transversal_comparativo", "gradiente", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else "obs-coluna-bloco",
+            shiny::div(class = if (tipo_resolvido == "impacto") "obs-coluna-bloco obs-impacto-coluna obs-apertado" else if (tipo_resolvido %in% c("transversal_comparativo", "gradiente", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else "obs-coluna-bloco",
               if (identical(tipo_resolvido, "gradiente")) {
                 shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
                   shiny::h5(shiny::icon("layer-group"), " 3. Composição da estação (Pool)"),
@@ -866,11 +919,34 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                 )
               } else if (tipo_resolvido == "impacto") {
                 shiny::div(class = "obs-card-interno",
-                  shiny::h5("3. Medidas dentro do sítio"),
-                  shiny::numericInput(ns("impacto_subamostras"), "Subamostras por sítio e campanha:", 3, min = 1, step = 1),
-                  shiny::p("Uma linha por sítio × campanha × subamostra. Arrastos, quadrados ou medidas internas permanecem ligados ao sítio; não são novos impactos."),
-                  shiny::p("Guarde as medidas separadamente. Uma média é um resumo; pool é mistura física e exige um protocolo próprio."),
-                  shiny::uiOutput(ns("avaliacao_impacto")))
+                  shiny::h5(shiny::icon("location-dot"), " 2. Sítios e condições"),
+                  # No BA (antes–depois) o próprio sítio é o seu controle, então
+                  # a condição dos sítios não se aplica: escondemos o campo.
+                  shiny::conditionalPanel(
+                    condition = sprintf("input['%s'] !== 'ba'", ns("tipo_impacto")),
+                    shiny::textInput(
+                      ns("fator_nome"), "Nome da coluna da condição do sítio:",
+                      value = "situacao",
+                      placeholder = "Ex.: situacao, condicao, trecho",
+                      width = "100%"
+                    ),
+                    shiny::textInput(
+                      ns("fator_niveis"), "Condições dos sítios (separadas por vírgula):",
+                      value = "Impacto, Referência",
+                      placeholder = "Ex.: Impacto, Referência",
+                      width = "100%"
+                    )
+                  ),
+                  shiny::numericInput(
+                    ns("n_uas"), "Sítios de impacto previstos:",
+                    value = 3, min = 1, step = 1, width = "100%"
+                  ),
+                  shiny::conditionalPanel(condition = sprintf("input['%s'] !== 'ba'", ns("tipo_impacto")),
+                    shiny::numericInput(ns("n_referencia"), "Sítios de referência previstos:", 3, min = 1, step = 1)),
+                  shiny::p(class = "small text-muted", "Sítios são locais de coleta. Sua independência e o nível de generalização precisam ser justificados; vários pontos no mesmo canal não são vários canais."),
+                  shiny::textInput(ns("coluna_unidade"), "Nome da coluna do sítio:", "sitio"),
+                  obs_tipo_unidade_ui(ns)
+                )
               } else if (tipo_resolvido == "transversal_comparativo") {
                 shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
                   shiny::h5(shiny::icon("layer-group"), " 3. UAs e pool por categoria"),
@@ -935,7 +1011,7 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
             ),
             
             # COLUNA 3: Variáveis de Resposta
-            shiny::div(class = if (tipo_resolvido %in% c("transversal_comparativo", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else if (tipo_resolvido == "gradiente") "obs-coluna-bloco obs-gradiente-coluna" else "obs-coluna-bloco",
+            shiny::div(class = if (tipo_resolvido == "impacto") "obs-coluna-bloco obs-impacto-coluna obs-apertado" else if (tipo_resolvido %in% c("transversal_comparativo", "longitudinal")) "obs-coluna-bloco obs-coluna-definicoes" else if (tipo_resolvido == "gradiente") "obs-coluna-bloco obs-gradiente-coluna" else "obs-coluna-bloco",
               shiny::div(class = if (tipo_resolvido == "longitudinal") "obs-card-interno obs-apertado" else "obs-card-interno",
                 if (identical(tipo_resolvido, "impacto")) {
                   shiny::uiOutput(ns("titulo_variaveis_impacto"))
@@ -1010,30 +1086,45 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
               shiny::uiOutput(ns("avaliacao_gradiente"))))))) else if (tipo_resolvido == "impacto") bslib::navset_tab(id = ns("definicoes_impacto"),
           bslib::nav_panel("Pergunta, sítios e respostas", definicoes_conteudo),
           bslib::nav_panel("Protocolo e calendário", bslib::card_body(fillable = FALSE,
-            bslib::layout_columns(col_widths = c(6, 6),
-              shiny::div(class = "obs-card-interno",
-                shiny::h5("Ambientes e critérios"),
-                shiny::selectInput(ns("impacto_escala"), "Alcance do estudo:",
-                  c("Um empreendimento / sistema específico", "Vários empreendimentos / sistemas")),
-                shiny::textAreaInput(ns("impacto_criterios"), "Seleção dos sítios e ambientes de referência:",
-                  placeholder = "Habitat, profundidade, conectividade e ausência da pluma. Pontos no mesmo canal compartilham ambiente.", rows = 4),
-                shiny::textAreaInput(ns("impacto_protocolo"), "Apetrecho, esforço e distribuição das subamostras:", rows = 4),
-                shiny::textAreaInput(ns("impacto_covariaveis"), "Covariáveis e outras mudanças previstas:",
-                  placeholder = "Maré, salinidade, chuvas, dragagem e mudanças no manejo.", rows = 3)),
-              shiny::div(class = "obs-card-interno",
-                shiny::h5("Datas e registro prévio"),
-                shiny::dateInput(ns("impacto_inicio"), "Início previsto do impacto:", "2028-01-01"),
-                shiny::dateInput(ns("impacto_primeira_antes"), "Primeira campanha antes:", "2027-01-15"),
-                shiny::dateInput(ns("impacto_primeira_depois"), "Primeira campanha depois:", "2028-01-15"),
-                shiny::numericInput(ns("impacto_intervalo"), "Intervalo entre campanhas (meses):", 2, min = 1, step = 1),
-                shiny::textAreaInput(ns("impacto_janela"), "Janela, maré e ordem de visita:",
-                  placeholder = "Todos os sítios na mesma janela de cada campanha; maré comparável e ordem justificada.", rows = 3),
-                shiny::textAreaInput(ns("impacto_registro"), "Referências, data e versão do plano:", rows = 3))),
-            shiny::p("As datas são indicativas. A estação climática depende da região; confira se antes e depois cobrem condições sazonais comparáveis.")))) else definicoes_conteudo),
+            bslib::layout_columns(col_widths = c(4, 4, 4), gap = "20px",
+              # Procedimentos e subamostras ficam juntos: descrevem a coleta.
+              shiny::div(class = "obs-coluna-bloco obs-impacto-coluna obs-apertado",
+                shiny::div(class = "obs-card-interno",
+                  shiny::h5(shiny::icon("clipboard-list"), " 4. Protocolo de coleta"),
+                  shiny::textAreaInput(ns("impacto_criterios"), "Seleção dos sítios e ambientes de referência:",
+                    placeholder = "Habitat, profundidade, conectividade e ausência da pluma. Pontos no mesmo canal compartilham ambiente.", rows = 3, width = "100%"),
+                  shiny::numericInput(ns("impacto_subamostras"), "Subamostras por sítio e campanha:", 3, min = 1, step = 1, width = "100%"),
+                  shiny::textAreaInput(ns("impacto_protocolo"), "Apetrecho, esforço e distribuição das subamostras:", rows = 3, width = "100%"),
+                  shiny::p(class = "small text-muted", "Uma linha por sítio × campanha × subamostra. Arrastos, quadrados ou medidas internas permanecem ligados ao sítio; não são novos impactos."),
+                  shiny::p(class = "small text-muted mb-0", "Guarde as medidas separadamente. Uma média é um resumo; pool é mistura física e exige um protocolo próprio."))),
+              # Campanhas, datas e intervalo compõem um único calendário.
+              shiny::div(class = "obs-coluna-bloco obs-impacto-coluna obs-apertado",
+                shiny::div(class = "obs-card-interno",
+                  shiny::h5(shiny::icon("calendar-days"), " 5. Campanhas e calendário"),
+                  shiny::p(class = "small text-muted", "Cada sítio mantém o identificador nas campanhas. No CI há apenas campanhas depois; BA e BACI incluem antes e depois. No BACI, a referência acompanha o mesmo calendário."),
+                  shiny::dateInput(ns("impacto_inicio"), "Início previsto do impacto:", "2028-01-01", width = "100%"),
+                  shiny::conditionalPanel(condition = sprintf("input['%s'] !== 'ci'", ns("tipo_impacto")),
+                    bslib::layout_columns(col_widths = c(5, 7), gap = "10px",
+                      shiny::numericInput(ns("impacto_antes"), "Campanhas antes:", 6, min = 1, step = 1, width = "100%"),
+                      shiny::dateInput(ns("impacto_primeira_antes"), "Primeira campanha antes:", "2027-01-15", width = "100%"))),
+                  bslib::layout_columns(col_widths = c(5, 7), gap = "10px",
+                    shiny::numericInput(ns("impacto_depois"), "Campanhas depois:", 6, min = 1, step = 1, width = "100%"),
+                    shiny::dateInput(ns("impacto_primeira_depois"), "Primeira campanha depois:", "2028-01-15", width = "100%")),
+                  shiny::numericInput(ns("impacto_intervalo"), "Intervalo entre campanhas (meses):", 2, min = 1, step = 1, width = "100%"),
+                  shiny::textAreaInput(ns("impacto_janela"), "Janela, maré e ordem de visita:",
+                    placeholder = "Todos os sítios na mesma janela de cada campanha; maré comparável e ordem justificada.", rows = 3, width = "100%"),
+                  shiny::p(class = "small text-muted mb-0", "As datas são indicativas. A estação climática depende da região; confira se antes e depois cobrem condições sazonais comparáveis."))),
+              shiny::div(class = "obs-coluna-bloco obs-impacto-coluna obs-apertado",
+                shiny::div(class = "obs-card-interno",
+                  shiny::h5(shiny::icon("clipboard-check"), " 6. Registro e revisão do plano"),
+                  shiny::textAreaInput(ns("impacto_covariaveis"), "Covariáveis e outras mudanças previstas:",
+                    placeholder = "Maré, salinidade, chuvas, dragagem e mudanças no manejo.", rows = 3, width = "100%"),
+                  shiny::textAreaInput(ns("impacto_registro"), "Referências, data e versão do plano:", rows = 3, width = "100%"),
+                  shiny::uiOutput(ns("avaliacao_impacto")))))))) else definicoes_conteudo),
       if (tipo_resolvido == "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
         bslib::card_body(fillable = FALSE,
-          shiny::p("O desenho acompanha os grupos, as UAs e os pools definidos em Definições. Cada seta à direita representa uma UA; a coluna Itens (pool) informa quantos itens a compõem."),
+          shiny::p("Leia cada faixa: as setas ligam o grupo às UAs previstas. Até dois pools diferentes aparecem em detalhe; todos os grupos mantêm suas contagens. As caixas inferiores mostram possibilidades de unidade e medição e a passagem para uma linha na coleta."),
           shiny::uiOutput(ns("esquema_transversal_ui")))) ,
       if (tipo_resolvido != "transversal_comparativo") bslib::nav_panel(
         "Desenho", icon = shiny::icon("diagram-project"),
@@ -1137,10 +1228,28 @@ mod_planejamento_observacional_ui <- function(id, tipo, variaveis_ui = NULL) {
                 shiny::h5("Cuidados no acompanhamento"),
                 shiny::uiOutput(ns("cuidados_longitudinal"))))
           } else if (tipo_resolvido == "impacto") {
-            bslib::navset_tab(id = ns("modelo_impacto"),
-              bslib::nav_panel("Comparação e limites", shiny::uiOutput(ns("card_modelo_estatistico"))),
-              bslib::nav_panel("Replicação e coleta", shiny::tags$ul(lapply(cuidados_impacto, shiny::tags$li))),
-              bslib::nav_panel("Voltar ao gradiente", shiny::p(obs_pseudorreplicas)))
+            bslib::layout_columns(col_widths = c(6, 6), gap = "20px",
+              shiny::div(class = "obs-coluna-bloco obs-impacto-coluna",
+                shiny::div(class = "obs-card-interno obs-modelos-impacto",
+                  shiny::h5(shiny::icon("calculator"), " Modelos para CI, BA e BACI"),
+                  shiny::uiOutput(ns("card_modelo_estatistico")))),
+              shiny::div(class = "obs-coluna-bloco obs-impacto-coluna",
+                shiny::div(class = "obs-card-interno obs-cuidados-impacto",
+                  shiny::h5(shiny::icon("triangle-exclamation"), " Cuidados de interpretação e coleta"),
+                  shiny::uiOutput(ns("limites_modelo_impacto")),
+                  shiny::tags$ul(class = "ps-3 small",
+                    shiny::tags$li("Defina resposta, efeito esperado e área de influência antes da coleta."),
+                    shiny::tags$li("Escolha referências comparáveis, fora da influência do impacto; registre ambiente e fonte."),
+                    shiny::tags$li("Cubra a variação sazonal e visite impacto e referência em janelas comparáveis."),
+                    shiny::tags$li("Subamostras e revisitas não são novos impactos. Pontos no mesmo canal não replicam canais."),
+                    shiny::tags$li("Registre covariáveis, tendências prévias, desvios e motivos de ausências.")),
+                  shiny::p(class = "small", "O intercepto do sítio liga suas revisitas. Autocorrelação temporal, campanhas compartilhadas e dependência entre ambientes exigem avaliação adicional."),
+                  shiny::tags$details(class = "small",
+                    shiny::tags$summary("Casos especiais e orientações completas"),
+                    shiny::p(class = "mt-2", "CI com uma campanha: lm() pode ser pertinente com uma resposta por sítio independente. BA com um resumo antes e outro depois por sítio independente pode admitir teste t pareado. Com um único sítio, não se estima a variância do efeito aleatório de sítio; é necessária uma análise temporal adequada."),
+                    shiny::tags$ul(class = "ps-3", lapply(cuidados_impacto, shiny::tags$li)),
+                    shiny::h6("Quando a pergunta é sobre um gradiente"),
+                    shiny::p(class = "mb-0", obs_pseudorreplicas)))))
           } else if (identical(tipo_resolvido, "gradiente")) {
             bslib::navset_tab(id = ns("modelo_gradiente"),
               bslib::nav_panel("Modelo e interpretação",
@@ -1788,8 +1897,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       shiny::h5(shiny::icon("layer-group"), num, " Composição da Unidade Amostral (Pool)")
     })
     output$titulo_variaveis_impacto <- shiny::renderUI({
-      num <- if (identical(tipo_impacto(), "ci")) " 3." else " 4."
-      shiny::h5(shiny::icon("list-check"), num, " Variáveis de Resposta")
+      shiny::h5(shiny::icon("list-check"), " 3. Variáveis de Resposta")
     })
 
     # Campos de variáveis de resposta
@@ -2324,14 +2432,35 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
               shiny::tags$code("data = dados"), " indica a tabela usada."))
         ))
       }
-      # O modelo recomendado do impacto muda com o tipo de pergunta: CI compara
-      # sítios num só momento, BA compara o mesmo sítio antes e depois, e o BACI
-      # olha para a interação local × tempo (o verdadeiro sinal de impacto).
+      # Os três modelos ficam visíveis para comparar suas perguntas. São
+      # exemplos para resposta contínua resumida por sítio e campanha, não
+      # uma análise automática das linhas de subamostras da planilha.
       if (identical(tipo_resolvido, "impacto")) {
-        return(shiny::div(class = "alert alert-info",
-          shiny::h6(paste("Comparação prevista:", toupper(tipo_impacto()))),
-          shiny::p(limite_impacto(tipo_impacto())),
-          shiny::p("O teste depende da resposta, da hierarquia e da dependência entre observações. Uma ANOVA comum que trata revisitas ou arrastos como independentes não representa este desenho.")))
+        sitio <- unidade_coluna_nome()
+        condicao <- gerar_nome_reduzido(ou_vazio(input$fator_nome, "situacao"))
+        return(shiny::tagList(
+          shiny::p(class = "small", "Resposta contínua; uma linha por sítio × campanha, com subamostras resumidas. Substitua resposta pela variável; condição e periodo devem ser fatores. Use códigos únicos de sítio."),
+          shiny::div(class = "obs-modelo-caso",
+            shiny::h6("CI — Controle–Impacto"),
+            shiny::p(class = "small", "Compara impacto e referência depois da mudança, ajustando campanha e diferenças persistentes entre sítios."),
+            shiny::tags$pre(.noWS = "inside", shiny::tags$code(sprintf(
+              "nlme::lme(resposta ~ %s + factor(campanha),\n  random = ~ 1 | %s, data = dados_campanhas)", condicao, sitio)))),
+          shiny::div(class = "obs-modelo-caso",
+            shiny::h6("BA — Antes–Depois"),
+            shiny::p(class = "small", "Compara os mesmos sítios antes e depois; periodo estima a mudança entre os dois períodos."),
+            shiny::tags$pre(.noWS = "inside", shiny::tags$code(sprintf(
+              "nlme::lme(resposta ~ periodo,\n  random = ~ 1 | %s, data = dados_campanhas)", sitio)))),
+          shiny::div(class = "obs-modelo-caso",
+            shiny::h6("BACI — Antes–Depois / Controle–Impacto"),
+            shiny::p(class = "small", "A interação condição × período compara a mudança no impacto com a mudança nas referências."),
+            shiny::tags$pre(.noWS = "inside", shiny::tags$code(sprintf(
+              "nlme::lme(resposta ~ %s * periodo,\n  random = ~ 1 | %s, data = dados_campanhas)", condicao, sitio))),
+            shiny::p(class = "small mb-0", "Contraste: (Depois − Antes) no impacto − (Depois − Antes) na referência. Confira a ordem dos níveis para interpretar o sinal.")),
+          shiny::p(class = "small text-muted mt-2 mb-0",
+            "Referências: ",
+            shiny::tags$a(href = "https://stat.ethz.ch/R-manual/R-devel/library/nlme/html/lme.html", target = "_blank", rel = "noopener noreferrer", "documentação de nlme::lme"),
+            "; ", shiny::tags$a(href = "https://doi.org/10.1111/2041-210X.13287", target = "_blank", rel = "noopener noreferrer", "Fisher et al. (2019), modelos BACI"), ".")
+        ))
       }
 
       iguais <- pools_iguais()
@@ -2353,6 +2482,17 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
           )
         )
       }
+    })
+
+    output$limites_modelo_impacto <- shiny::renderUI({
+      shiny::req(tipo_resolvido == "impacto")
+      shiny::div(class = "alert alert-info small",
+        shiny::h6(paste("Plano selecionado:", toupper(tipo_impacto()))),
+        shiny::p(switch(tipo_impacto(),
+          ci = "Sem dados de antes, diferenças prévias entre ambientes podem explicar o resultado.",
+          ba = "Sem referência, sazonalidade ou tendências regionais podem explicar a mudança.",
+          baci = "Compara mudanças entre condições; reduz explicações alternativas, mas não prova causalidade.")),
+        shiny::p(class = "mb-0", "Modelos iniciais para resposta contínua. Contagens, proporções e outras hierarquias exigem adaptações; revisitas e subamostras não são independentes."))
     })
 
     # Ficha persistente do delineamento
@@ -2536,7 +2676,10 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
     esquema_transversal <- shiny::reactive({
       fator <- ou_vazio(input$fator_nome, "Grupo")
       if (segundo_fator()) fator <- paste(fator, "×", ou_vazio(input$fator2_nome, "sexo"))
-      desenhar_plano_transversal(resumo_transversal(), fator)
+      n_respostas <- max(1L, min(10L, as.integer(ou_vazio(input$n_vars_resposta, 2))))
+      respostas <- vapply(seq_len(n_respostas), function(i)
+        ou_vazio(input[[paste0("var_nome_", i)]], paste0("resposta_", i)), character(1))
+      desenhar_plano_transversal(resumo_transversal(), fator, respostas)
     })
     output$resumo_transversal_intro <- shiny::renderUI({
       resumo <- resumo_transversal()
@@ -2551,7 +2694,7 @@ mod_planejamento_observacional_server <- function(id, tipo, ficha_destino_rv = N
       striped = TRUE, bordered = TRUE, spacing = "s", rownames = FALSE)
     output$esquema_transversal_ui <- shiny::renderUI({
       shiny::plotOutput(session$ns("esquema_transversal"),
-        height = paste0(max(560, nrow(resumo_transversal()) * 160), "px"))
+        height = paste0(max(680, 400 + nrow(resumo_transversal()) * 72), "px"))
     })
     output$esquema_transversal <- shiny::renderPlot({
       shiny::req(tipo_resolvido == "transversal_comparativo")
