@@ -22,7 +22,7 @@ código mostrado é exatamente o que rodou. Para entender uma função, digite
 {{PROJETO_RPROJ}}
 ├── _quarto.yml
 ├── dados/
-│   └── {{ARQUIVO_BRUTO}}          a planilha, entrada preservada
+│   └── {{ARQUIVO_BRUTO_ARVORE}}a planilha, entrada preservada
 ├── R/
 │   ├── analise.R                  o roteiro da análise, em ClaRa
 │   ├── funcoes.R                  apresentação de números e tabelas
@@ -104,27 +104,18 @@ A análise usa:
 - fator (grupos comparados): **{{FATOR}}**;
 - intervalo de confiança: **{{IC}}%**.
 
-## Como escrever e adaptar
-
-O relatório traz sugestões em Introdução, Material e métodos, Resultados,
-Discussão e Conclusão, com os resultados esperados em um artigo: a tabela da
-ANOVA, o resumo por grupo e a figura principal. A exploração e os
-diagnósticos ficam no roteiro, onde se conferem. As frases de
-`escrever_resultados()` mudam junto com os dados, mas a discussão e a
-conclusão científica precisam ser revistas pelo pesquisador.
-
-## A versão da ClaRa
-
-Este projeto leva a sua própria cópia da ClaRa em `R/clara/`. A versão aparece no
-console quando ela é carregada e fica em `saida/sessionInfo.txt`. Projetos
-exportados em datas diferentes podem ter versões diferentes da ClaRa.
-
 ## Origem dos dados
 
 Registre aqui a origem da planilha, a licença e o período de coleta. A
 CatalyseR não conhece a proveniência dos seus dados e não a declara no lugar
 do pesquisador. A planilha original fica em `dados/{{ARQUIVO_BRUTO}}` e
 não é alterada.
+
+## Método da ANOVA
+
+Este roteiro usa a ANOVA clássica com Tukey. Se o Levene indicar variâncias
+diferentes, o roteiro e o relatório avisam; nesse caso, a ANOVA de Welch com
+Games-Howell, disponível na CatalyseR, é a alternativa a considerar.
 
 ## Como ler a figura principal
 
@@ -134,11 +125,14 @@ nível escolhido, enquanto o DP do rótulo descreve a dispersão dos indivíduos
 IC e DP respondem a perguntas diferentes; não se deve interpretar um como se
 fosse o outro.
 
-## Método da ANOVA
+## Como escrever e adaptar
 
-Este roteiro usa a ANOVA clássica com Tukey. Se o Levene indicar variâncias
-diferentes, o roteiro e o relatório avisam; nesse caso, a ANOVA de Welch com Games-Howell,
-disponível na CatalyseR, é a alternativa a considerar.
+O relatório traz sugestões em Introdução, Material e métodos, Resultados,
+Discussão e Conclusão, com os resultados esperados em um artigo: a tabela da
+ANOVA, o resumo por grupo e a figura principal. A exploração e os
+diagnósticos ficam no roteiro, onde se conferem. As frases de
+`escrever_resultados()` mudam junto com os dados, mas a discussão e a
+conclusão científica precisam ser revistas pelo pesquisador.
 
 ## Ambiente computacional
 
@@ -146,4 +140,7 @@ Ambiente registrado automaticamente na exportação:
 
 {{AMBIENTE_COMPUTACIONAL}}
 
-Ao executar, o script registra o ambiente efetivo em `saida/sessionInfo.txt`.
+Ao executar, o script registra o ambiente efetivo em `saida/sessionInfo.txt`,
+com a versão da ClaRa. Este projeto leva a sua própria cópia da ClaRa em
+`R/clara/`; projetos exportados em datas diferentes podem ter versões
+diferentes dela.

@@ -8,15 +8,15 @@
 # mostrar_codigo = TRUE à chamada.
 # Este roteiro é o caderno de estudo: aqui se explora e se confere.
 # O relatório (relatorios/relatorio.qmd) repete as chamadas principais e
-# roda sozinho: uma escolha mudada aqui (rótulo, confiança, figura) se muda
-# lá também.
+# roda sozinho. Por isso, uma escolha mudada aqui (rótulo, confiança,
+# figura) precisa ser mudada lá também.
 
 # 1. Preparar o ambiente ---------------------------------------------------
 library(here)
 here::i_am("R/analise.R")  # here() monta os caminhos a partir da raiz do projeto
 {{BIBLIOTECAS_PREPARO}}
-source(here("R", "funcoes.R"), encoding = "UTF-8")  # números e tabelas
-source(here("R", "clara", "clara.R"), encoding = "UTF-8")    # as funções da ClaRa
+source(here("R", "funcoes.R"), encoding = "UTF-8")           # números e tabelas
+source(here("R", "clara", "clara.R"), encoding = "UTF-8")  # as funções da ClaRa
 
 # 2. Ler a planilha --------------------------------------------------------
 # A planilha que viajou no projeto entra aqui, sem nenhuma alteração.
@@ -25,7 +25,7 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")    # as funções da C
 # 3. Preparar a base da ANOVA ----------------------------------------------
 {{TRECHO_PREPARO}}
 
-# Primeira olhada: a resposta deve ser número (dbl) e os grupos, fator (fct).
+# A base pronta: a resposta deve ser número (dbl) e os grupos, fator (fct).
 glimpse(base)
 
 # 4. Comparar as médias ----------------------------------------------------
@@ -34,8 +34,8 @@ glimpse(base)
 resultado <- base |>
   comparar_medias(resposta        = {{RESPOSTA_CLARA}},
                   grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},  # {{NOTA_ROTULO_RESPOSTA}}
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},  # {{NOTA_ROTULO_FATOR}}
+                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos   = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
                   confianca       = {{CONFIANCA}})
 
 resultado                     # um pequeno relatório no console
@@ -107,33 +107,25 @@ textos$efeito
 textos$pressupostos
 
 # 8. Salvar cópias ---------------------------------------------------------
-# Cópias para compartilhar: os relatórios não leem estes arquivos.
-# CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
-dir.create(here("saida", "tabelas"), recursive = TRUE, showWarnings = FALSE)
-dir.create(here("saida", "figuras"), recursive = TRUE, showWarnings = FALSE)
+# Cópias para compartilhar: o relatório não lê estes arquivos. O nome antes
+# do = vira o nome do arquivo (anova = resultado$anova grava anova.csv).
+# As tabelas saem em CSV que o Excel em português abre direto.
+salvar_tabelas(base                = base,     # a base preparada pela receita
+               resumo_grupos       = resultado$resumo,
+               anova               = resultado$anova,
+               tukey               = resultado$pares,
+               testes_pressupostos = resultado$pressupostos,
+               tamanho_efeito      = efeito,
+               pasta               = here("saida", "tabelas"))
 
-tabelas <- list(base                = base,           # a base preparada pela receita
-                resumo_grupos       = resultado$resumo,
-                anova               = resultado$anova,
-                tukey               = resultado$pares,
-                testes_pressupostos = resultado$pressupostos,
-                tamanho_efeito      = efeito)
-
-for (nome in names(tabelas)) {
-  write.csv2(tabelas[[nome]], here("saida", "tabelas", paste0(nome, ".csv")),
-             row.names = FALSE, fileEncoding = "UTF-8")
-}
-
-figuras <- list(barras   = grafico_barras,
-                boxplot  = grafico_caixas,
-                pares    = grafico_diferencas,
-                residuos = grafico_ajustados,
-                qq       = grafico_normal)
-
-for (nome in names(figuras)) {
-  ggsave(here("saida", "figuras", paste0(nome, ".png")), plot = figuras[[nome]],
-         width = 7, height = 4.6, dpi = 300, bg = "white")
-}
+salvar_figuras(barras   = grafico_barras,
+               boxplot  = grafico_caixas,
+               pares    = grafico_diferencas,
+               residuos = grafico_ajustados,
+               qq       = grafico_normal,
+               pasta    = here("saida", "figuras"),
+               largura  = 18,                  # em centímetros
+               altura   = 12)
 
 # 9. Registrar o ambiente --------------------------------------------------
 # As versões da ClaRa, do R e dos pacotes usadas nesta execução.

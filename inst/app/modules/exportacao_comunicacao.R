@@ -2193,24 +2193,39 @@ exportacao_molde_pacotes_texto <- function(pacotes) {
     if (length(corpo) > 1L) paste0("  ", corpo[-1]) else NULL
   )
   saida[length(saida)] <- paste0(saida[length(saida)], ")")
-  saida
+  # Recuado dentro do install.packages( ) do README.
+  paste0("  ", saida)
+}
+
+# Versão da ClaRa que viaja no projeto, lida da porta de entrada (clara.R).
+exportacao_versao_clara <- function(templates_dir = "templates") {
+  linhas <- readLines(file.path(templates_dir, "clara", "clara.R"), encoding = "UTF-8", warn = FALSE)
+  versao <- sub('^versao_clara <- "([^"]+)".*$', "\\1", grep("^versao_clara <- ", linhas, value = TRUE))
+  if (length(versao)) versao[1] else "não registrada"
 }
 
 # Metadados da máquina exportadora; o script registra novamente no Render.
-exportacao_ambiente_computacional <- function(pacotes) {
+# A revisão só aparece quando é um commit do GitHub; um pacote do CRAN
+# aparece como CRAN. Na rota ClaRa, a ClaRa entra na tabela, logo abaixo do R.
+exportacao_ambiente_computacional <- function(pacotes, clara = NULL) {
   nomes <- sort(unique(c("catalyser", "EAPADados", pacotes)))
   linhas <- vapply(nomes, function(nome) {
     descricao <- suppressWarnings(utils::packageDescription(nome))
     if (!is.list(descricao)) return(paste("|", nome, "| não instalado | não registrado |"))
-    revisao <- descricao$RemoteSha %||% "não registrado"
+    revisao <- descricao$RemoteSha %||% ""
+    if (!grepl("^[0-9a-f]{7,40}$", revisao)) {
+      revisao <- if (identical(descricao$Repository, "CRAN")) "CRAN" else "não registrada"
+    }
     paste("|", nome, "|", descricao$Version, "|", revisao, "|")
   }, character(1))
   quarto <- Sys.getenv("QUARTO_PATH", unname(Sys.which("quarto")))
   versao <- if (nzchar(quarto) && file.exists(quarto)) {
     paste(system2(quarto, "--version", stdout = TRUE), collapse = " ")
   } else "não encontrado na exportação"
-  c("| Componente | Versão | Revisão GitHub |", "|---|---|---|",
-    paste("| R |", getRversion(), "| |"), paste("| Quarto |", versao, "| |"), linhas)
+  c("| Componente | Versão | Origem ou revisão GitHub |", "|---|---|---|",
+    paste("| R |", getRversion(), "| |"),
+    if (!is.null(clara)) paste("| ClaRa |", clara, "| cópia em `R/clara/` |"),
+    paste("| Quarto |", versao, "| |"), linhas)
 }
 
 exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
@@ -2225,7 +2240,8 @@ exportacao_molde_projeto_readme <- function(entrada, manifesto, nome_projeto,
   exportacao_preencher_template(linhas, c(
     entrada$marcadores_readme(item, nome_projeto, import_info),
     list(PACOTES_INSTALAR = exportacao_molde_pacotes_texto(pacotes),
-         AMBIENTE_COMPUTACIONAL = exportacao_ambiente_computacional(pacotes))
+         AMBIENTE_COMPUTACIONAL = exportacao_ambiente_computacional(pacotes,
+           clara = if (isTRUE(entrada$clara)) exportacao_versao_clara(templates_dir)))
   ))
 }
 
@@ -2400,6 +2416,8 @@ exportacao_anova_clara_marcadores <- function(item) {
   if (!nzchar(trimws(rotulo_fator))) rotulo_fator <- as.character(p$fator %||% "grupo")
   titulo <- as.character(p$titulo_grafico %||% "")
   ic <- format(100 * (p$nivel_confianca %||% .95), trim = TRUE, decimal.mark = ",")
+  larguras <- nchar(c(base$ROTULO_RESPOSTA_R, base$ROTULO_FATOR_R))
+  alinhar <- strrep(" ", max(larguras) - larguras + 2L)
   c(base, list(
     RESPOSTA_CLARA = exportacao_nome_clara(p$resposta %||% "resposta"),
     FATOR_CLARA = exportacao_nome_clara(p$fator %||% "grupo"),
@@ -2410,6 +2428,9 @@ exportacao_anova_clara_marcadores <- function(item) {
       paste0("`", gsub("`", "", rotulo_fator, fixed = TRUE), "`"),
     IC_COL = paste0("`IC ", ic, "%`"),
     TITULO_CLARA = if (nzchar(trimws(titulo))) encodeString(titulo, quote = '"') else "NULL",
+    # Espaços que alinham os dois comentários dos rótulos na mesma coluna.
+    ESPACO_ROTULO_RESPOSTA = alinhar[1],
+    ESPACO_ROTULO_FATOR = alinhar[2],
     # Ao lado dos rótulos, o que eles fazem; o exemplo só aparece enquanto o
     # rótulo ainda é o nome cru da coluna, para o aluno ver onde trocar.
     NOTA_ROTULO_RESPOSTA = paste0("no texto e na figura",
@@ -2419,8 +2440,26 @@ exportacao_anova_clara_marcadores <- function(item) {
   ))
 }
 
+# Material e métodos da rota ClaRa: a ClaRa só faz a ANOVA clássica com
+# Tukey, e os gráficos de resíduos ficam no roteiro, não no Word. O texto
+# comum da ANOVA fala também do Welch e não serve aqui.
+exportacao_anova_clara_metodos <- function(item) {
+  comum <- exportacao_textos_anova(item)$metodos
+  c(comum[1:3], "", paste(
+    "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019],",
+    "e a normalidade dos resíduos pelo teste de Shapiro-Wilk. Os testes formais foram lidos junto",
+    "com os gráficos de resíduos, que acompanham o roteiro de análise [@kozak2018]. As médias foram",
+    "comparadas par a par pelo teste de Tukey, e as letras, obtidas com o pacote `multcompView`",
+    "[@graves2026], resumem os p-valores ajustados no nível de significância adotado. O tamanho de",
+    "efeito foi descrito por η² e ω², com intervalos de confiança, pelo pacote `effectsize`",
+    "[@benshachar2020]. As figuras foram construídas com o `ggplot2` [@wickham2016]."))
+}
+
 exportacao_anova_clara_marcadores_qmd <- function(item, manifesto, import_info) {
-  c(exportacao_anova_marcadores_qmd(item, manifesto, import_info),
+  valores <- exportacao_anova_marcadores_qmd(item, manifesto, import_info)
+  escrito <- paste(as.character(manifesto$secoes_globais$metodos %||% ""), collapse = "\n")
+  if (!nzchar(trimws(escrito))) valores$METODOS <- exportacao_anova_clara_metodos(item)
+  c(valores,
     exportacao_anova_clara_marcadores(item),
     list(TRECHO_PREPARO_QMD = manifesto$clara$qmd,
          TITULO_RELATORIO = exportacao_anova_clara_titulo(item)))
@@ -2430,6 +2469,9 @@ exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_
   valores <- exportacao_anova_marcadores_readme(item, nome_projeto, import_info)
   titulo_tela <- trimws(as.character(item$parametros$titulo_grafico %||% ""))
   valores$TITULO <- if (nzchar(titulo_tela)) titulo_tela else nome_projeto
+  # Na árvore do README, a descrição da planilha na mesma coluna das outras.
+  valores$ARQUIVO_BRUTO_ARVORE <- formatC(valores$ARQUIVO_BRUTO,
+    width = -max(27L, nchar(valores$ARQUIVO_BRUTO) + 2L))
   valores
 }
 
@@ -2495,12 +2537,24 @@ exportacao_clara_funcoes <- function(funcoes, codigo) {
 
 # Seção 2 do roteiro em ClaRa: a planilha fica como o read_excel() a entrega,
 # uma tibble (o roteiro é tidyverse; nada da ClaRa pede data.frame), e a
-# primeira olhada usa glimpse(), a mesma da base na seção 3.
+# primeira olhada usa glimpse(), a mesma da base na seção 3. O caminho e a
+# aba já aparecem no código; o nome do arquivo de origem só fica quando é
+# outro (a planilha que o pesquisador importou com outro nome).
 exportacao_clara_importar <- function(import_info = list()) {
   linhas <- exportacao_molde_importar(import_info)
   linhas <- sub("as.data.frame(read_excel(caminho_planilha, sheet = aba_planilha))",
                 "read_excel(caminho_planilha, sheet = aba_planilha)", linhas, fixed = TRUE)
-  sub("^str\\(dados_brutos\\)$", "glimpse(dados_brutos)", linhas)
+  linhas <- sub("^str\\(dados_brutos\\)$", "glimpse(dados_brutos)", linhas)
+  planilha <- exportacao_nome_planilha(import_info)
+  origem <- basename(import_info$file_name %||% import_info$package_dataset %||% planilha)
+  linhas <- linhas[!grepl("^# Entrada: ", linhas)]
+  if (identical(tools::file_path_sans_ext(origem), tools::file_path_sans_ext(planilha))) {
+    linhas <- linhas[!grepl("^# Arquivo de origem: ", linhas)]
+  }
+  # Sem linha em branco no começo nem no fim: o molde já separa as seções.
+  while (length(linhas) && !nzchar(trimws(linhas[1]))) linhas <- linhas[-1]
+  while (length(linhas) && !nzchar(trimws(linhas[length(linhas)]))) linhas <- linhas[-length(linhas)]
+  linhas
 }
 
 # A ClaRa não usa operadores %...%: na receita da rota ClaRa, `x %in% c(...)`
