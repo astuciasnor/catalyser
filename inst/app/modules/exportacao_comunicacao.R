@@ -2382,9 +2382,20 @@ exportacao_nome_clara <- function(x) {
   if (identical(make.names(x), x)) x else paste0("`", gsub("`", "", x, fixed = TRUE), "`")
 }
 
+# Título do relatório na rota ClaRa: o que o pesquisador escreveu na tela;
+# sem isso, um lugar marcado para preencher. O título automático da tela
+# ("peso_g entre grupos de racao") usa os nomes crus das colunas e não serve
+# para um documento.
+exportacao_anova_clara_titulo <- function(item) {
+  titulo <- trimws(as.character(item$parametros$titulo_grafico %||% ""))
+  if (nzchar(titulo)) titulo else "Título do trabalho (preencher)"
+}
+
 exportacao_anova_clara_marcadores <- function(item) {
   p <- item$parametros
   base <- exportacao_anova_marcadores_script(item)
+  titulo_tela <- trimws(as.character(p$titulo_grafico %||% ""))
+  base$TITULO_COMENTARIO <- toupper(if (nzchar(titulo_tela)) titulo_tela else "ANOVA de um fator")
   rotulo_fator <- as.character(p$rotulo_x %||% "")
   if (!nzchar(trimws(rotulo_fator))) rotulo_fator <- as.character(p$fator %||% "grupo")
   titulo <- as.character(p$titulo_grafico %||% "")
@@ -2401,7 +2412,15 @@ exportacao_anova_clara_marcadores <- function(item) {
 exportacao_anova_clara_marcadores_qmd <- function(item, manifesto, import_info) {
   c(exportacao_anova_marcadores_qmd(item, manifesto, import_info),
     exportacao_anova_clara_marcadores(item),
-    list(TRECHO_PREPARO_QMD = manifesto$clara$qmd))
+    list(TRECHO_PREPARO_QMD = manifesto$clara$qmd,
+         TITULO_RELATORIO = exportacao_anova_clara_titulo(item)))
+}
+
+exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_info) {
+  valores <- exportacao_anova_marcadores_readme(item, nome_projeto, import_info)
+  titulo_tela <- trimws(as.character(item$parametros$titulo_grafico %||% ""))
+  valores$TITULO <- if (nzchar(titulo_tela)) titulo_tela else nome_projeto
+  valores
 }
 
 # Rota ClaRa: a base nasce da planilha e da receita, sem fotografia. A receita
@@ -2696,7 +2715,7 @@ molde_projeto_registro <- list(
     },
     marcadores_script = exportacao_anova_clara_marcadores,
     marcadores_qmd = exportacao_anova_clara_marcadores_qmd,
-    marcadores_readme = exportacao_anova_marcadores_readme
+    marcadores_readme = exportacao_anova_clara_marcadores_readme
   ),
   anova_um_fator = list(
     tipo = "anova_um_fator",

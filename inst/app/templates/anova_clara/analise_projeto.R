@@ -102,6 +102,10 @@ textos <- resultado |>
 
 textos
 
+# Cada frase também pode ser vista sozinha, pelo nome depois do $:
+textos$efeito
+textos$pressupostos
+
 # 11. Salvar cópias --------------------------------------------------------
 # Cópias para compartilhar: os relatórios não leem estes arquivos.
 # CSV com ponto e vírgula e vírgula decimal abre bem no Excel em português.
