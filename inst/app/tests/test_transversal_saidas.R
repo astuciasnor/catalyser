@@ -14,6 +14,7 @@ testServer(mod_planejamento_observacional_server,
       n_uas = 5, tipo_pool = "desigual", pool_grupo_1 = 2, pool_grupo_2 = 1,
       pool_grupo_3 = 1, pool_grupo_4 = 3, pool_grupo_5 = 3,
       pergunta = "Como a composição lipídica das bexigas natatórias varia entre espécies?",
+      unidade_item = "bexiga natatória",
       n_vars_resposta = 1, var_nome_1 = "lipidios", var_unidade_1 = "%")
     session$flushReact()
     coleta <- tabela_coleta_dados()
@@ -24,19 +25,24 @@ testServer(mod_planejamento_observacional_server,
       all(coleta$lipidios == ""), all(coleta$lote_origem == ""))
     texto <- texto_metodologia_artigo_str()
     stopifnot(grepl("Será realizado", texto), grepl("A definir", texto),
+      grepl("bexiga natatória", texto, fixed = TRUE),
+      any(grepl("bexiga natatória", dicionario_dados()$descricao, fixed = TRUE)),
+      identical(ficha()$hierarquia$item_por_ua, "bexiga natatória"),
       !grepl("foi aplicada|Foram analisadas", texto))
     excel <- file.path(destino, "coleta_transversal.xlsx")
     word <- file.path(destino, "metodologia_transversal.docx")
     escrever_excel_transversal(coleta, orientacoes_transversal(), excel)
     escrever_word_transversal(word, input$pergunta, texto, resumo,
-      dicionario_dados(), cuidados_transversal, coleta, esquema_transversal())
+      dicionario_dados(), cuidados_transversal, coleta, esquema_transversal(),
+      item = input$unidade_item)
     ggplot2::ggsave(file.path(destino, "esquema_transversal.png"), esquema_transversal(),
       width = 10, height = 6.1, dpi = 150, bg = "white")
     stopifnot(identical(openxlsx::getSheetNames(excel), c("coleta", "orientacoes")),
       nrow(openxlsx::read.xlsx(excel, sheet = "coleta")) == 25L)
     conteudo <- officer::docx_summary(officer::read_docx(word))$text
     stopifnot(any(grepl("Distribuição prevista", conteudo)),
-      any(grepl("50 itens", conteudo)),
+      any(grepl("50 unidades físicas", conteudo)),
+      any(grepl("bexiga natatória", conteudo, fixed = TRUE)),
       any(grepl("Planilha de coleta", conteudo)))
     # O Word contém a figura e duas seções horizontais, seguidas de retrato.
     pasta_doc <- tempfile("word_xml_")
@@ -109,6 +115,7 @@ testServer(mod_planejamento_observacional_server,
       fator_niveis = "Estuário interno, Estuário externo, Costa",
       uas_grupo_1 = 5, uas_grupo_2 = 5, uas_grupo_3 = 5,
       pool_combinacao_1 = 1, pool_combinacao_2 = 1, pool_combinacao_3 = 1,
+      unidade_item = "garrafa de água (1 L)",
       registrar_coordenadas = TRUE, precisao_gps_m = 5,
       espacamento_minimo_m = "", justificativa_espacamento = "Piloto com maré e hidrodinâmica.",
       n_vars_resposta = 1, var_nome_1 = "salinidade", var_unidade_1 = "psu")
@@ -124,10 +131,12 @@ testServer(mod_planejamento_observacional_server,
       all(coleta_estacoes$precisao_gps_m == 5L))
     texto_estacoes <- texto_metodologia_artigo_str()
     stopifnot(grepl("Não haverá amostra composta", texto_estacoes, fixed = TRUE),
+      grepl("garrafa de água (1 L)", texto_estacoes, fixed = TRUE),
       grepl("hidrodinâmica", texto_estacoes, ignore.case = TRUE),
       grepl("5 m", texto_estacoes, fixed = TRUE),
       all(c("latitude_wgs84", "longitude_wgs84", "precisao_gps_m") %in% dicionario_dados()$coluna),
       any(grepl("Hidrodinâmica e estudo-piloto", orientacoes_transversal()$campo, fixed = TRUE)),
+      any(grepl("Item ou porção física", orientacoes_transversal()$campo, fixed = TRUE)),
       identical(ficha()$hierarquia$localizacao_planejada$precisao_horizontal_m, 5L))
     excel_estacoes <- file.path(destino, "coleta_estacoes_ambientais.xlsx")
     escrever_excel_transversal(coleta_estacoes, orientacoes_transversal(), excel_estacoes)
@@ -140,6 +149,7 @@ stopifnot(!grepl("teste-baixar_projeto|teste-baixar_dicionario", ui),
 stopifnot(grepl("teste-ui_amostra_categorias", ui),
   !grepl('id="teste-n_uas"|id="teste-tipo_pool"', ui),
   grepl("teste-usar_exercicio_faixas", ui), grepl("teste-registrar_coordenadas", ui))
+stopifnot(grepl("teste-unidade_item", ui), grepl("garrafa de água", ui, fixed = TRUE))
 stopifnot(grepl('data-value="Definições"', ui), grepl('data-value="Desenho"', ui), grepl('data-value="Resumo"', ui),
   lengths(regmatches(ui, gregexpr('id="teste-baixar_planilha"', ui))) == 1L,
   lengths(regmatches(ui, gregexpr('id="teste-baixar_relatorio"', ui))) == 1L)
