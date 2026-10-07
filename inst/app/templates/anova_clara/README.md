@@ -27,8 +27,8 @@ código mostrado é exatamente o que rodou. Para entender uma função, digite
 ├── R/
 │   ├── analise.R                  o roteiro da análise, em ClaRa
 │   ├── funcoes.R                  apresentação de números e tabelas
-│   ├── clara.R                    a porta de entrada da ClaRa
-│   └── clara_*.R                  as funções da ClaRa, um arquivo por pergunta
+│   └── clara/                     a ClaRa: clara.R, a porta de entrada, e um
+│                                  arquivo clara_*.R por pergunta
 ├── imagens/                       fotos e esquemas fornecidos pelo pesquisador
 ├── relatorios/
 │   ├── relatorio_completo.qmd     caderno HTML

@@ -33,7 +33,7 @@ library(dplyr)
 library(ggplot2)
 library(readxl)
 source(here("R", "funcoes.R"), encoding = "UTF-8")
-source(here("R", "clara.R"), encoding = "UTF-8")
+source(here("R", "clara", "clara.R"), encoding = "UTF-8")
 
 {{TRECHO_PREPARO_QMD}}
 

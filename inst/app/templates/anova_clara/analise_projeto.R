@@ -14,7 +14,7 @@ library(here)
 here::i_am("R/analise.R")  # here() monta os caminhos a partir da raiz do projeto
 {{BIBLIOTECAS_PREPARO}}
 source(here("R", "funcoes.R"), encoding = "UTF-8")  # números e tabelas
-source(here("R", "clara.R"), encoding = "UTF-8")    # as funções da ClaRa
+source(here("R", "clara", "clara.R"), encoding = "UTF-8")    # as funções da ClaRa
 
 # 2. Ler a planilha --------------------------------------------------------
 # A planilha que viajou no projeto entra aqui, sem nenhuma alteração.
