@@ -20,8 +20,25 @@ format:
 <!-- GUIA DE EDIÇÃO: este é o único documento do projeto, o relatório que
 vira Word. Os chunks repetem as chamadas principais de R/analise.R, de forma
 mais enxuta, e o documento roda sozinho. A exploração e os diagnósticos ficam
-no roteiro. Escreva aqui o texto do artigo ou da tese; revise as frases
-automáticas antes de entregar. -->
+no roteiro.
+
+O QUE SE ESCREVE À MÃO, antes de entregar:
+
+1. Título, autor, Introdução, Discussão e Conclusão: os lugares marcados com
+   "preencher" ou com o texto que você trouxe da CatalyseR.
+2. Nos Resultados, a frase entre colchetes: qual grupo teve a maior média,
+   quais não diferiram, com média ± DP e a unidade. As frases automáticas
+   dizem quais pares diferiram, mas não contam essa história.
+3. Revisar as frases automáticas (as que vêm de textos$...): elas usam
+   os rótulos da análise ("Peso (g)") e podem pedir um ajuste de redação.
+4. Escolher entre a tabela de médias e a figura (veja o aviso nos
+   Resultados) e decidir se a tabela da ANOVA fica.
+5. Conferir as casas decimais (`casas`, no chunk abaixo): use a precisão da
+   medição. Balança de 0,1 g pede casas = 1.
+
+A forma de apresentar os resultados não é fixa: o pesquisador decide
+conforme a revista, a banca e o que quer comunicar. O guia completo está em
+docs/DIRETRIZES_RELATORIO_COMPARAR_MEDIAS.md, no repositório da CatalyseR. -->
 
 ```{r}
 #| label: preparar
@@ -37,17 +54,40 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")
 
 {{TRECHO_PREPARO_QMD}}
 
-# Resumo, ANOVA, pressupostos, Tukey e letras, numa função só.
+# Resumo, {{NOME_ANOVA}}, pressupostos, {{POS_TESTE}} e letras, numa função só.
 resultado <- base |>
-  comparar_medias(resposta        = {{RESPOSTA_CLARA}},
-                  grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
-                  confianca       = {{CONFIANCA}})
+  comparar_medias(resposta          = {{RESPOSTA_CLARA}},
+                  grupos            = {{FATOR_CLARA}},
+                  rotulo_resposta   = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos     = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
+                  confianca         = {{CONFIANCA}},
+                  variancias_iguais = {{VARIANCIAS_IGUAIS_CLARA}})  {{NOTA_VARIANCIAS}}
 
 # As frases do relatório, que mudam junto com os dados.
 textos <- resultado |>
   escrever_resultados()
+
+# Casas decimais das médias, do DP e do IC, na tabela e na figura.
+# Use a precisão da medição: balança de 0,1 g pede casas = 1.
+casas <- 1
+
+# O nível de confiança e o de significância, para as notas e legendas.
+nivel <- 100 * resultado$nomes$confianca
+alfa  <- fmt(1 - resultado$nomes$confianca, 2)
+
+# A nota da tabela de médias e a legenda da figura. Se trocar a haste da
+# figura ("ep" ou "dp"), troque também o que a legenda diz das hastes.
+nota_tabela <- paste0(
+  "Médias seguidas pela mesma letra não diferem entre si pelo teste de ",
+  "{{POS_TESTE}} ao nível de ", 100 - nivel, "% de significância (α = ", alfa, "). ",
+  "DP: desvio padrão; IC: intervalo de confiança de ", nivel, "% da média."
+)
+legenda_figura <- paste0(
+  "As barras e os losangos indicam a média de cada grupo; os pontos, as ",
+  "observações individuais; as hastes, o intervalo de confiança de ", nivel,
+  "% da média. O rótulo mostra média ± desvio padrão (DP). Letras iguais ",
+  "indicam grupos que não diferem pelo teste de {{POS_TESTE}} (α = ", alfa, ")."
+)
 ```
 
 # Introdução
@@ -62,48 +102,62 @@ textos <- resultado |>
 
 `r textos$amostra`
 
-A @tbl-resumo descreve cada grupo com as letras do teste de Tukey.
-
-```{r}
-#| label: tbl-resumo
-#| tbl-cap: "Resumo por grupo: n, média, desvio padrão (DP), erro padrão (EP), intervalo de confiança da média e letras do teste de Tukey."
-resultado$resumo |>
-  transmute({{ROTULO_FATOR_COL}} = {{FATOR_CLARA}},
-            n,
-            Média  = fmt(media),
-            DP     = fmt(dp),
-            EP     = fmt(ep),
-            {{IC_COL}} = paste(fmt(ic_inf), "a", fmt(ic_sup)),
-            Letras = letra) |>
-  flextable_ocean()
-```
-
 `r textos$teste` `r textos$efeito`
 
-A @tbl-anova apresenta a análise de variância.
+<!-- TABELA DA ANOVA: num artigo de um fator, ela pode ser retirada, porque
+o F e os graus de liberdade já estão na frase acima. Foi colocada aqui
+porque relatórios e teses costumam trazê-la. Para tirar, apague este chunk
+e a frase que a cita, ou apague a tabela no Word depois do Render. -->
+
+{{FRASE_TBL_ANOVA}}
 
 ```{r}
 #| label: tbl-anova
-#| tbl-cap: "Análise de variância de um fator. GL: graus de liberdade; SQ: soma de quadrados; QM: quadrado médio."
-resultado$anova |>
-  transmute(Fonte = c({{ROTULO_FATOR_R}}, "Resíduo"),
-            GL    = gl,
-            SQ    = fmt(sq),
-            QM    = fmt(qm),
-            F     = ifelse(is.na(f), "", fmt(f)),
-            p     = ifelse(is.na(p), "", formatar_p(p))) |>
-  flextable_ocean()
+#| tbl-cap: "{{TBL_ANOVA_CAP}}"
+{{TABELA_ANOVA}}
 ```
 
 `r textos$comparacoes`
 
+[Escreva aqui, com suas palavras: qual grupo teve a maior média, com média ±
+DP e a unidade; de quais grupos ele diferiu; e quais grupos não diferiram
+entre si. Cite a tabela de médias ou a figura, conforme a sua escolha.]
+
+<!-- TABELA DE MÉDIAS OU FIGURA: a maioria das revistas não aceita os mesmos
+dados em tabela e em gráfico. Num artigo, escolha uma e apague a outra
+(chunk e frase que a cita). A tabela serve melhor quando o leitor precisa
+dos valores exatos ou quando há muitos grupos; a figura, quando o foco é o
+contraste entre os grupos, e ela já traz média ± DP e as letras. Num
+relatório de aula ou numa tese, as duas podem ficar, por decisão sua. -->
+
+A @tbl-medias resume cada grupo, com as letras do teste de {{POS_TESTE}}.
+
+```{r}
+#| label: tbl-medias
+#| tbl-cap: "Média ± desvio padrão (DP) e intervalo de confiança (IC) da média em cada grupo."
+resultado$resumo |>
+  transmute({{ROTULO_FATOR_COL}} = {{FATOR_CLARA}},
+            n,
+            `Média ± DP` = paste(fmt(media, casas), "±", fmt(dp, casas)),
+            {{IC_COL}} = paste(fmt(ic_inf, casas), "a", fmt(ic_sup, casas))) |>
+  flextable_ocean() |>
+  # A letra do {{POS_TESTE}} sobrescrita à média, como nas revistas: 86,2 ± 3,1ᶜ.
+  flextable::compose(j = "Média ± DP",
+                     value = flextable::as_paragraph(
+                       `Média ± DP`, flextable::as_sup(resultado$resumo$letra))) |>
+  # A nota de rodapé, com o teste e o nível de significância.
+  flextable::add_footer_lines(nota_tabela) |>
+  flextable::font(fontname = "Times New Roman", part = "footer") |>
+  flextable::fontsize(size = 9, part = "footer")
+```
+
 A @fig-barras apresenta as médias dos grupos com seus intervalos e as letras
-do teste de Tukey. Cada observação aparece como ponto sobre barras
+do teste de {{POS_TESTE}}. Cada observação aparece como ponto sobre barras
 semitransparentes, o que preserva a distribuição dos dados [@weissgerber2015].
 
 ```{r}
 #| label: fig-barras
-#| fig-cap: "Média de cada grupo com intervalo de confiança; o rótulo mostra média ± desvio padrão e as letras indicam os grupos do teste de Tukey."
+#| fig-cap: !expr legenda_figura
 resultado |>
   grafico_medias(titulo           = {{TITULO_CLARA}},
                  explicacao       = FALSE,
@@ -112,7 +166,7 @@ resultado |>
                  largura_barras   = 0.3,
                  mostrar_pontos   = TRUE,
                  mostrar_media_dp = TRUE,
-                 casas            = 2,
+                 casas            = casas,
                  mostrar_letras   = TRUE,
                  cores            = "ocean",
                  tamanho_texto    = 12,

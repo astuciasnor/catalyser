@@ -2378,16 +2378,73 @@ exportacao_anova_marcadores_readme <- function(item, nome_projeto, import_info) 
 }
 
 # ---- ANOVA em ClaRa (opção experimental) ------------------------------------
-# A rota ClaRa escreve R/analise.R e os dois QMDs com as funções da ClaRa
-# (templates/clara/), em vez do roteiro passo a passo. Só vale para a ANOVA
-# de um fator com o método clássico: a ClaRa ainda não faz a ANOVA de Welch.
-# As outras situações continuam no molde da ANOVA, sem mudança.
+# A rota ClaRa escreve R/analise.R e o relatório com as funções da ClaRa
+# (templates/clara/), em vez do roteiro passo a passo. Vale para a ANOVA de
+# um fator nos três métodos da tela: clássica, Welch e automático. As outras
+# situações continuam no molde da ANOVA, sem mudança.
 exportacao_anova_clara_aceita <- function(manifesto) {
   if (!isTRUE(manifesto$codigo_clara) || !isTRUE(exportacao_anova_simples(manifesto))) {
     return(FALSE)
   }
   item <- exportacao_execucoes_incluidas(manifesto)[[1]]
-  identical(as.character(item$parametros$metodo %||% "classica"), "classica")
+  !is.na(exportacao_anova_clara_metodo(item))
+}
+
+# O método que o script em ClaRa escreve: "classica" ou "welch". A ClaRa
+# nunca escolhe o teste pelo Levene; no automático, quem escolheu foi a
+# CatalyseR, e o script recebe a escolha já feita (metodo_usado), escrita em
+# variancias_iguais. Sem essa escolha registrada, a rota ClaRa não se aplica.
+exportacao_anova_clara_metodo <- function(item) {
+  p <- item$parametros
+  metodo <- as.character(p$metodo %||% "classica")
+  if (identical(metodo, "auto")) metodo <- as.character(p$metodo_usado %||% "")
+  if (length(metodo) == 1L && is.element(metodo, c("classica", "welch"))) metodo else NA_character_
+}
+
+# Os trechos de texto que mudam com o método, no script, no relatório e no
+# README. Na clássica, o Tukey; no Welch, o Games-Howell.
+exportacao_anova_clara_textos_metodo <- function(item) {
+  welch <- identical(exportacao_anova_clara_metodo(item), "welch")
+  automatico <- identical(as.character(item$parametros$metodo %||% "classica"), "auto")
+  pos_teste <- if (welch) "Games-Howell" else "Tukey"
+  arquivo_pares <- if (welch) "games_howell" else "tukey"
+  list(
+    welch = welch,
+    VARIANCIAS_IGUAIS_CLARA = if (welch) "FALSE" else "TRUE",
+    NOTA_VARIANCIAS = if (welch) "# FALSE: ANOVA de Welch; TRUE: ANOVA clássica" else
+      "# TRUE: ANOVA clássica; FALSE: ANOVA de Welch",
+    POS_TESTE = pos_teste,
+    NOME_ANOVA = if (welch) "ANOVA de Welch" else "ANOVA",
+    COMENTARIO_COMPARAR = c(
+      if (welch) c("# Resumo, ANOVA de Welch, pressupostos (Shapiro-Wilk em cada grupo),",
+                   "# Games-Howell e letras, numa função só. Os rótulos ficam no resultado:",
+                   "# gráficos e textos os usam.") else
+        c("# Resumo, ANOVA, pressupostos (Shapiro-Wilk e Levene), Tukey e letras,",
+          "# numa função só. Os rótulos ficam no resultado: gráficos e textos os usam."),
+      if (automatico) c(
+        "# O método veio da escolha automática da CatalyseR: o Levene",
+        if (welch) "# indicou variâncias diferentes, e a ANOVA de Welch foi a escolhida." else
+          "# não indicou variâncias diferentes, e a ANOVA clássica foi a escolhida.",
+        "# A escolha fica escrita em variancias_iguais; para mudá-la, troque ali.")),
+    COMENTARIO_EFEITO = if (welch)
+      "# Tamanho de efeito: ω² aproximado, convertido do F de Welch, com intervalo." else
+      "# Tamanho de efeito: η² e ω², com intervalo e a leitura de Cohen.",
+    COMENTARIO_PRESSUPOSTOS = if (welch) "Shapiro-Wilk em cada grupo, com a leitura" else
+      "Shapiro-Wilk e Levene, com a leitura",
+    # O nome antes do = vira o nome do arquivo; os = ficam alinhados.
+    ARQUIVO_PARES = formatC(arquivo_pares, width = -nchar("testes_pressupostos")),
+    ARQUIVO_PARES_CSV = paste0(arquivo_pares, ".csv"),
+    FRASE_TBL_ANOVA = if (welch) "A @tbl-anova apresenta a ANOVA de Welch." else
+      "A @tbl-anova apresenta a análise de variância.",
+    METODO_README = if (welch) c(
+      "Este roteiro usa a ANOVA de Welch com Games-Howell, que não supõem variâncias",
+      "iguais (`variancias_iguais = FALSE`). Para a ANOVA clássica com Tukey, troque",
+      "para `variancias_iguais = TRUE` no script e no relatório.") else c(
+      "Este roteiro usa a ANOVA clássica com Tukey (`variancias_iguais = TRUE`). Se",
+      "o Levene indicar variâncias diferentes, o roteiro e o relatório avisam; nesse",
+      "caso, troque para `variancias_iguais = FALSE` no script e no relatório, e a",
+      "ClaRa faz a ANOVA de Welch com Games-Howell.")
+  )
 }
 
 # Nome de coluna para uma chamada da ClaRa: sem aspas quando é um nome
@@ -2437,14 +2494,27 @@ exportacao_anova_clara_marcadores <- function(item) {
       if (!nzchar(trimws(as.character(p$rotulo_y %||% "")))) ', ex.: "Peso final (g)"'),
     NOTA_ROTULO_FATOR = paste0("no texto e na figura",
       if (!nzchar(trimws(as.character(p$rotulo_x %||% "")))) ', ex.: "Ração"')
-  ))
+  ), exportacao_anova_clara_textos_metodo(item))
 }
 
-# Material e métodos da rota ClaRa: a ClaRa só faz a ANOVA clássica com
-# Tukey, e os gráficos de resíduos ficam no roteiro, não no Word. O texto
-# comum da ANOVA fala também do Welch e não serve aqui.
+# Material e métodos da rota ClaRa: só o método que o script usa (clássica
+# com Tukey ou Welch com Games-Howell), e os gráficos de resíduos ficam no
+# roteiro, não no Word. O texto comum da ANOVA fala dos dois e não serve aqui.
 exportacao_anova_clara_metodos <- function(item) {
   comum <- exportacao_textos_anova(item)$metodos
+  if (identical(exportacao_anova_clara_metodo(item), "welch")) {
+    return(c(comum[1:2], sub("usou análise de variância de um fator,",
+      "usou a análise de variância de um fator de Welch, que não supõe variâncias iguais,",
+      comum[3], fixed = TRUE), "", paste(
+      "A normalidade da resposta foi avaliada em cada grupo pelo teste de Shapiro-Wilk, lido junto",
+      "com os gráficos de resíduos, que acompanham o roteiro de análise [@kozak2018]. As médias foram",
+      "comparadas par a par pelo teste de Games-Howell, que usa o erro e os graus de liberdade de cada",
+      "par, e as letras, obtidas com o pacote `multcompView` [@graves2026], resumem os p-valores",
+      "ajustados no nível de significância adotado. O tamanho de efeito foi descrito por um ω²",
+      "aproximado, convertido do F de Welch, com intervalo de confiança também aproximado, pelo",
+      "pacote `effectsize` [@benshachar2020; @effectsizeConversao]. As figuras foram construídas com",
+      "o `ggplot2` [@wickham2016].")))
+  }
   c(comum[1:3], "", paste(
     "A homogeneidade das variâncias foi avaliada pelo teste de Levene, do pacote `car` [@fox2019],",
     "e a normalidade dos resíduos pelo teste de Shapiro-Wilk. Os testes formais foram lidos junto",
@@ -2459,10 +2529,41 @@ exportacao_anova_clara_marcadores_qmd <- function(item, manifesto, import_info) 
   valores <- exportacao_anova_marcadores_qmd(item, manifesto, import_info)
   escrito <- paste(as.character(manifesto$secoes_globais$metodos %||% ""), collapse = "\n")
   if (!nzchar(trimws(escrito))) valores$METODOS <- exportacao_anova_clara_metodos(item)
+  marcadores <- exportacao_anova_clara_marcadores(item)
   c(valores,
-    exportacao_anova_clara_marcadores(item),
+    marcadores,
     list(TRECHO_PREPARO_QMD = manifesto$clara$qmd,
-         TITULO_RELATORIO = exportacao_anova_clara_titulo(item)))
+         TITULO_RELATORIO = exportacao_anova_clara_titulo(item)),
+    exportacao_anova_clara_tabela_anova(marcadores$welch, marcadores$ROTULO_FATOR_R))
+}
+
+# A tabela da ANOVA no relatório. A de Welch não tem SQ nem QM, e o GL do
+# denominador tem casas decimais, por causa da correção de Welch.
+exportacao_anova_clara_tabela_anova <- function(welch, rotulo_fator) {
+  if (isTRUE(welch)) {
+    return(list(
+      TBL_ANOVA_CAP = paste("ANOVA de Welch, que não supõe variâncias iguais.",
+                            "GL: graus de liberdade, com a correção de Welch no denominador."),
+      TABELA_ANOVA = c(
+        "resultado$anova |>",
+        sprintf('  transmute(Fonte = c(%s, "Resíduo"),', rotulo_fator),
+        "            GL    = c(fmt(gl[1], 0), fmt(gl[2], 2)),",
+        '            F     = ifelse(is.na(f), "", fmt(f)),',
+        '            p     = ifelse(is.na(p), "", formatar_p(p))) |>',
+        "  flextable_ocean()")))
+  }
+  list(
+    TBL_ANOVA_CAP = paste("Análise de variância de um fator. GL: graus de liberdade;",
+                          "SQ: soma de quadrados; QM: quadrado médio."),
+    TABELA_ANOVA = c(
+      "resultado$anova |>",
+      sprintf('  transmute(Fonte = c(%s, "Resíduo"),', rotulo_fator),
+      "            GL    = gl,",
+      "            SQ    = fmt(sq),",
+      "            QM    = fmt(qm),",
+      '            F     = ifelse(is.na(f), "", fmt(f)),',
+      '            p     = ifelse(is.na(p), "", formatar_p(p))) |>',
+      "  flextable_ocean()"))
 }
 
 exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_info) {
@@ -2472,7 +2573,8 @@ exportacao_anova_clara_marcadores_readme <- function(item, nome_projeto, import_
   # Na árvore do README, a descrição da planilha na mesma coluna das outras.
   valores$ARQUIVO_BRUTO_ARVORE <- formatC(valores$ARQUIVO_BRUTO,
     width = -max(27L, nchar(valores$ARQUIVO_BRUTO) + 2L))
-  valores
+  metodo <- exportacao_anova_clara_textos_metodo(item)
+  c(valores, metodo[c("POS_TESTE", "ARQUIVO_PARES_CSV", "METODO_README")])
 }
 
 # R/funcoes.R da rota ClaRa: só as funções que o script e o relatório chamam
