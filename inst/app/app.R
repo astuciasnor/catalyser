@@ -118,6 +118,70 @@ sanitize_id <- function(x) {
   gsub("[^a-zA-Z0-9_]", "_", x)
 }
 
+# ---- Resumo dos Dados (aba do Carregamento) ---------------------------------
+# Em vez do summary() cru, a aba mostra uma linha por variável, como o glimpse()
+# do R: classe, tipo estatístico, ausentes, valores distintos e os primeiros
+# valores. Clicar numa linha abre a distribuição daquela variável.
+
+# Número curto em português (vírgula decimal, ponto de milhar).
+resumo_num <- function(x, digitos = 4, milhar = TRUE) {
+  if (length(x) == 0 || is.na(x)) return("—")
+  # Ponto de milhar só a partir de 10 mil: assim um ano (2007) não vira "2.007".
+  format(signif(x, digitos), big.mark = if (milhar && abs(x) >= 1e4) "." else "", decimal.mark = ",",
+         scientific = FALSE, trim = TRUE)
+}
+
+# Abreviação da classe, igual à que o glimpse() imprime.
+resumo_classe <- function(x) {
+  if (is.ordered(x)) return("<ord>")
+  if (is.factor(x)) return("<fct>")
+  if (is.logical(x)) return("<lgl>")
+  if (inherits(x, "POSIXt")) return("<dttm>")
+  if (inherits(x, "Date")) return("<date>")
+  if (is.integer(x)) return("<int>")
+  if (is.numeric(x)) return("<dbl>")
+  if (is.character(x)) return("<chr>")
+  paste0("<", class(x)[1], ">")
+}
+
+# Tabela "glimpse" do conjunto: uma linha por variável.
+resumo_glimpse <- function(df) {
+  n <- nrow(df)
+  linhas <- lapply(names(df), function(nome) {
+    x <- df[[nome]]
+    na <- sum(is.na(x))
+    validos <- x[!is.na(x)]
+    tipo <- exploracao_tipo_variavel(x, nome)
+    # Nas categóricas mostramos os rótulos distintos, incluindo anos quando
+    # sua leitura é ordinal; nas demais, os seis primeiros valores válidos.
+    categorica <- startsWith(tipo, "Categórica")
+    primeiros <- if (categorica) unique(validos) else utils::head(validos, 6)
+    primeiros <- if (is.numeric(primeiros)) {
+      vapply(primeiros, resumo_num, character(1), milhar = FALSE)
+    } else as.character(primeiros)
+    # Ponto e vírgula entre valores: a vírgula já é o separador decimal.
+    amostra <- paste(primeiros, collapse = "; ")
+    if (nchar(amostra) > 60) amostra <- paste0(substr(amostra, 1, 57), "...")
+    data.frame(
+      `Variável` = nome,
+      Classe = resumo_classe(x),
+      `Tipo estatístico` = tipo,
+      `Válidos` = n - na,
+      Ausentes = if (na == 0) "0" else sprintf("%d (%s%%)", na, resumo_num(round(100 * na / n, 1))),
+      Distintos = length(unique(validos)),
+      `Valores iniciais` = amostra,
+      check.names = FALSE, stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, linhas)
+}
+
+# Títulos dos conjuntos do EAPADados (para o painel da direita).
+eapa_titulos <- tryCatch({
+  res <- data(package = "EAPADados")$results
+  stats::setNames(res[, "Title"], sub("\\s.*$", "", res[, "Item"]))
+}, error = function(e) character(0))
+
 # Lista dinâmica dos conjuntos do EAPADados: puxa TODOS os datasets do pacote
 # (novos conjuntos passam a aparecer sozinhos), mantendo só os que são data.frame
 # e tirando tabelas auxiliares (dicionários/referências). Se o pacote não estiver
@@ -432,6 +496,20 @@ ui <- page_navbar(
       .exploracao-saude .badge { padding: .5rem .7rem; font-weight: 500; white-space: normal; }
       .descricao-conteudo .bslib-sidebar-layout { gap: 1rem; }
       .descricao-conteudo .form-group { margin-bottom: .9rem; }
+      /* Importação: o status fica abaixo da configuração; a lista de
+         variáveis tem sua própria rolagem para liberar o gráfico abaixo. */
+      .importacao-lateral {
+        display: flex; flex-direction: column; gap: 16px; height: 100%;
+        min-height: 0;
+      }
+      .importacao-lateral > .card { flex: 0 0 auto; }
+      .importacao-status { margin-top: auto; }
+      .importacao-panorama { height: 100%; }
+      #resumo_variaveis_tabela .dataTables_info { padding-top: 4px; }
+      #resumo_variaveis_tabela th:nth-child(3),
+      #resumo_variaveis_tabela td:nth-child(3) {
+        min-width: 170px; white-space: nowrap;
+      }
       .cor-menu-planejar { color: #8b5cf6 !important; } /* Planejando sua Pesquisa -> violeta */
       .cor-menu-preparar { color: #0d6efd !important; } /* Preparando Dados -> azul */
       .cor-menu-explorar { color: #00b894 !important; } /* Explorar e Visualizar -> verde-água */
@@ -792,7 +870,7 @@ ui <- page_navbar(
         style = "grid-template-columns: 2.5fr 7fr 2.5fr !important;",
         
         # COLUNA 1: CARREGAMENTO DE DADOS (CONFIGURAÇÃO)
-        div(
+        div(class = "importacao-lateral",
           card(
             card_header("Carregamento de Dados"),
             card_body(
@@ -842,7 +920,12 @@ ui <- page_navbar(
                 " para selecionar, renomear, tipar ou recodificar."
               )
             )
-          )
+          ),
+          card(class = "importacao-status",
+            card_header("Status do Dataset"),
+            card_body(fill = FALSE, fillable = FALSE,
+              style = "padding: 12px 15px;",
+              uiOutput("dataset_status_indicator")))
         ),
         
         # COLUNA 2: ABAS DE EXIBIÇÃO (PRINCIPAL)
@@ -858,9 +941,15 @@ ui <- page_navbar(
           nav_panel(
             title = "Resumo dos Dados",
             icon = icon("chart-bar"),
-            card_body(
+            # fill = FALSE: a tabela e o detalhe empilham sem se sobrepor.
+            card_body(fill = FALSE, fillable = FALSE,
               style = "padding: 10px 15px;",
-              verbatimTextOutput("data_summary_text")
+              p(class = "small text-muted mb-2",
+                "Uma linha por variável, como o ", code("glimpse()"), " do R. ",
+                "Confira se cada coluna chegou com o tipo certo e clique numa linha para ver a distribuição dela."),
+              DTOutput("resumo_variaveis_tabela"),
+              hr(style = "margin: 14px 0 10px;"),
+              uiOutput("resumo_variavel_detalhe")
             )
           ),
           nav_panel(
@@ -876,11 +965,10 @@ ui <- page_navbar(
         
         # COLUNA 3: CONFERÊNCIA DA ENTRADA
         div(
-          card(
-            card_header("Status do Dataset"),
+          card(class = "importacao-panorama",
             card_body(
               style = "padding: 12px 15px;",
-              uiOutput("dataset_status_indicator"),
+              uiOutput("dataset_panorama"),
               hr(style = "margin: 10px 0;"),
               h6("Formatos Suportados", style = "color: #0d6efd; font-weight: 700; margin-bottom: 8px;"),
               tags$ul(style = "padding-left: 15px; margin-bottom: 0; font-size: 0.85rem; line-height: 1.4;",
@@ -2832,11 +2920,171 @@ catalyser::run_app(launch.browser = TRUE)</pre>
       language = preparo_idioma_tabela(ncol(df))))
   })
   
-  # Exibe o sumário dos dados
-  output$data_summary_text <- renderPrint({
+  # ---- Resumo dos Dados: tabela "glimpse" + detalhe da variável -------------
+  resumo_glimpse_df <- reactive({
     df <- current_data()
-    req(df)
-    summary(df)
+    req(df, ncol(df) > 0)
+    resumo_glimpse(df)
+  })
+
+  output$resumo_variaveis_tabela <- renderDT({
+    tab <- resumo_glimpse_df()
+    datatable(tab, rownames = FALSE, fillContainer = FALSE, class = "compact nowrap",
+      selection = list(mode = "single", selected = 1, target = "row"),
+      options = list(paging = FALSE, dom = "ti", scrollX = TRUE,
+        scrollY = "220px", scrollCollapse = TRUE, ordering = FALSE,
+        columnDefs = list(list(targets = 2, width = "170px")),
+        language = preparo_idioma_tabela(ncol(tab)))) |>
+      formatStyle("Classe", fontFamily = "monospace", color = "#2E7D8F", fontWeight = "bold") |>
+      formatStyle("Ausentes", color = styleEqual("0", "#6C757D", default = "#E76F51"))
+  })
+
+  # Variável escolhida: a linha clicada (ou a primeira, ao abrir).
+  resumo_variavel_escolhida <- reactive({
+    df <- current_data(); req(df, ncol(df) > 0)
+    i <- input$resumo_variaveis_tabela_rows_selected
+    if (length(i) == 0 || i > ncol(df)) i <- 1
+    names(df)[i]
+  })
+
+  output$resumo_variavel_detalhe <- renderUI({
+    df <- current_data(); req(df)
+    nome <- resumo_variavel_escolhida()
+    x <- df[[nome]]
+    n <- length(x); na <- sum(is.na(x)); v <- x[!is.na(x)]
+    linha <- function(rotulo, valor) tags$tr(tags$td(tags$b(rotulo)), tags$td(valor))
+
+    if (is.numeric(x)) {
+      v <- v[is.finite(v)]
+      q <- if (length(v)) stats::quantile(v, c(.25, .5, .75), names = FALSE) else rep(NA, 3)
+      m <- if (length(v)) mean(v) else NA
+      dp <- if (length(v) > 1) stats::sd(v) else NA
+      assim <- if (length(v) > 2 && isTRUE(dp > 0)) mean((v - m)^3) / dp^3 else NA
+      leitura_assim <- if (is.na(assim)) "" else if (abs(assim) < 0.5) " (quase simétrica)"
+        else if (assim > 0) " (cauda à direita)" else " (cauda à esquerda)"
+      linhas <- list(
+        linha("Mínimo", resumo_num(if (length(v)) min(v) else NA)),
+        linha("1º quartil", resumo_num(q[1])),
+        linha("Mediana", resumo_num(q[2])),
+        linha("Média", resumo_num(m)),
+        linha("3º quartil", resumo_num(q[3])),
+        linha("Máximo", resumo_num(if (length(v)) max(v) else NA)),
+        linha("Desvio padrão", resumo_num(dp)),
+        linha("CV", if (isTRUE(m != 0) && !is.na(dp)) paste0(resumo_num(100 * dp / abs(m), 3), "%") else "—"),
+        linha("Assimetria", paste0(resumo_num(assim, 2), leitura_assim)),
+        linha("Zeros", sum(v == 0))
+      )
+    } else if (inherits(x, c("Date", "POSIXt"))) {
+      linhas <- list(
+        linha("Primeira data", if (length(v)) format(min(v)) else "—"),
+        linha("Última data", if (length(v)) format(max(v)) else "—"),
+        linha("Datas distintas", length(unique(v)))
+      )
+    } else {
+      freq <- sort(table(as.character(v)), decreasing = TRUE)
+      linhas <- c(
+        list(linha("Categorias", length(freq)),
+             linha("Mais frequente", if (length(freq)) sprintf("%s (%d)", names(freq)[1], freq[[1]]) else "—")),
+        lapply(utils::head(seq_along(freq), 8), function(k)
+          linha(paste0("  ", names(freq)[k]),
+                sprintf("%d (%s%%)", freq[[k]], resumo_num(100 * freq[[k]] / length(v), 3)))),
+        if (length(freq) > 8) list(linha("…", sprintf("mais %d categorias", length(freq) - 8)))
+      )
+    }
+
+    layout_columns(
+      col_widths = c(5, 7),
+      div(
+        h6(style = "color:#0F3B5F; font-weight:700; margin-bottom:4px;",
+           icon("magnifying-glass-chart"), " ", nome),
+        p(class = "small text-muted mb-2",
+          code(resumo_classe(x)), " · ", exploracao_tipo_variavel(x, nome),
+          sprintf(" · %d válidos, %d ausentes", n - na, na)),
+        tags$table(class = "table table-sm table-striped", style = "font-size:0.85rem;",
+                   tags$tbody(linhas))
+      ),
+      plotOutput("resumo_variavel_grafico", height = "280px")
+    )
+  })
+
+  output$resumo_variavel_grafico <- renderPlot({
+    df <- current_data(); req(df)
+    nome <- resumo_variavel_escolhida()
+    x <- df[[nome]]
+    validate(need(any(!is.na(x)), "Esta variável só tem valores ausentes."))
+    oc <- cores_ocean()
+    if (is.numeric(x)) {
+      desenhar_distribuicao(df, nome, tipo = "densidade") +
+        ggplot2::geom_rug(color = oc[["NAVY"]], alpha = .35, na.rm = TRUE) +
+        ggplot2::labs(title = paste("Distribuição de", nome), subtitle = NULL)
+    } else if (inherits(x, c("Date", "POSIXt"))) {
+      ggplot(data.frame(x = x[!is.na(x)]), aes(x = x)) +
+        geom_histogram(bins = 20, fill = oc[["SEAFOAM"]], color = "white") +
+        tema_ocean() + labs(title = paste("Datas de", nome), x = nome, y = "Frequência")
+    } else {
+      # Categorias: as 15 mais frequentes, em barras horizontais.
+      freq <- sort(table(as.character(x[!is.na(x)])), decreasing = TRUE)
+      freq <- utils::head(freq, 15)
+      tab <- data.frame(cat = factor(names(freq), levels = rev(names(freq))), n = as.integer(freq))
+      ggplot(tab, aes(x = n, y = cat)) +
+        geom_col(fill = oc[["TEAL"]]) +
+        geom_text(aes(label = n), hjust = -0.2, size = 3.5, color = oc[["NAVY"]]) +
+        scale_x_continuous(expand = expansion(mult = c(0, .12))) +
+        tema_ocean() + labs(title = paste("Frequência de", nome), x = "Contagem", y = NULL)
+    }
+  })
+
+  # ---- Panorama do conjunto (coluna da direita) ------------------------------
+  output$dataset_panorama <- renderUI({
+    df <- current_data(); req(df)
+    n <- nrow(df); p <- ncol(df)
+    tipos <- vapply(names(df), function(nm) exploracao_tipo_variavel(df[[nm]], nm), character(1))
+    n_num <- sum(grepl("^Numérica", tipos)); n_cat <- sum(grepl("^Categórica", tipos))
+    n_outros <- p - n_num - n_cat
+    na_total <- sum(is.na(df))
+    completas <- sum(stats::complete.cases(df))
+    duplicadas <- sum(duplicated(df))
+    na_col <- colSums(is.na(df)); na_col <- sort(na_col[na_col > 0], decreasing = TRUE)
+    constantes <- names(df)[vapply(df, function(x) length(unique(x[!is.na(x)])) <= 1, logical(1))]
+    pct <- function(a, b) if (b == 0) "0%" else paste0(resumo_num(100 * a / b, 3), "%")
+    linha <- function(rotulo, valor) tags$tr(tags$td(tags$b(rotulo)), tags$td(valor))
+
+    titulo <- if (identical(input$data_source, "package") &&
+                  !is.null(input$package_dataset) && input$package_dataset %in% names(eapa_titulos)) {
+      eapa_titulos[[input$package_dataset]]
+    }
+
+    avisos <- list(
+      if (duplicadas > 0) tags$li(sprintf("%d linha(s) repetida(s): veja Remover duplicatas na Trilha de Preparo.", duplicadas)),
+      if (length(na_col)) tags$li(sprintf("Ausentes em: %s.",
+        paste(sprintf("%s (%d)", utils::head(names(na_col), 4), utils::head(na_col, 4)), collapse = ", "))),
+      if (length(constantes)) tags$li(sprintf("Coluna(s) com um só valor: %s.", paste(constantes, collapse = ", "))),
+      if (n_outros > 0) tags$li("Há colunas de data ou de tipo incomum: confira em Preparar Base Compartilhada.")
+    )
+    avisos <- Filter(Negate(is.null), avisos)
+
+    tagList(
+      h6("Panorama do conjunto", style = "color: #0d6efd; font-weight: 700; margin-bottom: 8px;"),
+      if (!is.null(titulo)) p(style = "font-size:0.85rem; margin-bottom:6px;",
+        icon("book"), " ", em(titulo), br(),
+        span(class = "text-muted small", "Documentação: ", code(paste0("?EAPADados::", input$package_dataset)))),
+      tags$table(class = "table table-sm table-borderless", style = "margin-bottom: 6px; font-size: 0.85rem;",
+        tags$tbody(
+          linha("Numéricas:", n_num),
+          linha("Categóricas:", n_cat),
+          if (n_outros > 0) linha("Datas/outras:", n_outros),
+          linha("Células ausentes:", sprintf("%d (%s)", na_total, pct(na_total, n * p))),
+          linha("Linhas completas:", sprintf("%d (%s)", completas, pct(completas, n))),
+          linha("Linhas repetidas:", duplicadas),
+          linha("Memória:", format(utils::object.size(df), units = "auto"))
+        )),
+      if (length(avisos)) div(class = "alert alert-warning",
+        style = "padding: 8px 10px; font-size: 0.8rem; margin-bottom: 0;",
+        icon("triangle-exclamation"), " Para conferir:",
+        tags$ul(style = "padding-left: 16px; margin: 4px 0 0;", avisos))
+      else div(class = "small", style = "color:#2E7D8F;",
+        icon("circle-check"), " Sem ausentes, repetições ou colunas constantes.")
+    )
   })
   # Informações de importação reativas para exportação de código
   import_info <- reactive({

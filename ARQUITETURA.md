@@ -6,6 +6,12 @@ O roteiro opcional para instalar a CatalyseR localmente ou pelo GitHub no RStudi
 
 A instalação local usa `install.packages(caminho, repos = NULL, type = "source")`, com as dependências já instaladas, sem consultar o GitHub. A instalação publicada usa `remotes::install_github(build = FALSE)`, com dependências CRAN em binário no Windows; a CatalyseR declara `NeedsCompilation: no`.
 
+Em 05/10/2026, a instalação com `pak` no Windows/R 4.6.1 falhou na construção
+da CatalyseR 0.1.27 (commit 75aa37a), solicitando ferramentas de compilação.
+O download e a instalação binária de terra concluíram antes dessa falha.
+O README passa a indicar o instalador oficial ou `remotes` com `build = FALSE`
+para os alunos; a sugestão anterior de `pak` não fica certificada para esse cenário.
+
 `run_app()` usa `shiny::runApp()` diretamente e carrega o Shiny quando a aplicação é aberta; não mantém uma importação antecipada no NAMESPACE. A instalação e o carregamento do pacote foram conferidos em uma biblioteca temporária com R 4.6.1 em 03/10/2026.
 
 Publicação completa em 04/10/2026, versão 0.1.20: reunidas as revisões locais dos delineamentos e dos Projetos R. A instalação via `remotes`, com `build = FALSE`, concluiu em biblioteca isolada sem `make` ou `gcc` no PATH e sem Rtools. As saídas Excel, Word e desenhos de transversal, longitudinal, gradiente e impacto passaram pelas verificações. A conferência de renderização dos Projetos R encontrou queda do subprocesso R no Quarto (código -1073741819), após executar os chunks; HTML e Word desses projetos não ficam certificados por esta conferência.
