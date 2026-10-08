@@ -8,7 +8,7 @@ pacotes do CRAN; não precisa da CatalyseR instalada.
 ## Um convite a aprender programação
 
 Na ClaRa, cada função responde a uma pergunta da pesquisa, em português:
-`comparar_medias()` faz o resumo, a ANOVA, os pressupostos e o Tukey;
+`comparar_medias()` faz o resumo, a ANOVA, os pressupostos e o {{POS_TESTE}};
 `grafico_medias()` desenha a figura principal; `escrever_resultados()` escreve
 as frases do relatório. Por trás de cada função roda R comum, no estilo do
 tidyverse. Para vê-lo, acrescente `mostrar_codigo = TRUE` a qualquer chamada:
@@ -54,7 +54,7 @@ Cada arquivo tem um papel só:
 
 | No script e no relatório | O que guarda | Cópia salva pelo script |
 |---|---|---|
-| `resultado <- ... comparar_medias(...)` | resumo, ANOVA, pressupostos e Tukey | `saida/tabelas/resumo_grupos.csv`, `anova.csv`, `tukey.csv` |
+| `resultado <- ... comparar_medias(...)` | resumo, ANOVA, pressupostos e {{POS_TESTE}} | `saida/tabelas/resumo_grupos.csv`, `anova.csv`, `{{ARQUIVO_PARES_CSV}}` |
 | `resultado \|> grafico_medias(...)` | a figura principal | `saida/figuras/barras.png` |
 | `textos <- resultado \|> escrever_resultados()` | as frases do relatório | no texto: `` `r textos$teste` `` |
 
@@ -113,9 +113,7 @@ não é alterada.
 
 ## Método da ANOVA
 
-Este roteiro usa a ANOVA clássica com Tukey. Se o Levene indicar variâncias
-diferentes, o roteiro e o relatório avisam; nesse caso, a ANOVA de Welch com
-Games-Howell, disponível na CatalyseR, é a alternativa a considerar.
+{{METODO_README}}
 
 ## Como ler a figura principal
 

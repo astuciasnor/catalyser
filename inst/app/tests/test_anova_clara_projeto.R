@@ -2,8 +2,9 @@
 # Projeto R da ANOVA de um fator: a árvore leva a ClaRa em R/clara/, o script
 # e o relatório (um só QMD, o Word) usam as funções da ClaRa, cada um roda em
 # sessão nova e reproduz
-# os números da ANOVA. Confere também que, sem a opção ou com Welch, o
-# projeto continua saindo pelo molde atual.
+# os números da ANOVA. Confere também que, sem a opção, o projeto continua
+# saindo pelo molde atual, e que Welch e automático também saem em ClaRa,
+# com variancias_iguais escrito no script.
 grDevices::pdf(NULL)
 for (arquivo in c("registro_tratamentos.R", "registro_bases.R", "registro_execucoes.R",
                   "registro_comunicacao.R", "exportacao_comunicacao.R")) {
@@ -20,7 +21,8 @@ item <- list(id = "execucao_0001", tipo = "anova_um_fator", titulo = "Peso final
                   "grafico", "pressupostos", "diagnosticos"))
 bagres <- as.data.frame(EAPADados::isoproteica_bagre)
 
-# A escolha da rota: ClaRa só com a opção marcada e o método clássico.
+# A escolha da rota: ClaRa só com a opção marcada, em qualquer método com a
+# escolha registrada (no automático, a que a tela fez: metodo_usado).
 com_clara <- list(execucoes = list(execucao_0001 = item), secoes_globais = list(),
                   codigo_clara = TRUE)
 sem_clara <- list(execucoes = list(execucao_0001 = item), secoes_globais = list())
@@ -28,9 +30,21 @@ item_welch <- item
 item_welch$parametros$metodo <- "welch"
 welch <- list(execucoes = list(execucao_0001 = item_welch), secoes_globais = list(),
               codigo_clara = TRUE)
+item_auto <- item
+item_auto$parametros$metodo <- "auto"
+item_auto_sem <- item_auto
+item_auto$parametros$metodo_usado <- "welch"
+automatico <- list(execucoes = list(execucao_0001 = item_auto), secoes_globais = list(),
+                   codigo_clara = TRUE)
+automatico_sem <- list(execucoes = list(execucao_0001 = item_auto_sem), secoes_globais = list(),
+                       codigo_clara = TRUE)
 stopifnot(identical(exportacao_molde_projeto_entrada(com_clara)$pasta, "anova_clara"),
   identical(exportacao_molde_projeto_entrada(sem_clara)$pasta, "anova_projeto"),
-  identical(exportacao_molde_projeto_entrada(welch)$pasta, "anova_projeto"))
+  identical(exportacao_molde_projeto_entrada(welch)$pasta, "anova_clara"),
+  identical(exportacao_molde_projeto_entrada(automatico)$pasta, "anova_clara"),
+  # Automático sem a escolha registrada: a ClaRa não decide pelo Levene.
+  identical(exportacao_molde_projeto_entrada(automatico_sem)$pasta, "anova_projeto"),
+  identical(exportacao_anova_clara_metodo(item_auto), "welch"))
 
 destino <- Sys.getenv("CATALYSER_TESTE_CLARA_DESTINO", unset = tempfile("anova_clara_"))
 dir.create(destino, recursive = TRUE, showWarnings = FALSE)
@@ -58,8 +72,9 @@ linhas_script <- readLines(script, encoding = "UTF-8")
 readme <- readLines(file.path(projeto, "README.md"), encoding = "UTF-8")
 stopifnot(!any(grepl("{{", c(linhas_script, readme), fixed = TRUE)),
   sum(grepl('source(here("R", "clara", "clara.R"), encoding = "UTF-8")', linhas_script, fixed = TRUE)) == 1L,
-  any(grepl("resposta        = peso_g,", linhas_script, fixed = TRUE)),
-  any(grepl("grupos          = racao,", linhas_script, fixed = TRUE)),
+  any(grepl("resposta          = peso_g,", linhas_script, fixed = TRUE)),
+  any(grepl("variancias_iguais = TRUE)  # TRUE: ANOVA clássica; FALSE: ANOVA de Welch", linhas_script, fixed = TRUE)),
+  any(grepl("grupos            = racao,", linhas_script, fixed = TRUE)),
   any(grepl("grafico_medias(titulo           = NULL,", linhas_script, fixed = TRUE)),
   any(grepl("escrever_resultados()", linhas_script, fixed = TRUE)),
   any(grepl('"multcompView"', readme, fixed = TRUE)),
@@ -85,7 +100,7 @@ for (documento in documentos) {
     !any(grepl("readRDS", qmd, fixed = TRUE)),
     any(grepl("read_excel(here(\"dados\", \"isoproteica_bagre.xlsx\")", qmd, fixed = TRUE)),
     any(grepl("stopifnot(nrow(base) == 19L)", qmd, fixed = TRUE)),
-    any(grepl("comparar_medias(resposta        = peso_g,", qmd, fixed = TRUE)),
+    any(grepl("comparar_medias(resposta          = peso_g,", qmd, fixed = TRUE)),
     any(grepl("transmute(`Ração` = racao,", qmd, fixed = TRUE)),
     any(grepl("`r textos$teste`", qmd, fixed = TRUE)))
 }
@@ -168,8 +183,11 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   # Sem título escrito na tela, o relatório não herda os nomes crus das colunas.
   any(relatorio == 'title: "Título do trabalho (preencher)"'),
   !any(grepl("entre grupos de", relatorio, fixed = TRUE)),
-  # Métodos da rota ClaRa: só a clássica com Tukey; nada de Welch no Word.
-  !any(grepl("Welch|Games-Howell|effectsizeConversao", relatorio)),
+  # Métodos da rota ClaRa: só a clássica com Tukey; nada de Welch no Word
+  # (só o comentário do argumento, no chunk escondido, cita a alternativa).
+  !any(grepl("Welch|Games-Howell|effectsizeConversao",
+             relatorio[!grepl("^ +variancias_iguais = ", relatorio)])),
+  any(grepl("SQ: soma de quadrados", relatorio, fixed = TRUE)),
   any(grepl("[@benshachar2020]", relatorio, fixed = TRUE)),
   # Os dois comentários dos rótulos na mesma coluna, no script e no relatório.
   length(unique(regexpr("#", grep("^ +rotulo_(resposta|grupos) += ", linhas_script, value = TRUE)))) == 1L,
@@ -234,7 +252,8 @@ stopifnot(file.exists(file.path(projeto, "saida", "tabelas", "resumo_grupos.csv"
   any(grepl("^salvar_tabelas[(]base += base,", linhas_script)),
   any(grepl("^salvar_figuras[(]barras += grafico_barras,", linhas_script)),
   !any(grepl("^for [(]|dir.create|write.csv2|ggsave", linhas_script)),
-  any(grepl("ClaRa 0.7.3", readLines(file.path(projeto, "saida", "sessionInfo.txt"), n = 1))))
+  any(grepl(paste("ClaRa", exportacao_versao_clara("templates")),
+             readLines(file.path(projeto, "saida", "sessionInfo.txt"), n = 1))))
 
 # Segundo caso: operação estrutural (renomear), trilha (reescalar) e um ramo
 # com filtro. A receita encadeia tudo da planilha até o ramo, e o script e
@@ -297,6 +316,56 @@ for (i in seq_along(entradas_ramo)) {
   stopifnot(obtido$n == 18L, isTRUE(all.equal(obtido$medias, medias_ramo)))
 }
 
+# Terceiro caso: ANOVA de Welch, vinda da escolha automática da tela. O
+# script e o relatório escrevem variancias_iguais = FALSE, falam de
+# Games-Howell e reproduzem o oneway.test() em sessão nova.
+projeto_welch <- exportacao_criar_projeto(destino = destino, nome_projeto = "anova_welch_clara",
+  dados_brutos = bagres, base_resolvida = bagres, dados_analise = bagres,
+  pipeline = list(), base_externa = NULL, registro_bases = list(), cache_bases = list(),
+  registro_execucoes = automatico$execucoes, manifesto = automatico, revisao_origem = 1L,
+  import_info = list(source = "package", package_dataset = "isoproteica_bagre"),
+  templates_dir = "templates")
+script_welch <- readLines(file.path(projeto_welch, "R", "analise.R"), encoding = "UTF-8")
+relatorio_welch <- readLines(file.path(projeto_welch, "relatorios", "relatorio.qmd"), encoding = "UTF-8")
+readme_welch <- readLines(file.path(projeto_welch, "README.md"), encoding = "UTF-8")
+stopifnot(!any(grepl("{{", c(script_welch, relatorio_welch, readme_welch), fixed = TRUE)),
+  any(grepl("variancias_iguais = FALSE)  # FALSE: ANOVA de Welch; TRUE: ANOVA clássica", script_welch, fixed = TRUE)),
+  any(grepl("variancias_iguais = FALSE)", relatorio_welch, fixed = TRUE)),
+  any(grepl("escolha automática da CatalyseR", script_welch, fixed = TRUE)),
+  any(grepl("games_howell        = resultado$pares,", script_welch, fixed = TRUE)),
+  !any(grepl("Tukey|SQ: soma", c(script_welch, relatorio_welch))),
+  any(grepl("Games-Howell", relatorio_welch, fixed = TRUE)),
+  any(grepl("@effectsizeConversao", relatorio_welch, fixed = TRUE)),
+  any(grepl("games_howell.csv", readme_welch, fixed = TRUE)))
+esperado_welch <- oneway.test(peso_g ~ racao, data = bagres, var.equal = FALSE)
+entradas_welch <- c(file.path(projeto_welch, "R", "analise.R"), vapply(documentos, function(documento) {
+  extraido <- file.path(destino, paste0("welch_", documento, ".R"))
+  knitr::purl(file.path(projeto_welch, "relatorios", documento), output = extraido, quiet = TRUE)
+  extraido
+}, character(1)))
+for (i in seq_along(entradas_welch)) {
+  verificador <- file.path(destino, paste0("validar_welch_", i, ".R"))
+  saida_rds <- file.path(destino, paste0("resultado_welch_", i, ".rds"))
+  log <- file.path(destino, paste0("execucao_welch_", i, ".log"))
+  writeLines(c(
+    sprintf("setwd(%s)", literal(projeto_welch)),
+    "grDevices::pdf(NULL)",
+    sprintf("source(%s, encoding = 'UTF-8')", literal(entradas_welch[i])),
+    sprintf("saveRDS(list(analise = resultado$nomes$analise, f = resultado$anova$f[1], gl = resultado$anova$gl, p = resultado$anova$p[1], letras = resultado$resumo$letra, textos = unclass(textos)), %s)", literal(saida_rds))
+  ), verificador, useBytes = TRUE)
+  status <- system2(file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
+    shQuote(verificador), stdout = log, stderr = log)
+  if (status != 0L) stop(paste(readLines(log, warn = FALSE), collapse = "\n"))
+  obtido <- readRDS(saida_rds)
+  stopifnot(identical(obtido$analise, "anova_welch"),
+    isTRUE(all.equal(obtido$f, unname(esperado_welch$statistic))),
+    isTRUE(all.equal(obtido$gl, unname(esperado_welch$parameter))),
+    isTRUE(all.equal(obtido$p, esperado_welch$p.value)),
+    all(nzchar(obtido$letras)),
+    grepl("ANOVA de Welch", obtido$textos$teste, fixed = TRUE),
+    grepl("Games-Howell", obtido$textos$comparacoes, fixed = TRUE))
+}
+
 # Sem %in% na rota ClaRa: is.element() e um comentário que diz o que fica.
 sem_in <- exportacao_clara_sem_in(c(
   "base_compartilhada <- dados_brutos |>",
@@ -313,5 +382,5 @@ sem_in_solta <- exportacao_clara_sem_in(c("# Níveis escolhidos na importação"
 stopifnot(length(sem_in_solta) == 3L, sem_in_solta[1] == "# Níveis escolhidos na importação",
   sem_in_solta[2] == "# Ficam só as linhas em que especie é \"tambaqui\"; as demais saem.")
 
-cat("OK: rota ClaRa escolhida só com a opção e o método clássico; ClaRa copiada em R/clara/; script e o relatório Word em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
+cat("OK: rota ClaRa escolhida com a opção, na clássica, no Welch e no automático; ClaRa copiada em R/clara/; script e o relatório Word em ClaRa, sem marcadores, cada um em sessão nova, com a ANOVA e o Tukey reproduzidos.\n")
 cat("PROJETO:", projeto, "\n")

@@ -17,7 +17,7 @@
 # seu nome: grafico_medias() (a figura principal), grafico_boxplot() (a
 # exploração) e grafico_pares() (a diferença de cada par).
 # A ClaRa escolhe o teste: teste t (de Welch ou de Student) com dois grupos,
-# ANOVA com três ou mais.
+# ANOVA (clássica ou de Welch) com três ou mais.
 
 # comparar_medias() ------------------------------------------------------------
 #
@@ -26,7 +26,9 @@
 # A ClaRa escolhe o teste pelo número de grupos com dados:
 #   dois grupos ........ teste t: de Welch (padrão, não supõe variâncias
 #                        iguais) ou de Student (com variancias_iguais = TRUE);
-#   três ou mais ....... ANOVA de um fator, com Tukey.
+#   três ou mais ....... ANOVA de um fator: clássica, com Tukey (padrão),
+#                        ou de Welch, com Games-Howell (com
+#                        variancias_iguais = FALSE).
 # Em qualquer caso, faz a análise na ordem em que a estudamos: resumo dos
 # grupos, teste, pressupostos e letras.
 #
@@ -42,10 +44,13 @@
 #                         que vêm depois já os usam, sem precisar repeti-los
 #   confianca ........... nível de confiança dos intervalos (padrão 0.95);
 #                         a significância dos testes é 1 - confianca
-#   variancias_iguais ... só com dois grupos. FALSE (padrão): teste de Welch.
-#                         TRUE: teste de Student, que supõe variâncias
-#                         iguais; use quando a exploração dos dados já
-#                         mostrou dispersões parecidas nos dois grupos
+#   variancias_iguais ... TRUE supõe variâncias iguais nos grupos; FALSE não
+#                         supõe. Sem ele, vale o padrão de cada teste: com
+#                         dois grupos, FALSE (teste t de Welch; TRUE dá o
+#                         de Student); com três ou mais, TRUE (ANOVA
+#                         clássica com Tukey; FALSE dá a ANOVA de Welch com
+#                         Games-Howell). Escreva a escolha no roteiro: ela
+#                         pode mudar a conclusão e assim fica registrada
 #   mostrar_codigo ...... TRUE imprime o código R antes do resultado
 #
 # Devolve uma lista. Cada parte se abre com $:
@@ -54,9 +59,9 @@
 #   resultado$amostra       observações no total, usadas e excluídas
 #   resultado$dados         as observações usadas na análise
 # Com três ou mais grupos (ANOVA):
-#   resultado$anova         a tabela da ANOVA
-#   resultado$pares         todas as comparações de Tukey
-#   resultado$modelo        o modelo aov(), para quem quiser ir além
+#   resultado$anova         a tabela da ANOVA (na de Welch, sem SQ e QM)
+#   resultado$pares         todas as comparações de Tukey (ou de Games-Howell)
+#   resultado$modelo        o modelo aov(), só na ANOVA clássica
 # Com dois grupos (teste t):
 #   resultado$teste         diferença das médias, IC, t, gl e p
 #
@@ -76,7 +81,7 @@ comparar_medias <- function(dados,
                             rotulo_resposta   = NULL,
                             rotulo_grupos     = NULL,
                             confianca         = 0.95,
-                            variancias_iguais = FALSE,
+                            variancias_iguais = NULL,
                             mostrar_codigo    = FALSE) {
 
   # Guardamos o nome da tabela que o aluno usou (plantas, por exemplo).
@@ -88,7 +93,6 @@ comparar_medias <- function(dados,
 
   # Antes de calcular, conferimos se as colunas existem e servem para comparar.
   conferir_colunas(dados, coluna_resposta, coluna_grupos)
-  conferir_sim_ou_nao(variancias_iguais, "variancias_iguais")
   conferir_rotulo(rotulo_resposta, "rotulo_resposta")
   conferir_rotulo(rotulo_grupos, "rotulo_grupos")
 
@@ -97,8 +101,17 @@ comparar_medias <- function(dados,
     dados[[coluna_grupos]][!is.na(dados[[coluna_resposta]])],
     na.rm = TRUE
   )
+
+  # Sem escolha do aluno, vale o padrão de cada teste: Welch no teste t,
+  # ANOVA clássica com três ou mais grupos.
+  variancias_iguais <- ou_entao(variancias_iguais, quantos_grupos > 2)
+  conferir_sim_ou_nao(variancias_iguais, "variancias_iguais")
+
+  # Com três ou mais grupos, as variâncias decidem entre a ANOVA clássica e
+  # a de Welch.
   analise <- dplyr::case_when(quantos_grupos == 2 ~ "teste_t",
-                              .default            = "anova")
+                              variancias_iguais   ~ "anova",
+                              .default            = "anova_welch")
 
   # No teste t, as variâncias decidem entre Welch e Student.
   variante <- dplyr::case_when(variancias_iguais ~ "student",
@@ -238,6 +251,109 @@ list(
   dados        = dados_analise
 )"
 
+# Três ou mais grupos, sem supor variâncias iguais: ANOVA de Welch,
+# normalidade em cada grupo, Games-Howell e letras.
+receitas_medias$anova_welch <- "
+# 1. As observações da análise: só as linhas com resposta e grupo.
+#    O droplevels() tira da lista os grupos que ficaram sem dados.
+dados_analise <- <<DADOS>> |>
+  filter(!is.na(<<RESPOSTA>>), !is.na(<<GRUPOS>>)) |>
+  mutate(<<GRUPOS>> = factor(<<GRUPOS>>)) |>
+  droplevels()
+
+# Quantas observações havia, quantas entraram e quantas ficaram de fora.
+amostra <- tibble(
+  total     = nrow(<<DADOS>>),
+  usadas    = nrow(dados_analise),
+  excluidas = total - usadas
+)
+
+# 2. Resumo de cada grupo: tamanho, centro e dispersão da resposta.
+resumo <- dados_analise |>
+  group_by(<<GRUPOS>>) |>
+  summarise(
+    n      = n(),
+    media  = mean(<<RESPOSTA>>),
+    dp     = sd(<<RESPOSTA>>),
+    ep     = dp / sqrt(n),
+    ic_inf = media - qt(<<QUANTIL>>, df = n - 1) * ep,
+    ic_sup = media + qt(<<QUANTIL>>, df = n - 1) * ep
+  )
+
+# 3. ANOVA de Welch: compara as médias sem supor variâncias iguais. Cada
+#    grupo pesa conforme a sua variância, e os graus de liberdade do
+#    denominador são corrigidos (por isso têm casas decimais). Não há soma
+#    de quadrados nem quadrado médio, como na ANOVA clássica.
+welch <- oneway.test(<<RESPOSTA>> ~ <<GRUPOS>>,
+                     data      = dados_analise,
+                     var.equal = FALSE)
+
+anova <- tibble(
+  fonte = c(\"<<GRUPOS>>\", \"Resíduos\"),
+  gl    = unname(welch$parameter),
+  f     = c(unname(welch$statistic), NA),
+  p     = c(welch$p.value, NA)
+)
+
+# 4. Pressuposto: normalidade da resposta dentro de cada grupo.
+#    A ANOVA de Welch não exige variâncias iguais; por isso não há Levene.
+pressupostos <- dados_analise |>
+  group_by(<<GRUPOS>>) |>
+  reframe(tidy(shapiro.test(<<RESPOSTA>>))) |>
+  transmute(
+    pressuposto = paste(\"Normalidade no grupo\", <<GRUPOS>>),
+    teste       = \"Shapiro-Wilk\",
+    estatistica = statistic,
+    p           = p.value
+  ) |>
+  mutate(leitura = case_when(
+    p >= <<ALFA>> ~ \"sem evidência contra o pressuposto\",
+    p <  <<ALFA>> ~ \"pressuposto rejeitado: interpretar com cautela\"
+  ))
+
+# 5. Games-Howell: cada par de grupos, como no Tukey, mas com o erro e os
+#    graus de liberdade do próprio par, porque as variâncias diferem. A
+#    amplitude studentizada (qtukey, ptukey) já ajusta os p para as várias
+#    comparações. Em \"B-A\", a média de B menos a de A, na ordem do Tukey.
+k <- nrow(resumo)
+
+pares <- cross_join(resumo, resumo, suffix = c(\"_1\", \"_2\")) |>
+  filter(as.integer(<<GRUPOS>>_1) > as.integer(<<GRUPOS>>_2)) |>
+  arrange(<<GRUPOS>>_2, <<GRUPOS>>_1) |>
+  mutate(
+    var_1  = dp_1^2 / n_1,
+    var_2  = dp_2^2 / n_2,
+    erro   = sqrt(var_1 + var_2),
+    gl     = (var_1 + var_2)^2 / (var_1^2 / (n_1 - 1) + var_2^2 / (n_2 - 1)),
+    margem = qtukey(<<CONFIANCA>>, nmeans = k, df = gl) * erro / sqrt(2)
+  ) |>
+  transmute(
+    comparacao = paste(<<GRUPOS>>_1, <<GRUPOS>>_2, sep = \"-\"),
+    diferenca  = media_1 - media_2,
+    ic_inf     = diferenca - margem,
+    ic_sup     = diferenca + margem,
+    p_ajustado = ptukey(abs(diferenca) / erro * sqrt(2), nmeans = k, df = gl,
+                        lower.tail = FALSE)
+  )
+
+# 6. Letras: grupos com a mesma letra não diferiram. A maior média leva \"a\".
+matriz_p <- vec2mat(setNames(pares$p_ajustado, pares$comparacao))
+ordem    <- resumo |> arrange(desc(media)) |> pull(<<GRUPOS>>) |> as.character()
+letras   <- multcompLetters(matriz_p[ordem, ordem], threshold = <<ALFA>>)$Letters
+
+resumo <- resumo |>
+  mutate(letra = letras[as.character(<<GRUPOS>>)])
+
+# 7. Tudo junto, numa lista com partes nomeadas.
+list(
+  resumo       = resumo,
+  anova        = anova,
+  pressupostos = pressupostos,
+  pares        = pares,
+  amostra      = amostra,
+  dados        = dados_analise
+)"
+
 # Dois grupos: teste t de Welch, normalidade em cada grupo e letras.
 receitas_medias$teste_t <- "
 # 1. As observações da análise: só as linhas com resposta e grupo.
@@ -363,8 +479,9 @@ pressupostos <- bind_rows(normalidade, variancias) |>
 
 # Os pacotes que cada receita usa.
 pacotes_medias <- list(
-  anova   = c("dplyr", "broom", "car", "multcompView"),
-  teste_t = c("dplyr", "broom", "car")
+  anova       = c("dplyr", "broom", "car", "multcompView"),
+  anova_welch = c("dplyr", "broom", "multcompView"),
+  teste_t     = c("dplyr", "broom", "car")
 )
 
 
@@ -376,7 +493,8 @@ pacotes_medias <- list(
 # padrão: a barra clara vai do zero até a média; cada ponto colorido é uma
 # observação; o losango é a média do grupo, com "média ± DP" ao lado; a
 # haste é o intervalo de confiança da média; as letras, todas na mesma
-# altura, vêm do Tukey (ou do teste t, com dois grupos). Cada parte pode ser
+# altura, vêm do Tukey (do Games-Howell, na ANOVA de Welch; do teste t, com
+# dois grupos). Cada parte pode ser
 # ligada ou desligada, e a receita mostrada traz só as partes pedidas.
 #
 # Argumentos:
@@ -771,8 +889,9 @@ ggplot(<<RESULTADO>>$dados, aes(x = <<GRUPOS>>, y = <<RESPOSTA>>)) +
 # haste, o seu intervalo de confiança. A linha tracejada vertical marca a
 # diferença zero: haste que cruza a linha, sem diferença entre os dois
 # grupos; haste toda de um lado, diferença. Em "B-A", a diferença é a média
-# de B menos a média de A. Na ANOVA, os pares e os intervalos vêm do Tukey;
-# no teste t, há um par só, com o intervalo do próprio teste.
+# de B menos a média de A. Na ANOVA, os pares e os intervalos vêm do Tukey
+# (do Games-Howell, na ANOVA de Welch); no teste t, há um par só, com o
+# intervalo do próprio teste.
 #
 # Argumentos:
 #   resultado ........... o que comparar_medias() devolveu
@@ -805,11 +924,13 @@ grafico_pares <- function(resultado,
                      paste("grafico_pares() mostra a diferença entre as médias de cada par.",
                            "Nas medianas, as comparações de Dunn estão em resultado$pares."))
 
-  # Na ANOVA, os pares vêm do Tukey; no teste t, do próprio teste.
-  anova <- resultado$nomes$analise == "anova"
-  parte_pares <- dplyr::case_when(anova ~ "pares", .default = "teste")
+  # Na ANOVA, os pares vêm do Tukey (ou do Games-Howell); no teste t, do
+  # próprio teste.
+  analise <- resultado$nomes$analise
+  parte_pares <- dplyr::case_when(analise == "teste_t" ~ "teste", .default = "pares")
   metodo <- dplyr::case_when(
-    anova                             ~ "Tukey",
+    analise == "anova"                ~ "Tukey",
+    analise == "anova_welch"          ~ "Games-Howell",
     resultado$nomes$variancias_iguais ~ "teste t de Student",
     .default                          = "teste t de Welch"
   )
@@ -885,6 +1006,32 @@ tibble(
   valor  = c(eta$Eta2, omega$Omega2),
   ic_inf = c(eta$CI_low, omega$CI_low),
   ic_sup = c(eta$CI_high, omega$CI_high)
+) |>
+  mutate(leitura = case_when(
+    valor < 0.01 ~ \"muito pequeno\",
+    valor < 0.06 ~ \"pequeno\",
+    valor < 0.14 ~ \"médio\",
+    .default     = \"grande\"
+  ))"
+
+# ANOVA de Welch: ω² aproximado, convertido do F de Welch, com intervalo.
+receitas_efeito$anova_welch <- "
+# Tamanho de efeito da ANOVA de Welch: ω² aproximado, convertido do F e dos
+# graus de liberdade do Welch. É uma aproximação: o η² clássico supõe
+# variâncias iguais e por isso não entra aqui. O intervalo também é
+# aproximado; alternative = \"two.sided\" dá os dois limites.
+welch <- <<RESULTADO>>$anova
+omega <- F_to_omega2(f           = welch$f[1],
+                     df          = welch$gl[1],
+                     df_error    = welch$gl[2],
+                     ci          = <<CONFIANCA>>,
+                     alternative = \"two.sided\")
+
+tibble(
+  medida = \"ω² aproximado (Welch)\",
+  valor  = omega$Omega2_partial,
+  ic_inf = omega$CI_low,
+  ic_sup = omega$CI_high
 ) |>
   mutate(leitura = case_when(
     valor < 0.01 ~ \"muito pequeno\",
@@ -1019,7 +1166,7 @@ texto_alerta <- case_when(
   any(p_levene < alfa) ~
     paste0(\"As variâncias diferiram entre os grupos (o maior desvio padrão é \",
            com_virgula(razao_dp, 1), \" vezes o menor). Antes de concluir, \",
-           \"compare com um método que não suponha variâncias iguais, como a ANOVA de Welch.\"),
+           \"compare com a ANOVA de Welch, que não supõe variâncias iguais (variancias_iguais = FALSE).\"),
   any(p_shapiro < alfa) & min(resumo$n) >= 30 ~
     paste0(\"Os resíduos se afastaram da normalidade, mas com todos os grupos grandes \",
            \"(30 ou mais observações) a ANOVA é pouco sensível a esse desvio. Confira no \",
@@ -1053,6 +1200,169 @@ texto_sintese <- str_glue(
   \"Na amostra de {amostra$usadas} observações em {nrow(resumo)} grupos, {evidencia} \",
   \"(F({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}; \",
   \"η² = {com_virgula(eta2, 3)}). A interpretação deve considerar os pressupostos e o delineamento.\"
+)
+
+# 11. Todas as frases, numa lista com partes nomeadas.
+list(
+  amostra      = texto_amostra,
+  teste        = texto_teste,
+  efeito       = texto_efeito,
+  comparacoes  = texto_comparacoes,
+  pressupostos = texto_pressupostos,
+  alerta       = texto_alerta,
+  poder        = texto_poder,
+  sintese      = texto_sintese
+) |>
+  lapply(as.character)"
+
+# ANOVA de Welch: amostra, F de Welch, ω² aproximado, Games-Howell,
+# pressupostos, alerta, poder e síntese.
+receitas_textos$anova_welch <- "
+# 1. Números com vírgula decimal, e o p como se escreve em texto científico.
+com_virgula <- function(x, casas = 2) {
+  formatC(x, format = \"f\", digits = casas, decimal.mark = \",\")
+}
+texto_p <- function(p) {
+  case_when(p < 0.001 ~ \"p < 0,001\",
+            .default  = paste(\"p =\", com_virgula(p, 3)))
+}
+
+# 2. As peças do resultado que as frases usam.
+alfa         <- <<ALFA>>
+amostra      <- <<RESULTADO>>$amostra
+resumo       <- <<RESULTADO>>$resumo
+linha_f      <- <<RESULTADO>>$anova[1, ]
+gl_residuos  <- <<RESULTADO>>$anova$gl[2]
+pares        <- <<RESULTADO>>$pares
+pressupostos <- <<RESULTADO>>$pressupostos
+
+# 3. A amostra: quantas observações entraram e quantas ficaram de fora.
+excluidas <- case_when(
+  amostra$excluidas == 0 ~ \"nenhuma foi excluída\",
+  amostra$excluidas == 1 ~ \"1 foi excluída por não ter resposta ou grupo\",
+  .default = paste(amostra$excluidas,
+                   \"foram excluídas por não terem resposta ou grupo\")
+)
+texto_amostra <- str_glue(
+  \"Após o preparo, havia {amostra$total} observações. A análise usou \",
+  \"{amostra$usadas} delas, em {nrow(resumo)} grupos; {excluidas}.\"
+)
+
+# 4. A ANOVA de Welch numa frase. O gl do denominador leva casas decimais,
+#    por causa da correção de Welch.
+evidencia <- case_when(
+  linha_f$p <  alfa ~ \"houve evidência de diferença entre as médias\",
+  linha_f$p >= alfa ~ \"não houve evidência de diferença entre as médias\"
+)
+gl_texto <- paste0(linha_f$gl, \"; \", com_virgula(gl_residuos))
+texto_teste <- str_glue(
+  \"Em <<ROTULO_RESPOSTA>>, {evidencia} dos grupos de <<ROTULO_GRUPOS>> pela \",
+  \"ANOVA de Welch, que não supõe variâncias iguais \",
+  \"(F({gl_texto}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
+)
+
+# 5. Tamanho de efeito: ω² aproximado, convertido do F de Welch.
+omega2 <- F_to_omega2(f = linha_f$f, df = linha_f$gl, df_error = gl_residuos)$Omega2_partial
+classe <- case_when(
+  omega2 < 0.01 ~ \"muito pequeno\",
+  omega2 < 0.06 ~ \"pequeno\",
+  omega2 < 0.14 ~ \"médio\",
+  .default      = \"grande\"
+)
+texto_efeito <- str_glue(
+  \"O tamanho de efeito foi {classe} pela convenção de Cohen \",
+  \"(ω² aproximado = {com_virgula(omega2, 3)}, convertido do F de Welch), \",
+  \"uma referência estatística, não biológica.\"
+)
+
+# 6. Games-Howell: quais pares de grupos diferiram. Com menos de 6
+#    observações num grupo, o teste fica menos confiável: avisamos.
+diferentes <- pares |>
+  filter(p_ajustado < alfa) |>
+  mutate(frase = paste0(str_replace(comparacao, \"-\", \" e \"),
+                        \" (\", texto_p(p_ajustado), \")\"))
+pequenos <- as.character(resumo$<<GRUPOS>>[resumo$n < 6])
+aviso_pequenos <- case_when(
+  length(pequenos) == 0 ~ \"\",
+  length(pequenos) == nrow(resumo) ~
+    \" Com menos de seis observações em cada grupo, essas comparações pedem cautela.\",
+  .default = paste0(\" Com menos de seis observações em \",
+                    paste(pequenos, collapse = \", \"),
+                    \", essas comparações pedem cautela.\")
+)
+texto_comparacoes <- paste0(case_when(
+  linha_f$p >= alfa ~
+    \"Como a ANOVA de Welch não indicou diferença global, as comparações de Games-Howell servem só para descrição.\",
+  nrow(diferentes) == 0 ~
+    \"Pelo teste de Games-Howell, nenhum par de grupos diferiu ao nível adotado, apesar da diferença global indicada pela ANOVA de Welch.\",
+  nrow(diferentes) == 1 ~
+    paste0(\"Pelo teste de Games-Howell, só diferiram \", diferentes$frase[1],
+           \". Grupos que compartilham uma letra não diferiram entre si.\"),
+  .default =
+    paste0(\"Pelo teste de Games-Howell, diferiram os pares \",
+           paste(diferentes$frase, collapse = \"; \"),
+           \". Grupos que compartilham uma letra não diferiram entre si.\")
+), aviso_pequenos)
+
+# 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
+frases <- pressupostos |>
+  mutate(
+    avaliacao = case_when(p >= alfa ~ \"sem evidência contra o pressuposto\",
+                          .default  = \"o teste rejeitou o pressuposto\"),
+    frase = str_glue(\"{pressuposto}, pelo {teste} (estatística = \",
+                     \"{com_virgula(estatistica, 3)}; {texto_p(p)}): {avaliacao}.\")
+  )
+texto_pressupostos <- paste(
+  paste(frases$frase, collapse = \" \"),
+  \"A ANOVA de Welch não supõe variâncias iguais.\",
+  \"Esses testes não comprovam os pressupostos; os gráficos e o delineamento completam a avaliação.\"
+)
+
+# 8. Alerta: o que pede cuidado antes de concluir. Com todos os grupos
+#    grandes (regra prática: 30 ou mais), a ANOVA é pouco sensível a
+#    desvios moderados da normalidade.
+p_shapiro <- pressupostos$p[pressupostos$teste == \"Shapiro-Wilk\"]
+texto_alerta <- case_when(
+  any(p_shapiro < alfa) & min(resumo$n) >= 30 ~
+    paste0(\"A resposta se afastou da normalidade em pelo menos um grupo, mas com \",
+           \"todos os grupos grandes (30 ou mais observações) a ANOVA de Welch é pouco \",
+           \"sensível a esse desvio. Confira nos gráficos se não há assimetria forte ou \",
+           \"valores extremos.\"),
+  any(p_shapiro < alfa) ~
+    paste0(\"A resposta se afastou da normalidade em pelo menos um grupo. Avalie o \",
+           \"tamanho do desvio nos gráficos e, se for preciso, uma alternativa como o \",
+           \"teste de Kruskal-Wallis.\"),
+  .default =
+    \"Os testes formais não detectaram os desvios examinados, mas os gráficos e o delineamento continuam necessários.\"
+)
+
+# 9. Poder do teste, aproximado: só entra no texto quando muda a leitura,
+#    isto é, sem evidência e com poder abaixo de 80%. O pwr.anova.test()
+#    supõe variâncias iguais; aqui usamos a F não central com os pesos do
+#    próprio Welch (n / variância de cada grupo), para o efeito observado.
+pesos            <- resumo$n / resumo$dp^2
+media_ponderada  <- sum(pesos * resumo$media) / sum(pesos)
+nao_centralidade <- sum(pesos * (resumo$media - media_ponderada)^2)
+f_critico        <- qf(1 - alfa, df1 = linha_f$gl, df2 = gl_residuos)
+poder <- pf(f_critico,
+            df1        = linha_f$gl,
+            df2        = gl_residuos,
+            ncp        = nao_centralidade,
+            lower.tail = FALSE)
+texto_poder <- case_when(
+  linha_f$p >= alfa & poder < 0.80 ~
+    paste0(\"A ausência de evidência não deve ser lida como ausência de efeito: \",
+           \"para o tamanho de efeito observado, o poder aproximado do teste foi de apenas \",
+           com_virgula(100 * poder, 0), \"%. Uma amostra maior daria mais segurança à conclusão.\"),
+  .default = \"\"
+)
+
+# 10. Síntese: o resultado principal numa frase só.
+texto_sintese <- str_glue(
+  \"Na amostra de {amostra$usadas} observações em {nrow(resumo)} grupos, {evidencia} \",
+  \"pela ANOVA de Welch (F({gl_texto}) = {com_virgula(linha_f$f)}; \",
+  \"{texto_p(linha_f$p)}; ω² aproximado = {com_virgula(omega2, 3)}). \",
+  \"A interpretação deve considerar os pressupostos e o delineamento.\"
 )
 
 # 11. Todas as frases, numa lista com partes nomeadas.
@@ -1273,12 +1583,18 @@ receitas_residuos$teste_t <- paste(trimws(c(trecho_cores,
                                             trechos_diagnostico$preparo_teste_t,
                                             trechos_diagnostico$residuos)), collapse = "\n\n")
 
+# ANOVA de Welch: sem modelo aov(), o resíduo é a distância até a média do
+# grupo, como no teste t; o Q-Q fica um painel por grupo, porque as
+# variâncias diferem e o Shapiro é feito em cada grupo.
+receitas_residuos$anova_welch <- receitas_residuos$teste_t
+
 # As receitas de grafico_qq(), montadas com os trechos, uma por análise.
 receitas_qq$anova   <- paste(trimws(c(trechos_diagnostico$preparo_anova,
                                       trechos_diagnostico$qq_anova)), collapse = "\n\n")
 receitas_qq$teste_t <- paste(trimws(c(trecho_cores,
                                       trechos_diagnostico$preparo_teste_t,
                                       trechos_diagnostico$qq_teste_t)), collapse = "\n\n")
+receitas_qq$anova_welch <- receitas_qq$teste_t
 
 
 # Exibição no console ----------------------------------------------------------
@@ -1309,28 +1625,35 @@ print.clara_medias <- function(x, ...) {
   invisible(x)
 }
 
-# A parte do relatório da ANOVA: F, pressupostos e Tukey.
+# A parte do relatório da ANOVA (clássica ou de Welch): F, pressupostos e
+# comparações entre pares.
 imprimir_anova <- function(x) {
 
-  # A linha do fator na tabela da ANOVA.
+  # A linha do fator na tabela da ANOVA, e qual das duas ANOVAs rodou.
   linha_f <- x$anova[1, ]
+  welch   <- x$nomes$analise == "anova_welch"
 
-  # O resultado da ANOVA numa frase.
-  cat("\n# ANOVA\n")
-  cat("F(", linha_f$gl, ", ", x$anova$gl[2], ") = ", numero(linha_f$f), "; ",
-      escrever_p(linha_f$p), ": ",
+  # O resultado da ANOVA numa frase. No Welch, o gl do denominador tem
+  # casas decimais e, por causa da vírgula, os dois gl se separam por ";".
+  cat(dplyr::case_when(welch ~ "\n# ANOVA de Welch\n", .default = "\n# ANOVA\n"))
+  cat("F(", linha_f$gl, dplyr::case_when(welch ~ "; ", .default = ", "),
+      numero(x$anova$gl[2], dplyr::case_when(welch ~ 2, .default = 0)),
+      ") = ", numero(linha_f$f), "; ", escrever_p(linha_f$p), ": ",
       concluir_medias(linha_f$p, x$nomes$confianca), "\n", sep = "")
 
   # Os pressupostos, com a leitura de cada teste.
   cat("\n# Pressupostos\n")
   print(x$pressupostos)
+  if (welch) cat("A ANOVA de Welch não exige variâncias iguais; por isso não há Levene.\n")
 
-  # Os pares do Tukey.
-  cat("\n# Comparações de Tukey\n")
+  # Os pares: Tukey na clássica, Games-Howell na de Welch.
+  cat(dplyr::case_when(welch ~ "\n# Comparações de Games-Howell\n",
+                       .default = "\n# Comparações de Tukey\n"))
   print(x$pares)
 
   # Um lembrete das partes que podem ser abertas com $.
-  cat("\nPartes do resultado: $resumo $anova $pressupostos $pares $modelo $amostra $dados\n")
+  cat("\nPartes do resultado: $resumo $anova $pressupostos $pares",
+      if (!welch) "$modelo", "$amostra $dados\n")
 }
 
 # A parte do relatório do teste t: t, diferença com IC e pressupostos.

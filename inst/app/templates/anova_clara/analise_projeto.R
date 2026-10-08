@@ -29,18 +29,18 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")  # as funções da Cla
 glimpse(base)
 
 # 4. Comparar as médias ----------------------------------------------------
-# Resumo, ANOVA, pressupostos (Shapiro-Wilk e Levene), Tukey e letras,
-# numa função só. Os rótulos ficam no resultado: gráficos e textos os usam.
+{{COMENTARIO_COMPARAR}}
 resultado <- base |>
-  comparar_medias(resposta        = {{RESPOSTA_CLARA}},
-                  grupos          = {{FATOR_CLARA}},
-                  rotulo_resposta = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
-                  rotulo_grupos   = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
-                  confianca       = {{CONFIANCA}})
+  comparar_medias(resposta          = {{RESPOSTA_CLARA}},
+                  grupos            = {{FATOR_CLARA}},
+                  rotulo_resposta   = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
+                  rotulo_grupos     = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
+                  confianca         = {{CONFIANCA}},
+                  variancias_iguais = {{VARIANCIAS_IGUAIS_CLARA}})  {{NOTA_VARIANCIAS}}
 
 resultado                     # um pequeno relatório no console
 
-# Tamanho de efeito: η² e ω², com intervalo e a leitura de Cohen.
+{{COMENTARIO_EFEITO}}
 efeito <- resultado |>
   medir_efeito()
 
@@ -48,9 +48,9 @@ efeito
 
 # 5. Tabelas ---------------------------------------------------------------
 resultado$resumo              # n, média, DP, EP, IC e letras por grupo
-resultado$anova               # a tabela da ANOVA
-resultado$pares               # as comparações de Tukey, par a par
-resultado$pressupostos        # Shapiro-Wilk e Levene, com a leitura
+resultado$anova               # a tabela da {{NOME_ANOVA}}
+resultado$pares               # as comparações de {{POS_TESTE}}, par a par
+resultado$pressupostos        # {{COMENTARIO_PRESSUPOSTOS}}
 
 # 6. Gráficos --------------------------------------------------------------
 # 6.1 Exploração: caixas com as observações por cima.
@@ -69,7 +69,7 @@ grafico_barras <- resultado |>
                  largura_barras   = 0.3,            # de 0 a 1
                  mostrar_pontos   = TRUE,
                  mostrar_media_dp = TRUE,
-                 casas            = 2,              # casas decimais do rótulo
+                 casas            = 1,              # casas do rótulo: a precisão da medição
                  mostrar_letras   = TRUE,
                  cores            = "ocean",        # "ocean", "cinza" ou um vetor
                  tamanho_texto    = 12,
@@ -113,7 +113,7 @@ textos$pressupostos
 salvar_tabelas(base                = base,     # a base preparada pela receita
                resumo_grupos       = resultado$resumo,
                anova               = resultado$anova,
-               tukey               = resultado$pares,
+               {{ARQUIVO_PARES}} = resultado$pares,
                testes_pressupostos = resultado$pressupostos,
                tamanho_efeito      = efeito,
                pasta               = here("saida", "tabelas"))
