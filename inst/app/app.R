@@ -304,6 +304,46 @@ ui <- page_navbar(
         right: auto !important;
         border-radius: 12px !important;
       }
+      .navbar-slogan-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        width: 100%;
+        min-width: 0;
+        padding: 2px 8px;
+        container-type: inline-size;
+      }
+      /* As margens transparentes do PNG ficam fora da área visível,
+         dando mais espaço à marca sem aumentar a altura do cabeçalho. */
+      .navbar-logo-area {
+        position: relative;
+        width: 100%;
+        height: 66px;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+      .navbar-logo-trilha {
+        display: block;
+        position: absolute;
+        top: -11px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: auto;
+        height: 84px;
+        max-width: 100%;
+        object-fit: contain;
+      }
+      .navbar-slogan-trilha {
+        color: #0F3B5F;
+        font-family: 'Inter', sans-serif;
+        font-size: clamp(7px, 3.6cqw, 14px);
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+        text-align: center;
+      }
       .navbar-collapse {
         grid-column: 2 !important;
         grid-row: 1 !important; /* Força na primeira linha do grid */
@@ -1390,12 +1430,18 @@ ui <- page_navbar(
   nav_item(
     div(
       class = "navbar-slogan-container",
-      style = "display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%;",
-      # Logo do CatalyseR (nova identidade "CatalyseR Studio")
-      tags$img(
-        src = "catalyser_logo2.png",
-        height = "76px", # Ajustado para a nova altura de 90px
-        style = "border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); object-fit: contain;"
+      # Simulação da identidade Trilha, com fundo transparente.
+      div(
+        class = "navbar-logo-area",
+        tags$img(
+          src = "logo_trilha_transparente.png",
+          class = "navbar-logo-trilha",
+          alt = "Trilha — logo com R no hexágono e caminho pontilhado"
+        )
+      ),
+      span(
+        "Da pergunta ao relatório, uma só trilha em R.",
+        class = "navbar-slogan-trilha"
       )
     )
   )
