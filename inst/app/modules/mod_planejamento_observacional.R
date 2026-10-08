@@ -112,38 +112,102 @@ inteiro_impacto <- function(valor, padrao) {
   as.integer(valor)
 }
 
-# Cada linha do desenho representa um sítio; as cores são condições, não respostas.
+# Cada linha representa um sítio, revisitado nas mesmas campanhas.
+# As faixas destacam os períodos e os cartões distinguem as condições.
 desenhar_plano_impacto <- function(sitios, campanhas, n_sub, tipo) {
-  pontos <- expand.grid(sitio_idx = seq_len(nrow(sitios)), campanha_idx = seq_len(nrow(campanhas)))
-  pontos$x <- pontos$campanha_idx
-  pontos$y <- nrow(sitios) - pontos$sitio_idx + 1
+  n_sitios <- nrow(sitios)
+  n_campanhas <- nrow(campanhas)
+  ys <- 4 + rev(seq_len(n_sitios)) * .65
+  topo <- max(ys)
+  xs <- if (n_campanhas == 1) 9.75 else seq(4, 15.5, length.out = n_campanhas)
+  grupos <- unique(sitios$condicao)
+  cores <- stats::setNames(c("#E76F51", "#2E7D8F")[seq_along(grupos)], grupos)
+  pontos <- expand.grid(sitio_idx = seq_len(n_sitios), campanha_idx = seq_len(n_campanhas))
+  pontos$x <- xs[pontos$campanha_idx]
+  pontos$y <- ys[pontos$sitio_idx]
   pontos$condicao <- sitios$condicao[pontos$sitio_idx]
-  cores <- stats::setNames(c("#E76F51", "#2E7D8F")[seq_along(unique(sitios$condicao))], unique(sitios$condicao))
-  limite <- sum(campanhas$periodo == "Antes") + .5
-  ggplot2::ggplot(pontos, ggplot2::aes(x, y, group = sitio_idx)) +
-    ggplot2::geom_line(color = "#C5D8CF", linewidth = .7) +
-    ggplot2::geom_point(ggplot2::aes(fill = condicao), shape = 21, size = 3.3, color = "white") +
-    {if (tipo != "ci") ggplot2::geom_vline(xintercept = limite, color = "#0F3B5F", linetype = 2)} +
-    ggplot2::scale_fill_manual(values = cores) +
-    ggplot2::scale_x_continuous(breaks = seq_len(nrow(campanhas)), labels = campanhas$campanha,
-      limits = c(.5, nrow(campanhas) + .5)) +
-    ggplot2::scale_y_continuous(breaks = seq_len(nrow(sitios)), labels = rev(paste(sitios$sitio, sitios$condicao)), limits = c(-3.2, nrow(sitios) + .5)) +
-    ggplot2::annotate("rect", xmin = .55, xmax = nrow(campanhas) + .45, ymin = -2.9, ymax = -.35, fill = "#E7EFEA", color = NA) +
-    ggplot2::annotate("text", x = (nrow(campanhas) + 1) / 2, y = -1,
-      label = sprintf("Um sítio em uma campanha → %d subamostras → %d linhas ligadas ao mesmo sítio", n_sub, n_sub), size = 3.4, color = "#0F3B5F") +
-    ggplot2::annotate("text", x = (nrow(campanhas) + 1) / 2, y = -2.1,
-      label = "Empreendimento / ambiente → sítios → campanhas → subamostras\nRevisitas acompanham o sítio; pontos no mesmo canal não replicam canais.", size = 3.4, color = "#2E7D8F") +
+  p <- ggplot2::ggplot()
+  texto <- function(x, y, rotulo, tamanho = 3.3, negrito = FALSE, cor = "#0F3B5F") {
+    p <<- p + ggplot2::annotate("text", x = x, y = y, label = rotulo,
+      size = tamanho, colour = cor, fontface = if (negrito) "bold" else "plain", lineheight = 1.05)
+  }
+  caixa <- function(xmin, xmax, ymin, ymax, fundo, borda = NA) {
+    p <<- p + ggplot2::annotate("rect", xmin = xmin, xmax = xmax,
+      ymin = ymin, ymax = ymax, fill = fundo, colour = borda, linewidth = .4)
+  }
+  seta <- function(x, xend, y, yend = y, cor = "#0F3B5F") {
+    p <<- p + ggplot2::annotate("segment", x = x, xend = xend, y = y, yend = yend,
+      colour = cor, linewidth = .65,
+      arrow = grid::arrow(length = grid::unit(.09, "inches"), type = "closed"))
+  }
+  caixa(.1, 15.95, 4.15, topo + 2.85, "#FAFCFC", "#CBDDE4")
+  # Os períodos vêm do plano; o CI mostra somente DEPOIS.
+  n_antes <- sum(campanhas$periodo == "Antes")
+  limite <- if (tipo != "ci") mean(xs[c(n_antes, n_antes + 1L)]) else NA_real_
+  for (periodo in unique(campanhas$periodo)) {
+    indices <- which(campanhas$periodo == periodo)
+    esquerda <- if (periodo == "Depois" && tipo != "ci") limite + .18 else 3.75
+    direita <- if (periodo == "Antes") limite - .18 else 15.75
+    caixa(esquerda, direita, topo + 1.05, topo + 1.65, "#D9EDF7")
+    texto(mean(c(esquerda, direita)), topo + 1.35,
+      sprintf("%s · %d %s", toupper(periodo), length(indices),
+        if (length(indices) == 1) "campanha" else "campanhas"), 4.1, TRUE)
+  }
+  if (tipo != "ci") {
+    texto(limite, topo + 2.45, "INÍCIO DO IMPACTO", 3.4, TRUE)
+    seta(limite, limite, topo + 2.17, topo + 1.78)
+    p <- p + ggplot2::annotate("segment", x = limite, xend = limite,
+      y = 4.35, yend = topo + 1.02, colour = "#0F3B5F", linetype = 2, linewidth = .65)
+  } else texto(9.75, topo + 2.4, "Campanhas após o início previsto do impacto", 3.5, TRUE)
+  texto(xs, topo + .65, campanhas$campanha, 3.1, TRUE)
+  # A cor acompanha a condição, enquanto cada sítio conserva sua própria linha.
+  for (i in seq_along(grupos)) {
+    indices <- which(sitios$condicao == grupos[i])
+    centro <- mean(range(ys[indices]))
+    caixa(.3, 2.75, min(ys[indices]) - .28, max(ys[indices]) + .28,
+      if (i == 1) "#FCE5DE" else "#DDEFF0")
+    texto(1.52, centro, if (i == 1) "IMPACTO" else "CONTROLE", 4.2, TRUE, cores[i])
+    # O nome informado fica preservado, mesmo quando difere do papel no esquema.
+    texto(1.52, centro - .22,
+      paste(strwrap(if (i == 1 && grupos[i] == "Impacto") "" else if (i == 2 && grupos[i] == "Referência") "(referência)" else grupos[i], width = 20), collapse = "\n"),
+      2.5, FALSE, cores[i])
+  }
+  texto(3.3, ys, sitios$sitio, 3.1, TRUE)
+  p <- p + ggplot2::geom_line(data = pontos,
+    ggplot2::aes(x, y, group = sitio_idx, colour = condicao), linewidth = .75) +
+    ggplot2::geom_point(data = pontos, ggplot2::aes(x, y, fill = condicao),
+      shape = 21, size = 3.5, colour = "white", stroke = .6) +
+    ggplot2::scale_colour_manual(values = cores) + ggplot2::scale_fill_manual(values = cores)
+  texto(9.75, 3.82, "Revisitar os mesmos sítios em todas as campanhas", 3.5, TRUE)
+
+  # O detalhe separa subamostras de sítios: elas pertencem à mesma visita.
+  caixa(.1, 15.95, .25, 3.35, "#FAFCFC", "#CBDDE4")
+  texto(8, 2.96, "EM CADA SÍTIO, EM CADA CAMPANHA", 4, TRUE)
+  caixa(1.35, 3.55, 1.15, 2.15, "#FCE5DE")
+  texto(2.45, 1.65, sitios$sitio[1], 4, TRUE, "#E76F51")
+  exibidas <- min(n_sub, 3L)
+  y_sub <- if (exibidas == 1) 1.65 else seq(2.25, .85, length.out = exibidas)
+  for (j in seq_len(exibidas)) {
+    seta(3.7, 5.4, 1.65, y_sub[j])
+    caixa(5.6, 6.2, y_sub[j] - .19, y_sub[j] + .19, "#DDEFF0", "#2E7D8F")
+    texto(8.05, y_sub[j], sprintf("Subamostra %d", j), 3.2)
+  }
+  texto(12.35, 1.65, sprintf("%d %s vinculada%s\nao mesmo sítio e campanha",
+    n_sub, if (n_sub == 1) "subamostra" else "subamostras", if (n_sub == 1) "" else "s"), 3.5, TRUE)
+  if (n_sub > exibidas) texto(8.05, .42, sprintf("+ %d na ficha", n_sub - exibidas), 2.6)
+  p + ggplot2::coord_cartesian(xlim = c(0, 16), ylim = c(0, topo + 3), expand = FALSE) +
     ggplot2::labs(title = paste("Delineamento observacional", toupper(tipo)),
-      subtitle = sprintf("%d sítios × %d campanhas × %d subamostras = %d linhas de coleta", nrow(sitios), nrow(campanhas), n_sub, nrow(sitios) * nrow(campanhas) * n_sub),
-      x = if (tipo == "ci") "Campanhas depois do início previsto do impacto" else "Campanhas: A = antes; D = depois. A divisão marca o início previsto do impacto.", y = "Mesmo sítio em cada revisita", fill = "Condição",
-      caption = paste(sprintf("Em cada ponto: %d subamostras ligadas ao sítio e à campanha; não %d impactos independentes.", n_sub, n_sub),
-        "Sítios no mesmo ambiente compartilham contexto. Identifique ambiente e fonte na ficha.",
-        if (tipo == "baci") "Comparação: mudança no impacto − mudança nas referências." else limite_impacto(tipo), sep = "\n")) +
-    ggplot2::theme_minimal(base_size = 11) +
-    ggplot2::theme(plot.title = ggplot2::element_text(color = "#0F3B5F", face = "bold"),
-      panel.grid.minor = ggplot2::element_blank(), legend.position = "bottom",
-      plot.caption = ggplot2::element_text(hjust = 0, color = "#0F3B5F"),
-      axis.text.x = ggplot2::element_text(angle = if (nrow(campanhas) > 15) 90 else 0))
+      subtitle = sprintf("%d sítios × %d campanhas × %d subamostras = %d linhas de coleta",
+        n_sitios, n_campanhas, n_sub, n_sitios * n_campanhas * n_sub),
+      caption = paste("Subamostras e revisitas não representam novos impactos independentes. Sítios no mesmo ambiente compartilham contexto.",
+        if (tipo == "baci") "Comparação: mudança no impacto − mudança no controle (referência)." else limite_impacto(tipo), sep = "\n")) +
+    ggplot2::theme_void(base_size = 11) + ggplot2::theme(
+      plot.title = ggplot2::element_text(colour = "#0F3B5F", face = "bold", size = 15),
+      plot.subtitle = ggplot2::element_text(colour = "#2E7D8F", margin = ggplot2::margin(b = 10)),
+      plot.caption = ggplot2::element_text(hjust = 0, colour = "#0F3B5F", size = 9,
+        margin = ggplot2::margin(t = 10)),
+      legend.position = "none", plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+      plot.margin = ggplot2::margin(12, 12, 12, 12))
 }
 
 obs_tipo_unidade_ui <- function(ns) {
