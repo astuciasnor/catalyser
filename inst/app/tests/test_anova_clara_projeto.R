@@ -76,7 +76,7 @@ stopifnot(!any(grepl("{{", c(linhas_script, readme), fixed = TRUE)),
   any(grepl("variancias_iguais = TRUE)  # TRUE: ANOVA clássica; FALSE: ANOVA de Welch", linhas_script, fixed = TRUE)),
   any(grepl("grupos            = racao,", linhas_script, fixed = TRUE)),
   any(grepl("grafico_medias(titulo           = NULL,", linhas_script, fixed = TRUE)),
-  any(grepl("escrever_resultados()", linhas_script, fixed = TRUE)),
+  any(grepl("escrever_resultados(casas    = 1,", linhas_script, fixed = TRUE)),
   any(grepl('"multcompView"', readme, fixed = TRUE)),
   any(grepl('"effectsize"', readme, fixed = TRUE)),
   # Só CRAN: sem catalyser, EAPADados nem instalação pelo GitHub.

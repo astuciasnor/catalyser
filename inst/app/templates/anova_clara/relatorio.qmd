@@ -53,7 +53,8 @@ casas <- 1
 
 # As frases, a nota da tabela e a legenda da figura, que mudam com os dados.
 textos <- resultado |>
-  escrever_resultados(casas = casas)
+  escrever_resultados(casas    = casas,
+                      destacar = "maior")  # "maior", "menor" ou o grupo controle
 ```
 
 # Introdução

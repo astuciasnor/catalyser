@@ -96,6 +96,10 @@ receitas_efeito <- list()
 #                         sem ele, vai o da análise
 #   casas ............... casas decimais da média ± DP no destaque (ANOVA);
 #                         use a precisão da medição
+#   destacar ............ o grupo em destaque na ANOVA: "maior" (a maior
+#                         média), "menor" (a menor: conversão alimentar,
+#                         mortalidade) ou o nome do grupo de referência
+#                         (ex.: "Controle"), comparado com os demais
 #   mostrar_codigo ...... TRUE imprime o código R antes das frases
 #
 # Devolve uma lista de frases. Cada parte se abre com $:
@@ -114,6 +118,7 @@ escrever_resultados <- function(resultado,
                                 rotulo_resposta = NULL,
                                 rotulo_grupos   = NULL,
                                 casas           = 2,
+                                destacar        = "maior",
                                 mostrar_codigo  = FALSE) {
 
   # Guardamos o nome do resultado, como o aluno o chamou.
@@ -122,6 +127,13 @@ escrever_resultados <- function(resultado,
   # Sem rótulo informado aqui, valem os que a análise guardou.
   rotulo_resposta <- ou_entao(rotulo_resposta, resultado$nomes$rotulo_resposta)
   rotulo_grupos   <- ou_entao(rotulo_grupos,   resultado$nomes$rotulo_grupos)
+
+  # destacar: "maior", "menor" ou um dos grupos.
+  grupos_validos <- as.character(resultado$resumo[[resultado$nomes$grupos]])
+  if (!is.element(destacar, c("maior", "menor", grupos_validos))) {
+    stop("destacar deve ser \"maior\", \"menor\" ou o nome de um grupo: ",
+         paste(grupos_validos, collapse = ", "), ".", call. = FALSE)
+  }
 
   # Trocamos os marcadores da receita da análise feita pelos nomes dela.
   receita <- preencher_receita(escolher_receita(receitas_textos, resultado, "escrever_resultados"), list(
@@ -133,6 +145,7 @@ escrever_resultados <- function(resultado,
     ALFA              = 1 - resultado$nomes$confianca,
     NIVEL             = resultado$nomes$confianca * 100,
     CASAS             = casas,
+    DESTACAR          = destacar,
     VARIANCIAS_IGUAIS = resultado$nomes$variancias_iguais,
     NOME_T            = dplyr::case_when(isTRUE(resultado$nomes$variancias_iguais) ~ "de Student",
                                          .default = "de Welch")

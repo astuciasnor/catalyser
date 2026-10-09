@@ -1147,43 +1147,65 @@ texto_comparacoes <- case_when(
            \". Grupos que compartilham uma letra não diferiram entre si.\")
 )
 
-# 6b. O destaque: o grupo de maior média, de quais grupos ele diferiu e
-#     quais pares não diferiram entre si. O pesquisador revisa a redação.
+# 6b. O destaque: o grupo que a pesquisa busca (a maior ou a menor média) ou
+#     o grupo de referência (controle), e de quais grupos ele diferiu, do
+#     mais distante ao mais próximo. O pesquisador revisa a redação.
+destacar <- \"<<DESTACAR>>\"
+modo_referencia <- !is.element(destacar, c(\"maior\", \"menor\"))
 e_lista <- function(x) {
   case_when(length(x) <= 1 ~ paste(x, collapse = \"\"),
             .default = paste(paste(x[-length(x)], collapse = \", \"), \"e\", x[length(x)]))
 }
-pares_grupos <- pares |>
+media_dp <- function(grupo) {
+  linha <- resumo[as.character(resumo$<<GRUPOS>>) == grupo, ]
+  paste(com_virgula(linha$media, <<CASAS>>), \"±\", com_virgula(linha$dp, <<CASAS>>))
+}
+nomes_grupos <- as.character(resumo$<<GRUPOS>>)
+grupo_destaque <- case_when(
+  destacar == \"maior\" ~ nomes_grupos[which.max(resumo$media)],
+  destacar == \"menor\" ~ nomes_grupos[which.min(resumo$media)],
+  .default            = destacar
+)
+media_destaque <- resumo$media[nomes_grupos == grupo_destaque]
+outros <- pares |>
   mutate(grupo_1 = str_remove(comparacao, \"-.*$\"),
-         grupo_2 = str_remove(comparacao, \"^[^-]*-\"))
-maior <- resumo |> slice_max(media, n = 1, with_ties = FALSE)
-menor <- resumo |> slice_min(media, n = 1, with_ties = FALSE)
-grupo_maior <- as.character(maior$<<GRUPOS>>)
-diferiu_de <- pares_grupos |>
-  filter(p_ajustado < alfa, grupo_1 == grupo_maior | grupo_2 == grupo_maior) |>
-  mutate(outro = if_else(grupo_1 == grupo_maior, grupo_2, grupo_1)) |>
-  pull(outro)
-ordem <- as.character(resumo$<<GRUPOS>>)
-iguais <- pares_grupos |>
-  filter(p_ajustado >= alfa) |>
-  mutate(primeiro = if_else(match(grupo_1, ordem) < match(grupo_2, ordem), grupo_1, grupo_2),
-         segundo  = if_else(primeiro == grupo_1, grupo_2, grupo_1),
-         par      = paste(primeiro, \"e\", segundo)) |>
-  arrange(match(primeiro, ordem), match(segundo, ordem)) |>
-  pull(par)
-trecho_diferiu <- if_else(length(diferiu_de) > 0,
-                          paste0(\", e diferiu de \", e_lista(diferiu_de)), \"\")
-trecho_iguais <- if_else(length(iguais) > 0,
-                         paste0(\" Não diferiram entre si: \", paste(iguais, collapse = \"; \"), \".\"), \"\")
+         grupo_2 = str_remove(comparacao, \"^[^-]*-\")) |>
+  filter(grupo_1 == grupo_destaque | grupo_2 == grupo_destaque) |>
+  mutate(outro = if_else(grupo_1 == grupo_destaque, grupo_2, grupo_1)) |>
+  left_join(tibble(outro = nomes_grupos, media = resumo$media), by = \"outro\") |>
+  arrange(desc(abs(media - media_destaque)))
+diferiram <- outros |> filter(p_ajustado <  alfa)
+iguais    <- outros |> filter(p_ajustado >= alfa)
+com_direcao <- paste0(diferiram$outro, \" (\", vapply(diferiram$outro, media_dp, character(1)),
+                      \", média \", if_else(diferiram$media > media_destaque, \"maior\", \"menor\"), \")\")
+verbo <- if_else(nrow(diferiram) == 1, \"diferiu\", \"diferiram\")
+trecho_iguais <- if_else(nrow(iguais) > 0,
+                         paste0(\" Não diferiu de \", e_lista(iguais$outro), \".\"), \"\")
+trecho_iguais_ref <- if_else(nrow(iguais) > 0,
+                             paste0(\" Sem diferença em relação a ele: \", e_lista(iguais$outro), \".\"), \"\")
 texto_destaque <- case_when(
+  modo_referencia & linha_f$p >= alfa ~
+    paste0(\"Sem diferença global entre os grupos, a média de <<ROTULO_RESPOSTA>> no grupo de \",
+           \"referência \", grupo_destaque, \" foi \", media_dp(grupo_destaque), \" (média ± DP).\"),
+  modo_referencia & nrow(diferiram) == 0 ~
+    paste0(\"Nenhum grupo diferiu do grupo de referência \", grupo_destaque, \" (\",
+           media_dp(grupo_destaque), \"; média ± DP).\"),
+  modo_referencia ~
+    paste0(\"Em comparação com o grupo de referência \", grupo_destaque, \" (\",
+           media_dp(grupo_destaque), \"; média ± DP), \", verbo, \" \", e_lista(com_direcao),
+           \".\", trecho_iguais_ref),
   linha_f$p >= alfa ~
-    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \", com_virgula(menor$media, <<CASAS>>),
-           \" (\", menor$<<GRUPOS>>, \") a \", com_virgula(maior$media, <<CASAS>>),
-           \" (\", grupo_maior, \").\"),
+    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \",
+           com_virgula(min(resumo$media), <<CASAS>>), \" (\", nomes_grupos[which.min(resumo$media)],
+           \") a \", com_virgula(max(resumo$media), <<CASAS>>), \" (\",
+           nomes_grupos[which.max(resumo$media)], \"), sem diferença entre os grupos.\"),
+  nrow(diferiram) == 0 ~
+    paste0(\"O grupo \", grupo_destaque, \" teve a \", destacar, \" média de <<ROTULO_RESPOSTA>>: \",
+           media_dp(grupo_destaque), \" (média ± DP), mas não diferiu dos demais grupos.\"),
   .default =
-    paste0(\"O grupo \", grupo_maior, \" teve a maior média de <<ROTULO_RESPOSTA>>: \",
-           com_virgula(maior$media, <<CASAS>>), \" ± \", com_virgula(maior$dp, <<CASAS>>),
-           \" (média ± DP)\", trecho_diferiu, \".\", trecho_iguais)
+    paste0(\"O grupo \", grupo_destaque, \" teve a \", destacar, \" média de <<ROTULO_RESPOSTA>>: \",
+           media_dp(grupo_destaque), \" (média ± DP) e diferiu de \", e_lista(diferiram$outro),
+           \".\", trecho_iguais)
 )
 
 # 6c. A nota da tabela de médias e a legenda da figura principal
@@ -1369,43 +1391,65 @@ texto_comparacoes <- paste0(case_when(
            \". Grupos que compartilham uma letra não diferiram entre si.\")
 ), aviso_pequenos)
 
-# 6b. O destaque: o grupo de maior média, de quais grupos ele diferiu e
-#     quais pares não diferiram entre si. O pesquisador revisa a redação.
+# 6b. O destaque: o grupo que a pesquisa busca (a maior ou a menor média) ou
+#     o grupo de referência (controle), e de quais grupos ele diferiu, do
+#     mais distante ao mais próximo. O pesquisador revisa a redação.
+destacar <- \"<<DESTACAR>>\"
+modo_referencia <- !is.element(destacar, c(\"maior\", \"menor\"))
 e_lista <- function(x) {
   case_when(length(x) <= 1 ~ paste(x, collapse = \"\"),
             .default = paste(paste(x[-length(x)], collapse = \", \"), \"e\", x[length(x)]))
 }
-pares_grupos <- pares |>
+media_dp <- function(grupo) {
+  linha <- resumo[as.character(resumo$<<GRUPOS>>) == grupo, ]
+  paste(com_virgula(linha$media, <<CASAS>>), \"±\", com_virgula(linha$dp, <<CASAS>>))
+}
+nomes_grupos <- as.character(resumo$<<GRUPOS>>)
+grupo_destaque <- case_when(
+  destacar == \"maior\" ~ nomes_grupos[which.max(resumo$media)],
+  destacar == \"menor\" ~ nomes_grupos[which.min(resumo$media)],
+  .default            = destacar
+)
+media_destaque <- resumo$media[nomes_grupos == grupo_destaque]
+outros <- pares |>
   mutate(grupo_1 = str_remove(comparacao, \"-.*$\"),
-         grupo_2 = str_remove(comparacao, \"^[^-]*-\"))
-maior <- resumo |> slice_max(media, n = 1, with_ties = FALSE)
-menor <- resumo |> slice_min(media, n = 1, with_ties = FALSE)
-grupo_maior <- as.character(maior$<<GRUPOS>>)
-diferiu_de <- pares_grupos |>
-  filter(p_ajustado < alfa, grupo_1 == grupo_maior | grupo_2 == grupo_maior) |>
-  mutate(outro = if_else(grupo_1 == grupo_maior, grupo_2, grupo_1)) |>
-  pull(outro)
-ordem <- as.character(resumo$<<GRUPOS>>)
-iguais <- pares_grupos |>
-  filter(p_ajustado >= alfa) |>
-  mutate(primeiro = if_else(match(grupo_1, ordem) < match(grupo_2, ordem), grupo_1, grupo_2),
-         segundo  = if_else(primeiro == grupo_1, grupo_2, grupo_1),
-         par      = paste(primeiro, \"e\", segundo)) |>
-  arrange(match(primeiro, ordem), match(segundo, ordem)) |>
-  pull(par)
-trecho_diferiu <- if_else(length(diferiu_de) > 0,
-                          paste0(\", e diferiu de \", e_lista(diferiu_de)), \"\")
-trecho_iguais <- if_else(length(iguais) > 0,
-                         paste0(\" Não diferiram entre si: \", paste(iguais, collapse = \"; \"), \".\"), \"\")
+         grupo_2 = str_remove(comparacao, \"^[^-]*-\")) |>
+  filter(grupo_1 == grupo_destaque | grupo_2 == grupo_destaque) |>
+  mutate(outro = if_else(grupo_1 == grupo_destaque, grupo_2, grupo_1)) |>
+  left_join(tibble(outro = nomes_grupos, media = resumo$media), by = \"outro\") |>
+  arrange(desc(abs(media - media_destaque)))
+diferiram <- outros |> filter(p_ajustado <  alfa)
+iguais    <- outros |> filter(p_ajustado >= alfa)
+com_direcao <- paste0(diferiram$outro, \" (\", vapply(diferiram$outro, media_dp, character(1)),
+                      \", média \", if_else(diferiram$media > media_destaque, \"maior\", \"menor\"), \")\")
+verbo <- if_else(nrow(diferiram) == 1, \"diferiu\", \"diferiram\")
+trecho_iguais <- if_else(nrow(iguais) > 0,
+                         paste0(\" Não diferiu de \", e_lista(iguais$outro), \".\"), \"\")
+trecho_iguais_ref <- if_else(nrow(iguais) > 0,
+                             paste0(\" Sem diferença em relação a ele: \", e_lista(iguais$outro), \".\"), \"\")
 texto_destaque <- case_when(
+  modo_referencia & linha_f$p >= alfa ~
+    paste0(\"Sem diferença global entre os grupos, a média de <<ROTULO_RESPOSTA>> no grupo de \",
+           \"referência \", grupo_destaque, \" foi \", media_dp(grupo_destaque), \" (média ± DP).\"),
+  modo_referencia & nrow(diferiram) == 0 ~
+    paste0(\"Nenhum grupo diferiu do grupo de referência \", grupo_destaque, \" (\",
+           media_dp(grupo_destaque), \"; média ± DP).\"),
+  modo_referencia ~
+    paste0(\"Em comparação com o grupo de referência \", grupo_destaque, \" (\",
+           media_dp(grupo_destaque), \"; média ± DP), \", verbo, \" \", e_lista(com_direcao),
+           \".\", trecho_iguais_ref),
   linha_f$p >= alfa ~
-    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \", com_virgula(menor$media, <<CASAS>>),
-           \" (\", menor$<<GRUPOS>>, \") a \", com_virgula(maior$media, <<CASAS>>),
-           \" (\", grupo_maior, \").\"),
+    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \",
+           com_virgula(min(resumo$media), <<CASAS>>), \" (\", nomes_grupos[which.min(resumo$media)],
+           \") a \", com_virgula(max(resumo$media), <<CASAS>>), \" (\",
+           nomes_grupos[which.max(resumo$media)], \"), sem diferença entre os grupos.\"),
+  nrow(diferiram) == 0 ~
+    paste0(\"O grupo \", grupo_destaque, \" teve a \", destacar, \" média de <<ROTULO_RESPOSTA>>: \",
+           media_dp(grupo_destaque), \" (média ± DP), mas não diferiu dos demais grupos.\"),
   .default =
-    paste0(\"O grupo \", grupo_maior, \" teve a maior média de <<ROTULO_RESPOSTA>>: \",
-           com_virgula(maior$media, <<CASAS>>), \" ± \", com_virgula(maior$dp, <<CASAS>>),
-           \" (média ± DP)\", trecho_diferiu, \".\", trecho_iguais)
+    paste0(\"O grupo \", grupo_destaque, \" teve a \", destacar, \" média de <<ROTULO_RESPOSTA>>: \",
+           media_dp(grupo_destaque), \" (média ± DP) e diferiu de \", e_lista(diferiram$outro),
+           \".\", trecho_iguais)
 )
 
 # 6c. A nota da tabela de médias e a legenda da figura principal

@@ -98,7 +98,8 @@ grafico_diferencas
 # 7. Textos dinâmicos ------------------------------------------------------
 # Frases que mudam junto com os dados. No Quarto: `r textos$teste`.
 textos <- resultado |>
-  escrever_resultados()
+  escrever_resultados(casas    = 1,
+                      destacar = "maior")  # "maior", "menor" ou o grupo controle
 
 textos
 
