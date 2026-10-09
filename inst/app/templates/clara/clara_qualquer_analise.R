@@ -100,13 +100,16 @@ receitas_efeito <- list()
 #                         média), "menor" (a menor: conversão alimentar,
 #                         mortalidade) ou o nome do grupo de referência
 #                         (ex.: "Controle"), comparado com os demais
+#   haste ............... a haste da figura de grafico_medias(), para a
+#                         legenda: "ic" (padrão), "ep" ou "dp"
 #   mostrar_codigo ...... TRUE imprime o código R antes das frases
 #
 # Devolve uma lista de frases. Cada parte se abre com $:
 #   textos$amostra, textos$teste, textos$efeito, textos$pressupostos,
 #   textos$alerta, textos$poder (vazio quando não se aplica), textos$sintese
-#   e, na ANOVA, textos$comparacoes e textos$destaque (o grupo em destaque
-#   e de quais grupos ele diferiu).
+#   e, na ANOVA, textos$comparacoes, textos$destaque (o grupo em destaque
+#   e de quais grupos ele diferiu), textos$nota_tabela (a nota da tabela de
+#   médias) e textos$legenda_figura (a legenda de grafico_medias()).
 # No Quarto, a frase entra no meio do parágrafo com `r textos$teste`.
 #
 # Exemplo:
@@ -119,6 +122,7 @@ escrever_resultados <- function(resultado,
                                 rotulo_grupos   = NULL,
                                 casas           = 2,
                                 destacar        = "maior",
+                                haste           = "ic",
                                 mostrar_codigo  = FALSE) {
 
   # Guardamos o nome do resultado, como o aluno o chamou.
@@ -135,6 +139,11 @@ escrever_resultados <- function(resultado,
          paste(grupos_validos, collapse = ", "), ".", call. = FALSE)
   }
 
+  # haste: a mesma da figura.
+  if (!is.element(haste, c("ic", "ep", "dp"))) {
+    stop('haste deve ser "ic", "ep" ou "dp", a mesma de grafico_medias().', call. = FALSE)
+  }
+
   # Trocamos os marcadores da receita da análise feita pelos nomes dela.
   receita <- preencher_receita(escolher_receita(receitas_textos, resultado, "escrever_resultados"), list(
     RESULTADO         = nome_resultado,
@@ -146,6 +155,7 @@ escrever_resultados <- function(resultado,
     NIVEL             = resultado$nomes$confianca * 100,
     CASAS             = casas,
     DESTACAR          = destacar,
+    HASTE             = haste,
     VARIANCIAS_IGUAIS = resultado$nomes$variancias_iguais,
     NOME_T            = dplyr::case_when(isTRUE(resultado$nomes$variancias_iguais) ~ "de Student",
                                          .default = "de Welch")

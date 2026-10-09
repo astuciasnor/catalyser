@@ -100,7 +100,8 @@ grafico_diferencas
 # Frases que mudam junto com os dados. No Quarto: `r textos$teste`.
 textos <- resultado |>
   escrever_resultados(casas    = 1,
-                      destacar = "maior")  # "maior", "menor" ou o grupo controle
+                      destacar = "maior",  # "maior", "menor" ou o grupo controle
+                      haste    = "ic")     # a mesma haste da figura: "ic", "ep" ou "dp"
 
 textos
 

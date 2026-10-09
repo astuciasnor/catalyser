@@ -1213,6 +1213,27 @@ texto_destaque <- case_when(
            \".\", trecho_iguais)
 )
 
+# 6c. A nota da tabela de médias e a legenda da figura principal. A haste
+#     é a mesma de grafico_medias(): \"ic\", \"ep\" ou \"dp\".
+haste <- \"<<HASTE>>\"
+texto_haste <- case_when(
+  haste == \"ic\" ~ \"o intervalo de confiança de <<NIVEL>>% da média\",
+  haste == \"ep\" ~ \"o erro padrão da média\",
+  .default      = \"o desvio padrão\"
+)
+texto_nota_tabela <- str_glue(
+  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
+  \"Tukey ao nível de {com_virgula(100 * alfa, 0)}% de significância \",
+  \"(α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de confiança \",
+  \"de <<NIVEL>>% da média.\"
+)
+texto_legenda_figura <- str_glue(
+  \"As barras e os losangos indicam a média de cada grupo; os pontos, as \",
+  \"observações individuais; as hastes, {texto_haste}. O rótulo mostra \",
+  \"média ± desvio padrão (DP). Letras iguais indicam grupos que não diferem \",
+  \"pelo teste de Tukey (α = {com_virgula(alfa)}).\"
+)
+
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1282,7 +1303,9 @@ list(
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese
+  sintese      = texto_sintese,
+  nota_tabela  = texto_nota_tabela,
+  legenda_figura = texto_legenda_figura
 ) |>
   lapply(as.character)"
 
@@ -1446,6 +1469,27 @@ texto_destaque <- case_when(
            \".\", trecho_iguais)
 )
 
+# 6c. A nota da tabela de médias e a legenda da figura principal. A haste
+#     é a mesma de grafico_medias(): \"ic\", \"ep\" ou \"dp\".
+haste <- \"<<HASTE>>\"
+texto_haste <- case_when(
+  haste == \"ic\" ~ \"o intervalo de confiança de <<NIVEL>>% da média\",
+  haste == \"ep\" ~ \"o erro padrão da média\",
+  .default      = \"o desvio padrão\"
+)
+texto_nota_tabela <- str_glue(
+  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
+  \"Games-Howell ao nível de {com_virgula(100 * alfa, 0)}% de significância \",
+  \"(α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de confiança \",
+  \"de <<NIVEL>>% da média.\"
+)
+texto_legenda_figura <- str_glue(
+  \"As barras e os losangos indicam a média de cada grupo; os pontos, as \",
+  \"observações individuais; as hastes, {texto_haste}. O rótulo mostra \",
+  \"média ± desvio padrão (DP). Letras iguais indicam grupos que não diferem \",
+  \"pelo teste de Games-Howell (α = {com_virgula(alfa)}).\"
+)
+
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1517,7 +1561,9 @@ list(
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese
+  sintese      = texto_sintese,
+  nota_tabela  = texto_nota_tabela,
+  legenda_figura = texto_legenda_figura
 ) |>
   lapply(as.character)"
 
