@@ -1104,8 +1104,12 @@ evidencia <- case_when(
   linha_f$p <  alfa ~ \"houve evidência de diferença entre as médias\",
   linha_f$p >= alfa ~ \"não houve evidência de diferença entre as médias\"
 )
+efeito_global <- case_when(
+  linha_f$p <  alfa ~ \"Houve efeito significativo\",
+  linha_f$p >= alfa ~ \"Não houve efeito significativo\"
+)
 texto_teste <- str_glue(
-  \"Em <<ROTULO_RESPOSTA>>, {evidencia} dos grupos de <<ROTULO_GRUPOS>> \",
+  \"{efeito_global} de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> \",
   \"(F({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
 )
 
@@ -1254,9 +1258,13 @@ evidencia <- case_when(
   linha_f$p <  alfa ~ \"houve evidência de diferença entre as médias\",
   linha_f$p >= alfa ~ \"não houve evidência de diferença entre as médias\"
 )
+efeito_global <- case_when(
+  linha_f$p <  alfa ~ \"Houve efeito significativo\",
+  linha_f$p >= alfa ~ \"Não houve efeito significativo\"
+)
 gl_texto <- paste0(linha_f$gl, \"; \", com_virgula(gl_residuos))
 texto_teste <- str_glue(
-  \"Em <<ROTULO_RESPOSTA>>, {evidencia} dos grupos de <<ROTULO_GRUPOS>> pela \",
+  \"{efeito_global} de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> pela \",
   \"ANOVA de Welch, que não supõe variâncias iguais \",
   \"(F({gl_texto}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
 )

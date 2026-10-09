@@ -17,33 +17,13 @@ format:
     fig-dpi: 300
 ---
 
-<!-- GUIA DE EDIÇÃO: este é o único documento do projeto, o relatório que
-vira Word. Os chunks repetem as chamadas principais de R/analise.R, de forma
-mais enxuta, e o documento roda sozinho. A exploração e os diagnósticos ficam
-no roteiro.
-
-O QUE SE ESCREVE À MÃO, antes de entregar:
-
-1. Título, autor, Introdução, Discussão e Conclusão: os lugares marcados com
-   "preencher" ou com o texto que você trouxe da CatalyseR.
-2. Nos Resultados, a frase entre colchetes: qual grupo teve a maior média,
-   quais não diferiram, com média ± DP e a unidade. As frases automáticas
-   dizem quais pares diferiram, mas não contam essa história.
-3. Revisar as frases automáticas (as que vêm de textos$...): elas usam
-   os rótulos da análise ("Peso (g)") e podem pedir um ajuste de redação.
-4. Escolher entre a tabela de médias e a figura (veja o aviso nos
-   Resultados) e decidir se a tabela da ANOVA fica.
-5. Conferir as casas decimais (`casas`, no chunk abaixo): use a precisão da
-   medição. Balança de 0,1 g pede casas = 1.
-
-A forma de apresentar os resultados não é fixa: o pesquisador decide
-conforme a revista, a banca e o que quer comunicar. O guia completo está em
-docs/DIRETRIZES_RELATORIO_COMPARAR_MEDIAS.md, no repositório da CatalyseR. -->
+<!-- ANTES DE ENTREGAR: preencha título, autor, Introdução, Discussão e
+Conclusão; troque o texto entre colchetes dos Resultados; revise as frases
+automáticas. O documento roda sozinho: Render gera o Word. -->
 
 ```{r}
-#| label: preparar
+#| label: pacotes
 #| include: false
-# Pacotes, funções de apresentação e a ClaRa.
 library(here)
 here::i_am("relatorios/relatorio.qmd")
 library(dplyr)
@@ -51,7 +31,11 @@ library(ggplot2)
 library(readxl)
 source(here("R", "funcoes.R"), encoding = "UTF-8")
 source(here("R", "clara", "clara.R"), encoding = "UTF-8")
+```
 
+```{r}
+#| label: dados-e-analise
+#| include: false
 {{TRECHO_PREPARO_QMD}}
 
 # Resumo, {{NOME_ANOVA}}, pressupostos, {{POS_TESTE}} e letras, numa função só.
@@ -66,17 +50,18 @@ resultado <- base |>
 # As frases do relatório, que mudam junto com os dados.
 textos <- resultado |>
   escrever_resultados()
+```
 
-# Casas decimais das médias, do DP e do IC, na tabela e na figura.
-# Use a precisão da medição: balança de 0,1 g pede casas = 1.
+```{r}
+#| label: apresentacao
+#| include: false
+# Casas decimais da tabela e da figura: a precisão da medição
+# (balança de 0,1 g pede casas = 1).
 casas <- 1
-
-# O nível de confiança e o de significância, para as notas e legendas.
 nivel <- 100 * resultado$nomes$confianca
 alfa  <- fmt(1 - resultado$nomes$confianca, 2)
 
-# A nota da tabela de médias e a legenda da figura. Se trocar a haste da
-# figura ("ep" ou "dp"), troque também o que a legenda diz das hastes.
+# Nota da tabela de médias e legenda da figura.
 nota_tabela <- paste0(
   "Médias seguidas pela mesma letra não diferem entre si pelo teste de ",
   "{{POS_TESTE}} ao nível de ", 100 - nivel, "% de significância (α = ", alfa, "). ",
@@ -104,10 +89,7 @@ legenda_figura <- paste0(
 
 `r textos$teste` `r textos$efeito`
 
-<!-- TABELA DA ANOVA: num artigo de um fator, ela pode ser retirada, porque
-o F e os graus de liberdade já estão na frase acima. Foi colocada aqui
-porque relatórios e teses costumam trazê-la. Para tirar, apague este chunk
-e a frase que a cita, ou apague a tabela no Word depois do Render. -->
+<!-- Tabela da ANOVA: opcional num artigo, porque o F já está na frase acima. -->
 
 {{FRASE_TBL_ANOVA}}
 
@@ -119,16 +101,11 @@ e a frase que a cita, ou apague a tabela no Word depois do Render. -->
 
 `r textos$comparacoes`
 
-[Escreva aqui, com suas palavras: qual grupo teve a maior média, com média ±
-DP e a unidade; de quais grupos ele diferiu; e quais grupos não diferiram
-entre si. Cite a tabela de médias ou a figura, conforme a sua escolha.]
+[Escreva aqui qual grupo teve a maior média (média ± DP, com a unidade), de
+quais grupos ele diferiu e quais não diferiram entre si.]
 
-<!-- TABELA DE MÉDIAS OU FIGURA: a maioria das revistas não aceita os mesmos
-dados em tabela e em gráfico. Num artigo, escolha uma e apague a outra
-(chunk e frase que a cita). A tabela serve melhor quando o leitor precisa
-dos valores exatos ou quando há muitos grupos; a figura, quando o foco é o
-contraste entre os grupos, e ela já traz média ± DP e as letras. Num
-relatório de aula ou numa tese, as duas podem ficar, por decisão sua. -->
+<!-- Tabela de médias ou figura: num artigo, fique com uma só (apague o
+chunk e a frase que a cita). Numa tese ou relatório, as duas podem ficar. -->
 
 A @tbl-medias resume cada grupo, com as letras do teste de {{POS_TESTE}}.
 
