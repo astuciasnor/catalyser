@@ -481,7 +481,8 @@ print.clara_textos <- function(x, ...) {
   for (parte in names(x)) {
     if (nzchar(x[[parte]])) {
       cat("\n$", parte, "\n", sep = "")
-      cat(strwrap(x[[parte]], width = 76), sep = "\n")
+      # No console, sem os asteriscos do itálico (*F*, *p*), que são do Word.
+      cat(strwrap(gsub("*", "", x[[parte]], fixed = TRUE), width = 76), sep = "\n")
     }
   }
 

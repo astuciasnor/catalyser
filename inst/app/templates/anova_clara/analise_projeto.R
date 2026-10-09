@@ -70,6 +70,7 @@ grafico_barras <- resultado |>
                  mostrar_pontos   = TRUE,
                  mostrar_media_dp = TRUE,
                  casas            = 1,              # casas do rótulo: a precisão da medição
+                 angulo_rotulo    = -90,            # -90: em pé, dentro da barra; 0: deitado
                  mostrar_letras   = TRUE,
                  cores            = "ocean",        # "ocean", "cinza" ou um vetor
                  tamanho_texto    = 12,

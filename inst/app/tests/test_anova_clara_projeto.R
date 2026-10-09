@@ -362,7 +362,7 @@ for (i in seq_along(entradas_welch)) {
     isTRUE(all.equal(obtido$gl, unname(esperado_welch$parameter))),
     isTRUE(all.equal(obtido$p, esperado_welch$p.value)),
     all(nzchar(obtido$letras)),
-    grepl("ANOVA de Welch", obtido$textos$teste, fixed = TRUE),
+    grepl("análise de variância de Welch", obtido$textos$teste, fixed = TRUE),
     grepl("Games-Howell", obtido$textos$comparacoes, fixed = TRUE))
 }
 

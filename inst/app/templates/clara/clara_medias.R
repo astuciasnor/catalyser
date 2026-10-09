@@ -1074,8 +1074,8 @@ com_virgula <- function(x, casas = 2) {
   formatC(x, format = \"f\", digits = casas, decimal.mark = \",\")
 }
 texto_p <- function(p) {
-  case_when(p < 0.001 ~ \"p < 0,001\",
-            .default  = paste(\"p =\", com_virgula(p, 3)))
+  case_when(p < 0.001 ~ \"*p* < 0,001\",
+            .default  = paste(\"*p* =\", com_virgula(p, 3)))
 }
 
 # 2. As peças do resultado que as frases usam.
@@ -1094,9 +1094,14 @@ excluidas <- case_when(
   .default = paste(amostra$excluidas,
                    \"foram excluídas por não terem resposta ou grupo\")
 )
-texto_amostra <- str_glue(
-  \"Após o preparo, havia {amostra$total} observações. A análise usou \",
-  \"{amostra$usadas} delas, em {nrow(resumo)} grupos; {excluidas}.\"
+texto_amostra <- case_when(
+  amostra$excluidas == 0 ~
+    paste0(\"O conjunto final de dados reuniu \", amostra$usadas, \" observações, \",
+           \"distribuídas entre os \", nrow(resumo), \" grupos de <<ROTULO_GRUPOS>>.\"),
+  .default =
+    paste0(\"De \", amostra$total, \" observações, \", excluidas, \"; o conjunto final \",
+           \"reuniu \", amostra$usadas, \", distribuídas entre os \", nrow(resumo),
+           \" grupos de <<ROTULO_GRUPOS>>.\")
 )
 
 # 4. A ANOVA numa frase, com a conclusão escrita conforme o p.
@@ -1105,12 +1110,13 @@ evidencia <- case_when(
   linha_f$p >= alfa ~ \"não houve evidência de diferença entre as médias\"
 )
 efeito_global <- case_when(
-  linha_f$p <  alfa ~ \"Houve efeito significativo\",
-  linha_f$p >= alfa ~ \"Não houve efeito significativo\"
+  linha_f$p <  alfa ~ \"revelou\",
+  linha_f$p >= alfa ~ \"não revelou\"
 )
 texto_teste <- str_glue(
-  \"{efeito_global} de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> \",
-  \"(F({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
+  \"A análise de variância {efeito_global} efeito estatisticamente significativo \",
+  \"de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> \",
+  \"(*F*({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
 )
 
 # 5. Tamanho de efeito, com a leitura de Cohen.
@@ -1123,9 +1129,8 @@ classe <- case_when(
   .default    = \"grande\"
 )
 texto_efeito <- str_glue(
-  \"O tamanho de efeito foi {classe} pela convenção de Cohen \",
-  \"(η² = {com_virgula(eta2, 3)}; ω² = {com_virgula(omega2, 3)}), \",
-  \"uma referência estatística, não biológica.\"
+  \"O tamanho de efeito foi classificado como {classe} pelos critérios de \",
+  \"referência de Cohen (η² = {com_virgula(eta2, 3)}; ω² = {com_virgula(omega2, 3)}).\"
 )
 
 # 6. Tukey: quais pares de grupos diferiram.
@@ -1278,7 +1283,7 @@ texto_poder <- case_when(
 # 10. Síntese: o resultado principal numa frase só.
 texto_sintese <- str_glue(
   \"Na amostra de {amostra$usadas} observações em {nrow(resumo)} grupos, {evidencia} \",
-  \"(F({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}; \",
+  \"(*F*({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}; \",
   \"η² = {com_virgula(eta2, 3)}). A interpretação deve considerar os pressupostos e o delineamento.\"
 )
 
@@ -1306,8 +1311,8 @@ com_virgula <- function(x, casas = 2) {
   formatC(x, format = \"f\", digits = casas, decimal.mark = \",\")
 }
 texto_p <- function(p) {
-  case_when(p < 0.001 ~ \"p < 0,001\",
-            .default  = paste(\"p =\", com_virgula(p, 3)))
+  case_when(p < 0.001 ~ \"*p* < 0,001\",
+            .default  = paste(\"*p* =\", com_virgula(p, 3)))
 }
 
 # 2. As peças do resultado que as frases usam.
@@ -1326,9 +1331,14 @@ excluidas <- case_when(
   .default = paste(amostra$excluidas,
                    \"foram excluídas por não terem resposta ou grupo\")
 )
-texto_amostra <- str_glue(
-  \"Após o preparo, havia {amostra$total} observações. A análise usou \",
-  \"{amostra$usadas} delas, em {nrow(resumo)} grupos; {excluidas}.\"
+texto_amostra <- case_when(
+  amostra$excluidas == 0 ~
+    paste0(\"O conjunto final de dados reuniu \", amostra$usadas, \" observações, \",
+           \"distribuídas entre os \", nrow(resumo), \" grupos de <<ROTULO_GRUPOS>>.\"),
+  .default =
+    paste0(\"De \", amostra$total, \" observações, \", excluidas, \"; o conjunto final \",
+           \"reuniu \", amostra$usadas, \", distribuídas entre os \", nrow(resumo),
+           \" grupos de <<ROTULO_GRUPOS>>.\")
 )
 
 # 4. A ANOVA de Welch numa frase. O gl do denominador leva casas decimais,
@@ -1338,14 +1348,15 @@ evidencia <- case_when(
   linha_f$p >= alfa ~ \"não houve evidência de diferença entre as médias\"
 )
 efeito_global <- case_when(
-  linha_f$p <  alfa ~ \"Houve efeito significativo\",
-  linha_f$p >= alfa ~ \"Não houve efeito significativo\"
+  linha_f$p <  alfa ~ \"revelou\",
+  linha_f$p >= alfa ~ \"não revelou\"
 )
 gl_texto <- paste0(linha_f$gl, \"; \", com_virgula(gl_residuos))
 texto_teste <- str_glue(
-  \"{efeito_global} de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> pela \",
-  \"ANOVA de Welch, que não supõe variâncias iguais \",
-  \"(F({gl_texto}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
+  \"A análise de variância de Welch, que não supõe variâncias iguais, \",
+  \"{efeito_global} efeito estatisticamente significativo de <<ROTULO_GRUPOS>> \",
+  \"sobre <<ROTULO_RESPOSTA>> (*F*({gl_texto}) = {com_virgula(linha_f$f)}; \",
+  \"{texto_p(linha_f$p)}).\"
 )
 
 # 5. Tamanho de efeito: ω² aproximado, convertido do F de Welch.
@@ -1357,9 +1368,9 @@ classe <- case_when(
   .default      = \"grande\"
 )
 texto_efeito <- str_glue(
-  \"O tamanho de efeito foi {classe} pela convenção de Cohen \",
-  \"(ω² aproximado = {com_virgula(omega2, 3)}, convertido do F de Welch), \",
-  \"uma referência estatística, não biológica.\"
+  \"O tamanho de efeito foi classificado como {classe} pelos critérios de \",
+  \"referência de Cohen (ω² aproximado = {com_virgula(omega2, 3)}, convertido \",
+  \"do *F* de Welch).\"
 )
 
 # 6. Games-Howell: quais pares de grupos diferiram. Com menos de 6
@@ -1523,7 +1534,7 @@ texto_poder <- case_when(
 # 10. Síntese: o resultado principal numa frase só.
 texto_sintese <- str_glue(
   \"Na amostra de {amostra$usadas} observações em {nrow(resumo)} grupos, {evidencia} \",
-  \"pela ANOVA de Welch (F({gl_texto}) = {com_virgula(linha_f$f)}; \",
+  \"pela ANOVA de Welch (*F*({gl_texto}) = {com_virgula(linha_f$f)}; \",
   \"{texto_p(linha_f$p)}; ω² aproximado = {com_virgula(omega2, 3)}). \",
   \"A interpretação deve considerar os pressupostos e o delineamento.\"
 )
@@ -1552,8 +1563,8 @@ com_virgula <- function(x, casas = 2) {
   formatC(x, format = \"f\", digits = casas, decimal.mark = \",\")
 }
 texto_p <- function(p) {
-  case_when(p < 0.001 ~ \"p < 0,001\",
-            .default  = paste(\"p =\", com_virgula(p, 3)))
+  case_when(p < 0.001 ~ \"*p* < 0,001\",
+            .default  = paste(\"*p* =\", com_virgula(p, 3)))
 }
 
 # 2. As peças do resultado que as frases usam.
@@ -1571,9 +1582,14 @@ excluidas <- case_when(
   .default = paste(amostra$excluidas,
                    \"foram excluídas por não terem resposta ou grupo\")
 )
-texto_amostra <- str_glue(
-  \"Após o preparo, havia {amostra$total} observações. A análise usou \",
-  \"{amostra$usadas} delas, em {nrow(resumo)} grupos; {excluidas}.\"
+texto_amostra <- case_when(
+  amostra$excluidas == 0 ~
+    paste0(\"O conjunto final de dados reuniu \", amostra$usadas, \" observações, \",
+           \"distribuídas entre os \", nrow(resumo), \" grupos de <<ROTULO_GRUPOS>>.\"),
+  .default =
+    paste0(\"De \", amostra$total, \" observações, \", excluidas, \"; o conjunto final \",
+           \"reuniu \", amostra$usadas, \", distribuídas entre os \", nrow(resumo),
+           \" grupos de <<ROTULO_GRUPOS>>.\")
 )
 
 # 4. O teste t numa frase, com a diferença entre as médias e seu intervalo.

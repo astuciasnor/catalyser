@@ -67,9 +67,7 @@ textos <- resultado |>
 
 # Resultados
 
-`r textos$amostra`
-
-`r textos$teste` `r textos$efeito`
+`r textos$amostra` `r textos$teste` `r textos$efeito`
 
 <!-- Tabela da ANOVA: opcional num artigo, porque o F já está na frase acima. -->
 
@@ -125,6 +123,7 @@ resultado |>
                  mostrar_pontos   = TRUE,
                  mostrar_media_dp = TRUE,
                  casas            = casas,
+                 angulo_rotulo    = -90,
                  mostrar_letras   = TRUE,
                  cores            = "ocean",
                  tamanho_texto    = 12,

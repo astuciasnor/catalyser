@@ -58,5 +58,5 @@ rm(arquivo)
 # A versão desta cópia da ClaRa. Cada projeto exportado leva a sua cópia;
 # a versão diz qual é, quando algo não funcionar igual em dois projetos.
 # Ao mudar a ClaRa, atualize aqui e no título acima.
-versao_clara <- "0.8.3"
+versao_clara <- "0.8.4"
 message("ClaRa ", versao_clara, " carregada.")
