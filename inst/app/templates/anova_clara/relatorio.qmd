@@ -80,6 +80,8 @@ textos <- resultado |>
 
 `r textos$amostra` `r textos$teste` `r textos$efeito`
 
+`r textos$pressupostos`
+
 <!-- Tabela da ANOVA: opcional num artigo, porque o F já está na frase acima. -->
 
 {{FRASE_TBL_ANOVA}}
@@ -141,8 +143,6 @@ resultado |>
                  tamanho_texto    = 12,
                  fonte            = "serif")
 ```
-
-`r textos$pressupostos`
 
 # Discussão
 
