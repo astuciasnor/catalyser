@@ -1,5 +1,19 @@
 # CatalyseR
 
+> **A CatalyseR encerrou o desenvolvimento em 9 de outubro de 2026, na
+> versão 0.1.34.** A IDE continua com o nome **Trilha** (pacote `trilha`), em
+> <https://github.com/cluberufpa/trilha>. Para instalar a Trilha, reinicie o R
+> e rode:
+>
+> ```r
+> source("https://raw.githubusercontent.com/cluberufpa/trilha/main/instalar_trilha.R")
+> trilha::run_app(launch.browser = TRUE)
+> ```
+>
+> Este repositório fica arquivado, só para leitura. Quem já usa a CatalyseR
+> pode continuar instalando-a pelos comandos abaixo, mas ela não recebe mais
+> correções.
+
 <div style="display:flex;align-items:center;margin-bottom:1em">
 <p style="font-size:1.2em;line-height:1.4;">
 <strong>CatalyseR</strong> é uma IDE R Científica baseada em Shiny desenvolvida para facilitar a análise de dados estatísticos de forma interativa e visual. O aplicativo foi projetado para apoiar estudantes, professores e pesquisadores na aplicação de métodos bioestatísticos e análises multivariadas.
