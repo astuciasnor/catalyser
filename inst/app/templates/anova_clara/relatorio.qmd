@@ -18,8 +18,8 @@ format:
 ---
 
 <!-- ANTES DE ENTREGAR: preencha título, autor, Introdução, Discussão e
-Conclusão; troque o texto entre colchetes dos Resultados; revise as frases
-automáticas. O documento roda sozinho: Render gera o Word. -->
+Conclusão; revise as frases automáticas (as de textos$...). O documento roda
+sozinho: Render gera o Word. -->
 
 ```{r}
 #| label: pacotes
@@ -47,32 +47,13 @@ resultado <- base |>
                   confianca         = {{CONFIANCA}},
                   variancias_iguais = {{VARIANCIAS_IGUAIS_CLARA}})  {{NOTA_VARIANCIAS}}
 
-# As frases do relatório, que mudam junto com os dados.
-textos <- resultado |>
-  escrever_resultados()
-```
-
-```{r}
-#| label: apresentacao
-#| include: false
-# Casas decimais da tabela e da figura: a precisão da medição
+# Casas decimais das médias e do DP: a precisão da medição
 # (balança de 0,1 g pede casas = 1).
 casas <- 1
-nivel <- 100 * resultado$nomes$confianca
-alfa  <- fmt(1 - resultado$nomes$confianca, 2)
 
-# Nota da tabela de médias e legenda da figura.
-nota_tabela <- paste0(
-  "Médias seguidas pela mesma letra não diferem entre si pelo teste de ",
-  "{{POS_TESTE}} ao nível de ", 100 - nivel, "% de significância (α = ", alfa, "). ",
-  "DP: desvio padrão; IC: intervalo de confiança de ", nivel, "% da média."
-)
-legenda_figura <- paste0(
-  "As barras e os losangos indicam a média de cada grupo; os pontos, as ",
-  "observações individuais; as hastes, o intervalo de confiança de ", nivel,
-  "% da média. O rótulo mostra média ± desvio padrão (DP). Letras iguais ",
-  "indicam grupos que não diferem pelo teste de {{POS_TESTE}} (α = ", alfa, ")."
-)
+# As frases, a nota da tabela e a legenda da figura, que mudam com os dados.
+textos <- resultado |>
+  escrever_resultados(casas = casas)
 ```
 
 # Introdução
@@ -101,8 +82,7 @@ legenda_figura <- paste0(
 
 `r textos$comparacoes`
 
-[Escreva aqui qual grupo teve a maior média (média ± DP, com a unidade), de
-quais grupos ele diferiu e quais não diferiram entre si.]
+`r textos$destaque`
 
 <!-- Tabela de médias ou figura: num artigo, fique com uma só (apague o
 chunk e a frase que a cita). Numa tese ou relatório, as duas podem ficar. -->
@@ -123,7 +103,7 @@ resultado$resumo |>
                      value = flextable::as_paragraph(
                        `Média ± DP`, flextable::as_sup(resultado$resumo$letra))) |>
   # A nota de rodapé, com o teste e o nível de significância.
-  flextable::add_footer_lines(nota_tabela) |>
+  flextable::add_footer_lines(textos$nota_tabela) |>
   flextable::font(fontname = "Times New Roman", part = "footer") |>
   flextable::fontsize(size = 9, part = "footer")
 ```
@@ -134,7 +114,7 @@ semitransparentes, o que preserva a distribuição dos dados [@weissgerber2015].
 
 ```{r}
 #| label: fig-barras
-#| fig-cap: !expr legenda_figura
+#| fig-cap: !expr textos$legenda_figura
 resultado |>
   grafico_medias(titulo           = {{TITULO_CLARA}},
                  explicacao       = FALSE,

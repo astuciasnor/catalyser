@@ -94,12 +94,15 @@ receitas_efeito <- list()
 #                         sem ele, vai o da análise
 #   rotulo_grupos ....... como chamar os grupos no texto (ex.: "Tipo de Ração");
 #                         sem ele, vai o da análise
+#   casas ............... casas decimais da média ± DP no destaque (ANOVA);
+#                         use a precisão da medição
 #   mostrar_codigo ...... TRUE imprime o código R antes das frases
 #
 # Devolve uma lista de frases. Cada parte se abre com $:
 #   textos$amostra, textos$teste, textos$efeito, textos$pressupostos,
 #   textos$alerta, textos$poder (vazio quando não se aplica), textos$sintese
-#   e, na ANOVA, textos$comparacoes.
+#   e, na ANOVA, textos$comparacoes, textos$destaque (o grupo de maior
+#   média e de quais diferiu), textos$nota_tabela e textos$legenda_figura.
 # No Quarto, a frase entra no meio do parágrafo com `r textos$teste`.
 #
 # Exemplo:
@@ -110,6 +113,7 @@ receitas_efeito <- list()
 escrever_resultados <- function(resultado,
                                 rotulo_resposta = NULL,
                                 rotulo_grupos   = NULL,
+                                casas           = 2,
                                 mostrar_codigo  = FALSE) {
 
   # Guardamos o nome do resultado, como o aluno o chamou.
@@ -128,6 +132,7 @@ escrever_resultados <- function(resultado,
     ROTULO_GRUPOS     = rotulo_grupos,
     ALFA              = 1 - resultado$nomes$confianca,
     NIVEL             = resultado$nomes$confianca * 100,
+    CASAS             = casas,
     VARIANCIAS_IGUAIS = resultado$nomes$variancias_iguais,
     NOME_T            = dplyr::case_when(isTRUE(resultado$nomes$variancias_iguais) ~ "de Student",
                                          .default = "de Welch")

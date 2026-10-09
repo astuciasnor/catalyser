@@ -1147,6 +1147,60 @@ texto_comparacoes <- case_when(
            \". Grupos que compartilham uma letra não diferiram entre si.\")
 )
 
+# 6b. O destaque: o grupo de maior média, de quais grupos ele diferiu e
+#     quais pares não diferiram entre si. O pesquisador revisa a redação.
+e_lista <- function(x) {
+  case_when(length(x) <= 1 ~ paste(x, collapse = \"\"),
+            .default = paste(paste(x[-length(x)], collapse = \", \"), \"e\", x[length(x)]))
+}
+pares_grupos <- pares |>
+  mutate(grupo_1 = str_remove(comparacao, \"-.*$\"),
+         grupo_2 = str_remove(comparacao, \"^[^-]*-\"))
+maior <- resumo |> slice_max(media, n = 1, with_ties = FALSE)
+menor <- resumo |> slice_min(media, n = 1, with_ties = FALSE)
+grupo_maior <- as.character(maior$<<GRUPOS>>)
+diferiu_de <- pares_grupos |>
+  filter(p_ajustado < alfa, grupo_1 == grupo_maior | grupo_2 == grupo_maior) |>
+  mutate(outro = if_else(grupo_1 == grupo_maior, grupo_2, grupo_1)) |>
+  pull(outro)
+ordem <- as.character(resumo$<<GRUPOS>>)
+iguais <- pares_grupos |>
+  filter(p_ajustado >= alfa) |>
+  mutate(primeiro = if_else(match(grupo_1, ordem) < match(grupo_2, ordem), grupo_1, grupo_2),
+         segundo  = if_else(primeiro == grupo_1, grupo_2, grupo_1),
+         par      = paste(primeiro, \"e\", segundo)) |>
+  arrange(match(primeiro, ordem), match(segundo, ordem)) |>
+  pull(par)
+trecho_diferiu <- if_else(length(diferiu_de) > 0,
+                          paste0(\", e diferiu de \", e_lista(diferiu_de)), \"\")
+trecho_iguais <- if_else(length(iguais) > 0,
+                         paste0(\" Não diferiram entre si: \", paste(iguais, collapse = \"; \"), \".\"), \"\")
+texto_destaque <- case_when(
+  linha_f$p >= alfa ~
+    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \", com_virgula(menor$media, <<CASAS>>),
+           \" (\", menor$<<GRUPOS>>, \") a \", com_virgula(maior$media, <<CASAS>>),
+           \" (\", grupo_maior, \").\"),
+  .default =
+    paste0(\"O grupo \", grupo_maior, \" teve a maior média de <<ROTULO_RESPOSTA>>: \",
+           com_virgula(maior$media, <<CASAS>>), \" ± \", com_virgula(maior$dp, <<CASAS>>),
+           \" (média ± DP)\", trecho_diferiu, \".\", trecho_iguais)
+)
+
+# 6c. A nota da tabela de médias e a legenda da figura principal
+#     (grafico_medias() com haste = \"ic\").
+texto_nota_tabela <- str_glue(
+  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
+  \"Tukey (α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de \",
+  \"confiança de <<NIVEL>>% da média.\"
+)
+texto_legenda_figura <- str_glue(
+  \"Média de cada grupo (barras e losangos), com as observações individuais \",
+  \"(pontos) e o intervalo de confiança de <<NIVEL>>% da média (hastes). O rótulo \",
+  \"mostra média ± desvio padrão; letras iguais indicam grupos que não diferem \",
+  \"pelo teste de Tukey (α = {com_virgula(alfa)}).\"
+)
+
+
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1212,10 +1266,13 @@ list(
   teste        = texto_teste,
   efeito       = texto_efeito,
   comparacoes  = texto_comparacoes,
+  destaque     = texto_destaque,
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese
+  sintese      = texto_sintese,
+  nota_tabela  = texto_nota_tabela,
+  legenda_figura = texto_legenda_figura
 ) |>
   lapply(as.character)"
 
@@ -1312,6 +1369,60 @@ texto_comparacoes <- paste0(case_when(
            \". Grupos que compartilham uma letra não diferiram entre si.\")
 ), aviso_pequenos)
 
+# 6b. O destaque: o grupo de maior média, de quais grupos ele diferiu e
+#     quais pares não diferiram entre si. O pesquisador revisa a redação.
+e_lista <- function(x) {
+  case_when(length(x) <= 1 ~ paste(x, collapse = \"\"),
+            .default = paste(paste(x[-length(x)], collapse = \", \"), \"e\", x[length(x)]))
+}
+pares_grupos <- pares |>
+  mutate(grupo_1 = str_remove(comparacao, \"-.*$\"),
+         grupo_2 = str_remove(comparacao, \"^[^-]*-\"))
+maior <- resumo |> slice_max(media, n = 1, with_ties = FALSE)
+menor <- resumo |> slice_min(media, n = 1, with_ties = FALSE)
+grupo_maior <- as.character(maior$<<GRUPOS>>)
+diferiu_de <- pares_grupos |>
+  filter(p_ajustado < alfa, grupo_1 == grupo_maior | grupo_2 == grupo_maior) |>
+  mutate(outro = if_else(grupo_1 == grupo_maior, grupo_2, grupo_1)) |>
+  pull(outro)
+ordem <- as.character(resumo$<<GRUPOS>>)
+iguais <- pares_grupos |>
+  filter(p_ajustado >= alfa) |>
+  mutate(primeiro = if_else(match(grupo_1, ordem) < match(grupo_2, ordem), grupo_1, grupo_2),
+         segundo  = if_else(primeiro == grupo_1, grupo_2, grupo_1),
+         par      = paste(primeiro, \"e\", segundo)) |>
+  arrange(match(primeiro, ordem), match(segundo, ordem)) |>
+  pull(par)
+trecho_diferiu <- if_else(length(diferiu_de) > 0,
+                          paste0(\", e diferiu de \", e_lista(diferiu_de)), \"\")
+trecho_iguais <- if_else(length(iguais) > 0,
+                         paste0(\" Não diferiram entre si: \", paste(iguais, collapse = \"; \"), \".\"), \"\")
+texto_destaque <- case_when(
+  linha_f$p >= alfa ~
+    paste0(\"As médias de <<ROTULO_RESPOSTA>> foram de \", com_virgula(menor$media, <<CASAS>>),
+           \" (\", menor$<<GRUPOS>>, \") a \", com_virgula(maior$media, <<CASAS>>),
+           \" (\", grupo_maior, \").\"),
+  .default =
+    paste0(\"O grupo \", grupo_maior, \" teve a maior média de <<ROTULO_RESPOSTA>>: \",
+           com_virgula(maior$media, <<CASAS>>), \" ± \", com_virgula(maior$dp, <<CASAS>>),
+           \" (média ± DP)\", trecho_diferiu, \".\", trecho_iguais)
+)
+
+# 6c. A nota da tabela de médias e a legenda da figura principal
+#     (grafico_medias() com haste = \"ic\").
+texto_nota_tabela <- str_glue(
+  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
+  \"Games-Howell (α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de \",
+  \"confiança de <<NIVEL>>% da média.\"
+)
+texto_legenda_figura <- str_glue(
+  \"Média de cada grupo (barras e losangos), com as observações individuais \",
+  \"(pontos) e o intervalo de confiança de <<NIVEL>>% da média (hastes). O rótulo \",
+  \"mostra média ± desvio padrão; letras iguais indicam grupos que não diferem \",
+  \"pelo teste de Games-Howell (α = {com_virgula(alfa)}).\"
+)
+
+
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1379,10 +1490,13 @@ list(
   teste        = texto_teste,
   efeito       = texto_efeito,
   comparacoes  = texto_comparacoes,
+  destaque     = texto_destaque,
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese
+  sintese      = texto_sintese,
+  nota_tabela  = texto_nota_tabela,
+  legenda_figura = texto_legenda_figura
 ) |>
   lapply(as.character)"
 
