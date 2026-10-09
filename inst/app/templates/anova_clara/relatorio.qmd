@@ -92,9 +92,7 @@ textos <- resultado |>
 {{TABELA_ANOVA}}
 ```
 
-`r textos$comparacoes`
-
-`r textos$destaque`
+`r textos$comparacoes` `r textos$destaque`
 
 <!-- Tabela de médias ou figura: num artigo, fique com uma só (apague o
 chunk e a frase que a cita). Numa tese ou relatório, as duas podem ficar. -->
