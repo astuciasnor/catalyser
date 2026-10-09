@@ -168,7 +168,10 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   !any(grepl("capture.output(sessionInfo())", linhas_script, fixed = TRUE)),
   # Os rótulos dizem ao aluno onde trocar.
   # Com rótulos escritos na tela, sem o exemplo; sem eles, com o exemplo.
-  sum(endsWith(c(linhas_script, relatorio), '"Peso final (g)",  # no texto e na figura')) == 2L,
+  sum(endsWith(linhas_script, '"Peso final (g)",  # no texto e na figura')) == 1L,
+  # No relatório, o comentário fica na linha de cima do argumento.
+  identical(relatorio[which(grepl('^ +rotulo_resposta += "Peso final [(]g[)]",$', relatorio)) - 1L],
+            "                  # no texto e na figura:"),
   identical(exportacao_anova_clara_marcadores(list(parametros = list(
     resposta = "peso_g", fator = "racao")))$NOTA_ROTULO_RESPOSTA,
     'no texto e na figura, ex.: "Peso final (g)"'),
@@ -186,12 +189,11 @@ stopifnot(identical(list.files(file.path(projeto, "relatorios"), pattern = "[.]q
   # Métodos da rota ClaRa: só a clássica com Tukey; nada de Welch no Word
   # (só o comentário do argumento, no chunk escondido, cita a alternativa).
   !any(grepl("Welch|Games-Howell|effectsizeConversao",
-             relatorio[!grepl("^ +variancias_iguais = ", relatorio)])),
+             relatorio[!grepl("^ +(variancias_iguais = |# TRUE: )", relatorio)])),
   any(grepl("SQ: soma de quadrados", relatorio, fixed = TRUE)),
   any(grepl("[@benshachar2020]", relatorio, fixed = TRUE)),
   # Os dois comentários dos rótulos na mesma coluna, no script e no relatório.
   length(unique(regexpr("#", grep("^ +rotulo_(resposta|grupos) += ", linhas_script, value = TRUE)))) == 1L,
-  length(unique(regexpr("#", grep("^ +rotulo_(resposta|grupos) += ", relatorio, value = TRUE)))) == 1L,
   # Seção 2 sem a nota repetida do caminho e sem linha em branco dupla.
   !any(grepl("^# Entrada: ", linhas_script)),
   !any(!nzchar(head(linhas_script, -1)) & !nzchar(linhas_script[-1])),

@@ -1213,21 +1213,6 @@ texto_destaque <- case_when(
            \".\", trecho_iguais)
 )
 
-# 6c. A nota da tabela de médias e a legenda da figura principal
-#     (grafico_medias() com haste = \"ic\").
-texto_nota_tabela <- str_glue(
-  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
-  \"Tukey (α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de \",
-  \"confiança de <<NIVEL>>% da média.\"
-)
-texto_legenda_figura <- str_glue(
-  \"Média de cada grupo (barras e losangos), com as observações individuais \",
-  \"(pontos) e o intervalo de confiança de <<NIVEL>>% da média (hastes). O rótulo \",
-  \"mostra média ± desvio padrão; letras iguais indicam grupos que não diferem \",
-  \"pelo teste de Tukey (α = {com_virgula(alfa)}).\"
-)
-
-
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1297,9 +1282,7 @@ list(
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese,
-  nota_tabela  = texto_nota_tabela,
-  legenda_figura = texto_legenda_figura
+  sintese      = texto_sintese
 ) |>
   lapply(as.character)"
 
@@ -1463,21 +1446,6 @@ texto_destaque <- case_when(
            \".\", trecho_iguais)
 )
 
-# 6c. A nota da tabela de médias e a legenda da figura principal
-#     (grafico_medias() com haste = \"ic\").
-texto_nota_tabela <- str_glue(
-  \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
-  \"Games-Howell (α = {com_virgula(alfa)}). DP: desvio padrão; IC: intervalo de \",
-  \"confiança de <<NIVEL>>% da média.\"
-)
-texto_legenda_figura <- str_glue(
-  \"Média de cada grupo (barras e losangos), com as observações individuais \",
-  \"(pontos) e o intervalo de confiança de <<NIVEL>>% da média (hastes). O rótulo \",
-  \"mostra média ± desvio padrão; letras iguais indicam grupos que não diferem \",
-  \"pelo teste de Games-Howell (α = {com_virgula(alfa)}).\"
-)
-
-
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
 frases <- pressupostos |>
   mutate(
@@ -1549,9 +1517,7 @@ list(
   pressupostos = texto_pressupostos,
   alerta       = texto_alerta,
   poder        = texto_poder,
-  sintese      = texto_sintese,
-  nota_tabela  = texto_nota_tabela,
-  legenda_figura = texto_legenda_figura
+  sintese      = texto_sintese
 ) |>
   lapply(as.character)"
 

@@ -42,19 +42,45 @@ source(here("R", "clara", "clara.R"), encoding = "UTF-8")
 resultado <- base |>
   comparar_medias(resposta          = {{RESPOSTA_CLARA}},
                   grupos            = {{FATOR_CLARA}},
-                  rotulo_resposta   = {{ROTULO_RESPOSTA_R}},{{ESPACO_ROTULO_RESPOSTA}}# {{NOTA_ROTULO_RESPOSTA}}
-                  rotulo_grupos     = {{ROTULO_FATOR_R}},{{ESPACO_ROTULO_FATOR}}# {{NOTA_ROTULO_FATOR}}
+                  # {{NOTA_ROTULO_RESPOSTA}}:
+                  rotulo_resposta   = {{ROTULO_RESPOSTA_R}},
+                  # {{NOTA_ROTULO_FATOR}}:
+                  rotulo_grupos     = {{ROTULO_FATOR_R}},
                   confianca         = {{CONFIANCA}},
-                  variancias_iguais = {{VARIANCIAS_IGUAIS_CLARA}})  {{NOTA_VARIANCIAS}}
+                  {{NOTA_VARIANCIAS}}:
+                  variancias_iguais = {{VARIANCIAS_IGUAIS_CLARA}})
+```
 
-# Casas decimais das médias e do DP: a precisão da medição
+```{r}
+#| label: apresentacao
+#| include: false
+# Casas decimais da tabela, da figura e do destaque: a precisão da medição
 # (balança de 0,1 g pede casas = 1).
 casas <- 1
 
-# As frases, a nota da tabela e a legenda da figura, que mudam com os dados.
+# As frases do relatório, que mudam junto com os dados.
 textos <- resultado |>
   escrever_resultados(casas    = casas,
-                      destacar = "maior")  # "maior", "menor" ou o grupo controle
+                      # "maior", "menor" ou o nome do grupo controle:
+                      destacar = "maior")
+
+# O nível de confiança e o de significância, para a nota e a legenda.
+nivel <- 100 * resultado$nomes$confianca
+alfa  <- fmt(1 - resultado$nomes$confianca, 2)
+
+# Nota da tabela de médias e legenda da figura. Se trocar a haste da
+# figura ("ep" ou "dp"), troque também o que a legenda diz das hastes.
+nota_tabela <- paste0(
+  "Médias seguidas pela mesma letra não diferem entre si pelo teste de ",
+  "{{POS_TESTE}} ao nível de ", 100 - nivel, "% de significância (α = ", alfa, "). ",
+  "DP: desvio padrão; IC: intervalo de confiança de ", nivel, "% da média."
+)
+legenda_figura <- paste0(
+  "As barras e os losangos indicam a média de cada grupo; os pontos, as ",
+  "observações individuais; as hastes, o intervalo de confiança de ", nivel,
+  "% da média. O rótulo mostra média ± desvio padrão (DP). Letras iguais ",
+  "indicam grupos que não diferem pelo teste de {{POS_TESTE}} (α = ", alfa, ")."
+)
 ```
 
 # Introdução
@@ -102,7 +128,7 @@ resultado$resumo |>
                      value = flextable::as_paragraph(
                        `Média ± DP`, flextable::as_sup(resultado$resumo$letra))) |>
   # A nota de rodapé, com o teste e o nível de significância.
-  flextable::add_footer_lines(textos$nota_tabela) |>
+  flextable::add_footer_lines(nota_tabela) |>
   flextable::font(fontname = "Times New Roman", part = "footer") |>
   flextable::fontsize(size = 9, part = "footer")
 ```
@@ -113,7 +139,7 @@ semitransparentes, o que preserva a distribuição dos dados [@weissgerber2015].
 
 ```{r}
 #| label: fig-barras
-#| fig-cap: !expr textos$legenda_figura
+#| fig-cap: !expr legenda_figura
 resultado |>
   grafico_medias(titulo           = {{TITULO_CLARA}},
                  explicacao       = FALSE,

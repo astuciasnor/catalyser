@@ -105,8 +105,8 @@ receitas_efeito <- list()
 # Devolve uma lista de frases. Cada parte se abre com $:
 #   textos$amostra, textos$teste, textos$efeito, textos$pressupostos,
 #   textos$alerta, textos$poder (vazio quando não se aplica), textos$sintese
-#   e, na ANOVA, textos$comparacoes, textos$destaque (o grupo de maior
-#   média e de quais diferiu), textos$nota_tabela e textos$legenda_figura.
+#   e, na ANOVA, textos$comparacoes e textos$destaque (o grupo em destaque
+#   e de quais grupos ele diferiu).
 # No Quarto, a frase entra no meio do parágrafo com `r textos$teste`.
 #
 # Exemplo:
