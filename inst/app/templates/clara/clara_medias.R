@@ -1113,10 +1113,14 @@ efeito_global <- case_when(
   linha_f$p <  alfa ~ \"revelou\",
   linha_f$p >= alfa ~ \"não revelou\"
 )
+# A tabela da ANOVA citada logo depois do F, quando há uma no relatório.
+tabela_anova <- \"<<TABELA_ANOVA>>\"
+citacao <- if_else(nzchar(tabela_anova), paste0(\" (\", tabela_anova, \")\"), \"\")
 texto_teste <- str_glue(
   \"A análise de variância {efeito_global} efeito estatisticamente significativo \",
   \"de <<ROTULO_GRUPOS>> sobre <<ROTULO_RESPOSTA>> \",
-  \"(*F*({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)}).\"
+  \"(*F*({linha_f$gl}, {gl_residuos}) = {com_virgula(linha_f$f)}; {texto_p(linha_f$p)})\",
+  \"{citacao}.\"
 )
 
 # 5. Tamanho de efeito, com a leitura de Cohen.
@@ -1359,12 +1363,15 @@ efeito_global <- case_when(
   linha_f$p <  alfa ~ \"revelou\",
   linha_f$p >= alfa ~ \"não revelou\"
 )
+# A tabela da ANOVA citada logo depois do F, quando há uma no relatório.
+tabela_anova <- \"<<TABELA_ANOVA>>\"
+citacao <- if_else(nzchar(tabela_anova), paste0(\" (\", tabela_anova, \")\"), \"\")
 gl_texto <- paste0(linha_f$gl, \"; \", com_virgula(gl_residuos))
 texto_teste <- str_glue(
   \"A análise de variância de Welch, que não supõe variâncias iguais, \",
   \"{efeito_global} efeito estatisticamente significativo de <<ROTULO_GRUPOS>> \",
   \"sobre <<ROTULO_RESPOSTA>> (*F*({gl_texto}) = {com_virgula(linha_f$f)}; \",
-  \"{texto_p(linha_f$p)}).\"
+  \"{texto_p(linha_f$p)}){citacao}.\"
 )
 
 # 5. Tamanho de efeito: ω² aproximado, convertido do F de Welch.

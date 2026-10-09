@@ -102,6 +102,9 @@ receitas_efeito <- list()
 #                         (ex.: "Controle"), comparado com os demais
 #   haste ............... a haste da figura de grafico_medias(), para a
 #                         legenda: "ic" (padrão), "ep" ou "dp"
+#   tabela_anova ........ a referência da tabela da ANOVA no Quarto (ex.:
+#                         "@tbl-anova"), citada logo depois do F; sem ela
+#                         (NULL, o padrão), a frase sai sem citação
 #   mostrar_codigo ...... TRUE imprime o código R antes das frases
 #
 # Devolve uma lista de frases. Cada parte se abre com $:
@@ -123,6 +126,7 @@ escrever_resultados <- function(resultado,
                                 casas           = 2,
                                 destacar        = "maior",
                                 haste           = "ic",
+                                tabela_anova    = NULL,
                                 mostrar_codigo  = FALSE) {
 
   # Guardamos o nome do resultado, como o aluno o chamou.
@@ -156,6 +160,7 @@ escrever_resultados <- function(resultado,
     CASAS             = casas,
     DESTACAR          = destacar,
     HASTE             = haste,
+    TABELA_ANOVA      = if (is.null(tabela_anova)) "" else tabela_anova,
     VARIANCIAS_IGUAIS = resultado$nomes$variancias_iguais,
     NOME_T            = dplyr::case_when(isTRUE(resultado$nomes$variancias_iguais) ~ "de Student",
                                          .default = "de Welch")

@@ -2434,8 +2434,6 @@ exportacao_anova_clara_textos_metodo <- function(item) {
     # O nome antes do = vira o nome do arquivo; os = ficam alinhados.
     ARQUIVO_PARES = formatC(arquivo_pares, width = -nchar("testes_pressupostos")),
     ARQUIVO_PARES_CSV = paste0(arquivo_pares, ".csv"),
-    FRASE_TBL_ANOVA = if (welch) "A @tbl-anova apresenta a ANOVA de Welch." else
-      "A @tbl-anova apresenta a análise de variância.",
     METODO_README = if (welch) c(
       "Este roteiro usa a ANOVA de Welch com Games-Howell, que não supõem variâncias",
       "iguais (`variancias_iguais = FALSE`). Para a ANOVA clássica com Tukey, troque",

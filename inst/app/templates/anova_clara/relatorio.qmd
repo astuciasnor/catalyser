@@ -63,11 +63,13 @@ casas <- 1
 # As frases do relatório, a nota da tabela e a legenda da figura, que
 # mudam junto com os dados.
 textos <- resultado |>
-  escrever_resultados(casas    = casas,
+  escrever_resultados(casas        = casas,
                       # "maior", "menor" ou o nome do grupo controle:
-                      destacar = "maior",
+                      destacar     = "maior",
                       # a mesma haste da figura: "ic", "ep" ou "dp":
-                      haste    = "ic")
+                      haste        = "ic",
+                      # a tabela da ANOVA citada depois do F:
+                      tabela_anova = "@tbl-anova")
 ```
 
 # Introdução
@@ -84,9 +86,8 @@ textos <- resultado |>
 
 `r textos$pressupostos`
 
-<!-- Tabela da ANOVA: opcional num artigo, porque o F já está na frase acima. -->
-
-{{FRASE_TBL_ANOVA}}
+<!-- Tabela da ANOVA: opcional num artigo, porque o F já está no texto.
+Para tirá-la, apague o chunk e o tabela_anova de escrever_resultados(). -->
 
 ```{r}
 #| label: tbl-anova
