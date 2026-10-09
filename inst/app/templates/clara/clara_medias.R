@@ -1217,9 +1217,9 @@ texto_destaque <- case_when(
 #     é a mesma de grafico_medias(): \"ic\", \"ep\" ou \"dp\".
 haste <- \"<<HASTE>>\"
 texto_haste <- case_when(
-  haste == \"ic\" ~ \"o intervalo de confiança de <<NIVEL>>% da média\",
-  haste == \"ep\" ~ \"o erro padrão da média\",
-  .default      = \"o desvio padrão\"
+  haste == \"ic\" ~ \"os intervalos de confiança de <<NIVEL>>% das médias\",
+  haste == \"ep\" ~ \"os erros padrão das médias\",
+  .default      = \"os desvios padrão dos grupos\"
 )
 texto_nota_tabela <- str_glue(
   \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
@@ -1228,10 +1228,12 @@ texto_nota_tabela <- str_glue(
   \"de <<NIVEL>>% da média.\"
 )
 texto_legenda_figura <- str_glue(
-  \"As barras e os losangos indicam a média de cada grupo; os pontos, as \",
-  \"observações individuais; as hastes, {texto_haste}. O rótulo mostra \",
-  \"média ± desvio padrão (DP). Letras iguais indicam grupos que não diferem \",
-  \"pelo teste de Tukey (α = {com_virgula(alfa)}).\"
+  \"Comparação entre os grupos de <<ROTULO_GRUPOS>> quanto a <<ROTULO_RESPOSTA>>. \",
+  \"As alturas das barras e os losangos representam as médias dos grupos; os \",
+  \"pontos representam as observações individuais. As barras de erro indicam \",
+  \"{texto_haste}. Os valores inscritos nas barras correspondem à média ± desvio \",
+  \"padrão (DP). Grupos que compartilham pelo menos uma letra não diferem \",
+  \"significativamente entre si pelo teste de Tukey (α = {com_virgula(alfa)}).\"
 )
 
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
@@ -1473,9 +1475,9 @@ texto_destaque <- case_when(
 #     é a mesma de grafico_medias(): \"ic\", \"ep\" ou \"dp\".
 haste <- \"<<HASTE>>\"
 texto_haste <- case_when(
-  haste == \"ic\" ~ \"o intervalo de confiança de <<NIVEL>>% da média\",
-  haste == \"ep\" ~ \"o erro padrão da média\",
-  .default      = \"o desvio padrão\"
+  haste == \"ic\" ~ \"os intervalos de confiança de <<NIVEL>>% das médias\",
+  haste == \"ep\" ~ \"os erros padrão das médias\",
+  .default      = \"os desvios padrão dos grupos\"
 )
 texto_nota_tabela <- str_glue(
   \"Médias seguidas pela mesma letra não diferem entre si pelo teste de \",
@@ -1484,10 +1486,12 @@ texto_nota_tabela <- str_glue(
   \"de <<NIVEL>>% da média.\"
 )
 texto_legenda_figura <- str_glue(
-  \"As barras e os losangos indicam a média de cada grupo; os pontos, as \",
-  \"observações individuais; as hastes, {texto_haste}. O rótulo mostra \",
-  \"média ± desvio padrão (DP). Letras iguais indicam grupos que não diferem \",
-  \"pelo teste de Games-Howell (α = {com_virgula(alfa)}).\"
+  \"Comparação entre os grupos de <<ROTULO_GRUPOS>> quanto a <<ROTULO_RESPOSTA>>. \",
+  \"As alturas das barras e os losangos representam as médias dos grupos; os \",
+  \"pontos representam as observações individuais. As barras de erro indicam \",
+  \"{texto_haste}. Os valores inscritos nas barras correspondem à média ± desvio \",
+  \"padrão (DP). Grupos que compartilham pelo menos uma letra não diferem \",
+  \"significativamente entre si pelo teste de Games-Howell (α = {com_virgula(alfa)}).\"
 )
 
 # 7. Pressupostos: o que cada teste mostrou, sem transformar p alto em prova.
