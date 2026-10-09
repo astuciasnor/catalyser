@@ -1149,11 +1149,11 @@ texto_comparacoes <- case_when(
     \"Pelo teste de Tukey, nenhum par de grupos diferiu ao nível adotado, apesar da diferença global indicada pela ANOVA.\",
   nrow(diferentes) == 1 ~
     paste0(\"Pelo teste de Tukey, só diferiram \", diferentes$frase[1],
-           \". Grupos que compartilham uma letra não diferiram entre si.\"),
+           \".\"),
   .default =
     paste0(\"Pelo teste de Tukey, diferiram os pares \",
            paste(diferentes$frase, collapse = \"; \"),
-           \". Grupos que compartilham uma letra não diferiram entre si.\")
+           \".\")
 )
 
 # 6b. O destaque: o grupo que a pesquisa busca (a maior ou a menor média) ou
@@ -1410,11 +1410,11 @@ texto_comparacoes <- paste0(case_when(
     \"Pelo teste de Games-Howell, nenhum par de grupos diferiu ao nível adotado, apesar da diferença global indicada pela ANOVA de Welch.\",
   nrow(diferentes) == 1 ~
     paste0(\"Pelo teste de Games-Howell, só diferiram \", diferentes$frase[1],
-           \". Grupos que compartilham uma letra não diferiram entre si.\"),
+           \".\"),
   .default =
     paste0(\"Pelo teste de Games-Howell, diferiram os pares \",
            paste(diferentes$frase, collapse = \"; \"),
-           \". Grupos que compartilham uma letra não diferiram entre si.\")
+           \".\")
 ), aviso_pequenos)
 
 # 6b. O destaque: o grupo que a pesquisa busca (a maior ou a menor média) ou
