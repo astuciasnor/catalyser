@@ -92,12 +92,10 @@ textos <- resultado |>
 {{TABELA_ANOVA}}
 ```
 
-`r textos$comparacoes` `r textos$destaque`
-
 <!-- Tabela de médias ou figura: num artigo, fique com uma só (apague o
-chunk e a frase que a cita). Numa tese ou relatório, as duas podem ficar. -->
+chunk e a menção a ela). Numa tese ou relatório, as duas podem ficar. -->
 
-A @tbl-medias resume cada grupo, com as letras do teste de {{POS_TESTE}}.
+A @tbl-medias resume as médias e o desvio padrão de cada grupo. `r textos$comparacoes` `r textos$destaque`
 
 ```{r}
 #| label: tbl-medias
